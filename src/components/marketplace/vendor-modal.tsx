@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSession } from "next-auth/react";
 import {
   BadgeCheck,
   MapPin,
@@ -43,10 +44,23 @@ export function VendorModal() {
   const slug = useMarketplace((s) => s.selectedVendorSlug);
   const closeVendor = useMarketplace((s) => s.closeVendor);
   const openEditVendor = useMarketplace((s) => s.openEditVendor);
+  const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
+  const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
+  const { data: session } = useSession();
   const { data: vendor, isLoading } = useVendor(slug);
   const { data: reviewsData, isLoading: reviewsLoading } = useReviews(
     vendor?.id ?? null
   );
+
+  const onEditClick = () => {
+    if (!vendor) return;
+    if (session?.user) {
+      openEditVendor(vendor.slug);
+    } else {
+      setAuthIntent(() => () => openEditVendor(vendor.slug));
+      openAuthDialog();
+    }
+  };
 
   const cat = vendor ? getCategory(vendor.category) : undefined;
   const reviews = reviewsData?.reviews ?? vendor?.reviews ?? [];
@@ -95,7 +109,7 @@ export function VendorModal() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
               {/* Edit listing button (top-right of hero) */}
               <button
-                onClick={() => vendor && openEditVendor(vendor.slug)}
+                onClick={onEditClick}
                 className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-colors hover:bg-black/75"
                 aria-label="Edit this listing"
               >

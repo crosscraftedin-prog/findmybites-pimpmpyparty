@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma, type Vendor as DbVendor } from "@prisma/client";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
 import { COUNTRIES, getCategory, SUBCATEGORIES } from "@/lib/constants";
@@ -57,6 +59,7 @@ function transformVendor(v: DbVendor): ApiVendor {
     latitude: v.latitude,
     longitude: v.longitude,
     serviceRadiusKm: v.serviceRadiusKm,
+    userEmail: v.userEmail,
     createdAt: v.createdAt.toISOString(),
   };
 }
@@ -385,6 +388,10 @@ export async function POST(req: NextRequest) {
     });
     const geo = geoQuery ? await geocodeAddress(geoQuery) : null;
 
+    // --- attach the signed-in vendor user as the owner ---
+    const session = await getServerSession(authOptions);
+    const ownerEmail = session?.user?.email ?? null;
+
     // --- create ---
     const created = await db.vendor.create({
       data: {
@@ -424,6 +431,7 @@ export async function POST(req: NextRequest) {
         latitude: geo?.lat ?? null,
         longitude: geo?.lng ?? null,
         serviceRadiusKm,
+        userEmail: ownerEmail,
       },
     });
 

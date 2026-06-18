@@ -9,6 +9,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Authenticated user (vendor). Created/updated on sign-in via NextAuth events.
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  vendors       Vendor[]
+}
+
 // A vendor / business listed on the marketplace.
 // ecosystem: "FINDMYBITES" (food) or "PIMPMYPARTY" (events & party services)
 model Vendor {
@@ -52,6 +63,9 @@ model Vendor {
   // how far (km) this vendor will travel to serve a customer. Null = no limit
   // (e.g. a venue the customer travels to, or a vendor serving worldwide).
   serviceRadiusKm  Int?
+  // owner: the authenticated vendor user who created this listing.
+  userEmail        String?
+  user             User?     @relation(fields: [userEmail], references: [email], onDelete: SetNull)
   createdAt        DateTime  @default(now())
   reviews          Review[]
   bookings         Booking[]

@@ -42,6 +42,7 @@ function transformVendor(v: DbVendor): Vendor {
     latitude: v.latitude,
     longitude: v.longitude,
     serviceRadiusKm: v.serviceRadiusKm,
+    userEmail: v.userEmail,
     createdAt: v.createdAt.toISOString(),
   };
 }

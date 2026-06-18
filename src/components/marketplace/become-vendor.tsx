@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import {
   TrendingUp,
@@ -41,6 +42,18 @@ export function BecomeVendor() {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const toggle = useMarketplace((s) => s.toggleEcosystem);
   const openListVendor = useMarketplace((s) => s.openListVendor);
+  const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
+  const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
+  const { data: session } = useSession();
+
+  const handleListClick = () => {
+    if (session?.user) {
+      openListVendor();
+    } else {
+      setAuthIntent(() => openListVendor);
+      openAuthDialog();
+    }
+  };
 
   return (
     <section className="border-b border-border bg-background">
@@ -67,7 +80,7 @@ export function BecomeVendor() {
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
-                  onClick={() => openListVendor()}
+                  onClick={handleListClick}
                   className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-brand-foreground shadow-lg transition-transform hover:scale-105"
                 >
                   <Sparkles className="size-4" />

@@ -55,6 +55,7 @@ function transformVendor(v: DbVendorWithReviews): VendorWithRelations {
     latitude: v.latitude,
     longitude: v.longitude,
     serviceRadiusKm: v.serviceRadiusKm,
+    userEmail: v.userEmail,
     createdAt: v.createdAt.toISOString(),
     reviews: v.reviews.map<ApiReview>((r) => ({
       id: r.id,

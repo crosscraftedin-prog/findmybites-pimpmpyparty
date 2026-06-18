@@ -59,6 +59,14 @@ interface MarketplaceState {
   openAdmin: () => void;
   closeAdmin: () => void;
 
+  // Auth (vendor sign-in) dialog
+  authDialogOpen: boolean;
+  openAuthDialog: () => void;
+  closeAuthDialog: () => void;
+  /** what to do after a successful sign-in (e.g. open the listing form) */
+  authIntent: (() => void) | null;
+  setAuthIntent: (fn: (() => void) | null) => void;
+
   resetFilters: () => void;
 }
 
@@ -119,6 +127,12 @@ export const useMarketplace = create<MarketplaceState>((set, get) => ({
   adminOpen: false,
   openAdmin: () => set({ adminOpen: true }),
   closeAdmin: () => set({ adminOpen: false }),
+
+  authDialogOpen: false,
+  openAuthDialog: () => set({ authDialogOpen: true }),
+  closeAuthDialog: () => set({ authDialogOpen: false }),
+  authIntent: null,
+  setAuthIntent: (fn) => set({ authIntent: fn }),
 
   resetFilters: () =>
     set({

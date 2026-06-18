@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   UtensilsCrossed,
   PartyPopper,
@@ -69,6 +70,18 @@ const SOCIAL = [Instagram, Twitter, Facebook, Youtube];
 
 export function SiteFooter() {
   const openListVendor = useMarketplace((s) => s.openListVendor);
+  const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
+  const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
+  const { data: session } = useSession();
+
+  const handleListClick = () => {
+    if (session?.user) {
+      openListVendor();
+    } else {
+      setAuthIntent(() => openListVendor);
+      openAuthDialog();
+    }
+  };
   return (
     <footer className="mt-auto border-t border-border bg-background">
       {/* CTA strip */}
@@ -84,7 +97,7 @@ export function SiteFooter() {
             </p>
           </div>
           <button
-            onClick={() => openListVendor()}
+            onClick={handleListClick}
             className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-brand-foreground shadow-sm transition-transform hover:scale-105"
           >
             <Sparkles className="size-4" />

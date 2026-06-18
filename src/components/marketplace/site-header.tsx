@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   Menu,
   Search,
@@ -20,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { EcosystemToggle } from "./ecosystem-toggle";
 import { ThemeToggle } from "./theme-toggle";
+import { UserMenu } from "@/components/auth/user-menu";
 import { useMarketplace } from "@/lib/store";
 import { ECOSYSTEM_META } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -37,8 +39,25 @@ export function SiteHeader() {
   const search = useMarketplace((s) => s.search);
   const openListVendor = useMarketplace((s) => s.openListVendor);
   const openAdmin = useMarketplace((s) => s.openAdmin);
+  const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
+  const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
+  const { data: session } = useSession();
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+
+  // gate an action behind auth: if signed in, run it; otherwise open the
+  // sign-in dialog and run it after successful sign-in.
+  const requireAuth = React.useCallback(
+    (action: () => void) => {
+      if (session?.user) {
+        action();
+      } else {
+        setAuthIntent(action);
+        openAuthDialog();
+      }
+    },
+    [session, setAuthIntent, openAuthDialog]
+  );
 
   React.useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -108,6 +127,8 @@ export function SiteHeader() {
 
         <ThemeToggle />
 
+        <UserMenu />
+
         <Button
           variant="ghost"
           size="icon"
@@ -122,7 +143,7 @@ export function SiteHeader() {
         <Button
           size="sm"
           className="hidden bg-brand text-brand-foreground hover:bg-brand/90 sm:inline-flex"
-          onClick={() => openListVendor()}
+          onClick={() => requireAuth(() => openListVendor())}
         >
           <Sparkles className="size-4" />
           List your business
@@ -181,7 +202,7 @@ export function SiteHeader() {
                 <SheetClose asChild>
                   <Button
                     className="bg-brand text-brand-foreground hover:bg-brand/90"
-                    onClick={() => openListVendor()}
+                    onClick={() => requireAuth(() => openListVendor())}
                   >
                     <Sparkles className="size-4" />
                     List your business
