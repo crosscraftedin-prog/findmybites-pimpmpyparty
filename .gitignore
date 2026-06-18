@@ -50,5 +50,15 @@ test
 prompt
 
 server.log
-# Skills directory
+image-gen.log
+
+# Skills directory (internal tooling, not part of the app)
 /skills/
+
+# Local SQLite database + uploaded images (ephemeral in production)
+/db/
+/public/uploads/
+
+# Tooling artifacts
+tool-results/
+preview-*.png
