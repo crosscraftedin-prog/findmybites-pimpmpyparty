@@ -17,6 +17,8 @@ import {
   Calendar,
   Users,
   ExternalLink,
+  Package,
+  Trash2,
 } from "lucide-react";
 import {
   Dialog,
@@ -26,15 +28,22 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMarketplace } from "@/lib/store";
-import { useVendorDashboard } from "@/lib/queries";
+import {
+  useVendorDashboard,
+  useProducts,
+  useCreateProduct,
+  useDeleteProduct,
+} from "@/lib/queries";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
-import { getCategory } from "@/lib/constants";
+import { getCategory, CURRENCY_SYMBOLS } from "@/lib/constants";
 import { CategoryIcon } from "@/components/marketplace/icon";
 import { formatPrice, countryCodeToFlag, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "bg-amber-100 text-amber-700",
@@ -115,13 +124,19 @@ export function VendorDashboard() {
           <Button
             size="sm"
             onClick={() => {
-              close();
-              setTimeout(() => openListVendor(), 150);
+              const firstVendor = data?.vendors[0];
+              if (firstVendor) {
+                close();
+                setTimeout(() => openEditVendor(firstVendor.slug), 150);
+              } else {
+                close();
+                setTimeout(() => openListVendor(), 150);
+              }
             }}
             className="bg-brand text-brand-foreground hover:bg-brand/90"
           >
-            <Plus className="size-4" />
-            New listing
+            <Edit3 className="size-4" />
+            {data?.vendors.length ? "Edit business" : "Create business"}
           </Button>
         </div>
 
@@ -265,6 +280,9 @@ export function VendorDashboard() {
               )}
             </div>
 
+            {/* Products / Services */}
+            <ProductsSection vendorId={data?.vendors[0]?.id ?? null} currency={data?.vendors[0]?.currency} />
+
             {/* Recent bookings + reviews */}
             <div className="grid gap-4 lg:grid-cols-2">
               {/* Bookings */}
@@ -355,5 +373,155 @@ export function VendorDashboard() {
         </ScrollArea>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Products / Services section ─────────────────────────────────────────────
+
+function ProductsSection({
+  vendorId,
+  currency,
+}: {
+  vendorId: string | null;
+  currency?: string;
+}) {
+  const { data, isLoading } = useProducts(vendorId);
+  const createProduct = useCreateProduct();
+  const deleteProduct = useDeleteProduct();
+  const [showForm, setShowForm] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [price, setPrice] = React.useState("");
+  const [description, setDescription] = React.useState("");
+
+  const products = data?.products ?? [];
+  const symbol = currency ? (CURRENCY_SYMBOLS[currency] ?? currency) : "$";
+
+  const onAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vendorId || !name.trim()) return;
+    try {
+      await createProduct.mutateAsync({
+        vendorId,
+        name: name.trim(),
+        price: Number(price) || 0,
+        description: description.trim() || undefined,
+      });
+      setName("");
+      setPrice("");
+      setDescription("");
+      setShowForm(false);
+      toast.success("Product added!");
+    } catch {
+      toast.error("Failed to add product");
+    }
+  };
+
+  const onDelete = (id: string) => {
+    if (!vendorId) return;
+    if (!confirm("Delete this product?")) return;
+    deleteProduct.mutate({ id, vendorId });
+  };
+
+  if (!vendorId) return null;
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <Package className="size-4 text-brand" />
+          Products &amp; Services
+        </h3>
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="inline-flex items-center gap-1 rounded-full bg-brand px-3 py-1 text-xs font-semibold text-brand-foreground transition-transform hover:scale-105"
+        >
+          <Plus className="size-3" />
+          Add product
+        </button>
+      </div>
+
+      {/* Add product form */}
+      {showForm && (
+        <form onSubmit={onAdd} className="mb-3 space-y-2 rounded-xl border border-border bg-muted/40 p-3">
+          <div className="grid gap-2 sm:grid-cols-[1fr_100px]">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Product name (e.g. Wedding Cake)"
+              className="h-9"
+              required
+            />
+            <Input
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="Price"
+              className="h-9"
+              min={0}
+            />
+          </div>
+          <Input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Short description (optional)"
+            className="h-9"
+          />
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={createProduct.isPending} className="bg-brand text-brand-foreground hover:bg-brand/90">
+              {createProduct.isPending ? "Adding…" : "Add"}
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {/* Product list */}
+      {isLoading ? (
+        <Skeleton className="h-20 rounded-xl" />
+      ) : products.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
+          <Package className="mx-auto size-6 text-muted-foreground/40" />
+          <p className="mt-1 text-xs text-muted-foreground">
+            No products yet. Add your products or services here — customers
+            will see them on your listing.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {products.map((p) => (
+            <div
+              key={p.id}
+              className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
+            >
+              <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">
+                <Package className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{p.name}</p>
+                {p.description && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {p.description}
+                  </p>
+                )}
+              </div>
+              <span className="shrink-0 text-sm font-bold tabular-nums">
+                {symbol}
+                {p.price.toLocaleString("en-US")}
+              </span>
+              <button
+                title="Delete product"
+                onClick={() => onDelete(p.id)}
+                disabled={deleteProduct.isPending}
+                className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-rose-100 hover:text-rose-600 disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

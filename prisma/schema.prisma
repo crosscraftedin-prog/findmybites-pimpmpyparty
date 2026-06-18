@@ -75,6 +75,7 @@ model Vendor {
   createdAt        DateTime  @default(now())
   reviews          Review[]
   bookings         Booking[]
+  products         Product[]
 
   @@index([ecosystem])
   @@index([category])
@@ -121,6 +122,21 @@ model Booking {
   message   String
   status    String   @default("pending")
   createdAt DateTime @default(now())
+
+  @@index([vendorId])
+}
+
+// Products / services offered by a vendor within their single business listing.
+// E.g. a baker might offer "Sourdough Loaf $8", "Wedding Cake $450", etc.
+model Product {
+  id          String   @id @default(cuid())
+  vendorId    String
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  price       Int
+  image       String?
+  createdAt   DateTime @default(now())
 
   @@index([vendorId])
 }

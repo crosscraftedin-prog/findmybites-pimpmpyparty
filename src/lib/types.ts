@@ -47,6 +47,17 @@ export interface VendorWithDistance extends Vendor {
   distance: number;
 }
 
+/** Product / service offered by a vendor within their business listing. */
+export interface Product {
+  id: string;
+  vendorId: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  image?: string | null;
+  createdAt: string;
+}
+
 export interface Review {
   id: string;
   vendorId: string;

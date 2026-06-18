@@ -12,6 +12,7 @@ import type {
   Booking,
   Ecosystem,
   PlatformStats,
+  Product,
   Review,
   Vendor,
   VendorWithDistance,
@@ -630,5 +631,57 @@ export function useVendorDashboard(enabled = true) {
       return (await res.json()) as VendorDashboardData;
     },
     staleTime: 15 * 1000,
+  });
+}
+
+// ── Product hooks ───────────────────────────────────────────────────────────
+
+export function useProducts(vendorId: string | null) {
+  return useQuery({
+    queryKey: ["products", vendorId],
+    enabled: !!vendorId,
+    queryFn: async () => {
+      const res = await fetch(`/api/products?vendorId=${vendorId}`);
+      if (!res.ok) throw new Error("Failed to fetch products");
+      return (await res.json()) as { products: Product[] };
+    },
+  });
+}
+
+export function useCreateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      vendorId: string;
+      name: string;
+      description?: string;
+      price: number;
+      image?: string;
+    }) => {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error("Failed to create product");
+      return res.json();
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["products", variables.vendorId] });
+    },
+  });
+}
+
+export function useDeleteProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, vendorId }: { id: string; vendorId: string }) => {
+      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete product");
+      return { vendorId };
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["products", variables.vendorId] });
+    },
   });
 }
