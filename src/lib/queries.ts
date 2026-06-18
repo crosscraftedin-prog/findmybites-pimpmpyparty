@@ -603,3 +603,32 @@ export function useAdminStats(): UseQueryResult<AdminStats, Error> {
     staleTime: 30 * 1000,
   });
 }
+
+// ── Vendor Dashboard hooks ─────────────────────────────────────────────────
+
+export interface VendorDashboardData {
+  vendors: Vendor[];
+  bookings: (Booking & { vendorName: string })[];
+  reviews: (Review & { vendorName: string })[];
+  stats: {
+    totalListings: number;
+    pending: number;
+    approved: number;
+    totalBookings: number;
+    pendingBookings: number;
+    avgRating: number;
+  };
+}
+
+export function useVendorDashboard(enabled = true) {
+  return useQuery({
+    queryKey: ["vendor", "dashboard"],
+    enabled,
+    queryFn: async () => {
+      const res = await fetch("/api/vendor/me");
+      if (!res.ok) throw new Error("Failed to fetch dashboard");
+      return (await res.json()) as VendorDashboardData;
+    },
+    staleTime: 15 * 1000,
+  });
+}

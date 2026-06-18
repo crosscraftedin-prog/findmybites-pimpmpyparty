@@ -14,6 +14,7 @@ import { BecomeVendor } from "@/components/marketplace/become-vendor";
 import { VendorModal } from "@/components/marketplace/vendor-modal";
 import { ListVendorDialog } from "@/components/marketplace/list-vendor-dialog";
 import { AdminPanel } from "@/components/admin/admin-panel";
+import { VendorDashboard } from "@/components/vendor-dashboard/vendor-dashboard";
 import { SignInDialog } from "@/components/auth/sign-in-dialog";
 
 export default function Home() {
@@ -35,6 +36,7 @@ export default function Home() {
       <VendorModal />
       <ListVendorDialog />
       <AdminPanel />
+      <VendorDashboard />
       <SignInDialog />
     </div>
   );

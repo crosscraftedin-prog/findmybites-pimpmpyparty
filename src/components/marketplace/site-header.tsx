@@ -16,6 +16,7 @@ import {
   LayoutGrid,
   Star,
   ShieldCheck,
+  LayoutDashboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ export function SiteHeader() {
   const search = useMarketplace((s) => s.search);
   const openListVendor = useMarketplace((s) => s.openListVendor);
   const openAdmin = useMarketplace((s) => s.openAdmin);
+  const openVendorDashboard = useMarketplace((s) => s.openVendorDashboard);
   const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
   const { user: session } = useSupabaseSession();
@@ -131,6 +133,19 @@ export function SiteHeader() {
         <ThemeToggle />
 
         <UserMenu />
+
+        {session && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => openVendorDashboard()}
+            aria-label="My dashboard"
+            title="My dashboard"
+          >
+            <LayoutDashboard className="size-4" />
+          </Button>
+        )}
 
         {isAdmin && (
           <Button

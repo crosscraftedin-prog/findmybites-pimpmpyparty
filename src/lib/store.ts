@@ -59,6 +59,11 @@ interface MarketplaceState {
   openAdmin: () => void;
   closeAdmin: () => void;
 
+  // Vendor dashboard overlay
+  vendorDashboardOpen: boolean;
+  openVendorDashboard: () => void;
+  closeVendorDashboard: () => void;
+
   // Auth (vendor sign-in) dialog
   authDialogOpen: boolean;
   openAuthDialog: () => void;
@@ -128,6 +133,10 @@ export const useMarketplace = create<MarketplaceState>((set, get) => ({
   adminOpen: false,
   openAdmin: () => set({ adminOpen: true }),
   closeAdmin: () => set({ adminOpen: false }),
+
+  vendorDashboardOpen: false,
+  openVendorDashboard: () => set({ vendorDashboardOpen: true }),
+  closeVendorDashboard: () => set({ vendorDashboardOpen: false }),
 
   authDialogOpen: false,
   openAuthDialog: () => set({ authDialogOpen: true }),

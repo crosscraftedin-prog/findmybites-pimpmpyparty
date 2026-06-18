@@ -47,6 +47,8 @@ export function SignInDialog() {
         useMarketplace.getState().openListVendor();
       } else if (intentStr === "admin") {
         useMarketplace.getState().openAdmin();
+      } else if (intentStr === "vendor-dashboard") {
+        useMarketplace.getState().openVendorDashboard();
       } else if (intentStr.startsWith("edit-vendor:")) {
         const slug = intentStr.replace("edit-vendor:", "");
         useMarketplace.getState().openEditVendor(slug);
