@@ -62,3 +62,4 @@ image-gen.log
 # Tooling artifacts
 tool-results/
 preview-*.png
+push-to-github.sh
