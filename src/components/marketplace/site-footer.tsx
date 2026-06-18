@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import {
   UtensilsCrossed,
   PartyPopper,
@@ -72,10 +72,10 @@ export function SiteFooter() {
   const openListVendor = useMarketplace((s) => s.openListVendor);
   const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
-  const { data: session } = useSession();
+  const { user: session } = useSupabaseSession();
 
   const handleListClick = () => {
-    if (session?.user) {
+    if (session) {
       openListVendor();
     } else {
       setAuthIntent(() => openListVendor);

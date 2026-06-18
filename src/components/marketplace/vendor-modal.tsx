@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSession } from "next-auth/react";
+import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import {
   BadgeCheck,
   MapPin,
@@ -46,7 +46,7 @@ export function VendorModal() {
   const openEditVendor = useMarketplace((s) => s.openEditVendor);
   const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
-  const { data: session } = useSession();
+  const { user: session } = useSupabaseSession();
   const { data: vendor, isLoading } = useVendor(slug);
   const { data: reviewsData, isLoading: reviewsLoading } = useReviews(
     vendor?.id ?? null
@@ -54,7 +54,7 @@ export function VendorModal() {
 
   const onEditClick = () => {
     if (!vendor) return;
-    if (session?.user) {
+    if (session) {
       openEditVendor(vendor.slug);
     } else {
       setAuthIntent(() => () => openEditVendor(vendor.slug));

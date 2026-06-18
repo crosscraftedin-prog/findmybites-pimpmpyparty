@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import {
   Menu,
   Search,
@@ -41,7 +41,7 @@ export function SiteHeader() {
   const openAdmin = useMarketplace((s) => s.openAdmin);
   const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
-  const { data: session } = useSession();
+  const { user: session } = useSupabaseSession();
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -49,7 +49,7 @@ export function SiteHeader() {
   // sign-in dialog and run it after successful sign-in.
   const requireAuth = React.useCallback(
     (action: () => void) => {
-      if (session?.user) {
+      if (session) {
         action();
       } else {
         setAuthIntent(action);

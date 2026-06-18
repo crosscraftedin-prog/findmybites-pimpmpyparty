@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSession, signOut } from "next-auth/react";
-import { LogOut, Loader2, UserCircle2 } from "lucide-react";
+import { Loader2, LogOut, UserCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,13 +12,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMarketplace } from "@/lib/store";
+import { useSupabaseSession } from "@/hooks/use-supabase-session";
+import { supabaseBrowser } from "@/lib/supabase/client";
 
 export function UserMenu() {
-  const { data: session, status } = useSession();
+  const { user, loading } = useSupabaseSession();
   const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
 
-  // loading state — avoid flicker
-  if (status === "loading") {
+  if (loading) {
     return (
       <Button variant="ghost" size="icon" disabled aria-label="Loading session">
         <Loader2 className="size-4 animate-spin" />
@@ -27,8 +27,7 @@ export function UserMenu() {
     );
   }
 
-  // signed out → show "Sign in" button
-  if (!session?.user) {
+  if (!user) {
     return (
       <Button
         variant="ghost"
@@ -42,9 +41,13 @@ export function UserMenu() {
     );
   }
 
-  const name = session.user.name ?? "Vendor";
-  const email = session.user.email ?? "";
-  const image = session.user.image;
+  const name =
+    (user.user_metadata?.full_name as string) ||
+    (user.user_metadata?.name as string) ||
+    user.email?.split("@")[0] ||
+    "Vendor";
+  const email = user.email ?? "";
+  const image = user.user_metadata?.avatar_url as string | undefined;
   const initials = name
     .split(/\s+/)
     .slice(0, 2)
@@ -59,11 +62,7 @@ export function UserMenu() {
           aria-label="Account menu"
         >
           {image ? (
-            <img
-              src={image}
-              alt={name}
-              className="size-7 rounded-full object-cover"
-            />
+            <img src={image} alt={name} className="size-7 rounded-full object-cover" />
           ) : (
             <span className="grid size-7 place-items-center rounded-full bg-brand text-xs font-bold text-brand-foreground">
               {initials || "V"}
@@ -83,7 +82,7 @@ export function UserMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => signOut({ callbackUrl: "/" })}
+          onClick={() => supabaseBrowser.auth.signOut()}
           className="text-destructive focus:text-destructive"
         >
           <LogOut className="size-4" />

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSession } from "next-auth/react";
+import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { motion } from "framer-motion";
 import {
   TrendingUp,
@@ -44,10 +44,10 @@ export function BecomeVendor() {
   const openListVendor = useMarketplace((s) => s.openListVendor);
   const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
-  const { data: session } = useSession();
+  const { user: session } = useSupabaseSession();
 
   const handleListClick = () => {
-    if (session?.user) {
+    if (session) {
       openListVendor();
     } else {
       setAuthIntent(() => openListVendor);
