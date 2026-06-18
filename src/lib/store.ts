@@ -40,6 +40,11 @@ interface MarketplaceState {
   filtersOpen: boolean;
   setFiltersOpen: (open: boolean) => void;
 
+  // "List your business" dialog
+  listVendorOpen: boolean;
+  openListVendor: () => void;
+  closeListVendor: () => void;
+
   resetFilters: () => void;
 }
 
@@ -85,6 +90,10 @@ export const useMarketplace = create<MarketplaceState>((set, get) => ({
 
   filtersOpen: false,
   setFiltersOpen: (open) => set({ filtersOpen: open }),
+
+  listVendorOpen: false,
+  openListVendor: () => set({ listVendorOpen: true }),
+  closeListVendor: () => set({ listVendorOpen: false }),
 
   resetFilters: () =>
     set({

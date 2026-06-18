@@ -34,6 +34,7 @@ export function SiteHeader() {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const setSearch = useMarketplace((s) => s.setSearch);
   const search = useMarketplace((s) => s.search);
+  const openListVendor = useMarketplace((s) => s.openListVendor);
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -108,7 +109,7 @@ export function SiteHeader() {
         <Button
           size="sm"
           className="hidden bg-brand text-brand-foreground hover:bg-brand/90 sm:inline-flex"
-          onClick={() => setMobileOpen(true)}
+          onClick={() => openListVendor()}
         >
           <Sparkles className="size-4" />
           List your business
@@ -164,10 +165,15 @@ export function SiteHeader() {
                     );
                   })}
                 </nav>
-                <Button className="bg-brand text-brand-foreground hover:bg-brand/90">
-                  <Sparkles className="size-4" />
-                  List your business
-                </Button>
+                <SheetClose asChild>
+                  <Button
+                    className="bg-brand text-brand-foreground hover:bg-brand/90"
+                    onClick={() => openListVendor()}
+                  >
+                    <Sparkles className="size-4" />
+                    List your business
+                  </Button>
+                </SheetClose>
                 <div className="mt-auto flex items-center gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
                   <Globe2 className="size-4 shrink-0" />
                   Serving vendors & customers across 6 continents.

@@ -76,6 +76,26 @@ export interface CreateBookingResponse {
   booking: Booking;
 }
 
+export interface CreateVendorInput {
+  name: string;
+  ecosystem: Ecosystem;
+  category: string;
+  tagline: string;
+  description: string;
+  city: string;
+  countryCode: string;
+  currency: string;
+  priceRange: string;
+  basePrice: number;
+  tags: string[];
+  responseTime: string;
+  yearsActive: number;
+}
+
+export interface CreateVendorResponse {
+  vendor: Vendor;
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) {
@@ -187,6 +207,38 @@ export function useCreateBooking(): UseMutationResult<
         throw new Error("Failed to submit booking");
       }
       return (await res.json()) as CreateBookingResponse;
+    },
+  });
+}
+
+export function useCreateVendor(): UseMutationResult<
+  CreateVendorResponse,
+  Error,
+  CreateVendorInput
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateVendorInput) => {
+      const res = await fetch("/api/vendors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          (body as { error?: string }).error ?? "Failed to list your business"
+        );
+      }
+      return (await res.json()) as CreateVendorResponse;
+    },
+    onSuccess: async () => {
+      // refresh vendor lists, category counts, and platform stats
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["vendors"] }),
+        qc.invalidateQueries({ queryKey: ["categories"] }),
+        qc.invalidateQueries({ queryKey: ["stats"] }),
+      ]);
     },
   });
 }

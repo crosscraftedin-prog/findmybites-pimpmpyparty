@@ -11,6 +11,7 @@ import { WorldPresence } from "@/components/marketplace/world-presence";
 import { HowItWorks } from "@/components/marketplace/how-it-works";
 import { BecomeVendor } from "@/components/marketplace/become-vendor";
 import { VendorModal } from "@/components/marketplace/vendor-modal";
+import { ListVendorDialog } from "@/components/marketplace/list-vendor-dialog";
 
 export default function Home() {
   return (
@@ -28,6 +29,7 @@ export default function Home() {
       </main>
       <SiteFooter />
       <VendorModal />
+      <ListVendorDialog />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma, type Vendor as DbVendor } from "@prisma/client";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
+import { COUNTRIES, getCategory } from "@/lib/constants";
 import {
   searchVendors,
   searchIndexHasRows,
@@ -183,5 +184,173 @@ function sortInMemory(rows: DbVendor[], sort: string): DbVendor[] {
         (a, b) =>
           Number(b.featured) - Number(a.featured) || b.rating - a.rating
       );
+  }
+}
+
+// ── POST: vendor self-listing ("List your business") ──────────────────────
+
+interface CreateVendorBody {
+  name?: unknown;
+  ecosystem?: unknown;
+  category?: unknown;
+  tagline?: unknown;
+  description?: unknown;
+  city?: unknown;
+  countryCode?: unknown;
+  currency?: unknown;
+  priceRange?: unknown;
+  basePrice?: unknown;
+  tags?: unknown;
+  responseTime?: unknown;
+  yearsActive?: unknown;
+}
+
+const VALID_ECOSYSTEMS = new Set(["FINDMYBITES", "PIMPMYPARTY"]);
+const VALID_PRICE_RANGES = new Set(["$", "$$", "$$$", "$$$$"]);
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = (await req.json()) as CreateVendorBody;
+
+    // --- validate & coerce ---
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const tagline = typeof body.tagline === "string" ? body.tagline.trim() : "";
+    const description =
+      typeof body.description === "string" ? body.description.trim() : "";
+    const city = typeof body.city === "string" ? body.city.trim() : "";
+
+    const ecosystem =
+      typeof body.ecosystem === "string" &&
+      VALID_ECOSYSTEMS.has(body.ecosystem)
+        ? body.ecosystem
+        : "";
+    const category = typeof body.category === "string" ? body.category : "";
+    const countryCode =
+      typeof body.countryCode === "string" ? body.countryCode.toUpperCase() : "";
+    const currency =
+      typeof body.currency === "string" ? body.currency.toUpperCase() : "";
+    const priceRange =
+      typeof body.priceRange === "string" && VALID_PRICE_RANGES.has(body.priceRange)
+        ? body.priceRange
+        : "";
+
+    const basePriceNum = Number(body.basePrice);
+    const basePrice = Number.isFinite(basePriceNum) && basePriceNum >= 0
+      ? Math.round(basePriceNum)
+      : 0;
+
+    const yearsActiveNum = Number(body.yearsActive);
+    const yearsActive =
+      Number.isFinite(yearsActiveNum) && yearsActiveNum >= 0
+        ? Math.round(yearsActiveNum)
+        : 1;
+
+    const responseTime =
+      typeof body.responseTime === "string" && body.responseTime.trim()
+        ? body.responseTime.trim()
+        : "under 24 hours";
+
+    // tags: accept string[] or comma-separated string
+    let tags: string[] = [];
+    if (Array.isArray(body.tags)) {
+      tags = body.tags
+        .filter((t): t is string => typeof t === "string")
+        .map((t) => t.trim())
+        .filter(Boolean);
+    } else if (typeof body.tags === "string") {
+      tags = body.tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+    }
+    tags = tags.slice(0, 10);
+
+    // --- required-field check ---
+    const missing: string[] = [];
+    if (!name) missing.push("name");
+    if (!ecosystem) missing.push("ecosystem");
+    if (!category) missing.push("category");
+    if (!tagline) missing.push("tagline");
+    if (!description) missing.push("description");
+    if (!city) missing.push("city");
+    if (!countryCode) missing.push("country");
+    if (!currency) missing.push("currency");
+    if (!priceRange) missing.push("priceRange");
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { error: `Missing required fields: ${missing.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    // --- derive country + continent from the country code ---
+    const countryDef = COUNTRIES.find((c) => c.code === countryCode);
+    if (!countryDef) {
+      return NextResponse.json(
+        { error: `Unsupported country code: ${countryCode}` },
+        { status: 400 }
+      );
+    }
+    const countryName = countryDef.name;
+    const continent = countryDef.continent;
+
+    // --- derive a unique slug ---
+    const base = `${name}-${city}`
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
+    let slug = base || `vendor-${Date.now()}`;
+    let suffix = 1;
+    while (await db.vendor.findUnique({ where: { slug } })) {
+      suffix += 1;
+      slug = `${base}-${suffix}`;
+    }
+
+    // --- default images from the chosen category ---
+    const cat = getCategory(category);
+    const heroImage = cat?.image ?? "/vendors/baker.png";
+
+    // --- create ---
+    const created = await db.vendor.create({
+      data: {
+        name,
+        slug,
+        ecosystem,
+        category,
+        tagline,
+        description,
+        city,
+        country: countryName,
+        countryCode,
+        continent,
+        currency,
+        priceRange,
+        basePrice,
+        rating: 0,
+        reviewCount: 0,
+        heroImage,
+        avatarImage: heroImage,
+        gallery: JSON.stringify([heroImage]),
+        tags: JSON.stringify(tags),
+        featured: false,
+        verified: true,
+        responseTime,
+        yearsActive,
+        completedBookings: 0,
+      },
+    });
+
+    return NextResponse.json(
+      { vendor: transformVendor(created) },
+      { status: 201 }
+    );
+  } catch (err) {
+    console.error("[api/vendors] POST failed:", err);
+    return NextResponse.json(
+      { error: "Failed to create vendor" },
+      { status: 500 }
+    );
   }
 }

@@ -13,6 +13,7 @@ import {
   MapPin,
   Sparkles,
 } from "lucide-react";
+import { useMarketplace } from "@/lib/store";
 
 const COLUMNS = [
   {
@@ -67,6 +68,7 @@ const REGIONS = [
 const SOCIAL = [Instagram, Twitter, Facebook, Youtube];
 
 export function SiteFooter() {
+  const openListVendor = useMarketplace((s) => s.openListVendor);
   return (
     <footer className="mt-auto border-t border-border bg-background">
       {/* CTA strip */}
@@ -81,13 +83,13 @@ export function SiteFooter() {
               dual marketplace.
             </p>
           </div>
-          <Link
-            href="#top"
+          <button
+            onClick={() => openListVendor()}
             className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-brand-foreground shadow-sm transition-transform hover:scale-105"
           >
             <Sparkles className="size-4" />
             List your business — free
-          </Link>
+          </button>
         </div>
       </div>
 

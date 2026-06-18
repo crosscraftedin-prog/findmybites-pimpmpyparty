@@ -189,3 +189,78 @@ export const ECOSYSTEM_META: Record<
     gradient: "from-fuchsia-500 via-purple-500 to-pink-500",
   },
 };
+
+export interface CountryDef {
+  code: string;
+  name: string;
+  continent: string;
+  currency: string;
+}
+
+/** A curated list of countries across all continents for the vendor sign-up
+ *  form. Selecting a country auto-derives countryCode + continent + a
+ *  suggested currency (the user can still override the currency). */
+export const COUNTRIES: CountryDef[] = [
+  // Africa
+  { code: "NG", name: "Nigeria", continent: "Africa", currency: "NGN" },
+  { code: "ZA", name: "South Africa", continent: "Africa", currency: "ZAR" },
+  { code: "KE", name: "Kenya", continent: "Africa", currency: "USD" },
+  { code: "EG", name: "Egypt", continent: "Africa", currency: "USD" },
+  { code: "MA", name: "Morocco", continent: "Africa", currency: "USD" },
+  { code: "GH", name: "Ghana", continent: "Africa", currency: "USD" },
+  // Asia
+  { code: "IN", name: "India", continent: "Asia", currency: "INR" },
+  { code: "JP", name: "Japan", continent: "Asia", currency: "JPY" },
+  { code: "SG", name: "Singapore", continent: "Asia", currency: "SGD" },
+  { code: "CN", name: "China", continent: "Asia", currency: "USD" },
+  { code: "TH", name: "Thailand", continent: "Asia", currency: "USD" },
+  { code: "ID", name: "Indonesia", continent: "Asia", currency: "USD" },
+  { code: "PH", name: "Philippines", continent: "Asia", currency: "USD" },
+  { code: "KR", name: "South Korea", continent: "Asia", currency: "USD" },
+  // Europe
+  { code: "GB", name: "United Kingdom", continent: "Europe", currency: "GBP" },
+  { code: "FR", name: "France", continent: "Europe", currency: "EUR" },
+  { code: "DE", name: "Germany", continent: "Europe", currency: "EUR" },
+  { code: "IT", name: "Italy", continent: "Europe", currency: "EUR" },
+  { code: "ES", name: "Spain", continent: "Europe", currency: "EUR" },
+  { code: "PT", name: "Portugal", continent: "Europe", currency: "EUR" },
+  { code: "NL", name: "Netherlands", continent: "Europe", currency: "EUR" },
+  { code: "GR", name: "Greece", continent: "Europe", currency: "EUR" },
+  { code: "IE", name: "Ireland", continent: "Europe", currency: "EUR" },
+  // Middle East
+  { code: "AE", name: "United Arab Emirates", continent: "Middle East", currency: "AED" },
+  { code: "SA", name: "Saudi Arabia", continent: "Middle East", currency: "USD" },
+  { code: "QA", name: "Qatar", continent: "Middle East", currency: "USD" },
+  { code: "IL", name: "Israel", continent: "Middle East", currency: "USD" },
+  { code: "TR", name: "Türkiye", continent: "Middle East", currency: "USD" },
+  // North America
+  { code: "US", name: "United States", continent: "North America", currency: "USD" },
+  { code: "CA", name: "Canada", continent: "North America", currency: "CAD" },
+  { code: "MX", name: "Mexico", continent: "North America", currency: "USD" },
+  // South America
+  { code: "BR", name: "Brazil", continent: "South America", currency: "BRL" },
+  { code: "AR", name: "Argentina", continent: "South America", currency: "USD" },
+  { code: "CO", name: "Colombia", continent: "South America", currency: "USD" },
+  { code: "CL", name: "Chile", continent: "South America", currency: "USD" },
+  { code: "PE", name: "Peru", continent: "South America", currency: "USD" },
+  // Oceania
+  { code: "AU", name: "Australia", continent: "Oceania", currency: "AUD" },
+  { code: "NZ", name: "New Zealand", continent: "Oceania", currency: "USD" },
+];
+
+export function getCountry(code: string): CountryDef | undefined {
+  return COUNTRIES.find((c) => c.code === code);
+}
+
+/** Currencies the user can choose (keys of CURRENCY_SYMBOLS, sorted). */
+export const CURRENCY_OPTIONS = Object.keys(CURRENCY_SYMBOLS).sort();
+
+export const RESPONSE_TIME_OPTIONS = [
+  "under 1 hour",
+  "under 2 hours",
+  "under 3 hours",
+  "under 4 hours",
+  "under 6 hours",
+  "under 8 hours",
+  "under 24 hours",
+] as const;

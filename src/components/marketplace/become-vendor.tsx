@@ -40,6 +40,7 @@ const BENEFITS = [
 export function BecomeVendor() {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const toggle = useMarketplace((s) => s.toggleEcosystem);
+  const openListVendor = useMarketplace((s) => s.openListVendor);
 
   return (
     <section className="border-b border-border bg-background">
@@ -65,7 +66,10 @@ export function BecomeVendor() {
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
-                <button className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-brand-foreground shadow-lg transition-transform hover:scale-105">
+                <button
+                  onClick={() => openListVendor()}
+                  className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-brand-foreground shadow-lg transition-transform hover:scale-105"
+                >
                   <Sparkles className="size-4" />
                   List your business — free
                   <ArrowRight className="size-4" />
