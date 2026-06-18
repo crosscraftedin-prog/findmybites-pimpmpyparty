@@ -4,6 +4,7 @@ import { SiteHeader } from "@/components/marketplace/site-header";
 import { SiteFooter } from "@/components/marketplace/site-footer";
 import { Hero } from "@/components/marketplace/hero";
 import { StatsBar } from "@/components/marketplace/stats-bar";
+import { NearMeSection } from "@/components/marketplace/near-me-section";
 import { CategoriesSection } from "@/components/marketplace/categories-section";
 import { FeaturedSection } from "@/components/marketplace/featured-section";
 import { BrowseSection } from "@/components/marketplace/browse-section";
@@ -20,6 +21,7 @@ export default function Home() {
       <main className="flex-1">
         <Hero />
         <StatsBar />
+        <NearMeSection />
         <CategoriesSection />
         <FeaturedSection />
         <BrowseSection />

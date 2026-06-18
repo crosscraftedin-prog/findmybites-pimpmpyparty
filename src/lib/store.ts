@@ -48,6 +48,12 @@ interface MarketplaceState {
   editingSlug: string | null;
   openEditVendor: (slug: string) => void;
 
+  // "Near Me" geo search mode
+  nearMeOpen: boolean;
+  setNearMeOpen: (open: boolean) => void;
+  nearRadius: number; // 0 = global
+  setNearRadius: (km: number) => void;
+
   resetFilters: () => void;
 }
 
@@ -99,6 +105,11 @@ export const useMarketplace = create<MarketplaceState>((set, get) => ({
   closeListVendor: () => set({ listVendorOpen: false, editingSlug: null }),
   editingSlug: null,
   openEditVendor: (slug) => set({ editingSlug: slug, listVendorOpen: true }),
+
+  nearMeOpen: false,
+  setNearMeOpen: (open) => set({ nearMeOpen: open }),
+  nearRadius: 10,
+  setNearRadius: (km) => set({ nearRadius: km }),
 
   resetFilters: () =>
     set({

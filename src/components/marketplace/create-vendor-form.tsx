@@ -10,6 +10,7 @@ import {
   Eye,
   Sparkles,
   MessageCircle,
+  Navigation,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCreateVendor, useUpdateVendor } from "@/lib/queries";
+import { useCreateVendor, useUpdateVendor, useGeocode } from "@/lib/queries";
 import { useMarketplace } from "@/lib/store";
 import {
   CATEGORIES,
@@ -60,6 +61,7 @@ interface FormState {
   instagram: string;
   website: string;
   whatsapp: string;
+  serviceRadiusKm: string;
 }
 
 const EMPTY: FormState = {
@@ -84,6 +86,7 @@ const EMPTY: FormState = {
   instagram: "",
   website: "",
   whatsapp: "",
+  serviceRadiusKm: "",
 };
 
 /** Build initial form state from an existing vendor (edit mode). */
@@ -111,6 +114,7 @@ function formStateFromVendor(v: Vendor): FormState {
     instagram: v.instagram ?? "",
     website: v.website ?? "",
     whatsapp: v.whatsapp ?? "",
+    serviceRadiusKm: v.serviceRadiusKm ? String(v.serviceRadiusKm) : "",
   };
 }
 
@@ -200,6 +204,9 @@ export function CreateVendorForm({
       instagram: form.instagram.trim() || undefined,
       website: form.website.trim() || undefined,
       whatsapp: form.whatsapp.trim() || undefined,
+      serviceRadiusKm: form.serviceRadiusKm
+        ? Number(form.serviceRadiusKm)
+        : undefined,
     };
     try {
       if (isEditing && editingVendor) {
@@ -511,10 +518,10 @@ export function CreateVendorForm({
             />
           </Field>
         </div>
-        <div className="mt-4">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field
             label="WhatsApp number"
-            hint="Include country code, e.g. +44 7700 900123 — customers can message you instantly"
+            hint="Include country code — customers message you instantly"
           >
             <Input
               value={form.whatsapp}
@@ -525,7 +532,31 @@ export function CreateVendorForm({
               inputMode="tel"
             />
           </Field>
+          <Field
+            label="Service radius (km)"
+            hint="How far you'll travel to customers. Blank = they come to you."
+          >
+            <Input
+              type="number"
+              min={1}
+              value={form.serviceRadiusKm}
+              onChange={(e) => set("serviceRadiusKm", e.target.value)}
+              placeholder="e.g. 25"
+              className="h-10"
+              maxLength={5}
+              inputMode="numeric"
+            />
+          </Field>
         </div>
+        <GeoPreview
+          address={form.address}
+          city={form.city}
+          state={form.state}
+          zipCode={form.zipCode}
+          country={
+            COUNTRIES.find((c) => c.code === form.countryCode)?.name ?? ""
+          }
+        />
       </div>
 
       <Button
@@ -551,6 +582,54 @@ export function CreateVendorForm({
         Free to list · Visible worldwide instantly · No commission
       </p>
     </form>
+  );
+}
+
+/** Live geocoding preview: as the vendor types their address, we geocode it
+ *  and show the resolved coordinates + a tiny confirmation. This makes the
+ *  lat/lng capture transparent and lets the vendor fix a bad address before
+ *  submitting. The actual save happens server-side in POST/PATCH. */
+function GeoPreview({
+  address,
+  city,
+  state,
+  zipCode,
+  country,
+}: {
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+}) {
+  const query = [address, city, state, zipCode, country]
+    .filter((p) => p.trim())
+    .join(", ");
+  const { data, isLoading, isError } = useGeocode(query, query.length > 5);
+
+  if (query.length <= 5) return null;
+
+  return (
+    <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs">
+      <Navigation className="size-3.5 shrink-0 text-brand" />
+      {isLoading ? (
+        <span className="text-muted-foreground">Detecting coordinates…</span>
+      ) : data ? (
+        <span className="text-muted-foreground">
+          Pinned at{" "}
+          <span className="font-medium text-foreground">
+            {data.lat.toFixed(4)}, {data.lng.toFixed(4)}
+          </span>{" "}
+          — visible in “Near Me” search
+        </span>
+      ) : isError ? (
+        <span className="text-amber-600">
+          Couldn’t pinpoint this address — we’ll retry on save.
+        </span>
+      ) : (
+        <span className="text-muted-foreground">Address not found yet.</span>
+      )}
+    </div>
   );
 }
 

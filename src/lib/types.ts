@@ -33,7 +33,16 @@ export interface Vendor {
   instagram?: string | null;
   website?: string | null;
   whatsapp?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  serviceRadiusKm?: number | null;
   createdAt: string;
+}
+
+/** Vendor with computed distance from the user (Near Me results). */
+export interface VendorWithDistance extends Vendor {
+  /** straight-line distance in km from the user's location */
+  distance: number;
 }
 
 export interface Review {

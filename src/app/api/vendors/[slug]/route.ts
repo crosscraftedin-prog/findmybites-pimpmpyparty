@@ -11,6 +11,7 @@ import {
   resolveSubcategory,
   isSafeUploadUrl,
 } from "@/lib/vendor-sanitize";
+import { geocodeAddress, buildGeocodeQuery } from "@/lib/geocode";
 import type { Review as ApiReview, VendorWithRelations } from "@/lib/types";
 
 type DbVendorWithReviews = Prisma.VendorGetPayload<{
@@ -51,6 +52,9 @@ function transformVendor(v: DbVendorWithReviews): VendorWithRelations {
     instagram: v.instagram,
     website: v.website,
     whatsapp: v.whatsapp,
+    latitude: v.latitude,
+    longitude: v.longitude,
+    serviceRadiusKm: v.serviceRadiusKm,
     createdAt: v.createdAt.toISOString(),
     reviews: v.reviews.map<ApiReview>((r) => ({
       id: r.id,
@@ -117,6 +121,7 @@ interface UpdateVendorBody {
   instagram?: unknown;
   website?: unknown;
   whatsapp?: unknown;
+  serviceRadiusKm?: unknown;
 }
 
 export async function PATCH(
@@ -222,6 +227,46 @@ export async function PATCH(
     if (body.whatsapp !== undefined) {
       data.whatsapp = sanitizeWhatsApp(body.whatsapp) || null;
     }
+    if (body.serviceRadiusKm !== undefined) {
+      const n = Number(body.serviceRadiusKm);
+      data.serviceRadiusKm =
+        Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+    }
+
+    // --- re-geocode if any address component changed ---
+    // We need the post-update address values to build the query.
+    const newAddress =
+      typeof data.address === "string"
+        ? data.address
+        : existing.address ?? undefined;
+    const newCity = typeof data.city === "string" ? data.city : existing.city;
+    const newState = typeof data.state === "string" ? data.state : existing.state ?? undefined;
+    const newZip =
+      typeof data.zipCode === "string" ? data.zipCode : existing.zipCode ?? undefined;
+    const newCountryName =
+      typeof data.country === "string" ? data.country : existing.country;
+    const addressChanged =
+      typeof body.address !== undefined ||
+      body.city !== undefined ||
+      body.state !== undefined ||
+      body.zipCode !== undefined ||
+      body.countryCode !== undefined;
+    if (addressChanged) {
+      const geoQuery = buildGeocodeQuery({
+        address: newAddress,
+        city: newCity,
+        state: newState,
+        zipCode: newZip,
+        country: newCountryName,
+      });
+      const geo = geoQuery ? await geocodeAddress(geoQuery) : null;
+      if (geo) {
+        data.latitude = geo.lat;
+        data.longitude = geo.lng;
+      }
+      // if geocoding fails we keep the existing coordinates rather than wiping
+    }
+
     // images
     const bannerUrl = isSafeUploadUrl(body.bannerUrl) ? body.bannerUrl : null;
     const logoUrl = isSafeUploadUrl(body.logoUrl) ? body.logoUrl : null;

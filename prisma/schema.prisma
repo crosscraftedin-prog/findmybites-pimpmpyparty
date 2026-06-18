@@ -45,6 +45,13 @@ model Vendor {
   instagram        String?
   website          String?
   whatsapp         String?
+  // geo coordinates for "Near Me" search (degrees). Nullable so legacy
+  // vendors without a geocoded address are simply excluded from geo queries.
+  latitude         Float?
+  longitude        Float?
+  // how far (km) this vendor will travel to serve a customer. Null = no limit
+  // (e.g. a venue the customer travels to, or a vendor serving worldwide).
+  serviceRadiusKm  Int?
   createdAt        DateTime  @default(now())
   reviews          Review[]
   bookings         Booking[]

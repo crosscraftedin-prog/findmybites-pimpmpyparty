@@ -14,6 +14,7 @@ import type {
   PlatformStats,
   Review,
   Vendor,
+  VendorWithDistance,
   VendorWithRelations,
 } from "@/lib/types";
 
@@ -99,6 +100,7 @@ export interface CreateVendorInput {
   instagram?: string;
   website?: string;
   whatsapp?: string;
+  serviceRadiusKm?: number;
 }
 
 export interface CreateVendorResponse {
@@ -288,5 +290,49 @@ export function useUpdateVendor(): UseMutationResult<
         qc.invalidateQueries({ queryKey: ["stats"] }),
       ]);
     },
+  });
+}
+
+export interface NearVendorsResponse {
+  vendors: VendorWithDistance[];
+  total: number;
+  center: { lat: number; lng: number };
+  radius: number;
+}
+
+/** Vendors near a lat/lng, sorted by distance (closest first). */
+export function useNearVendors(
+  lat: number | null,
+  lng: number | null,
+  radius: number,
+  ecosystem: Ecosystem,
+  enabled = true
+): UseQueryResult<NearVendorsResponse, Error> {
+  return useQuery({
+    queryKey: ["vendors", "near", lat, lng, radius, ecosystem],
+    enabled: enabled && lat != null && lng != null,
+    queryFn: async () => {
+      const url = `/api/vendors/near?lat=${lat}&lng=${lng}&radius=${radius}&ecosystem=${ecosystem}&limit=50`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch nearby vendors");
+      return (await res.json()) as NearVendorsResponse;
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Geocode a free-text address into lat/lng (for the vendor form preview). */
+export function useGeocode(address: string, enabled = true) {
+  return useQuery<{ lat: number; lng: number } | null>({
+    queryKey: ["geocode", address],
+    enabled: enabled && address.trim().length > 5,
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/geocode?address=${encodeURIComponent(address)}`
+      );
+      if (!res.ok) return null;
+      return (await res.json()) as { lat: number; lng: number };
+    },
+    staleTime: Infinity, // addresses don't move — cache forever
   });
 }

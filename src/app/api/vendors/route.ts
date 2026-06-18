@@ -12,6 +12,7 @@ import {
   resolveSubcategory,
   isSafeUploadUrl,
 } from "@/lib/vendor-sanitize";
+import { geocodeAddress, buildGeocodeQuery } from "@/lib/geocode";
 import {
   searchVendors,
   searchIndexHasRows,
@@ -53,6 +54,9 @@ function transformVendor(v: DbVendor): ApiVendor {
     instagram: v.instagram,
     website: v.website,
     whatsapp: v.whatsapp,
+    latitude: v.latitude,
+    longitude: v.longitude,
+    serviceRadiusKm: v.serviceRadiusKm,
     createdAt: v.createdAt.toISOString(),
   };
 }
@@ -228,6 +232,7 @@ interface CreateVendorBody {
   instagram?: unknown;
   website?: unknown;
   whatsapp?: unknown;
+  serviceRadiusKm?: unknown;
 }
 
 const VALID_ECOSYSTEMS = new Set(["FINDMYBITES", "PIMPMYPARTY"]);
@@ -291,6 +296,13 @@ export async function POST(req: NextRequest) {
     const instagram = sanitizeInstagram(body.instagram) || null;
     const website = sanitizeWebsite(body.website) || null;
     const whatsapp = sanitizeWhatsApp(body.whatsapp) || null;
+
+    // service radius (km): how far this vendor travels to serve customers.
+    const serviceRadiusNum = Number(body.serviceRadiusKm);
+    const serviceRadiusKm =
+      Number.isFinite(serviceRadiusNum) && serviceRadiusNum > 0
+        ? Math.round(serviceRadiusNum)
+        : null;
 
     // tags: accept string[] or comma-separated string
     let tags: string[] = [];
@@ -361,6 +373,18 @@ export async function POST(req: NextRequest) {
     const avatarImage = logoUrl || bannerUrl || fallbackImage;
     const gallery = [heroImage, logoUrl].filter(Boolean);
 
+    // --- geocode the address → lat/lng for "Near Me" search ---
+    // Best-effort: if geocoding fails we still create the vendor (just without
+    // coordinates, so they're excluded from geo queries until edited).
+    const geoQuery = buildGeocodeQuery({
+      address,
+      city,
+      state,
+      zipCode,
+      country: countryName,
+    });
+    const geo = geoQuery ? await geocodeAddress(geoQuery) : null;
+
     // --- create ---
     const created = await db.vendor.create({
       data: {
@@ -397,6 +421,9 @@ export async function POST(req: NextRequest) {
         instagram,
         website,
         whatsapp,
+        latitude: geo?.lat ?? null,
+        longitude: geo?.lng ?? null,
+        serviceRadiusKm,
       },
     });
 

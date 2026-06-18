@@ -34,6 +34,9 @@ interface SeedVendor {
   instagram?: string;
   website?: string;
   whatsapp?: string;
+  latitude?: number;
+  longitude?: number;
+  serviceRadiusKm?: number;
 }
 
 const vendors: SeedVendor[] = [
@@ -67,6 +70,9 @@ const vendors: SeedVendor[] = [
     website: "https://maisonlevain.fr",
     whatsapp: "33142856390",
     state: "Île-de-France",
+latitude: 48.8566,
+    longitude: 2.3522,
+    serviceRadiusKm: 30,
     reviews: [
       { author: "Camille R.", avatar: "CR", rating: 5, comment: "The sourdough for our wedding was unreal. Guests are still talking about the bread table.", eventDate: "2024-06-15" },
       { author: "Olivier P.", avatar: "OP", rating: 5, comment: "Corporate breakfast for 80 — punctual, warm, delicious croissants. Will rebook.", eventDate: "2024-09-02" },
@@ -95,6 +101,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 2 hours",
     yearsActive: 9,
     completedBookings: 312,
+latitude: 40.7128,
+    longitude: -74.006,
+    serviceRadiusKm: 25,
     reviews: [
       { author: "Dana K.", avatar: "DK", rating: 5, comment: "Catered our film crew for a week. The seeded bagels disappeared by 9am every day.", eventDate: "2024-07-10" },
       { author: "Marcus T.", avatar: "MT", rating: 4, comment: "Great bread, the crumb is everything. Wish they offered more pastry variety.", eventDate: "2024-05-18" },
@@ -129,6 +138,9 @@ const vendors: SeedVendor[] = [
     website: "https://saffronandsage.co.uk",
     whatsapp: "447700900123",
     state: "England",
+latitude: 51.5074,
+    longitude: -0.1278,
+    serviceRadiusKm: 40,
     reviews: [
       { author: "Eleanor W.", avatar: "EW", rating: 5, comment: "Catered our charity gala for 400. Flawless service and the lamb was perfect.", eventDate: "2024-10-05" },
       { author: "James B.", avatar: "JB", rating: 5, comment: "Vegan menu was a revelation. Even the meat-eaters wanted seconds.", eventDate: "2024-08-22" },
@@ -157,6 +169,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 3 hours",
     yearsActive: 7,
     completedBookings: 240,
+latitude: -1.2921,
+    longitude: 36.8219,
+    serviceRadiusKm: 50,
     reviews: [
       { author: "Wanjiru N.", avatar: "WN", rating: 5, comment: "Our wedding feast was legendary. The team cooked live and guests loved it.", eventDate: "2024-06-29" },
       { author: "David O.", avatar: "DO", rating: 5, comment: "Corporate event for 200. Generous portions, incredible flavour.", eventDate: "2024-02-14" },
@@ -184,6 +199,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 2 hours",
     yearsActive: 22,
     completedBookings: 540,
+latitude: 41.9028,
+    longitude: 12.4964,
+    serviceRadiusKm: 30,
     reviews: [
       { author: "Giulia F.", avatar: "GF", rating: 5, comment: "The tiramisu tower was a centerpiece. Nonna approved!", eventDate: "2024-09-14" },
       { author: "Marco D.", avatar: "MD", rating: 4, comment: "Cannoli were crisp and creamy. Delivery ran a touch late.", eventDate: "2024-01-30" },
@@ -211,6 +229,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 4 hours",
     yearsActive: 6,
     completedBookings: 180,
+latitude: 35.6762,
+    longitude: 139.6503,
+    serviceRadiusKm: 35,
     reviews: [
       { author: "Yuki T.", avatar: "YT", rating: 5, comment: "The matcha bar at our product launch was a hit. Beautiful and delicious.", eventDate: "2024-07-25" },
       { author: "Haruka N.", avatar: "HN", rating: 5, comment: "Mochi so soft it melts. Will book again for our wedding.", eventDate: "2024-05-03" },
@@ -238,6 +259,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 6 hours",
     yearsActive: 11,
     completedBookings: 430,
+latitude: 34.0522,
+    longitude: -118.2437,
+    serviceRadiusKm: 60,
     reviews: [
       { author: "Alicia G.", avatar: "AG", rating: 5, comment: "Our wedding cake was a sculptural masterpiece. People gasped when it came out.", eventDate: "2024-10-12" },
       { author: "Vanessa R.", avatar: "VR", rating: 5, comment: "Worth every penny. The hand-painted flowers were unreal.", eventDate: "2024-03-08" },
@@ -265,6 +289,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 8 hours",
     yearsActive: 8,
     completedBookings: 210,
+latitude: 1.3521,
+    longitude: 103.8198,
+    serviceRadiusKm: 40,
     reviews: [
       { author: "Mei Ling C.", avatar: "MC", rating: 5, comment: "Elegant, modern, and the sugar peonies were indistinguishable from real ones.", eventDate: "2024-08-19" },
       { author: "Aaron L.", avatar: "AL", rating: 4, comment: "Stunning design. Lead time is long so book early.", eventDate: "2024-02-02" },
@@ -299,6 +326,9 @@ const vendors: SeedVendor[] = [
     website: "https://eltigretacos.mx",
     whatsapp: "525512345678",
     state: "Ciudad de México",
+latitude: 19.4326,
+    longitude: -99.1332,
+    serviceRadiusKm: 45,
     reviews: [
       { author: "Carlos M.", avatar: "CM", rating: 5, comment: "The al pastor trompo at our wedding was the highlight. Line was 50 deep.", eventDate: "2024-09-28" },
       { author: "Bianca V.", avatar: "BV", rating: 5, comment: "Best tacos outside a taquería. Mezcal pairing was a nice touch.", eventDate: "2024-04-20" },
@@ -326,6 +356,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 3 hours",
     yearsActive: 8,
     completedBookings: 420,
+latitude: 19.076,
+    longitude: 72.8777,
+    serviceRadiusKm: 50,
     reviews: [
       { author: "Rohan P.", avatar: "RP", rating: 5, comment: "Live dosa station stole the show at our sangeet. Crowd loved it.", eventDate: "2024-11-02" },
       { author: "Anjali K.", avatar: "AK", rating: 4, comment: "Flavours of Mumbai in the heart of the city. Generous portions.", eventDate: "2024-06-08" },
@@ -353,6 +386,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 5 hours",
     yearsActive: 9,
     completedBookings: 150,
+latitude: 25.2048,
+    longitude: 55.2708,
+    serviceRadiusKm: 80,
     reviews: [
       { author: "Layla A.", avatar: "LA", rating: 5, comment: "A 9-course tasting menu on our yacht. Best meal of our lives.", eventDate: "2024-08-30" },
       { author: "Faisal M.", avatar: "FM", rating: 5, comment: "Chef Omar reimagined dishes from my childhood. Deeply moving and delicious.", eventDate: "2024-05-17" },
@@ -380,6 +416,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 6 hours",
     yearsActive: 5,
     completedBookings: 95,
+latitude: -33.8688,
+    longitude: 151.2093,
+    serviceRadiusKm: 55,
     reviews: [
       { author: "Chloe H.", avatar: "CH", rating: 5, comment: "Bush banquet under the stars was magical. The kangaroo was cooked perfectly.", eventDate: "2024-10-01" },
       { author: "Tom W.", avatar: "TW", rating: 4, comment: "Unique flavours and a great story behind each dish.", eventDate: "2024-03-25" },
@@ -416,6 +455,9 @@ const vendors: SeedVendor[] = [
     website: "https://soireestudio.it",
     whatsapp: "393331234567",
     state: "Lombardy",
+latitude: 45.4642,
+    longitude: 9.19,
+    serviceRadiusKm: 100,
     reviews: [
       { author: "Francesca B.", avatar: "FB", rating: 5, comment: "They planned our Lake Como wedding flawlessly. Every detail was intentional.", eventDate: "2024-07-20" },
       { author: "Luca R.", avatar: "LR", rating: 5, comment: "Brand launch for 600 guests. On brief, on budget, on time.", eventDate: "2024-09-09" },
@@ -443,6 +485,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 3 hours",
     yearsActive: 9,
     completedBookings: 210,
+latitude: 43.6532,
+    longitude: -79.3832,
+    serviceRadiusKm: 120,
     reviews: [
       { author: "Simran D.", avatar: "SD", rating: 5, comment: "3-day wedding, zero stress. They handled the baraat like pros.", eventDate: "2024-08-11" },
       { author: "Arjun P.", avatar: "AP", rating: 4, comment: "Great coordination across multiple venues. Highly recommend.", eventDate: "2024-05-25" },
@@ -470,6 +515,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 2 hours",
     yearsActive: 7,
     completedBookings: 380,
+latitude: -23.5505,
+    longitude: -46.6333,
+    serviceRadiusKm: 60,
     reviews: [
       { author: "Beatriz S.", avatar: "BS", rating: 5, comment: "Our baby shower balloon arch was a dream. Photos went viral.", eventDate: "2024-06-30" },
       { author: "Rafael C.", avatar: "RC", rating: 5, comment: "Corporate gala styling was world-class. Huge impact.", eventDate: "2024-10-18" },
@@ -497,6 +545,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 5 hours",
     yearsActive: 10,
     completedBookings: 160,
+latitude: 25.2048,
+    longitude: 55.2708,
+    serviceRadiusKm: 150,
     reviews: [
       { author: "Noor A.", avatar: "NA", rating: 5, comment: "The ceiling floral installation took our breath away. Pure luxury.", eventDate: "2024-09-21" },
       { author: "Khalid R.", avatar: "KR", rating: 5, comment: "Custom props were built to perfection. Professional team.", eventDate: "2024-04-14" },
@@ -524,6 +575,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 3 hours",
     yearsActive: 8,
     completedBookings: 260,
+latitude: 52.52,
+    longitude: 13.405,
+    serviceRadiusKm: 70,
     reviews: [
       { author: "Hannah W.", avatar: "HW", rating: 5, comment: "Fire performers at our festival were jaw-dropping. Crowd went wild.", eventDate: "2024-07-13" },
       { author: "Felix S.", avatar: "FS", rating: 4, comment: "Stilt walkers were a hit with the kids. Great energy.", eventDate: "2024-05-04" },
@@ -551,6 +605,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 4 hours",
     yearsActive: 6,
     completedBookings: 190,
+latitude: 6.5244,
+    longitude: 3.3792,
+    serviceRadiusKm: 60,
     reviews: [
       { author: "Chioma E.", avatar: "CE", rating: 5, comment: "Our owambe was the party of the year. The band kept everyone dancing till dawn.", eventDate: "2024-08-17" },
       { author: "Tunde A.", avatar: "TA", rating: 5, comment: "Talking drummers brought the tradition alive. Incredible.", eventDate: "2024-03-29" },
@@ -585,6 +642,9 @@ const vendors: SeedVendor[] = [
     website: "https://neonpulse.nl",
     whatsapp: "31612345678",
     state: "North Holland",
+latitude: 52.3676,
+    longitude: 4.9041,
+    serviceRadiusKm: 80,
     reviews: [
       { author: "Sofie J.", avatar: "SJ", rating: 5, comment: "Our wedding dance floor never emptied. The LED wall was stunning.", eventDate: "2024-09-07" },
       { author: "Daan V.", avatar: "DV", rating: 5, comment: "Corporate party for 800. Read the crowd perfectly all night.", eventDate: "2024-12-20" },
@@ -612,6 +672,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 3 hours",
     yearsActive: 7,
     completedBookings: 310,
+latitude: 28.6139,
+    longitude: 77.209,
+    serviceRadiusKm: 70,
     reviews: [
       { author: "Neha G.", avatar: "NG", rating: 5, comment: "Sangeet night was electric. Dhol player took it to another level.", eventDate: "2024-11-09" },
       { author: "Rahul V.", avatar: "RV", rating: 4, comment: "Great mixes, kept the floor packed. Would book again.", eventDate: "2024-02-26" },
@@ -646,6 +709,9 @@ const vendors: SeedVendor[] = [
     website: "https://lumierelens.co.za",
     whatsapp: "27821234567",
     state: "Western Cape",
+latitude: -33.9249,
+    longitude: 18.4241,
+    serviceRadiusKm: 100,
     reviews: [
       { author: "Thandi M.", avatar: "TM", rating: 5, comment: "Our Winelands wedding photos are cinematic masterpieces. Super 8 film is pure magic.", eventDate: "2024-04-06" },
       { author: "Johan B.", avatar: "JB", rating: 5, comment: "Drone shots of the venue were breathtaking. True artist.", eventDate: "2024-10-26" },
@@ -673,6 +739,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 5 hours",
     yearsActive: 6,
     completedBookings: 140,
+latitude: -37.8136,
+    longitude: 144.9631,
+    serviceRadiusKm: 80,
     reviews: [
       { author: "Olivia F.", avatar: "OF", rating: 5, comment: "Same-day edit at our reception made everyone cry. Real moments captured.", eventDate: "2024-03-16" },
       { author: "Liam K.", avatar: "LK", rating: 4, comment: "Documentary style suited us perfectly. Unobtrusive and warm.", eventDate: "2024-07-01" },
@@ -700,6 +769,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 4 hours",
     yearsActive: 8,
     completedBookings: 410,
+latitude: 40.7549,
+    longitude: -73.984,
+    serviceRadiusKm: 0,
     reviews: [
       { author: "Grace L.", avatar: "GL", rating: 5, comment: "Sunset over the skyline during our vows. Unforgettable venue.", eventDate: "2024-09-15" },
       { author: "Daniel W.", avatar: "DW", rating: 4, comment: "Stunning space, premium pricing. Production team is top-notch.", eventDate: "2024-05-22" },
@@ -727,6 +799,9 @@ const vendors: SeedVendor[] = [
     responseTime: "under 6 hours",
     yearsActive: 11,
     completedBookings: 230,
+latitude: 38.7223,
+    longitude: -9.1393,
+    serviceRadiusKm: 0,
     reviews: [
       { author: "Isabela C.", avatar: "IC", rating: 5, comment: "Getting married among the olive trees with the ocean below was surreal.", eventDate: "2024-06-12" },
       { author: "Pedro M.", avatar: "PM", rating: 5, comment: "Venue of dreams. The team made our destination wedding effortless.", eventDate: "2024-08-03" },
@@ -787,6 +862,9 @@ async function main() {
         instagram: v.instagram ?? null,
         website: v.website ?? null,
         whatsapp: v.whatsapp ?? null,
+        latitude: v.latitude ?? null,
+        longitude: v.longitude ?? null,
+        serviceRadiusKm: v.serviceRadiusKm ?? null,
         reviews: {
           create: v.reviews.map((r) => ({
             author: r.author,
