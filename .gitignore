@@ -63,3 +63,13 @@ image-gen.log
 tool-results/
 preview-*.png
 push-to-github.sh
+
+# Sandbox-internal files (never push these)
+/.zscripts/
+/Caddyfile
+/examples/
+/mini-services/
+/download/
+/upload/
+/scripts/
+/worklog.md
