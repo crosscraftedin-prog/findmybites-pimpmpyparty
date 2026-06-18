@@ -13,6 +13,7 @@ import {
   Compass,
   LayoutGrid,
   Star,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ export function SiteHeader() {
   const setSearch = useMarketplace((s) => s.setSearch);
   const search = useMarketplace((s) => s.search);
   const openListVendor = useMarketplace((s) => s.openListVendor);
+  const openAdmin = useMarketplace((s) => s.openAdmin);
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -107,6 +109,17 @@ export function SiteHeader() {
         <ThemeToggle />
 
         <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => openAdmin()}
+          aria-label="Admin panel"
+          title="Admin panel"
+        >
+          <ShieldCheck className="size-4" />
+        </Button>
+
+        <Button
           size="sm"
           className="hidden bg-brand text-brand-foreground hover:bg-brand/90 sm:inline-flex"
           onClick={() => openListVendor()}
@@ -172,6 +185,15 @@ export function SiteHeader() {
                   >
                     <Sparkles className="size-4" />
                     List your business
+                  </Button>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Button
+                    variant="outline"
+                    onClick={() => openAdmin()}
+                  >
+                    <ShieldCheck className="size-4" />
+                    Admin panel
                   </Button>
                 </SheetClose>
                 <div className="mt-auto flex items-center gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">

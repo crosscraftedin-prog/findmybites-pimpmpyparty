@@ -298,3 +298,75 @@ export async function PATCH(
     );
   }
 }
+
+// ── DELETE: remove a vendor listing (admin) ───────────────────────────────
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await params;
+    const existing = await db.vendor.findUnique({ where: { slug } });
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Vendor not found" },
+        { status: 404 }
+      );
+    }
+    // cascade deletes reviews + bookings via the schema relation onDelete
+    await db.vendor.delete({ where: { slug } });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[api/vendors/[slug]] DELETE failed:", err);
+    return NextResponse.json(
+      { error: "Failed to delete vendor" },
+      { status: 500 }
+    );
+  }
+}
+
+// ── PATCH flags: feature / verify (admin quick-toggle) ────────────────────
+
+interface AdminToggleBody {
+  featured?: unknown;
+  verified?: unknown;
+}
+
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await params;
+    const body = (await req.json()) as AdminToggleBody;
+    const data: Prisma.VendorUpdateInput = {};
+    if (typeof body.featured === "boolean") data.featured = body.featured;
+    if (typeof body.verified === "boolean") data.verified = body.verified;
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json(
+        { error: "Nothing to update (provide featured/verified)" },
+        { status: 400 }
+      );
+    }
+    const existing = await db.vendor.findUnique({ where: { slug } });
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Vendor not found" },
+        { status: 404 }
+      );
+    }
+    const updated = await db.vendor.update({
+      where: { slug },
+      data,
+      include: { reviews: { orderBy: { createdAt: "desc" } } },
+    });
+    return NextResponse.json({ vendor: transformVendor(updated) });
+  } catch (err) {
+    console.error("[api/vendors/[slug]] PUT failed:", err);
+    return NextResponse.json(
+      { error: "Failed to update vendor flags" },
+      { status: 500 }
+    );
+  }
+}

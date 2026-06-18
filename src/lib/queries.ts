@@ -336,3 +336,268 @@ export function useGeocode(address: string, enabled = true) {
     staleTime: Infinity, // addresses don't move — cache forever
   });
 }
+
+// ── Admin hooks ────────────────────────────────────────────────────────────
+
+export type AdminVendor = Vendor;
+export interface AdminVendorsResponse {
+  vendors: AdminVendor[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export function useAdminVendors(params: {
+  ecosystem?: string;
+  search?: string;
+  featured?: "true" | "false";
+  verified?: "true" | "false";
+  page?: number;
+  pageSize?: number;
+}): UseQueryResult<AdminVendorsResponse, Error> {
+  const qs = new URLSearchParams();
+  if (params.ecosystem) qs.set("ecosystem", params.ecosystem);
+  if (params.search) qs.set("search", params.search);
+  if (params.featured) qs.set("featured", params.featured);
+  if (params.verified) qs.set("verified", params.verified);
+  qs.set("page", String(params.page ?? 1));
+  qs.set("pageSize", String(params.pageSize ?? 20));
+  const url = `/api/admin/vendors?${qs.toString()}`;
+  return useQuery({
+    queryKey: ["admin", "vendors", qs.toString()],
+    queryFn: async () => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch vendors");
+      return (await res.json()) as AdminVendorsResponse;
+    },
+    staleTime: 15 * 1000,
+  });
+}
+
+export function useDeleteVendor(): UseMutationResult<
+  { ok: boolean },
+  Error,
+  string
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (slug: string) => {
+      const res = await fetch(`/api/vendors/${slug}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          (body as { error?: string }).error ?? "Failed to delete vendor"
+        );
+      }
+      return (await res.json()) as { ok: boolean };
+    },
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin", "vendors"] }),
+        qc.invalidateQueries({ queryKey: ["vendors"] }),
+        qc.invalidateQueries({ queryKey: ["categories"] }),
+        qc.invalidateQueries({ queryKey: ["stats"] }),
+        qc.invalidateQueries({ queryKey: ["admin", "stats"] }),
+      ]),
+  });
+}
+
+export function useToggleVendorFlag(): UseMutationResult<
+  { vendor: Vendor },
+  Error,
+  { slug: string; featured?: boolean; verified?: boolean }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ slug, featured, verified }) => {
+      const res = await fetch(`/api/vendors/${slug}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ featured, verified }),
+      });
+      if (!res.ok) throw new Error("Failed to update vendor");
+      return (await res.json()) as { vendor: Vendor };
+    },
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin", "vendors"] }),
+        qc.invalidateQueries({ queryKey: ["vendors"] }),
+        qc.invalidateQueries({ queryKey: ["vendor"] }),
+      ]),
+  });
+}
+
+export interface AdminBooking extends Booking {
+  vendorName: string;
+  vendorCity: string;
+}
+export interface AdminBookingsResponse {
+  bookings: AdminBooking[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export function useAdminBookings(params: {
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}): UseQueryResult<AdminBookingsResponse, Error> {
+  const qs = new URLSearchParams();
+  if (params.status && params.status !== "all")
+    qs.set("status", params.status);
+  qs.set("page", String(params.page ?? 1));
+  qs.set("pageSize", String(params.pageSize ?? 25));
+  return useQuery({
+    queryKey: ["admin", "bookings", qs.toString()],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/bookings?${qs.toString()}`);
+      if (!res.ok) throw new Error("Failed to fetch bookings");
+      return (await res.json()) as AdminBookingsResponse;
+    },
+    staleTime: 15 * 1000,
+  });
+}
+
+export function useUpdateBookingStatus(): UseMutationResult<
+  { id: string; status: string },
+  Error,
+  { id: string; status: "pending" | "confirmed" | "declined" }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }) => {
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed to update booking");
+      return (await res.json()) as { id: string; status: string };
+    },
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["admin", "bookings"] }),
+  });
+}
+
+export function useDeleteBooking(): UseMutationResult<
+  { ok: boolean },
+  Error,
+  string
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/bookings/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete booking");
+      return (await res.json()) as { ok: boolean };
+    },
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["admin", "bookings"] }),
+  });
+}
+
+export interface AdminReview extends Review {
+  vendorName: string;
+}
+export interface AdminReviewsResponse {
+  reviews: AdminReview[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export function useAdminReviews(params: {
+  rating?: string;
+  page?: number;
+  pageSize?: number;
+}): UseQueryResult<AdminReviewsResponse, Error> {
+  const qs = new URLSearchParams();
+  if (params.rating && params.rating !== "all")
+    qs.set("rating", params.rating);
+  qs.set("page", String(params.page ?? 1));
+  qs.set("pageSize", String(params.pageSize ?? 25));
+  return useQuery({
+    queryKey: ["admin", "reviews", qs.toString()],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/reviews?${qs.toString()}`);
+      if (!res.ok) throw new Error("Failed to fetch reviews");
+      return (await res.json()) as AdminReviewsResponse;
+    },
+    staleTime: 15 * 1000,
+  });
+}
+
+export function useDeleteReview(): UseMutationResult<
+  { ok: boolean; rating: number; reviewCount: number },
+  Error,
+  string
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/reviews/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete review");
+      return (await res.json()) as {
+        ok: boolean;
+        rating: number;
+        reviewCount: number;
+      };
+    },
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin", "reviews"] }),
+        qc.invalidateQueries({ queryKey: ["reviews"] }),
+        qc.invalidateQueries({ queryKey: ["vendor"] }),
+        qc.invalidateQueries({ queryKey: ["admin", "stats"] }),
+      ]),
+  });
+}
+
+export interface AdminStats {
+  totals: {
+    vendors: number;
+    reviews: number;
+    bookings: number;
+    pendingBookings: number;
+    confirmedBookings: number;
+    avgRating: number;
+  };
+  vendorsByEcosystem: { ecosystem: string; count: number }[];
+  vendorsByContinent: { continent: string; count: number }[];
+  vendorsByCategory: { category: string; count: number }[];
+  bookingsByStatus: { status: string; count: number }[];
+  recentBookings: {
+    id: string;
+    name: string;
+    eventType: string;
+    eventDate: string;
+    status: string;
+    createdAt: string;
+    vendorName: string;
+  }[];
+  recentVendors: {
+    id: string;
+    name: string;
+    slug: string;
+    ecosystem: string;
+    city: string;
+    country: string;
+    createdAt: string;
+  }[];
+}
+
+export function useAdminStats(): UseQueryResult<AdminStats, Error> {
+  return useQuery({
+    queryKey: ["admin", "stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/stats");
+      if (!res.ok) throw new Error("Failed to fetch admin stats");
+      return (await res.json()) as AdminStats;
+    },
+    staleTime: 30 * 1000,
+  });
+}

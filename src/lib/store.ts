@@ -54,6 +54,11 @@ interface MarketplaceState {
   nearRadius: number; // 0 = global
   setNearRadius: (km: number) => void;
 
+  // Admin panel overlay
+  adminOpen: boolean;
+  openAdmin: () => void;
+  closeAdmin: () => void;
+
   resetFilters: () => void;
 }
 
@@ -110,6 +115,10 @@ export const useMarketplace = create<MarketplaceState>((set, get) => ({
   setNearMeOpen: (open) => set({ nearMeOpen: open }),
   nearRadius: 10,
   setNearRadius: (km) => set({ nearRadius: km }),
+
+  adminOpen: false,
+  openAdmin: () => set({ adminOpen: true }),
+  closeAdmin: () => set({ adminOpen: false }),
 
   resetFilters: () =>
     set({
