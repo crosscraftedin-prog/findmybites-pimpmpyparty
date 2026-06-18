@@ -84,12 +84,18 @@ CREATE TABLE IF NOT EXISTS "Booking" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Booking_pkey" PRIMARY KEY ("id")
 );
-ALTER TABLE "Review" ADD CONSTRAINT IF NOT EXISTS "Review_vendorId_fkey"
-  FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE CASCADE;
-ALTER TABLE "Booking" ADD CONSTRAINT IF NOT EXISTS "Booking_vendorId_fkey"
-  FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE CASCADE;
-ALTER TABLE "Vendor" ADD CONSTRAINT IF NOT EXISTS "Vendor_userEmail_fkey"
-  FOREIGN KEY ("userEmail") REFERENCES "User"("email") ON DELETE SET NULL;
+DO $$ BEGIN
+  ALTER TABLE "Review" ADD CONSTRAINT "Review_vendorId_fkey"
+    FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Booking" ADD CONSTRAINT "Booking_vendorId_fkey"
+    FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Vendor" ADD CONSTRAINT "Vendor_userEmail_fkey"
+    FOREIGN KEY ("userEmail") REFERENCES "User"("email") ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- 3. INDEXES
 CREATE INDEX IF NOT EXISTS "Vendor_ecosystem_idx" ON "Vendor"("ecosystem");
 CREATE INDEX IF NOT EXISTS "Vendor_category_idx" ON "Vendor"("category");
