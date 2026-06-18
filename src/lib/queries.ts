@@ -90,6 +90,8 @@ export interface CreateVendorInput {
   tags: string[];
   responseTime: string;
   yearsActive: number;
+  logoUrl?: string;
+  bannerUrl?: string;
 }
 
 export interface CreateVendorResponse {

@@ -87,6 +87,16 @@ export function VendorModal() {
                 }
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+              {/* Logo avatar (only if the vendor uploaded a distinct logo) */}
+              {vendor.avatarImage && vendor.avatarImage !== vendor.heroImage && (
+                <div className="absolute -bottom-8 left-4 size-20 overflow-hidden rounded-2xl border-4 border-background bg-background shadow-lg sm:left-6 sm:size-24">
+                  <img
+                    src={vendor.avatarImage}
+                    alt={`${vendor.name} logo`}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              )}
               <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">
                 <div className="flex flex-wrap items-center gap-2">
                   {cat && (

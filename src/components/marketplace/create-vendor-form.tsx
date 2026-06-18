@@ -33,6 +33,7 @@ import {
   categoriesFor,
 } from "@/lib/constants";
 import { countryCodeToFlag } from "@/lib/format";
+import { ImageUpload } from "./image-upload";
 import type { Ecosystem, Vendor } from "@/lib/types";
 
 interface FormState {
@@ -48,6 +49,8 @@ interface FormState {
   tags: string;
   responseTime: string;
   yearsActive: string;
+  logoUrl: string;
+  bannerUrl: string;
 }
 
 const EMPTY: FormState = {
@@ -63,6 +66,8 @@ const EMPTY: FormState = {
   tags: "",
   responseTime: "under 2 hours",
   yearsActive: "1",
+  logoUrl: "",
+  bannerUrl: "",
 };
 
 export function CreateVendorForm({
@@ -126,6 +131,8 @@ export function CreateVendorForm({
           .filter(Boolean),
         responseTime: form.responseTime,
         yearsActive: Number(form.yearsActive) || 1,
+        logoUrl: form.logoUrl || undefined,
+        bannerUrl: form.bannerUrl || undefined,
       });
       toast.success("Your business is live!", {
         description: `${res.vendor.name} is now listed on the marketplace.`,
@@ -166,6 +173,25 @@ export function CreateVendorForm({
           </SelectContent>
         </Select>
       </Field>
+
+      {/* Branding uploads — banner + logo */}
+      <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
+        <ImageUpload
+          label="Banner photo"
+          aspect="banner"
+          value={form.bannerUrl}
+          onChange={(url) => set("bannerUrl", url)}
+          hint="Shown on your card & profile header. 16:9 looks best."
+        />
+        <ImageUpload
+          label="Logo"
+          aspect="square"
+          value={form.logoUrl}
+          onChange={(url) => set("logoUrl", url)}
+          hint="Square logo or headshot."
+          className="sm:w-40"
+        />
+      </div>
 
       {/* Tagline */}
       <Field label="Tagline" required hint="One punchy line shown on your card">

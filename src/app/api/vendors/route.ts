@@ -203,6 +203,8 @@ interface CreateVendorBody {
   tags?: unknown;
   responseTime?: unknown;
   yearsActive?: unknown;
+  logoUrl?: unknown;
+  bannerUrl?: unknown;
 }
 
 const VALID_ECOSYSTEMS = new Set(["FINDMYBITES", "PIMPMYPARTY"]);
@@ -308,9 +310,21 @@ export async function POST(req: NextRequest) {
       slug = `${base}-${suffix}`;
     }
 
-    // --- default images from the chosen category ---
+    // --- images: prefer uploaded banner/logo, fall back to category default ---
     const cat = getCategory(category);
-    const heroImage = cat?.image ?? "/vendors/baker.png";
+    const fallbackImage = cat?.image ?? "/vendors/baker.png";
+
+    // Validate uploaded URLs — only accept local /uploads/ paths to prevent
+    // arbitrary remote-image or javascript: URLs being stored.
+    const isSafeUploadUrl = (u: unknown): u is string =>
+      typeof u === "string" && u.startsWith("/uploads/") && u.length < 200;
+
+    const bannerUrl = isSafeUploadUrl(body.bannerUrl) ? body.bannerUrl : "";
+    const logoUrl = isSafeUploadUrl(body.logoUrl) ? body.logoUrl : "";
+
+    const heroImage = bannerUrl || fallbackImage;
+    const avatarImage = logoUrl || bannerUrl || fallbackImage;
+    const gallery = [heroImage, logoUrl].filter(Boolean);
 
     // --- create ---
     const created = await db.vendor.create({
@@ -331,8 +345,10 @@ export async function POST(req: NextRequest) {
         rating: 0,
         reviewCount: 0,
         heroImage,
-        avatarImage: heroImage,
-        gallery: JSON.stringify([heroImage]),
+        avatarImage,
+        gallery: JSON.stringify(
+          gallery.length > 0 ? gallery : [fallbackImage]
+        ),
         tags: JSON.stringify(tags),
         featured: false,
         verified: true,
