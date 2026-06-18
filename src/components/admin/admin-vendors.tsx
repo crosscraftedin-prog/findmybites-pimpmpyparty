@@ -11,6 +11,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  EyeOff,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,12 +39,14 @@ export function AdminVendors() {
   const [search, setSearch] = React.useState("");
   const [ecosystem, setEcosystem] = React.useState<string>("all");
   const [featured, setFeatured] = React.useState<string>("all");
+  const [approval, setApproval] = React.useState<string>("all");
   const [page, setPage] = React.useState(1);
 
   const { data, isLoading, isFetching } = useAdminVendors({
     search: search || undefined,
     ecosystem: ecosystem === "all" ? undefined : ecosystem,
     featured: featured === "all" ? undefined : (featured as "true" | "false"),
+    approved: approval === "all" ? undefined : (approval as "true" | "false"),
     page,
     pageSize: 15,
   });
@@ -107,6 +111,16 @@ export function AdminVendors() {
             <SelectItem value="false">Not featured</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={approval} onValueChange={(v) => { setApproval(v); setPage(1); }}>
+          <SelectTrigger className="h-10 w-[160px] rounded-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="false">⏳ Pending approval</SelectItem>
+            <SelectItem value="true">✅ Approved</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <p className="text-sm text-muted-foreground">
@@ -131,6 +145,7 @@ export function AdminVendors() {
               <th className="px-4 py-3 text-left font-semibold">Vendor</th>
               <th className="px-4 py-3 text-left font-semibold">Location</th>
               <th className="px-4 py-3 text-left font-semibold">Rating</th>
+              <th className="px-4 py-3 text-left font-semibold">Status</th>
               <th className="px-4 py-3 text-left font-semibold">Listed</th>
               <th className="px-4 py-3 text-right font-semibold">Actions</th>
             </tr>
@@ -139,14 +154,14 @@ export function AdminVendors() {
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i}>
-                  <td colSpan={5} className="px-4 py-4">
+                  <td colSpan={6} className="px-4 py-4">
                     <Skeleton className="h-8 w-full" />
                   </td>
                 </tr>
               ))
             ) : vendors.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
+                <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
                   No vendors found.
                 </td>
               </tr>
@@ -189,11 +204,46 @@ export function AdminVendors() {
                         </span>
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      {v.approved ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+                          ✅ Approved
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                          ⏳ Pending
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {timeAgo(v.createdAt)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        {!v.approved && (
+                          <button
+                            title="Approve listing"
+                            onClick={() =>
+                              toggleFlag.mutate({ slug: v.slug, approved: true })
+                            }
+                            disabled={toggleFlag.isPending}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-emerald-600 disabled:opacity-50"
+                          >
+                            ✓ Approve
+                          </button>
+                        )}
+                        {v.approved && (
+                          <button
+                            title="Unapprove (hide from public)"
+                            onClick={() =>
+                              toggleFlag.mutate({ slug: v.slug, approved: false })
+                            }
+                            disabled={toggleFlag.isPending}
+                            className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-amber-100 hover:text-amber-600 disabled:opacity-50"
+                          >
+                            <EyeOff className="size-4" />
+                          </button>
+                        )}
                         <IconBtn
                           title={v.featured ? "Unfeature" : "Feature"}
                           active={v.featured}

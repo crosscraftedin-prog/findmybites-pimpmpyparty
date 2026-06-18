@@ -27,6 +27,7 @@ function transformVendor(v: DbVendor): ApiVendor {
     gallery: parseJsonArray<string>(v.gallery),
     tags: parseJsonArray<string>(v.tags),
     featured: v.featured,
+    approved: v.approved,
     verified: v.verified,
     responseTime: v.responseTime,
     yearsActive: v.yearsActive,
@@ -58,6 +59,7 @@ export async function GET(req: NextRequest) {
     const search = sp.get("search") ?? undefined;
     const featured = sp.get("featured"); // "true" | "false"
     const verified = sp.get("verified");
+    const approved = sp.get("approved");
     const pageRaw = Number(sp.get("page"));
     const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.round(pageRaw) : 1;
     const pageSizeRaw = Number(sp.get("pageSize"));
@@ -71,6 +73,9 @@ export async function GET(req: NextRequest) {
     if (featured === "true") where.featured = true;
     if (featured === "false") where.featured = false;
     if (verified === "true") where.verified = true;
+    if (verified === "false") where.verified = false;
+    if (approved === "true") where.approved = true;
+    if (approved === "false") where.approved = false;
     if (verified === "false") where.verified = false;
     if (search) {
       where.OR = [

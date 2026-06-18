@@ -23,6 +23,7 @@ export interface Vendor {
   tags: string[];
   featured: boolean;
   verified: boolean;
+  approved: boolean;
   responseTime: string;
   yearsActive: number;
   completedBookings: number;

@@ -41,6 +41,7 @@ function transformVendor(v: DbVendorWithReviews): VendorWithRelations {
     gallery: parseJsonArray<string>(v.gallery),
     tags: parseJsonArray<string>(v.tags),
     featured: v.featured,
+    approved: v.approved,
     verified: v.verified,
     responseTime: v.responseTime,
     yearsActive: v.yearsActive,
@@ -332,6 +333,7 @@ export async function DELETE(
 interface AdminToggleBody {
   featured?: unknown;
   verified?: unknown;
+  approved?: unknown;
 }
 
 export async function PUT(
@@ -344,9 +346,10 @@ export async function PUT(
     const data: Prisma.VendorUpdateInput = {};
     if (typeof body.featured === "boolean") data.featured = body.featured;
     if (typeof body.verified === "boolean") data.verified = body.verified;
+    if (typeof body.approved === "boolean") data.approved = body.approved;
     if (Object.keys(data).length === 0) {
       return NextResponse.json(
-        { error: "Nothing to update (provide featured/verified)" },
+        { error: "Nothing to update (provide featured/verified/approved)" },
         { status: 400 }
       );
     }

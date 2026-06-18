@@ -28,6 +28,7 @@ function transformVendor(v: DbVendor): Vendor {
     gallery: parseJsonArray<string>(v.gallery),
     tags: parseJsonArray<string>(v.tags),
     featured: v.featured,
+    approved: v.approved,
     verified: v.verified,
     responseTime: v.responseTime,
     yearsActive: v.yearsActive,
@@ -91,6 +92,7 @@ export async function GET(req: NextRequest) {
     const where: Prisma.VendorWhereInput = {
       latitude: { not: null },
       longitude: { not: null },
+      approved: true, // only show approved vendors publicly
     };
     if (ecosystem) where.ecosystem = ecosystem;
     if (category) where.category = category;

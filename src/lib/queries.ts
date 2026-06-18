@@ -353,6 +353,7 @@ export function useAdminVendors(params: {
   search?: string;
   featured?: "true" | "false";
   verified?: "true" | "false";
+  approved?: "true" | "false";
   page?: number;
   pageSize?: number;
 }): UseQueryResult<AdminVendorsResponse, Error> {
@@ -361,6 +362,7 @@ export function useAdminVendors(params: {
   if (params.search) qs.set("search", params.search);
   if (params.featured) qs.set("featured", params.featured);
   if (params.verified) qs.set("verified", params.verified);
+  if (params.approved) qs.set("approved", params.approved);
   qs.set("page", String(params.page ?? 1));
   qs.set("pageSize", String(params.pageSize ?? 20));
   const url = `/api/admin/vendors?${qs.toString()}`;
@@ -406,15 +408,15 @@ export function useDeleteVendor(): UseMutationResult<
 export function useToggleVendorFlag(): UseMutationResult<
   { vendor: Vendor },
   Error,
-  { slug: string; featured?: boolean; verified?: boolean }
+  { slug: string; featured?: boolean; verified?: boolean; approved?: boolean }
 > {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ slug, featured, verified }) => {
+    mutationFn: async ({ slug, featured, verified, approved }) => {
       const res = await fetch(`/api/vendors/${slug}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ featured, verified }),
+        body: JSON.stringify({ featured, verified, approved }),
       });
       if (!res.ok) throw new Error("Failed to update vendor");
       return (await res.json()) as { vendor: Vendor };

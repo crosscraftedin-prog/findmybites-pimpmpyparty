@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     const categories: CategoryWithCount[] = await Promise.all(
       cats.map(async (c) => {
         const count = await db.vendor.count({
-          where: { ecosystem: c.ecosystem, category: c.id },
+          where: { ecosystem: c.ecosystem, category: c.id, approved: true },
         });
         return {
           id: c.id,

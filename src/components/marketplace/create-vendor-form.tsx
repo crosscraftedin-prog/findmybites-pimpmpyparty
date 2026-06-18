@@ -7,6 +7,7 @@ import {
   Send,
   Store,
   CheckCircle2,
+  Clock,
   Eye,
   Sparkles,
   MessageCircle,
@@ -220,8 +221,8 @@ export function CreateVendorForm({
         onUpdated?.(res.vendor);
       } else {
         const res = await createVendor.mutateAsync({ ...payload, ecosystem });
-        toast.success("Your business is live!", {
-          description: `${res.vendor.name} is now listed on the marketplace.`,
+        toast.success("Listing submitted for approval!", {
+          description: `${res.vendor.name} will appear publicly once an admin approves it.`,
         });
         onCreated(res.vendor);
       }
@@ -669,14 +670,14 @@ export function CreateVendorSuccess({
 }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-brand-border bg-brand-soft p-8 text-center">
-      <div className="grid size-16 place-items-center rounded-full bg-brand text-brand-foreground shadow-lg">
-        <CheckCircle2 className="size-8" />
+      <div className="grid size-16 place-items-center rounded-full bg-amber-500 text-white shadow-lg">
+        <Clock className="size-8" />
       </div>
-      <h3 className="mt-4 text-xl font-bold">Your business is live! 🎉</h3>
+      <h3 className="mt-4 text-xl font-bold">Submitted for approval! ⏳</h3>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        <span className="font-semibold text-foreground">{vendor.name}</span> is
-        now listed in {vendor.city}, {vendor.country} and visible to customers
-        worldwide.
+        <span className="font-semibold text-foreground">{vendor.name}</span> has
+        been submitted and is pending admin approval. Once approved, it will
+        appear publicly on the marketplace.
       </p>
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2">

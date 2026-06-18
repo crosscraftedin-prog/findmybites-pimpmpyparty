@@ -44,6 +44,7 @@ function transformVendor(v: DbVendor): ApiVendor {
     gallery: parseJsonArray<string>(v.gallery),
     tags: parseJsonArray<string>(v.tags),
     featured: v.featured,
+    approved: v.approved,
     verified: v.verified,
     responseTime: v.responseTime,
     yearsActive: v.yearsActive,
@@ -101,7 +102,9 @@ export async function GET(req: NextRequest) {
     const limit = limitRaw ? Math.max(1, Number(limitRaw) || 60) : 60;
 
     // Structured (non-search) filters — always applied via Prisma.
-    const where: Prisma.VendorWhereInput = {};
+    // Only show APPROVED vendors on the public site (pending ones are hidden
+    // until an admin approves them).
+    const where: Prisma.VendorWhereInput = { approved: true };
     if (ecosystem) where.ecosystem = ecosystem;
     if (category) where.category = category;
     if (continent) where.continent = continent;
@@ -425,6 +428,7 @@ export async function POST(req: NextRequest) {
         tags: JSON.stringify(tags),
         featured: false,
         verified: true,
+        approved: false, // pending admin approval — hidden from public until approved
         responseTime,
         yearsActive,
         completedBookings: 0,

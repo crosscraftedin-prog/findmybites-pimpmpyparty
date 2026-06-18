@@ -47,6 +47,9 @@ model Vendor {
   tags             String
   featured         Boolean   @default(false)
   verified         Boolean   @default(true)
+  // approval workflow: new vendor listings are pending (approved=false) until
+  // an admin approves them. Only approved vendors show on the public site.
+  approved         Boolean   @default(false)
   responseTime     String
   yearsActive      Int       @default(1)
   completedBookings Int      @default(0)
