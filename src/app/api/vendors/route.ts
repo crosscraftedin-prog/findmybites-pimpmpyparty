@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma, type Vendor as DbVendor } from "@prisma/client";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
-import { COUNTRIES, getCategory } from "@/lib/constants";
+import { COUNTRIES, getCategory, SUBCATEGORIES } from "@/lib/constants";
 import {
   searchVendors,
   searchIndexHasRows,
@@ -37,6 +37,12 @@ function transformVendor(v: DbVendor): ApiVendor {
     responseTime: v.responseTime,
     yearsActive: v.yearsActive,
     completedBookings: v.completedBookings,
+    subcategory: v.subcategory,
+    address: v.address,
+    zipCode: v.zipCode,
+    instagram: v.instagram,
+    website: v.website,
+    whatsapp: v.whatsapp,
     createdAt: v.createdAt.toISOString(),
   };
 }
@@ -205,10 +211,68 @@ interface CreateVendorBody {
   yearsActive?: unknown;
   logoUrl?: unknown;
   bannerUrl?: unknown;
+  subcategory?: unknown;
+  address?: unknown;
+  zipCode?: unknown;
+  instagram?: unknown;
+  website?: unknown;
+  whatsapp?: unknown;
 }
 
 const VALID_ECOSYSTEMS = new Set(["FINDMYBITES", "PIMPMYPARTY"]);
 const VALID_PRICE_RANGES = new Set(["$", "$$", "$$$", "$$$$"]);
+
+/**
+ * Sanitize an Instagram input into a bare handle (no @, no URL).
+ * Accepts "@handle", "instagram.com/handle", "https://instagram.com/handle",
+ * or just "handle". Returns "" if invalid.
+ */
+function sanitizeInstagram(input: unknown): string {
+  if (typeof input !== "string") return "";
+  let s = input.trim();
+  if (!s) return "";
+  // strip protocol + domain
+  s = s.replace(/^https?:\/\/(www\.)?instagram\.com\//i, "");
+  s = s.replace(/^(www\.)?instagram\.com\//i, "");
+  s = s.replace(/^@+/, "");
+  // remove trailing path/query
+  s = s.split(/[/?#]/)[0];
+  // instagram handle rules: letters, digits, dots, underscores, max 30
+  if (!/^[A-Za-z0-9._]{1,30}$/.test(s)) return "";
+  return s;
+}
+
+/**
+ * Sanitize a website URL: ensure it has a protocol, and that the host looks
+ * valid. Returns "" if it can't be made safe.
+ */
+function sanitizeWebsite(input: unknown): string {
+  if (typeof input !== "string") return "";
+  let s = input.trim();
+  if (!s) return "";
+  if (!/^https?:\/\//i.test(s)) s = `https://${s}`;
+  try {
+    const u = new URL(s);
+    // must have a dot in the hostname (reject "localhost" etc.)
+    if (!/\./.test(u.hostname)) return "";
+    return u.toString();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Sanitize a WhatsApp number: keep digits only, strip leading zeros, and
+ * require 7-15 digits (E.164 range). Returns the bare digit string or "".
+ * The frontend prepends the country calling code; we trust the user entered
+ * the full international number.
+ */
+function sanitizeWhatsApp(input: unknown): string {
+  if (typeof input !== "string") return "";
+  const digits = input.replace(/[^\d]/g, "");
+  if (digits.length < 7 || digits.length > 15) return "";
+  return digits;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -251,6 +315,29 @@ export async function POST(req: NextRequest) {
       typeof body.responseTime === "string" && body.responseTime.trim()
         ? body.responseTime.trim()
         : "under 24 hours";
+
+    // --- optional contact + location fields (sanitized) ---
+    const subcategoryRaw =
+      typeof body.subcategory === "string" ? body.subcategory.trim() : "";
+    // validate subcategory belongs to the chosen category
+    const subcategory =
+      subcategoryRaw && SUBCATEGORIES[category]?.includes(subcategoryRaw)
+        ? subcategoryRaw
+        : null;
+
+    const address =
+      typeof body.address === "string" && body.address.trim()
+        ? body.address.trim().slice(0, 200)
+        : null;
+
+    const zipCode =
+      typeof body.zipCode === "string" && body.zipCode.trim()
+        ? body.zipCode.trim().slice(0, 20)
+        : null;
+
+    const instagram = sanitizeInstagram(body.instagram) || null;
+    const website = sanitizeWebsite(body.website) || null;
+    const whatsapp = sanitizeWhatsApp(body.whatsapp) || null;
 
     // tags: accept string[] or comma-separated string
     let tags: string[] = [];
@@ -355,6 +442,12 @@ export async function POST(req: NextRequest) {
         responseTime,
         yearsActive,
         completedBookings: 0,
+        subcategory,
+        address,
+        zipCode,
+        instagram,
+        website,
+        whatsapp,
       },
     });
 

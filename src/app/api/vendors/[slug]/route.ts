@@ -35,6 +35,12 @@ function transformVendor(v: DbVendorWithReviews): VendorWithRelations {
     responseTime: v.responseTime,
     yearsActive: v.yearsActive,
     completedBookings: v.completedBookings,
+    subcategory: v.subcategory,
+    address: v.address,
+    zipCode: v.zipCode,
+    instagram: v.instagram,
+    website: v.website,
+    whatsapp: v.whatsapp,
     createdAt: v.createdAt.toISOString(),
     reviews: v.reviews.map<ApiReview>((r) => ({
       id: r.id,

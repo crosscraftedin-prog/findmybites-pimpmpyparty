@@ -37,6 +37,13 @@ model Vendor {
   responseTime     String
   yearsActive      Int       @default(1)
   completedBookings Int      @default(0)
+  // contact + location details (optional, added for richer listings)
+  subcategory      String?
+  address          String?
+  zipCode          String?
+  instagram        String?
+  website          String?
+  whatsapp         String?
   createdAt        DateTime  @default(now())
   reviews          Review[]
   bookings         Booking[]

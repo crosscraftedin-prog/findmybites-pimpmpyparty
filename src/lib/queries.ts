@@ -92,6 +92,12 @@ export interface CreateVendorInput {
   yearsActive: number;
   logoUrl?: string;
   bannerUrl?: string;
+  subcategory?: string;
+  address?: string;
+  zipCode?: string;
+  instagram?: string;
+  website?: string;
+  whatsapp?: string;
 }
 
 export interface CreateVendorResponse {

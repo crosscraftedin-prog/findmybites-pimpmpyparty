@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Eye,
   Sparkles,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,7 @@ import {
   PRICE_RANGES,
   RESPONSE_TIME_OPTIONS,
   categoriesFor,
+  subcategoriesFor,
 } from "@/lib/constants";
 import { countryCodeToFlag } from "@/lib/format";
 import { ImageUpload } from "./image-upload";
@@ -39,10 +41,13 @@ import type { Ecosystem, Vendor } from "@/lib/types";
 interface FormState {
   name: string;
   category: string;
+  subcategory: string;
   tagline: string;
   description: string;
   countryCode: string;
   city: string;
+  address: string;
+  zipCode: string;
   currency: string;
   priceRange: string;
   basePrice: string;
@@ -51,15 +56,21 @@ interface FormState {
   yearsActive: string;
   logoUrl: string;
   bannerUrl: string;
+  instagram: string;
+  website: string;
+  whatsapp: string;
 }
 
 const EMPTY: FormState = {
   name: "",
   category: "",
+  subcategory: "",
   tagline: "",
   description: "",
   countryCode: "",
   city: "",
+  address: "",
+  zipCode: "",
   currency: "",
   priceRange: "",
   basePrice: "",
@@ -68,6 +79,9 @@ const EMPTY: FormState = {
   yearsActive: "1",
   logoUrl: "",
   bannerUrl: "",
+  instagram: "",
+  website: "",
+  whatsapp: "",
 };
 
 export function CreateVendorForm({
@@ -118,9 +132,12 @@ export function CreateVendorForm({
         name: form.name.trim(),
         ecosystem,
         category: form.category,
+        subcategory: form.subcategory || undefined,
         tagline: form.tagline.trim(),
         description: form.description.trim(),
         city: form.city.trim(),
+        address: form.address.trim() || undefined,
+        zipCode: form.zipCode.trim() || undefined,
         countryCode: form.countryCode,
         currency: form.currency,
         priceRange: form.priceRange,
@@ -133,6 +150,9 @@ export function CreateVendorForm({
         yearsActive: Number(form.yearsActive) || 1,
         logoUrl: form.logoUrl || undefined,
         bannerUrl: form.bannerUrl || undefined,
+        instagram: form.instagram.trim() || undefined,
+        website: form.website.trim() || undefined,
+        whatsapp: form.whatsapp.trim() || undefined,
       });
       toast.success("Your business is live!", {
         description: `${res.vendor.name} is now listed on the marketplace.`,
@@ -158,21 +178,50 @@ export function CreateVendorForm({
         />
       </Field>
 
-      {/* Category */}
-      <Field label="Category" required>
-        <Select value={form.category} onValueChange={(v) => set("category", v)}>
-          <SelectTrigger className="h-10">
-            <SelectValue placeholder="Choose a category" />
-          </SelectTrigger>
-          <SelectContent>
-            {cats.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+      {/* Category + Subcategory */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Category" required>
+          <Select
+            value={form.category}
+            onValueChange={(v) =>
+              setForm((f) => ({ ...f, category: v, subcategory: "" }))
+            }
+          >
+            <SelectTrigger className="h-10">
+              <SelectValue placeholder="Choose a category" />
+            </SelectTrigger>
+            <SelectContent>
+              {cats.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Subcategory" hint="Optional — helps customers find you">
+          <Select
+            value={form.subcategory}
+            onValueChange={(v) => set("subcategory", v)}
+            disabled={!form.category}
+          >
+            <SelectTrigger className="h-10">
+              <SelectValue
+                placeholder={
+                  form.category ? "Choose a subcategory" : "Pick a category first"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {subcategoriesFor(form.category).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
 
       {/* Branding uploads — banner + logo */}
       <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
@@ -246,6 +295,28 @@ export function CreateVendorForm({
             placeholder="e.g. Paris"
             className="h-10"
             maxLength={60}
+          />
+        </Field>
+      </div>
+
+      {/* Full address + zip/postcode */}
+      <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+        <Field label="Full address" hint="Street, area, landmarks — helps customers find you">
+          <Input
+            value={form.address}
+            onChange={(e) => set("address", e.target.value)}
+            placeholder="e.g. 24 Rue du Faubourg Saint-Honoré, 8th arr."
+            className="h-10"
+            maxLength={200}
+          />
+        </Field>
+        <Field label="ZIP / Postcode">
+          <Input
+            value={form.zipCode}
+            onChange={(e) => set("zipCode", e.target.value)}
+            placeholder="e.g. 75008"
+            className="h-10"
+            maxLength={20}
           />
         </Field>
       </div>
@@ -336,6 +407,52 @@ export function CreateVendorForm({
             className="h-10"
           />
         </Field>
+      </div>
+
+      {/* Contact & socials — optional but powerful for discovery */}
+      <div className="rounded-xl border border-border bg-muted/30 p-4">
+        <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <MessageCircle className="size-3.5" />
+          Contact &amp; socials
+          <span className="ml-auto font-normal normal-case tracking-normal text-muted-foreground/70">
+            optional
+          </span>
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Instagram" hint="@handle or full link">
+            <Input
+              value={form.instagram}
+              onChange={(e) => set("instagram", e.target.value)}
+              placeholder="@yourbusiness"
+              className="h-10"
+              maxLength={60}
+            />
+          </Field>
+          <Field label="Website" hint="Your site or menu page">
+            <Input
+              value={form.website}
+              onChange={(e) => set("website", e.target.value)}
+              placeholder="yourbusiness.com"
+              className="h-10"
+              maxLength={200}
+            />
+          </Field>
+        </div>
+        <div className="mt-4">
+          <Field
+            label="WhatsApp number"
+            hint="Include country code, e.g. +44 7700 900123 — customers can message you instantly"
+          >
+            <Input
+              value={form.whatsapp}
+              onChange={(e) => set("whatsapp", e.target.value)}
+              placeholder="+44 7700 900123"
+              className="h-10"
+              maxLength={25}
+              inputMode="tel"
+            />
+          </Field>
+        </div>
       </div>
 
       <Button

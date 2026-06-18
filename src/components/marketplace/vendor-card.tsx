@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { MapPin, BadgeCheck, Clock, Heart } from "lucide-react";
+import { MapPin, BadgeCheck, Clock, Heart, MessageCircle } from "lucide-react";
 import type { Vendor } from "@/lib/types";
 import { getCategory } from "@/lib/constants";
 import { formatPrice, countryCodeToFlag } from "@/lib/format";
@@ -77,6 +77,20 @@ export function VendorCard({ vendor, index = 0 }: { vendor: Vendor; index?: numb
           >
             <Heart className={cn("size-4", liked && "fill-rose-500")} />
           </span>
+          {vendor.whatsapp && (
+            <a
+              href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(
+                `Hi ${vendor.name}, I found you on FindMyBites × PimpMyParty and I'd like to enquire about your services.`
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="grid size-8 place-items-center rounded-full bg-[#25D366] text-white shadow-sm transition-transform hover:scale-110"
+              aria-label="Contact on WhatsApp"
+            >
+              <MessageCircle className="size-4" />
+            </a>
+          )}
         </div>
 
         {/* price chip */}

@@ -26,6 +26,12 @@ export interface Vendor {
   responseTime: string;
   yearsActive: number;
   completedBookings: number;
+  subcategory?: string | null;
+  address?: string | null;
+  zipCode?: string | null;
+  instagram?: string | null;
+  website?: string | null;
+  whatsapp?: string | null;
   createdAt: string;
 }
 

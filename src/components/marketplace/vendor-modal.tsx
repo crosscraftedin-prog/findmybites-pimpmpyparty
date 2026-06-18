@@ -12,6 +12,10 @@ import {
   MessageSquareQuote,
   CalendarPlus,
   Loader2,
+  Instagram,
+  Globe,
+  MessageCircle,
+  Navigation,
 } from "lucide-react";
 import {
   Dialog,
@@ -105,6 +109,11 @@ export function VendorModal() {
                       {cat.label}
                     </Badge>
                   )}
+                  {vendor.subcategory && (
+                    <Badge className="border-0 bg-white/70 text-foreground backdrop-blur">
+                      {vendor.subcategory}
+                    </Badge>
+                  )}
                   {vendor.featured && (
                     <Badge className="border-0 bg-brand text-brand-foreground">
                       <Sparkles className="size-3" /> Featured
@@ -183,6 +192,72 @@ export function VendorModal() {
                     </span>
                   ))}
                 </div>
+
+                {/* Address + contact bar */}
+                {(vendor.address ||
+                  vendor.zipCode ||
+                  vendor.instagram ||
+                  vendor.website ||
+                  vendor.whatsapp) && (
+                  <div className="mt-4 space-y-3 rounded-2xl border border-border bg-muted/40 p-4">
+                    {/* Full address */}
+                    {(vendor.address || vendor.zipCode) && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <Navigation className="mt-0.5 size-4 shrink-0 text-brand" />
+                        <div>
+                          {vendor.address && <p>{vendor.address}</p>}
+                          <p className="text-muted-foreground">
+                            {vendor.city}
+                            {vendor.zipCode ? `, ${vendor.zipCode}` : ""} ·{" "}
+                            {vendor.country}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {/* Contact buttons */}
+                    {(vendor.instagram ||
+                      vendor.website ||
+                      vendor.whatsapp) && (
+                      <div className="flex flex-wrap gap-2">
+                        {vendor.whatsapp && (
+                          <a
+                            href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(
+                              `Hi ${vendor.name}, I found you on FindMyBites × PimpMyParty and I'd like to enquire about your services.`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-full bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-transform hover:scale-105"
+                          >
+                            <MessageCircle className="size-3.5" />
+                            WhatsApp
+                          </a>
+                        )}
+                        {vendor.instagram && (
+                          <a
+                            href={`https://instagram.com/${vendor.instagram}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-accent"
+                          >
+                            <Instagram className="size-3.5" />
+                            @{vendor.instagram}
+                          </a>
+                        )}
+                        {vendor.website && (
+                          <a
+                            href={vendor.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-accent"
+                          >
+                            <Globe className="size-3.5" />
+                            Website
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Tabs */}
                 <Tabs defaultValue="book" className="mt-6">

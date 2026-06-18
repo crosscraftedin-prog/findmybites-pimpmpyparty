@@ -26,6 +26,13 @@ interface SeedVendor {
   yearsActive: number;
   completedBookings: number;
   reviews: { author: string; avatar: string; rating: number; comment: string; eventDate: string }[];
+  // optional contact + location enrichment
+  subcategory?: string;
+  address?: string;
+  zipCode?: string;
+  instagram?: string;
+  website?: string;
+  whatsapp?: string;
 }
 
 const vendors: SeedVendor[] = [
@@ -52,6 +59,12 @@ const vendors: SeedVendor[] = [
     responseTime: "under 1 hour",
     yearsActive: 26,
     completedBookings: 640,
+    subcategory: "Sourdough",
+    address: "18 Rue des Martyrs, 9th arrondissement",
+    zipCode: "75009",
+    instagram: "maisonlevain",
+    website: "https://maisonlevain.fr",
+    whatsapp: "33142856390",
     reviews: [
       { author: "Camille R.", avatar: "CR", rating: 5, comment: "The sourdough for our wedding was unreal. Guests are still talking about the bread table.", eventDate: "2024-06-15" },
       { author: "Olivier P.", avatar: "OP", rating: 5, comment: "Corporate breakfast for 80 — punctual, warm, delicious croissants. Will rebook.", eventDate: "2024-09-02" },
@@ -107,6 +120,12 @@ const vendors: SeedVendor[] = [
     responseTime: "under 1 hour",
     yearsActive: 14,
     completedBookings: 1180,
+    subcategory: "Wedding Catering",
+    address: "The Roundhouse, Chalk Farm Road, Camden",
+    zipCode: "NW1 8EH",
+    instagram: "saffronandsageuk",
+    website: "https://saffronandsage.co.uk",
+    whatsapp: "447700900123",
     reviews: [
       { author: "Eleanor W.", avatar: "EW", rating: 5, comment: "Catered our charity gala for 400. Flawless service and the lamb was perfect.", eventDate: "2024-10-05" },
       { author: "James B.", avatar: "JB", rating: 5, comment: "Vegan menu was a revelation. Even the meat-eaters wanted seconds.", eventDate: "2024-08-22" },
@@ -270,6 +289,12 @@ const vendors: SeedVendor[] = [
     responseTime: "under 2 hours",
     yearsActive: 10,
     completedBookings: 760,
+    subcategory: "Tacos & Mexican",
+    address: "Av. Álvaro Obregón 64, Roma Norte, Cuauhtémoc",
+    zipCode: "06700",
+    instagram: "eltigretacos",
+    website: "https://eltigretacos.mx",
+    whatsapp: "525512345678",
     reviews: [
       { author: "Carlos M.", avatar: "CM", rating: 5, comment: "The al pastor trompo at our wedding was the highlight. Line was 50 deep.", eventDate: "2024-09-28" },
       { author: "Bianca V.", avatar: "BV", rating: 5, comment: "Best tacos outside a taquería. Mezcal pairing was a nice touch.", eventDate: "2024-04-20" },
@@ -380,6 +405,12 @@ const vendors: SeedVendor[] = [
     responseTime: "under 4 hours",
     yearsActive: 12,
     completedBookings: 320,
+    subcategory: "Weddings",
+    address: "Via Tortona 27, Navigli district",
+    zipCode: "20144",
+    instagram: "soiree.studio",
+    website: "https://soireestudio.it",
+    whatsapp: "393331234567",
     reviews: [
       { author: "Francesca B.", avatar: "FB", rating: 5, comment: "They planned our Lake Como wedding flawlessly. Every detail was intentional.", eventDate: "2024-07-20" },
       { author: "Luca R.", avatar: "LR", rating: 5, comment: "Brand launch for 600 guests. On brief, on budget, on time.", eventDate: "2024-09-09" },
@@ -542,6 +573,12 @@ const vendors: SeedVendor[] = [
     responseTime: "under 2 hours",
     yearsActive: 9,
     completedBookings: 540,
+    subcategory: "Open-Format",
+    address: "Westerpark Studios, Haarlemmerweg 8",
+    zipCode: "1014 BE",
+    instagram: "neonpulsedjs",
+    website: "https://neonpulse.nl",
+    whatsapp: "31612345678",
     reviews: [
       { author: "Sofie J.", avatar: "SJ", rating: 5, comment: "Our wedding dance floor never emptied. The LED wall was stunning.", eventDate: "2024-09-07" },
       { author: "Daan V.", avatar: "DV", rating: 5, comment: "Corporate party for 800. Read the crowd perfectly all night.", eventDate: "2024-12-20" },
@@ -596,6 +633,12 @@ const vendors: SeedVendor[] = [
     responseTime: "under 6 hours",
     yearsActive: 10,
     completedBookings: 220,
+    subcategory: "Weddings",
+    address: "Studio 5, The Old Biscuit Mill, Woodstock",
+    zipCode: "7925",
+    instagram: "lumiere.lens",
+    website: "https://lumierelens.co.za",
+    whatsapp: "27821234567",
     reviews: [
       { author: "Thandi M.", avatar: "TM", rating: 5, comment: "Our Winelands wedding photos are cinematic masterpieces. Super 8 film is pure magic.", eventDate: "2024-04-06" },
       { author: "Johan B.", avatar: "JB", rating: 5, comment: "Drone shots of the venue were breathtaking. True artist.", eventDate: "2024-10-26" },
@@ -687,15 +730,17 @@ const vendors: SeedVendor[] = [
 async function main() {
   console.log("🌱 Seeding FindMyBites × PimpMyParty marketplace...");
 
+  // Set up the FTS5 search index + sync triggers BEFORE the wipe, because
+  // the Vendor delete triggers reference vendor_fts (which may have been
+  // dropped by a `prisma db push` since the last seed). ensureSearchSchema()
+  // is idempotent so this is safe to call every run.
+  await ensureSearchSchema();
+
   // wipe
   await db.review.deleteMany();
   await db.booking.deleteMany();
   await db.vendor.deleteMany();
 
-  // Set up the FTS5 search index + sync triggers BEFORE inserts so every
-  // vendor row is auto-indexed as it's created. rebuildSearchIndex() below
-  // re-syncs at the end as a safety net.
-  await ensureSearchSchema();
   // Triggers don't fire on the FTS table for already-existing rows; clear any
   // stale index entries from previous seeds.
   await db.$executeRawUnsafe(`DELETE FROM vendor_fts`);
@@ -728,6 +773,12 @@ async function main() {
         responseTime: v.responseTime,
         yearsActive: v.yearsActive,
         completedBookings: v.completedBookings,
+        subcategory: v.subcategory ?? null,
+        address: v.address ?? null,
+        zipCode: v.zipCode ?? null,
+        instagram: v.instagram ?? null,
+        website: v.website ?? null,
+        whatsapp: v.whatsapp ?? null,
         reviews: {
           create: v.reviews.map((r) => ({
             author: r.author,
