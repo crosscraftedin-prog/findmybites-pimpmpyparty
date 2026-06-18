@@ -45,6 +45,17 @@ model Vendor {
   @@index([category])
   @@index([continent])
   @@index([featured])
+  @@index([priceRange])
+  @@index([rating])
+  @@index([basePrice])
+  @@index([countryCode])
+  @@index([createdAt])
+  // composite indexes for the most common filter+sort combos at scale
+  @@index([ecosystem, category])
+  @@index([ecosystem, continent])
+  @@index([ecosystem, featured])
+  @@index([ecosystem, priceRange])
+  @@index([ecosystem, rating])
 }
 
 model Review {

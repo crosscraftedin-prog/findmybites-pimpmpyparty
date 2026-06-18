@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { slugify } from "../src/lib/format";
+import { ensureSearchSchema, rebuildSearchIndex } from "../src/lib/search";
 
 const db = new PrismaClient();
 
@@ -691,6 +692,14 @@ async function main() {
   await db.booking.deleteMany();
   await db.vendor.deleteMany();
 
+  // Set up the FTS5 search index + sync triggers BEFORE inserts so every
+  // vendor row is auto-indexed as it's created. rebuildSearchIndex() below
+  // re-syncs at the end as a safety net.
+  await ensureSearchSchema();
+  // Triggers don't fire on the FTS table for already-existing rows; clear any
+  // stale index entries from previous seeds.
+  await db.$executeRawUnsafe(`DELETE FROM vendor_fts`);
+
   for (const v of vendors) {
     const slug = slugify(`${v.name}-${v.city}`);
     const created = await db.vendor.create({
@@ -740,7 +749,16 @@ async function main() {
     findmybites: await db.vendor.count({ where: { ecosystem: "FINDMYBITES" } }),
     pimpmpyparty: await db.vendor.count({ where: { ecosystem: "PIMPMYPARTY" } }),
   };
-  console.log("✅ Seed complete:", counts);
+
+  // Rebuild the FTS search index from scratch (safety net in case any insert
+  // bypassed the triggers). Cheap and idempotent.
+  await rebuildSearchIndex();
+  const ftsCount = await db.$queryRawUnsafe<{ c: number }[]>(
+    `SELECT COUNT(*) AS c FROM vendor_fts`
+  );
+  console.log("✅ Seed complete:", counts, {
+    ftsIndexed: ftsCount[0]?.c ?? 0,
+  });
 }
 
 main()
