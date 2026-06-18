@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useMarketplace } from "@/lib/store";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { AdminOverview } from "./admin-overview";
 import { AdminVendors } from "./admin-vendors";
 import { AdminBookings } from "./admin-bookings";
@@ -28,10 +29,15 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
 export function AdminPanel() {
   const open = useMarketplace((s) => s.adminOpen);
   const close = useMarketplace((s) => s.closeAdmin);
+  const { isAdmin } = useIsAdmin();
   const [tab, setTab] = React.useState<Tab>("overview");
 
+  // only render when an admin is signed in — the dialog won't even open
+  // for non-admins because the shield button is hidden.
+  const isOpen = open && isAdmin;
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && close()}>
+    <Dialog open={isOpen} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-h-[95vh] gap-0 overflow-hidden p-0 sm:max-w-6xl">
         <DialogTitle className="sr-only">Admin panel</DialogTitle>
         <DialogDescription className="sr-only">

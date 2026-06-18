@@ -1,5 +1,20 @@
 import type { Ecosystem } from "./types";
 
+/**
+ * Email addresses that have super-admin access. Anyone who signs in with one
+ * of these gets the admin panel (the shield button in the header + the admin
+ * dialog). Add more emails here as needed.
+ */
+export const ADMIN_EMAILS: string[] = [
+  "bookingjosh@gmail.com",
+];
+
+/** Returns true if the given email is an admin. Case-insensitive. */
+export function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return ADMIN_EMAILS.some((a) => a.toLowerCase() === email.toLowerCase());
+}
+
 export interface CategoryDef {
   id: string;
   ecosystem: Ecosystem;

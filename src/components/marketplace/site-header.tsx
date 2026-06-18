@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
   Menu,
   Search,
@@ -42,6 +43,7 @@ export function SiteHeader() {
   const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
   const { user: session } = useSupabaseSession();
+  const { isAdmin } = useIsAdmin();
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -129,16 +131,18 @@ export function SiteHeader() {
 
         <UserMenu />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground"
-          onClick={() => requireAuth(() => openAdmin())}
-          aria-label="Admin panel"
-          title="Admin panel"
-        >
-          <ShieldCheck className="size-4" />
-        </Button>
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => openAdmin()}
+            aria-label="Admin panel"
+            title="Admin panel"
+          >
+            <ShieldCheck className="size-4" />
+          </Button>
+        )}
 
         <Button
           size="sm"
@@ -208,15 +212,14 @@ export function SiteHeader() {
                     List your business
                   </Button>
                 </SheetClose>
-                <SheetClose asChild>
-                  <Button
-                    variant="outline"
-                    onClick={() => requireAuth(() => openAdmin())}
-                  >
-                    <ShieldCheck className="size-4" />
-                    Admin panel
-                  </Button>
-                </SheetClose>
+                {isAdmin && (
+                  <SheetClose asChild>
+                    <Button variant="outline" onClick={() => openAdmin()}>
+                      <ShieldCheck className="size-4" />
+                      Admin panel
+                    </Button>
+                  </SheetClose>
+                )}
                 <div className="mt-auto flex items-center gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
                   <Globe2 className="size-4 shrink-0" />
                   Serving vendors & customers across 6 continents.
