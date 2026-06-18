@@ -1,0 +1,80 @@
+// FindMyBites x PimpMyParty - Global Marketplace Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A vendor / business listed on the marketplace.
+// ecosystem: "FINDMYBITES" (food) or "PIMPMYPARTY" (events & party services)
+model Vendor {
+  id               String    @id @default(cuid())
+  name             String
+  slug             String    @unique
+  ecosystem        String
+  category         String
+  tagline          String
+  description      String
+  city             String
+  country          String
+  countryCode      String
+  continent        String
+  currency         String
+  priceRange       String
+  basePrice        Int
+  rating           Float     @default(0)
+  reviewCount      Int       @default(0)
+  heroImage        String
+  avatarImage      String
+  gallery          String
+  tags             String
+  featured         Boolean   @default(false)
+  verified         Boolean   @default(true)
+  responseTime     String
+  yearsActive      Int       @default(1)
+  completedBookings Int      @default(0)
+  createdAt        DateTime  @default(now())
+  reviews          Review[]
+  bookings         Booking[]
+
+  @@index([ecosystem])
+  @@index([category])
+  @@index([continent])
+  @@index([featured])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  author    String
+  avatar    String
+  rating    Int
+  comment   String
+  eventDate String?
+  createdAt DateTime @default(now())
+
+  @@index([vendorId])
+}
+
+model Booking {
+  id        String   @id @default(cuid())
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  eventType String
+  eventDate String
+  eventCity String
+  guests    Int
+  budget    String
+  message   String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  @@index([vendorId])
+}
