@@ -3,75 +3,93 @@ import { db } from "@/lib/db";
 
 /**
  * GET /api/admin/stats
- * Aggregated metrics for the admin dashboard:
- *  - headline totals (vendors, reviews, bookings, pending bookings, confirmed)
- *  - vendors grouped by ecosystem
- *  - vendors grouped by continent
- *  - vendors grouped by category (top 12)
- *  - bookings grouped by status
- *  - recent bookings (last 5)
- *  - recent vendors (last 5)
+ * Aggregated metrics for the admin dashboard.
+ *
+ * Queries run SEQUENTIALLY (not Promise.all) because Vercel serverless +
+ * Supabase's transaction pooler (PgBouncer) limits concurrent connections.
+ * Running 12 queries in parallel exhausts the pool and causes 500s. Sequential
+ * is slightly slower but 100% reliable on the free tier.
  */
 export async function GET(_req: NextRequest) {
   try {
-    const [
-      totalVendors,
-      totalReviews,
-      totalBookings,
-      pendingBookings,
-      confirmedBookings,
-      avgRatingAgg,
-      vendorsByEcosystem,
-      vendorsByContinent,
-      vendorsByCategory,
-      bookingsByStatus,
-      recentBookings,
-      recentVendors,
-    ] = await Promise.all([
-      db.vendor.count(),
-      db.review.count(),
-      db.booking.count(),
-      db.booking.count({ where: { status: "pending" } }),
-      db.booking.count({ where: { status: "confirmed" } }),
-      db.vendor.aggregate({ _avg: { rating: true } }),
-      db.vendor.groupBy({
-        by: ["ecosystem"],
-        _count: { id: true },
-      }),
-      db.vendor.groupBy({
-        by: ["continent"],
-        _count: { id: true },
-        orderBy: { _count: { id: "desc" } },
-      }),
-      db.vendor.groupBy({
-        by: ["category"],
-        _count: { id: true },
-        orderBy: { _count: { id: "desc" } },
-        take: 12,
-      }),
-      db.booking.groupBy({
-        by: ["status"],
-        _count: { id: true },
-      }),
-      db.booking.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        include: { vendor: { select: { name: true, city: true } } },
-      }),
-      db.vendor.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          ecosystem: true,
-          city: true,
-          country: true,
-          createdAt: true,
-        },
-      }),
-    ]);
+    // Run each query one at a time with individual error handling so one
+    // failure doesn't sink the whole dashboard.
+    const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+      try {
+        return await fn();
+      } catch {
+        return fallback;
+      }
+    };
+
+    const totalVendors = await safe(() => db.vendor.count(), 0);
+    const totalReviews = await safe(() => db.review.count(), 0);
+    const totalBookings = await safe(() => db.booking.count(), 0);
+    const pendingBookings = await safe(
+      () => db.booking.count({ where: { status: "pending" } }),
+      0
+    );
+    const confirmedBookings = await safe(
+      () => db.booking.count({ where: { status: "confirmed" } }),
+      0
+    );
+    const avgRatingAgg = await safe(
+      () => db.vendor.aggregate({ _avg: { rating: true } }),
+      { _avg: { rating: null } }
+    );
+    const vendorsByEcosystem = await safe(
+      () => db.vendor.groupBy({ by: ["ecosystem"], _count: { id: true } }),
+      []
+    );
+    const vendorsByContinent = await safe(
+      () =>
+        db.vendor.groupBy({
+          by: ["continent"],
+          _count: { id: true },
+          orderBy: { _count: { id: "desc" } },
+        }),
+      []
+    );
+    const vendorsByCategory = await safe(
+      () =>
+        db.vendor.groupBy({
+          by: ["category"],
+          _count: { id: true },
+          orderBy: { _count: { id: "desc" } },
+          take: 12,
+        }),
+      []
+    );
+    const bookingsByStatus = await safe(
+      () => db.booking.groupBy({ by: ["status"], _count: { id: true } }),
+      []
+    );
+    const recentBookings = await safe(
+      () =>
+        db.booking.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          include: { vendor: { select: { name: true, city: true } } },
+        }),
+      []
+    );
+    const recentVendors = await safe(
+      () =>
+        db.vendor.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            ecosystem: true,
+            city: true,
+            country: true,
+            createdAt: true,
+          },
+        }),
+      []
+    );
 
     return NextResponse.json({
       totals: {
