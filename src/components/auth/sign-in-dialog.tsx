@@ -38,18 +38,50 @@ export function SignInDialog() {
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState<"google" | "email" | null>(null);
 
-  // When the session becomes authenticated while the dialog is open, run the
-  // pending intent (e.g. "open the listing form") and close.
-  React.useEffect(() => {
-    if (open && session?.user) {
-      close();
-      if (intent) {
-        const fn = intent;
-        setIntent(null);
-        setTimeout(fn, 200);
+  // Execute a pending auth intent. Called either:
+  //  - from the sign-in dialog (email sign-in, no page reload)
+  //  - on page load after Google OAuth redirect (intent was persisted to localStorage)
+  const executeIntent = React.useCallback(
+    (intentStr: string) => {
+      if (intentStr === "list-vendor") {
+        useMarketplace.getState().openListVendor();
+      } else if (intentStr === "admin") {
+        useMarketplace.getState().openAdmin();
+      } else if (intentStr.startsWith("edit-vendor:")) {
+        const slug = intentStr.replace("edit-vendor:", "");
+        useMarketplace.getState().openEditVendor(slug);
       }
+    },
+    []
+  );
+
+  // When the session becomes authenticated, run the pending intent.
+  // This handles BOTH cases:
+  //  1. Email sign-in (dialog is open, intent is in the store)
+  //  2. Google OAuth redirect (page reloaded, intent is in localStorage only)
+  React.useEffect(() => {
+    if (!session?.user) return;
+
+    // check the store first (email sign-in path)
+    if (intent) {
+      close();
+      setIntent(null);
+      setTimeout(() => executeIntent(intent), 200);
+      return;
     }
-  }, [open, session, intent, close, setIntent]);
+
+    // check localStorage (Google OAuth redirect path — store was lost on reload)
+    try {
+      const stored = localStorage.getItem("fmb-pmp:auth-intent");
+      if (stored) {
+        localStorage.removeItem("fmb-pmp:auth-intent");
+        close();
+        setTimeout(() => executeIntent(stored), 300);
+      }
+    } catch {
+      // ignore
+    }
+  }, [session, intent, close, setIntent, executeIntent]);
 
   const onGoogle = async () => {
     setLoading("google");

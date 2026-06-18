@@ -78,7 +78,7 @@ export function SiteFooter() {
     if (session) {
       openListVendor();
     } else {
-      setAuthIntent(() => openListVendor);
+      setAuthIntent("list-vendor");
       openAuthDialog();
     }
   };

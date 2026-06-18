@@ -63,9 +63,10 @@ interface MarketplaceState {
   authDialogOpen: boolean;
   openAuthDialog: () => void;
   closeAuthDialog: () => void;
-  /** what to do after a successful sign-in (e.g. open the listing form) */
-  authIntent: (() => void) | null;
-  setAuthIntent: (fn: (() => void) | null) => void;
+  /** String intent persisted to localStorage so it survives the Google OAuth
+   *  page reload. Values: "list-vendor", "edit-vendor:<slug>", "admin", or null. */
+  authIntent: string | null;
+  setAuthIntent: (intent: string | null) => void;
 
   resetFilters: () => void;
 }
@@ -132,7 +133,19 @@ export const useMarketplace = create<MarketplaceState>((set, get) => ({
   openAuthDialog: () => set({ authDialogOpen: true }),
   closeAuthDialog: () => set({ authDialogOpen: false }),
   authIntent: null,
-  setAuthIntent: (fn) => set({ authIntent: fn }),
+  setAuthIntent: (intent) => {
+    // persist to localStorage so it survives the Google OAuth page reload
+    try {
+      if (intent) {
+        localStorage.setItem("fmb-pmp:auth-intent", intent);
+      } else {
+        localStorage.removeItem("fmb-pmp:auth-intent");
+      }
+    } catch {
+      // ignore
+    }
+    set({ authIntent: intent });
+  },
 
   resetFilters: () =>
     set({

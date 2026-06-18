@@ -50,7 +50,7 @@ export function BecomeVendor() {
     if (session) {
       openListVendor();
     } else {
-      setAuthIntent(() => openListVendor);
+      setAuthIntent("list-vendor");
       openAuthDialog();
     }
   };

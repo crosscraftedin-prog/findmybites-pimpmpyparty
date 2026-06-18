@@ -47,14 +47,15 @@ export function SiteHeader() {
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
-  // gate an action behind auth: if signed in, run it; otherwise open the
-  // sign-in dialog and run it after successful sign-in.
+  // gate an action behind auth: if signed in, run it; otherwise store the
+  // intent (as a string in localStorage so it survives the Google OAuth
+  // page reload) and open the sign-in dialog.
   const requireAuth = React.useCallback(
-    (action: () => void) => {
+    (intent: string, action: () => void) => {
       if (session) {
         action();
       } else {
-        setAuthIntent(action);
+        setAuthIntent(intent);
         openAuthDialog();
       }
     },
@@ -147,7 +148,7 @@ export function SiteHeader() {
         <Button
           size="sm"
           className="hidden bg-brand text-brand-foreground hover:bg-brand/90 sm:inline-flex"
-          onClick={() => requireAuth(() => openListVendor())}
+          onClick={() => requireAuth("list-vendor", () => openListVendor())}
         >
           <Sparkles className="size-4" />
           List your business
@@ -206,7 +207,7 @@ export function SiteHeader() {
                 <SheetClose asChild>
                   <Button
                     className="bg-brand text-brand-foreground hover:bg-brand/90"
-                    onClick={() => requireAuth(() => openListVendor())}
+                    onClick={() => requireAuth("list-vendor", () => openListVendor())}
                   >
                     <Sparkles className="size-4" />
                     List your business

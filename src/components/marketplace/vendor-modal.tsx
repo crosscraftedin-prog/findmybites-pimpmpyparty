@@ -57,7 +57,7 @@ export function VendorModal() {
     if (session) {
       openEditVendor(vendor.slug);
     } else {
-      setAuthIntent(() => () => openEditVendor(vendor.slug));
+      setAuthIntent(`edit-vendor:${vendor.slug}`);
       openAuthDialog();
     }
   };
