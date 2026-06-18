@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, LogOut, UserCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2, LogOut } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,35 +10,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useMarketplace } from "@/lib/store";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
+/**
+ * Shows the signed-in vendor/admin avatar + dropdown (sign out).
+ * Renders NOTHING when signed out — customers browse without an account.
+ * Vendor sign-in is triggered only by "List your business" / "Edit" actions.
+ * Admin sign-in is triggered by the admin shield button.
+ */
 export function UserMenu() {
   const { user, loading } = useSupabaseSession();
-  const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
 
-  if (loading) {
-    return (
-      <Button variant="ghost" size="icon" disabled aria-label="Loading session">
-        <Loader2 className="size-4 animate-spin" />
-      </Button>
-    );
-  }
-
-  if (!user) {
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => openAuthDialog()}
-        className="gap-1.5 text-muted-foreground hover:text-foreground"
-      >
-        <UserCircle2 className="size-4" />
-        <span className="hidden sm:inline">Sign in</span>
-      </Button>
-    );
-  }
+  // loading state — avoid flicker, but stay invisible (no spinner in header)
+  if (loading || !user) return null;
 
   const name =
     (user.user_metadata?.full_name as string) ||
@@ -62,7 +46,11 @@ export function UserMenu() {
           aria-label="Account menu"
         >
           {image ? (
-            <img src={image} alt={name} className="size-7 rounded-full object-cover" />
+            <img
+              src={image}
+              alt={name}
+              className="size-7 rounded-full object-cover"
+            />
           ) : (
             <span className="grid size-7 place-items-center rounded-full bg-brand text-xs font-bold text-brand-foreground">
               {initials || "V"}

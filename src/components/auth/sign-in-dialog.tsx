@@ -122,10 +122,10 @@ export function SignInDialog() {
             </div>
             <div>
               <h2 className="text-lg font-bold leading-tight">
-                Sign in to continue
+                Vendor / Admin sign-in
               </h2>
               <p className="text-xs text-muted-foreground">
-                List your business, manage listings &amp; bookings
+                For listing your business or managing the marketplace
               </p>
             </div>
           </div>

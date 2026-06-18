@@ -133,7 +133,7 @@ export function SiteHeader() {
           variant="ghost"
           size="icon"
           className="text-muted-foreground hover:text-foreground"
-          onClick={() => openAdmin()}
+          onClick={() => requireAuth(() => openAdmin())}
           aria-label="Admin panel"
           title="Admin panel"
         >
@@ -211,7 +211,7 @@ export function SiteHeader() {
                 <SheetClose asChild>
                   <Button
                     variant="outline"
-                    onClick={() => openAdmin()}
+                    onClick={() => requireAuth(() => openAdmin())}
                   >
                     <ShieldCheck className="size-4" />
                     Admin panel
