@@ -34,6 +34,14 @@ export interface Vendor {
   instagram?: string | null;
   website?: string | null;
   whatsapp?: string | null;
+  // business settings
+  openHours?: string | null;
+  deliveryAvailable?: boolean;
+  pickupAvailable?: boolean;
+  serviceAreas?: string | null;
+  // SEO
+  metaTitle?: string | null;
+  metaDescription?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   serviceRadiusKm?: number | null;
@@ -52,9 +60,19 @@ export interface Product {
   id: string;
   vendorId: string;
   name: string;
+  slug: string;
   description?: string | null;
   price: number;
   image?: string | null;
+  productType?: string | null;
+  sizes?: string | null;
+  flavours?: string | null;
+  weight?: string | null;
+  prepTime?: string | null;
+  deliveryAvailable: boolean;
+  minGuests?: number | null;
+  pricePerHead?: number | null;
+  images?: string[] | null;
   createdAt: string;
 }
 

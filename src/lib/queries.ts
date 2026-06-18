@@ -657,6 +657,15 @@ export function useCreateProduct() {
       description?: string;
       price: number;
       image?: string;
+      productType?: string;
+      sizes?: string;
+      flavours?: string;
+      weight?: string;
+      prepTime?: string;
+      deliveryAvailable?: boolean;
+      minGuests?: number;
+      pricePerHead?: number;
+      images?: string[];
     }) => {
       const res = await fetch("/api/products", {
         method: "POST",

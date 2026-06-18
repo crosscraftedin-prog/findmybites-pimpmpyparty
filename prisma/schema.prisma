@@ -61,6 +61,14 @@ model Vendor {
   instagram        String?
   website          String?
   whatsapp         String?
+  // business settings
+  openHours        String?
+  deliveryAvailable Boolean  @default(false)
+  pickupAvailable  Boolean   @default(false)
+  serviceAreas     String?
+  // SEO
+  metaTitle        String?
+  metaDescription  String?
   // geo coordinates for "Near Me" search (degrees). Nullable so legacy
   // vendors without a geocoded address are simply excluded from geo queries.
   latitude         Float?
@@ -127,16 +135,33 @@ model Booking {
 }
 
 // Products / services offered by a vendor within their single business listing.
-// E.g. a baker might offer "Sourdough Loaf $8", "Wedding Cake $450", etc.
+// FindMyBites products: cakes, cupcakes, cookies, chocolates, catering, etc.
+// PimpMyParty services: photography packages, DJ packages, decoration, venues.
 model Product {
   id          String   @id @default(cuid())
   vendorId    String
   vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   name        String
+  slug        String   @unique
   description String?
   price       Int
   image       String?
+  // product type (e.g. "cake", "cupcake", "catering", "photography", "dj", "venue")
+  productType String?
+  // FindMyBites-specific
+  sizes       String?
+  flavours    String?
+  weight      String?
+  prepTime    String?
+  deliveryAvailable Boolean @default(false)
+  // PimpMyParty / catering-specific
+  minGuests   Int?
+  pricePerHead Int?
+  // multiple images (JSON array of URLs)
+  images      String?
   createdAt   DateTime @default(now())
 
   @@index([vendorId])
+  @@index([productType])
+  @@index([slug])
 }

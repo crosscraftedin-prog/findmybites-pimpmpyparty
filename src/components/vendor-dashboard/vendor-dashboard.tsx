@@ -281,7 +281,7 @@ export function VendorDashboard() {
             </div>
 
             {/* Products / Services */}
-            <ProductsSection vendorId={data?.vendors[0]?.id ?? null} currency={data?.vendors[0]?.currency} />
+            <ProductsSection vendorId={data?.vendors[0]?.id ?? null} currency={data?.vendors[0]?.currency} ecosystem={data?.vendors[0]?.ecosystem} />
 
             {/* Recent bookings + reviews */}
             <div className="grid gap-4 lg:grid-cols-2">
@@ -381,34 +381,67 @@ export function VendorDashboard() {
 function ProductsSection({
   vendorId,
   currency,
+  ecosystem,
 }: {
   vendorId: string | null;
   currency?: string;
+  ecosystem?: string;
 }) {
   const { data, isLoading } = useProducts(vendorId);
   const createProduct = useCreateProduct();
   const deleteProduct = useDeleteProduct();
   const [showForm, setShowForm] = React.useState(false);
-  const [name, setName] = React.useState("");
-  const [price, setPrice] = React.useState("");
-  const [description, setDescription] = React.useState("");
+
+  // form state
+  const [form, setForm] = React.useState({
+    name: "",
+    price: "",
+    description: "",
+    productType: "",
+    sizes: "",
+    flavours: "",
+    weight: "",
+    prepTime: "",
+    deliveryAvailable: false,
+    minGuests: "",
+    pricePerHead: "",
+  });
+
+  const set = (k: keyof typeof form, v: string | boolean) =>
+    setForm((f) => ({ ...f, [k]: v }));
 
   const products = data?.products ?? [];
   const symbol = currency ? (CURRENCY_SYMBOLS[currency] ?? currency) : "$";
+  const isFMB = ecosystem === "FINDMYBITES";
+
+  // product type options
+  const productTypes = isFMB
+    ? ["Cake", "Cupcake", "Cookie", "Chocolate", "Catering", "Bread", "Dessert", "Other"]
+    : ["Photography Package", "DJ Package", "Decoration Package", "Venue", "Entertainment", "Planning Package", "Other"];
 
   const onAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!vendorId || !name.trim()) return;
+    if (!vendorId || !form.name.trim()) return;
     try {
       await createProduct.mutateAsync({
         vendorId,
-        name: name.trim(),
-        price: Number(price) || 0,
-        description: description.trim() || undefined,
+        name: form.name.trim(),
+        price: Number(form.price) || 0,
+        description: form.description.trim() || undefined,
+        productType: form.productType || undefined,
+        sizes: form.sizes.trim() || undefined,
+        flavours: form.flavours.trim() || undefined,
+        weight: form.weight.trim() || undefined,
+        prepTime: form.prepTime.trim() || undefined,
+        deliveryAvailable: form.deliveryAvailable,
+        minGuests: form.minGuests ? Number(form.minGuests) : undefined,
+        pricePerHead: form.pricePerHead ? Number(form.pricePerHead) : undefined,
       });
-      setName("");
-      setPrice("");
-      setDescription("");
+      setForm({
+        name: "", price: "", description: "", productType: "",
+        sizes: "", flavours: "", weight: "", prepTime: "",
+        deliveryAvailable: false, minGuests: "", pricePerHead: "",
+      });
       setShowForm(false);
       toast.success("Product added!");
     } catch {
@@ -429,48 +462,176 @@ function ProductsSection({
       <div className="mb-3 flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Package className="size-4 text-brand" />
-          Products &amp; Services
+          {isFMB ? "Products" : "Packages & Services"}
         </h3>
         <button
           onClick={() => setShowForm((v) => !v)}
           className="inline-flex items-center gap-1 rounded-full bg-brand px-3 py-1 text-xs font-semibold text-brand-foreground transition-transform hover:scale-105"
         >
           <Plus className="size-3" />
-          Add product
+          {isFMB ? "Add product" : "Add package"}
         </button>
       </div>
 
-      {/* Add product form */}
+      {/* Enhanced product form */}
       {showForm && (
-        <form onSubmit={onAdd} className="mb-3 space-y-2 rounded-xl border border-border bg-muted/40 p-3">
-          <div className="grid gap-2 sm:grid-cols-[1fr_100px]">
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Product name (e.g. Wedding Cake)"
-              className="h-9"
-              required
-            />
-            <Input
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="Price"
-              className="h-9"
-              min={0}
+        <form
+          onSubmit={onAdd}
+          className="mb-3 space-y-3 rounded-xl border border-border bg-muted/40 p-4"
+        >
+          {/* Name + Price */}
+          <div className="grid gap-2 sm:grid-cols-[1fr_120px]">
+            <div>
+              <label className="mb-1 block text-xs font-semibold">Name</label>
+              <Input
+                value={form.name}
+                onChange={(e) => set("name", e.target.value)}
+                placeholder={isFMB ? "e.g. Luxury Wedding Cake" : "e.g. Wedding Photography Package"}
+                className="h-9"
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold">Price ({symbol})</label>
+              <Input
+                type="number"
+                value={form.price}
+                onChange={(e) => set("price", e.target.value)}
+                placeholder="0"
+                className="h-9"
+                min={0}
+              />
+            </div>
+          </div>
+
+          {/* Product type */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold">
+              {isFMB ? "Product type" : "Package type"}
+            </label>
+            <select
+              value={form.productType}
+              onChange={(e) => set("productType", e.target.value)}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">Select type (optional)</option>
+              {productTypes.map((t) => (
+                <option key={t} value={t.toLowerCase()}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold">Description</label>
+            <textarea
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              placeholder="Describe your product or package..."
+              className="h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm"
+              maxLength={500}
             />
           </div>
-          <Input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Short description (optional)"
-            className="h-9"
-          />
+
+          {/* Type-specific fields */}
+          {isFMB ? (
+            <>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold">Sizes (optional)</label>
+                  <Input
+                    value={form.sizes}
+                    onChange={(e) => set("sizes", e.target.value)}
+                    placeholder="e.g. 1kg, 2kg, 3kg"
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold">Flavours (optional)</label>
+                  <Input
+                    value={form.flavours}
+                    onChange={(e) => set("flavours", e.target.value)}
+                    placeholder="e.g. Vanilla, Chocolate, Red Velvet"
+                    className="h-9"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold">Weight (optional)</label>
+                  <Input
+                    value={form.weight}
+                    onChange={(e) => set("weight", e.target.value)}
+                    placeholder="e.g. 500g, 1kg"
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold">Prep time (optional)</label>
+                  <Input
+                    value={form.prepTime}
+                    onChange={(e) => set("prepTime", e.target.value)}
+                    placeholder="e.g. 24 hours, 3 days"
+                    className="h-9"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold">Min guests (optional)</label>
+                <Input
+                  type="number"
+                  value={form.minGuests}
+                  onChange={(e) => set("minGuests", e.target.value)}
+                  placeholder="e.g. 50"
+                  className="h-9"
+                  min={0}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold">Price per head (optional)</label>
+                <Input
+                  type="number"
+                  value={form.pricePerHead}
+                  onChange={(e) => set("pricePerHead", e.target.value)}
+                  placeholder="e.g. 250"
+                  className="h-9"
+                  min={0}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Delivery toggle */}
+          <label className="flex items-center gap-2 text-xs font-medium">
+            <input
+              type="checkbox"
+              checked={form.deliveryAvailable}
+              onChange={(e) => set("deliveryAvailable", e.target.checked)}
+              className="size-4 rounded"
+            />
+            Delivery available
+          </label>
+
           <div className="flex gap-2">
-            <Button type="submit" size="sm" disabled={createProduct.isPending} className="bg-brand text-brand-foreground hover:bg-brand/90">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={createProduct.isPending}
+              className="bg-brand text-brand-foreground hover:bg-brand/90"
+            >
               {createProduct.isPending ? "Adding…" : "Add"}
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => setShowForm(false)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setShowForm(false)}
+            >
               Cancel
             </Button>
           </div>
@@ -484,8 +645,9 @@ function ProductsSection({
         <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
           <Package className="mx-auto size-6 text-muted-foreground/40" />
           <p className="mt-1 text-xs text-muted-foreground">
-            No products yet. Add your products or services here — customers
-            will see them on your listing.
+            No {isFMB ? "products" : "packages"} yet. Add your{" "}
+            {isFMB ? "products" : "packages or services"} here — customers will
+            see them on your listing.
           </p>
         </div>
       ) : (
@@ -493,31 +655,52 @@ function ProductsSection({
           {products.map((p) => (
             <div
               key={p.id}
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
+              className="rounded-xl border border-border bg-card p-3"
             >
-              <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">
-                <Package className="size-4" />
+              <div className="flex items-center gap-3">
+                <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">
+                  <Package className="size-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-semibold">{p.name}</p>
+                    {p.productType && (
+                      <span className="shrink-0 rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium text-brand-soft-foreground">
+                        {p.productType}
+                      </span>
+                    )}
+                  </div>
+                  {p.description && (
+                    <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                      {p.description}
+                    </p>
+                  )}
+                </div>
+                <span className="shrink-0 text-sm font-bold tabular-nums">
+                  {symbol}
+                  {p.price.toLocaleString("en-US")}
+                </span>
+                <button
+                  title="Delete"
+                  onClick={() => onDelete(p.id)}
+                  disabled={deleteProduct.isPending}
+                  className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-rose-100 hover:text-rose-600 disabled:opacity-50"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{p.name}</p>
-                {p.description && (
-                  <p className="truncate text-xs text-muted-foreground">
-                    {p.description}
-                  </p>
-                )}
-              </div>
-              <span className="shrink-0 text-sm font-bold tabular-nums">
-                {symbol}
-                {p.price.toLocaleString("en-US")}
-              </span>
-              <button
-                title="Delete product"
-                onClick={() => onDelete(p.id)}
-                disabled={deleteProduct.isPending}
-                className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-rose-100 hover:text-rose-600 disabled:opacity-50"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
+              {/* Extra details */}
+              {(p.sizes || p.flavours || p.weight || p.prepTime || p.minGuests || p.pricePerHead) && (
+                <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border pt-2">
+                  {p.sizes && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">📏 {p.sizes}</span>}
+                  {p.flavours && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">🍰 {p.flavours}</span>}
+                  {p.weight && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">⚖️ {p.weight}</span>}
+                  {p.prepTime && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">⏱️ {p.prepTime}</span>}
+                  {p.minGuests != null && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">👥 Min {p.minGuests} guests</span>}
+                  {p.pricePerHead != null && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">💰 {symbol}{p.pricePerHead}/head</span>}
+                  {p.deliveryAvailable && <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">🚚 Delivery</span>}
+                </div>
+              )}
             </div>
           ))}
         </div>
