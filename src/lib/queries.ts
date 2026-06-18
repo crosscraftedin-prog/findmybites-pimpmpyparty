@@ -93,6 +93,7 @@ export interface CreateVendorInput {
   logoUrl?: string;
   bannerUrl?: string;
   subcategory?: string;
+  state?: string;
   address?: string;
   zipCode?: string;
   instagram?: string;
@@ -101,6 +102,13 @@ export interface CreateVendorInput {
 }
 
 export interface CreateVendorResponse {
+  vendor: Vendor;
+}
+
+/** Fields a vendor can update after listing. Excludes ecosystem + slug (immutable). */
+export type UpdateVendorInput = Omit<CreateVendorInput, "ecosystem">;
+
+export interface UpdateVendorResponse {
   vendor: Vendor;
 }
 
@@ -243,6 +251,38 @@ export function useCreateVendor(): UseMutationResult<
     onSuccess: async () => {
       // refresh vendor lists, category counts, and platform stats
       await Promise.all([
+        qc.invalidateQueries({ queryKey: ["vendors"] }),
+        qc.invalidateQueries({ queryKey: ["categories"] }),
+        qc.invalidateQueries({ queryKey: ["stats"] }),
+      ]);
+    },
+  });
+}
+
+export function useUpdateVendor(): UseMutationResult<
+  UpdateVendorResponse,
+  Error,
+  { slug: string; input: UpdateVendorInput }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ slug, input }) => {
+      const res = await fetch(`/api/vendors/${slug}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          (body as { error?: string }).error ?? "Failed to update listing"
+        );
+      }
+      return (await res.json()) as UpdateVendorResponse;
+    },
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["vendor", variables.slug] }),
         qc.invalidateQueries({ queryKey: ["vendors"] }),
         qc.invalidateQueries({ queryKey: ["categories"] }),
         qc.invalidateQueries({ queryKey: ["stats"] }),

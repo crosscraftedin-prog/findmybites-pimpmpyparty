@@ -28,6 +28,7 @@ interface SeedVendor {
   reviews: { author: string; avatar: string; rating: number; comment: string; eventDate: string }[];
   // optional contact + location enrichment
   subcategory?: string;
+  state?: string;
   address?: string;
   zipCode?: string;
   instagram?: string;
@@ -65,6 +66,7 @@ const vendors: SeedVendor[] = [
     instagram: "maisonlevain",
     website: "https://maisonlevain.fr",
     whatsapp: "33142856390",
+    state: "Île-de-France",
     reviews: [
       { author: "Camille R.", avatar: "CR", rating: 5, comment: "The sourdough for our wedding was unreal. Guests are still talking about the bread table.", eventDate: "2024-06-15" },
       { author: "Olivier P.", avatar: "OP", rating: 5, comment: "Corporate breakfast for 80 — punctual, warm, delicious croissants. Will rebook.", eventDate: "2024-09-02" },
@@ -126,6 +128,7 @@ const vendors: SeedVendor[] = [
     instagram: "saffronandsageuk",
     website: "https://saffronandsage.co.uk",
     whatsapp: "447700900123",
+    state: "England",
     reviews: [
       { author: "Eleanor W.", avatar: "EW", rating: 5, comment: "Catered our charity gala for 400. Flawless service and the lamb was perfect.", eventDate: "2024-10-05" },
       { author: "James B.", avatar: "JB", rating: 5, comment: "Vegan menu was a revelation. Even the meat-eaters wanted seconds.", eventDate: "2024-08-22" },
@@ -295,6 +298,7 @@ const vendors: SeedVendor[] = [
     instagram: "eltigretacos",
     website: "https://eltigretacos.mx",
     whatsapp: "525512345678",
+    state: "Ciudad de México",
     reviews: [
       { author: "Carlos M.", avatar: "CM", rating: 5, comment: "The al pastor trompo at our wedding was the highlight. Line was 50 deep.", eventDate: "2024-09-28" },
       { author: "Bianca V.", avatar: "BV", rating: 5, comment: "Best tacos outside a taquería. Mezcal pairing was a nice touch.", eventDate: "2024-04-20" },
@@ -411,6 +415,7 @@ const vendors: SeedVendor[] = [
     instagram: "soiree.studio",
     website: "https://soireestudio.it",
     whatsapp: "393331234567",
+    state: "Lombardy",
     reviews: [
       { author: "Francesca B.", avatar: "FB", rating: 5, comment: "They planned our Lake Como wedding flawlessly. Every detail was intentional.", eventDate: "2024-07-20" },
       { author: "Luca R.", avatar: "LR", rating: 5, comment: "Brand launch for 600 guests. On brief, on budget, on time.", eventDate: "2024-09-09" },
@@ -579,6 +584,7 @@ const vendors: SeedVendor[] = [
     instagram: "neonpulsedjs",
     website: "https://neonpulse.nl",
     whatsapp: "31612345678",
+    state: "North Holland",
     reviews: [
       { author: "Sofie J.", avatar: "SJ", rating: 5, comment: "Our wedding dance floor never emptied. The LED wall was stunning.", eventDate: "2024-09-07" },
       { author: "Daan V.", avatar: "DV", rating: 5, comment: "Corporate party for 800. Read the crowd perfectly all night.", eventDate: "2024-12-20" },
@@ -639,6 +645,7 @@ const vendors: SeedVendor[] = [
     instagram: "lumiere.lens",
     website: "https://lumierelens.co.za",
     whatsapp: "27821234567",
+    state: "Western Cape",
     reviews: [
       { author: "Thandi M.", avatar: "TM", rating: 5, comment: "Our Winelands wedding photos are cinematic masterpieces. Super 8 film is pure magic.", eventDate: "2024-04-06" },
       { author: "Johan B.", avatar: "JB", rating: 5, comment: "Drone shots of the venue were breathtaking. True artist.", eventDate: "2024-10-26" },
@@ -774,6 +781,7 @@ async function main() {
         yearsActive: v.yearsActive,
         completedBookings: v.completedBookings,
         subcategory: v.subcategory ?? null,
+        state: v.state ?? null,
         address: v.address ?? null,
         zipCode: v.zipCode ?? null,
         instagram: v.instagram ?? null,

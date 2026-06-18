@@ -44,6 +44,9 @@ interface MarketplaceState {
   listVendorOpen: boolean;
   openListVendor: () => void;
   closeListVendor: () => void;
+  // when set, the dialog opens in "edit" mode for this vendor slug
+  editingSlug: string | null;
+  openEditVendor: (slug: string) => void;
 
   resetFilters: () => void;
 }
@@ -92,8 +95,10 @@ export const useMarketplace = create<MarketplaceState>((set, get) => ({
   setFiltersOpen: (open) => set({ filtersOpen: open }),
 
   listVendorOpen: false,
-  openListVendor: () => set({ listVendorOpen: true }),
-  closeListVendor: () => set({ listVendorOpen: false }),
+  openListVendor: () => set({ listVendorOpen: true, editingSlug: null }),
+  closeListVendor: () => set({ listVendorOpen: false, editingSlug: null }),
+  editingSlug: null,
+  openEditVendor: (slug) => set({ editingSlug: slug, listVendorOpen: true }),
 
   resetFilters: () =>
     set({

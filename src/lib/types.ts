@@ -27,6 +27,7 @@ export interface Vendor {
   yearsActive: number;
   completedBookings: number;
   subcategory?: string | null;
+  state?: string | null;
   address?: string | null;
   zipCode?: string | null;
   instagram?: string | null;

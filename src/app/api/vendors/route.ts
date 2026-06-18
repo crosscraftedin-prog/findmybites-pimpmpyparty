@@ -4,6 +4,15 @@ import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
 import { COUNTRIES, getCategory, SUBCATEGORIES } from "@/lib/constants";
 import {
+  isValidEcosystem,
+  isValidPriceRange,
+  sanitizeInstagram,
+  sanitizeWebsite,
+  sanitizeWhatsApp,
+  resolveSubcategory,
+  isSafeUploadUrl,
+} from "@/lib/vendor-sanitize";
+import {
   searchVendors,
   searchIndexHasRows,
   sanitizeFtsQuery,
@@ -38,6 +47,7 @@ function transformVendor(v: DbVendor): ApiVendor {
     yearsActive: v.yearsActive,
     completedBookings: v.completedBookings,
     subcategory: v.subcategory,
+    state: v.state,
     address: v.address,
     zipCode: v.zipCode,
     instagram: v.instagram,
@@ -212,6 +222,7 @@ interface CreateVendorBody {
   logoUrl?: unknown;
   bannerUrl?: unknown;
   subcategory?: unknown;
+  state?: unknown;
   address?: unknown;
   zipCode?: unknown;
   instagram?: unknown;
@@ -221,58 +232,8 @@ interface CreateVendorBody {
 
 const VALID_ECOSYSTEMS = new Set(["FINDMYBITES", "PIMPMYPARTY"]);
 const VALID_PRICE_RANGES = new Set(["$", "$$", "$$$", "$$$$"]);
-
-/**
- * Sanitize an Instagram input into a bare handle (no @, no URL).
- * Accepts "@handle", "instagram.com/handle", "https://instagram.com/handle",
- * or just "handle". Returns "" if invalid.
- */
-function sanitizeInstagram(input: unknown): string {
-  if (typeof input !== "string") return "";
-  let s = input.trim();
-  if (!s) return "";
-  // strip protocol + domain
-  s = s.replace(/^https?:\/\/(www\.)?instagram\.com\//i, "");
-  s = s.replace(/^(www\.)?instagram\.com\//i, "");
-  s = s.replace(/^@+/, "");
-  // remove trailing path/query
-  s = s.split(/[/?#]/)[0];
-  // instagram handle rules: letters, digits, dots, underscores, max 30
-  if (!/^[A-Za-z0-9._]{1,30}$/.test(s)) return "";
-  return s;
-}
-
-/**
- * Sanitize a website URL: ensure it has a protocol, and that the host looks
- * valid. Returns "" if it can't be made safe.
- */
-function sanitizeWebsite(input: unknown): string {
-  if (typeof input !== "string") return "";
-  let s = input.trim();
-  if (!s) return "";
-  if (!/^https?:\/\//i.test(s)) s = `https://${s}`;
-  try {
-    const u = new URL(s);
-    // must have a dot in the hostname (reject "localhost" etc.)
-    if (!/\./.test(u.hostname)) return "";
-    return u.toString();
-  } catch {
-    return "";
-  }
-}
-
-/**
- * Sanitize a WhatsApp number: keep digits only, strip leading zeros, and
- * require 7-15 digits (E.164 range). Returns the bare digit string or "".
- * The frontend prepends the country calling code; we trust the user entered
- * the full international number.
- */
-function sanitizeWhatsApp(input: unknown): string {
-  if (typeof input !== "string") return "";
-  const digits = input.replace(/[^\d]/g, "");
-  if (digits.length < 7 || digits.length > 15) return "";
-  return digits;
-}
+void VALID_ECOSYSTEMS;
+void VALID_PRICE_RANGES;
 
 export async function POST(req: NextRequest) {
   try {
@@ -285,20 +246,13 @@ export async function POST(req: NextRequest) {
       typeof body.description === "string" ? body.description.trim() : "";
     const city = typeof body.city === "string" ? body.city.trim() : "";
 
-    const ecosystem =
-      typeof body.ecosystem === "string" &&
-      VALID_ECOSYSTEMS.has(body.ecosystem)
-        ? body.ecosystem
-        : "";
+    const ecosystem = isValidEcosystem(body.ecosystem) ? body.ecosystem : "";
     const category = typeof body.category === "string" ? body.category : "";
     const countryCode =
       typeof body.countryCode === "string" ? body.countryCode.toUpperCase() : "";
     const currency =
       typeof body.currency === "string" ? body.currency.toUpperCase() : "";
-    const priceRange =
-      typeof body.priceRange === "string" && VALID_PRICE_RANGES.has(body.priceRange)
-        ? body.priceRange
-        : "";
+    const priceRange = isValidPriceRange(body.priceRange) ? body.priceRange : "";
 
     const basePriceNum = Number(body.basePrice);
     const basePrice = Number.isFinite(basePriceNum) && basePriceNum >= 0
@@ -317,12 +271,11 @@ export async function POST(req: NextRequest) {
         : "under 24 hours";
 
     // --- optional contact + location fields (sanitized) ---
-    const subcategoryRaw =
-      typeof body.subcategory === "string" ? body.subcategory.trim() : "";
-    // validate subcategory belongs to the chosen category
-    const subcategory =
-      subcategoryRaw && SUBCATEGORIES[category]?.includes(subcategoryRaw)
-        ? subcategoryRaw
+    const subcategory = resolveSubcategory(body.subcategory, category);
+
+    const state =
+      typeof body.state === "string" && body.state.trim()
+        ? body.state.trim().slice(0, 80)
         : null;
 
     const address =
@@ -401,11 +354,6 @@ export async function POST(req: NextRequest) {
     const cat = getCategory(category);
     const fallbackImage = cat?.image ?? "/vendors/baker.png";
 
-    // Validate uploaded URLs — only accept local /uploads/ paths to prevent
-    // arbitrary remote-image or javascript: URLs being stored.
-    const isSafeUploadUrl = (u: unknown): u is string =>
-      typeof u === "string" && u.startsWith("/uploads/") && u.length < 200;
-
     const bannerUrl = isSafeUploadUrl(body.bannerUrl) ? body.bannerUrl : "";
     const logoUrl = isSafeUploadUrl(body.logoUrl) ? body.logoUrl : "";
 
@@ -443,6 +391,7 @@ export async function POST(req: NextRequest) {
         yearsActive,
         completedBookings: 0,
         subcategory,
+        state,
         address,
         zipCode,
         instagram,

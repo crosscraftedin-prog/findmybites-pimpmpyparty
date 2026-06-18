@@ -16,6 +16,7 @@ import {
   Globe,
   MessageCircle,
   Navigation,
+  Pencil,
 } from "lucide-react";
 import {
   Dialog,
@@ -41,6 +42,7 @@ import { BookingForm } from "./booking-form";
 export function VendorModal() {
   const slug = useMarketplace((s) => s.selectedVendorSlug);
   const closeVendor = useMarketplace((s) => s.closeVendor);
+  const openEditVendor = useMarketplace((s) => s.openEditVendor);
   const { data: vendor, isLoading } = useVendor(slug);
   const { data: reviewsData, isLoading: reviewsLoading } = useReviews(
     vendor?.id ?? null
@@ -91,6 +93,15 @@ export function VendorModal() {
                 }
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+              {/* Edit listing button (top-right of hero) */}
+              <button
+                onClick={() => vendor && openEditVendor(vendor.slug)}
+                className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-colors hover:bg-black/75"
+                aria-label="Edit this listing"
+              >
+                <Pencil className="size-3.5" />
+                Edit
+              </button>
               {/* Logo avatar (only if the vendor uploaded a distinct logo) */}
               {vendor.avatarImage && vendor.avatarImage !== vendor.heroImage && (
                 <div className="absolute -bottom-8 left-4 size-20 overflow-hidden rounded-2xl border-4 border-background bg-background shadow-lg sm:left-6 sm:size-24">
@@ -208,7 +219,8 @@ export function VendorModal() {
                           {vendor.address && <p>{vendor.address}</p>}
                           <p className="text-muted-foreground">
                             {vendor.city}
-                            {vendor.zipCode ? `, ${vendor.zipCode}` : ""} ·{" "}
+                            {vendor.state ? `, ${vendor.state}` : ""}
+                            {vendor.zipCode ? ` ${vendor.zipCode}` : ""} ·{" "}
                             {vendor.country}
                           </p>
                         </div>

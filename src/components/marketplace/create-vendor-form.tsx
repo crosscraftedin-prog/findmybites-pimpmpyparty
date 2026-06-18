@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCreateVendor } from "@/lib/queries";
+import { useCreateVendor, useUpdateVendor } from "@/lib/queries";
 import { useMarketplace } from "@/lib/store";
 import {
   CATEGORIES,
@@ -46,6 +46,7 @@ interface FormState {
   description: string;
   countryCode: string;
   city: string;
+  state: string;
   address: string;
   zipCode: string;
   currency: string;
@@ -69,6 +70,7 @@ const EMPTY: FormState = {
   description: "",
   countryCode: "",
   city: "",
+  state: "",
   address: "",
   zipCode: "",
   currency: "",
@@ -84,15 +86,61 @@ const EMPTY: FormState = {
   whatsapp: "",
 };
 
+/** Build initial form state from an existing vendor (edit mode). */
+function formStateFromVendor(v: Vendor): FormState {
+  return {
+    name: v.name ?? "",
+    category: v.category ?? "",
+    subcategory: v.subcategory ?? "",
+    tagline: v.tagline ?? "",
+    description: v.description ?? "",
+    countryCode: v.countryCode ?? "",
+    city: v.city ?? "",
+    state: v.state ?? "",
+    address: v.address ?? "",
+    zipCode: v.zipCode ?? "",
+    currency: v.currency ?? "",
+    priceRange: v.priceRange ?? "",
+    basePrice: v.basePrice ? String(v.basePrice) : "",
+    tags: v.tags?.join(", ") ?? "",
+    responseTime: v.responseTime ?? "under 2 hours",
+    yearsActive: v.yearsActive ? String(v.yearsActive) : "1",
+    logoUrl:
+      v.avatarImage && v.avatarImage !== v.heroImage ? v.avatarImage : "",
+    bannerUrl: v.heroImage?.startsWith("/uploads/") ? v.heroImage : "",
+    instagram: v.instagram ?? "",
+    website: v.website ?? "",
+    whatsapp: v.whatsapp ?? "",
+  };
+}
+
 export function CreateVendorForm({
   ecosystem,
   onCreated,
+  editingVendor,
+  onUpdated,
 }: {
   ecosystem: Ecosystem;
   onCreated: (vendor: Vendor) => void;
+  /** When provided, the form runs in "edit" mode — pre-fills fields and
+   *  PATCHes the existing listing instead of POSTing a new one. */
+  editingVendor?: Vendor | null;
+  onUpdated?: (vendor: Vendor) => void;
 }) {
   const createVendor = useCreateVendor();
-  const [form, setForm] = React.useState<FormState>(EMPTY);
+  const updateVendor = useUpdateVendor();
+  const isEditing = !!editingVendor;
+  const [form, setForm] = React.useState<FormState>(
+    editingVendor ? formStateFromVendor(editingVendor) : EMPTY
+  );
+
+  // If the editingVendor prop changes (e.g. user opens edit on a different
+  // vendor), re-seed the form from it.
+  React.useEffect(() => {
+    if (editingVendor) {
+      setForm(formStateFromVendor(editingVendor));
+    }
+  }, [editingVendor]);
 
   const cats = categoriesFor(ecosystem);
 
@@ -127,40 +175,56 @@ export function CreateVendorForm({
       toast.error("Please fill in all required fields.");
       return;
     }
+    const payload = {
+      name: form.name.trim(),
+      category: form.category,
+      subcategory: form.subcategory || undefined,
+      tagline: form.tagline.trim(),
+      description: form.description.trim(),
+      city: form.city.trim(),
+      state: form.state.trim() || undefined,
+      address: form.address.trim() || undefined,
+      zipCode: form.zipCode.trim() || undefined,
+      countryCode: form.countryCode,
+      currency: form.currency,
+      priceRange: form.priceRange,
+      basePrice: Number(form.basePrice),
+      tags: form.tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean),
+      responseTime: form.responseTime,
+      yearsActive: Number(form.yearsActive) || 1,
+      logoUrl: form.logoUrl || undefined,
+      bannerUrl: form.bannerUrl || undefined,
+      instagram: form.instagram.trim() || undefined,
+      website: form.website.trim() || undefined,
+      whatsapp: form.whatsapp.trim() || undefined,
+    };
     try {
-      const res = await createVendor.mutateAsync({
-        name: form.name.trim(),
-        ecosystem,
-        category: form.category,
-        subcategory: form.subcategory || undefined,
-        tagline: form.tagline.trim(),
-        description: form.description.trim(),
-        city: form.city.trim(),
-        address: form.address.trim() || undefined,
-        zipCode: form.zipCode.trim() || undefined,
-        countryCode: form.countryCode,
-        currency: form.currency,
-        priceRange: form.priceRange,
-        basePrice: Number(form.basePrice),
-        tags: form.tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean),
-        responseTime: form.responseTime,
-        yearsActive: Number(form.yearsActive) || 1,
-        logoUrl: form.logoUrl || undefined,
-        bannerUrl: form.bannerUrl || undefined,
-        instagram: form.instagram.trim() || undefined,
-        website: form.website.trim() || undefined,
-        whatsapp: form.whatsapp.trim() || undefined,
-      });
-      toast.success("Your business is live!", {
-        description: `${res.vendor.name} is now listed on the marketplace.`,
-      });
-      onCreated(res.vendor);
+      if (isEditing && editingVendor) {
+        const res = await updateVendor.mutateAsync({
+          slug: editingVendor.slug,
+          input: payload,
+        });
+        toast.success("Listing updated!", {
+          description: `${res.vendor.name} has been updated.`,
+        });
+        onUpdated?.(res.vendor);
+      } else {
+        const res = await createVendor.mutateAsync({ ...payload, ecosystem });
+        toast.success("Your business is live!", {
+          description: `${res.vendor.name} is now listed on the marketplace.`,
+        });
+        onCreated(res.vendor);
+      }
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Could not list your business."
+        err instanceof Error
+          ? err.message
+          : isEditing
+            ? "Could not update your listing."
+            : "Could not list your business."
       );
     }
   };
@@ -268,8 +332,8 @@ export function CreateVendorForm({
         </p>
       </Field>
 
-      {/* Country + City */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* Country + City + State */}
+      <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Country" required>
           <Select
             value={form.countryCode}
@@ -295,6 +359,15 @@ export function CreateVendorForm({
             placeholder="e.g. Paris"
             className="h-10"
             maxLength={60}
+          />
+        </Field>
+        <Field label="State / Province / Region" hint="Optional">
+          <Input
+            value={form.state}
+            onChange={(e) => set("state", e.target.value)}
+            placeholder="e.g. Île-de-France"
+            className="h-10"
+            maxLength={80}
           />
         </Field>
       </div>
@@ -457,18 +530,18 @@ export function CreateVendorForm({
 
       <Button
         type="submit"
-        disabled={createVendor.isPending || !valid}
+        disabled={createVendor.isPending || updateVendor.isPending || !valid}
         className="w-full bg-brand text-brand-foreground hover:bg-brand/90"
       >
-        {createVendor.isPending ? (
+        {createVendor.isPending || updateVendor.isPending ? (
           <>
             <Loader2 className="size-4 animate-spin" />
-            Publishing your listing…
+            {isEditing ? "Saving changes…" : "Publishing your listing…"}
           </>
         ) : (
           <>
             <Send className="size-4" />
-            Publish my business
+            {isEditing ? "Save changes" : "Publish my business"}
           </>
         )}
       </Button>
