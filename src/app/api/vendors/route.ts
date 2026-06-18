@@ -388,9 +388,16 @@ export async function POST(req: NextRequest) {
     const geo = geoQuery ? await geocodeAddress(geoQuery) : null;
 
     // --- attach the signed-in vendor user as the owner ---
-    const supabase = await createSupabaseServerClient();
-    const { data: { session: supaSession } } = await supabase.auth.getSession();
-    const ownerEmail = supaSession?.user?.email ?? null;
+    // Best-effort: if the Supabase server client fails (e.g. cookie issue on
+    // Vercel), we still create the vendor — just without the owner email.
+    let ownerEmail: string | null = null;
+    try {
+      const supabase = await createSupabaseServerClient();
+      const { data: { session: supaSession } } = await supabase.auth.getSession();
+      ownerEmail = supaSession?.user?.email ?? null;
+    } catch (authErr) {
+      console.error("[api/vendors] auth read failed (non-fatal):", authErr);
+    }
 
     // --- create ---
     const created = await db.vendor.create({

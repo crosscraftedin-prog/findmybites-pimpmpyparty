@@ -9,7 +9,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Authenticated user (vendor). Created/updated on sign-in via NextAuth events.
+// Authenticated user (vendor). NOTE: Supabase Auth manages users in its own
+// auth.users table — this model is optional and kept for future use (e.g.
+// storing extra profile fields). The Vendor.userEmail is a plain string, not
+// a FK to this table, to avoid constraint failures.
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -17,7 +20,6 @@ model User {
   image         String?
   emailVerified DateTime?
   createdAt     DateTime  @default(now())
-  vendors       Vendor[]
 }
 
 // A vendor / business listed on the marketplace.
@@ -64,8 +66,9 @@ model Vendor {
   // (e.g. a venue the customer travels to, or a vendor serving worldwide).
   serviceRadiusKm  Int?
   // owner: the authenticated vendor user who created this listing.
+  // Stored as a plain string (not a FK) because auth users live in Supabase's
+  // auth.users table, not our User table — a FK constraint would fail.
   userEmail        String?
-  user             User?     @relation(fields: [userEmail], references: [email], onDelete: SetNull)
   createdAt        DateTime  @default(now())
   reviews          Review[]
   bookings         Booking[]
