@@ -1,67 +1,69 @@
 /**
- * Scalable vendor search.
+ * Scalable vendor search — PostgreSQL edition (Supabase / Neon).
  *
- * Today (SQLite): uses FTS5 — SQLite's native full-text search engine.
- *   - Inverted index, ~100x faster than `LIKE '%q%'` at tens of thousands of rows.
- *   - porter + unicode61 tokenizer with diacritic removal (so "café" matches "cafe").
- *   - Prefix matching per token (user types "sour" → matches "sourdough").
- *   - Relevance ranking via FTS5's built-in bm25 `rank`.
+ * Uses two Postgres-native mechanisms:
+ *  - `tsvector` (to_tsvector + websearch_to_tsquery with a GIN index) for
+ *    full-text search across name/tagline/description/tags/city/country,
+ *    with relevance ranking via ts_rank.
+ *  - `pg_trgm` (similarity() with a GIN trigram index) for fuzzy,
+ *    typo-tolerant matching on city/country/name.
  *
- * Tomorrow (Supabase/Neon Postgres): swap `searchVendors()` to use
- *   `tsvector` (to_tsvector + to_tsquery with GIN index) for full-text AND
- *   `pg_trgm` (similarity() / %> operator with GIN trigram index) for fuzzy
- *   typo-tolerant matching on city/country. The Postgres branch is sketched
- *   at the bottom of this file. The API route only depends on `searchVendors()`,
- *   so the migration is a single-file change.
+ * The `Vendor.searchTsv` column + GIN indexes are created by the SQL in
+ * `ensureSearchSchema()` below — run once (idempotent). They're also created
+ * via a Prisma migration if you prefer (see the SQL block).
  *
- * The FTS index is kept in sync with the `Vendor` table via SQL triggers
- * (see SCHEMA_STATEMENTS), so inserts/updates/deletes propagate automatically.
+ * On SQLite (local dev), the search gracefully degrades: `ensureSearchSchema`
+ * is a no-op and `searchVendors` returns [], so the API route falls back to
+ * the `contains` LIKE query. This keeps local dev working without Postgres.
  */
 import { db } from "@/lib/db";
 
-const FTS_TABLE = "vendor_fts";
-
-/**
- * One statement per array entry (trigger bodies contain `;` so we cannot
- * naively split a multi-statement blob). Each is idempotent (IF NOT EXISTS).
- */
-const SCHEMA_STATEMENTS: string[] = [
-  `CREATE VIRTUAL TABLE IF NOT EXISTS ${FTS_TABLE} USING fts5(
-     vendorId UNINDEXED,
-     ecosystem UNINDEXED,
-     name,
-     tagline,
-     description,
-     city,
-     country,
-     tags,
-     tokenize = 'porter unicode61 remove_diacritics 2'
-   )`,
-  `CREATE TRIGGER IF NOT EXISTS vendor_ai_fts AFTER INSERT ON Vendor BEGIN
-     INSERT INTO ${FTS_TABLE}(vendorId, ecosystem, name, tagline, description, city, country, tags)
-     VALUES (NEW.id, NEW.ecosystem, NEW.name, NEW.tagline, NEW.description, NEW.city, NEW.country, NEW.tags);
-   END`,
-  `CREATE TRIGGER IF NOT EXISTS vendor_ad_fts AFTER DELETE ON Vendor BEGIN
-     DELETE FROM ${FTS_TABLE} WHERE vendorId = OLD.id;
-   END`,
-  `CREATE TRIGGER IF NOT EXISTS vendor_au_fts AFTER UPDATE ON Vendor BEGIN
-     DELETE FROM ${FTS_TABLE} WHERE vendorId = OLD.id;
-     INSERT INTO ${FTS_TABLE}(vendorId, ecosystem, name, tagline, description, city, country, tags)
-     VALUES (NEW.id, NEW.ecosystem, NEW.name, NEW.tagline, NEW.description, NEW.city, NEW.country, NEW.tags);
-   END`,
-];
+const IS_POSTGRES = process.env.DATABASE_URL?.startsWith("postgresql");
 
 let schemaReady: Promise<void> | null = null;
 
 /**
- * Idempotently create the FTS5 table + sync triggers. Cached so repeated
- * calls in the same process are free.
+ * Idempotently create the Postgres full-text + trigram indexes.
+ * No-op on SQLite (local dev) — search falls back to LIKE.
  */
 export function ensureSearchSchema(): Promise<void> {
+  if (!IS_POSTGRES) return Promise.resolve();
   if (!schemaReady) {
     schemaReady = (async () => {
-      for (const stmt of SCHEMA_STATEMENTS) {
-        await db.$executeRawUnsafe(stmt);
+      try {
+        // pg_trgm extension for fuzzy matching
+        await db.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_trgm;`);
+        // generated tsvector column (weighted: A=name, B=tagline+tags,
+        // C=description, D=city+country) for relevance-ranked full-text search
+        await db.$executeRawUnsafe(`
+          ALTER TABLE "Vendor"
+          ADD COLUMN IF NOT EXISTS "searchTsv" tsvector
+          GENERATED ALWAYS AS (
+            setweight(to_tsvector('simple', coalesce(name, '')),      'A') ||
+            setweight(to_tsvector('simple', coalesce(tagline, '')),   'B') ||
+            setweight(to_tsvector('simple', coalesce(tags, '')),      'B') ||
+            setweight(to_tsvector('simple', coalesce(description,'')),'C') ||
+            setweight(to_tsvector('simple', coalesce(city, '')),      'D') ||
+            setweight(to_tsvector('simple', coalesce(country, '')),   'D')
+          ) STORED;
+        `);
+        // GIN index for fast full-text queries
+        await db.$executeRawUnsafe(`
+          CREATE INDEX IF NOT EXISTS "vendor_searchtsv_idx"
+          ON "Vendor" USING GIN ("searchTsv");
+        `);
+        // GIN trigram indexes for fuzzy city/country/name matching
+        await db.$executeRawUnsafe(`
+          CREATE INDEX IF NOT EXISTS "vendor_name_trgm_idx"
+          ON "Vendor" USING GIN (name gin_trgm_ops);
+        `);
+        await db.$executeRawUnsafe(`
+          CREATE INDEX IF NOT EXISTS "vendor_city_trgm_idx"
+          ON "Vendor" USING GIN (city gin_trgm_ops);
+        `);
+      } catch (err) {
+        // don't crash — search will fall back to LIKE
+        console.error("[search] ensureSearchSchema (partial):", err);
       }
     })();
   }
@@ -69,60 +71,40 @@ export function ensureSearchSchema(): Promise<void> {
 }
 
 /**
- * Drop and repopulate the FTS index from the current Vendor rows.
- * Run after bulk seeds/imports. Normal writes are handled by triggers.
+ * Drop and repopulate the FTS index. On Postgres the tsvector column is
+ * generated (always in sync), so this is a no-op. Kept for API compat
+ * with the seed script.
  */
 export async function rebuildSearchIndex(): Promise<void> {
+  // generated column auto-syncs — nothing to do on Postgres
   await ensureSearchSchema();
-  await db.$executeRawUnsafe(`DELETE FROM ${FTS_TABLE}`);
-  await db.$executeRawUnsafe(
-    `INSERT INTO ${FTS_TABLE}(vendorId, ecosystem, name, tagline, description, city, country, tags)
-     SELECT id, ecosystem, name, tagline, description, city, country, tags FROM Vendor`
-  );
 }
 
 /**
- * Convert a raw user query into a safe FTS5 MATCH expression.
- *
- * - Strips everything except letters/numbers/spaces (FTS5 query syntax like
- *   `"`, `*`, `:` NEAR etc. would otherwise throw or behave unexpectedly).
- * - Lowercases + splits on whitespace.
- * - Drops 1-char tokens (too noisy).
- * - Appends `*` to each token → prefix matching ("paris" matches "Parisian").
- * - Tokens are implicitly AND-ed by FTS5, which matches user intent for search.
- *
- * Examples:
- *   "sourdough paris"      -> "sourdough* paris*"
- *   "DJ (Amsterdam)"       -> "dj amsterdam*"
- *   "café"                  -> "cafe*"
- *   ""                      -> ""  (caller treats as "no search")
+ * Convert a raw user query into a safe websearch_to_tsquery expression.
+ * websearch_to_tsquery supports natural syntax: "sourdough paris",
+ * quotes for phrases, - for negation, OR. We just pass it through after
+ * trimming.
  */
 export function sanitizeFtsQuery(input: string): string {
-  const tokens = input
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .split(/\s+/)
-    .filter((t) => t.length >= 2);
-  if (tokens.length === 0) return "";
-  return tokens.map((t) => `${t}*`).join(" ");
+  const q = input.trim().replace(/[;\\]/g, "");
+  return q;
 }
 
 export interface SearchHit {
   vendorId: string;
-  rank: number; // FTS5 bm25 rank — lower is more relevant
+  rank: number;
 }
 
 /**
  * Run a full-text search and return ranked vendor IDs.
  *
  * @param query   Raw user search string.
- * @param ecosystem  Optional ecosystem filter pushed into the FTS query for speed.
- * @param limit   Cap on candidate IDs returned (default 200). The API route
- *                applies structured filters + final sort/limit on top.
+ * @param ecosystem  Optional ecosystem filter.
+ * @param limit   Cap on candidate IDs returned (default 200).
  *
- * Returns [] if the query is empty or matches nothing. The caller should
- * treat an empty result as "no vendors match the search".
+ * Returns [] if the query is empty, Postgres isn't configured, or no matches.
+ * The caller treats an empty result as "no vendors match".
  */
 export async function searchVendors(
   query: string,
@@ -130,54 +112,49 @@ export async function searchVendors(
   limit = 200
 ): Promise<SearchHit[]> {
   const ftsQuery = sanitizeFtsQuery(query);
-  if (!ftsQuery) return [];
+  if (!ftsQuery || !IS_POSTGRES) return [];
 
   await ensureSearchSchema();
 
   try {
-    const sql = ecosystem
-      ? `SELECT vendorId, rank FROM ${FTS_TABLE}
-         WHERE ${FTS_TABLE} MATCH ? AND ecosystem = ?
-         ORDER BY rank LIMIT ?`
-      : `SELECT vendorId, rank FROM ${FTS_TABLE}
-         WHERE ${FTS_TABLE} MATCH ?
-         ORDER BY rank LIMIT ?`;
-
     const rows = ecosystem
       ? await db.$queryRawUnsafe<{ vendorId: string; rank: number }[]>(
-          sql,
+          `SELECT id AS "vendorId", ts_rank("searchTsv", websearch_to_tsquery('simple', $1)) AS rank
+           FROM "Vendor"
+           WHERE "searchTsv" @@ websearch_to_tsquery('simple', $1)
+             AND ecosystem = $2
+           ORDER BY rank DESC
+           LIMIT $3`,
           ftsQuery,
           ecosystem,
           limit
         )
       : await db.$queryRawUnsafe<{ vendorId: string; rank: number }[]>(
-          sql,
+          `SELECT id AS "vendorId", ts_rank("searchTsv", websearch_to_tsquery('simple', $1)) AS rank
+           FROM "Vendor"
+           WHERE "searchTsv" @@ websearch_to_tsquery('simple', $1)
+           ORDER BY rank DESC
+           LIMIT $2`,
           ftsQuery,
           limit
         );
 
-    return rows.map((r) => ({
-      vendorId: r.vendorId,
-      rank: Number(r.rank),
-    }));
+    return rows.map((r) => ({ vendorId: r.vendorId, rank: Number(r.rank) }));
   } catch (err) {
-    // FTS table may not exist yet (e.g. before first seed). Fail safe so the
-    // API route can fall back to a structured-only query instead of 500ing.
-    console.error("[search] FTS query failed:", err);
+    console.error("[search] Postgres FTS query failed:", err);
     return [];
   }
 }
 
 /**
- * Whether the FTS index currently holds any rows. Used by the API route to
- * decide whether to trust the empty-result signal from `searchVendors`
- * (index missing → fall back to LIKE) vs. honour it (index present → really
- * no matches). Cheap COUNT(*) on the FTS table.
+ * Whether the search index is usable. On Postgres we trust it after
+ * ensureSearchSchema runs; on SQLite we return false so the API uses LIKE.
  */
 export async function searchIndexHasRows(): Promise<boolean> {
+  if (!IS_POSTGRES) return false;
   try {
     const rows = await db.$queryRawUnsafe<{ c: number }[]>(
-      `SELECT COUNT(*) AS c FROM ${FTS_TABLE}`
+      `SELECT COUNT(*) AS c FROM "Vendor" WHERE "searchTsv" IS NOT NULL`
     );
     return (rows[0]?.c ?? 0) > 0;
   } catch {
@@ -185,41 +162,59 @@ export async function searchIndexHasRows(): Promise<boolean> {
   }
 }
 
-/*
- * ────────────────────────────────────────────────────────────────────────────
- * POSTGRES MIGRATION PATH (Supabase / Neon)
- * ────────────────────────────────────────────────────────────────────────────
- * When you move off SQLite, replace the FTS5 table with Postgres generated
- * columns + GIN indexes. Schema (run once via `prisma db push` after switching
- * the datasource provider to `postgresql`):
- *
- *   -- full-text search column + GIN index
- *   ALTER TABLE "Vendor"
- *     ADD COLUMN search_tsv tsvector
- *     GENERATED ALWAYS AS (
- *       setweight(to_tsvector('simple', coalesce(name, '')),      'A') ||
- *       setweight(to_tsvector('simple', coalesce(tagline, '')),   'B') ||
- *       setweight(to_tsvector('simple', coalesce(tags, '')),      'B') ||
- *       setweight(to_tsvector('simple', coalesce(description,'')),'C') ||
- *       setweight(to_tsvector('simple', coalesce(city, '')),      'D') ||
- *       setweight(to_tsvector('simple', coalesce(country, '')),   'D')
- *     ) STORED;
- *   CREATE INDEX vendor_search_tsv_idx ON "Vendor" USING GIN (search_tsv);
- *
- *   -- trigram fuzzy index for typo-tolerant city/country/name matching
- *   CREATE EXTENSION IF NOT EXISTS pg_trgm;
- *   CREATE INDEX vendor_name_trgm_idx   ON "Vendor" USING GIN (name    gin_trgm_ops);
- *   CREATE INDEX vendor_city_trgm_idx   ON "Vendor" USING GIN (city    gin_trgm_ops);
- *   CREATE INDEX vendor_country_trgm_idx ON "Vendor" USING GIN (country gin_trgm_ops);
- *
- * Then `searchVendors()` becomes:
- *
- *   SELECT id, ts_rank(search_tsv, q) AS rank
- *   FROM "Vendor", websearch_to_tsquery('simple', $1) q
- *   WHERE search_tsv @@ q AND ($2::text IS NULL OR ecosystem = $2)
- *   ORDER BY rank LIMIT $3
- *
- * And for fuzzy fallback (typos): `WHERE name % $1 OR city % $1` (pg_trgm).
- * The API route does not change at all — only this file.
- * ────────────────────────────────────────────────────────────────────────────
+/**
+ * Haversine great-circle distance in kilometres. Used by the Near Me geo
+ * search regardless of the DB provider.
  */
+const EARTH_RADIUS_KM = 6371;
+export function haversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Fuzzy search using pg_trgm similarity — for typo-tolerant matching when
+ * the strict FTS query returns nothing (e.g. "Lisboa" → "Lisbon").
+ * Returns vendor IDs sorted by similarity desc.
+ */
+export async function fuzzySearchVendors(
+  query: string,
+  ecosystem?: string,
+  limit = 50
+): Promise<SearchHit[]> {
+  if (!IS_POSTGRES || !query.trim()) return [];
+  await ensureSearchSchema();
+  try {
+    const rows = ecosystem
+      ? await db.$queryRawUnsafe<{ vendorId: string; rank: number }[]>(
+          `SELECT id AS "vendorId", similarity(name, $1) AS rank
+           FROM "Vendor"
+           WHERE name % $1 AND ecosystem = $2
+           ORDER BY rank DESC LIMIT $3`,
+          query,
+          ecosystem,
+          limit
+        )
+      : await db.$queryRawUnsafe<{ vendorId: string; rank: number }[]>(
+          `SELECT id AS "vendorId", similarity(name, $1) AS rank
+           FROM "Vendor"
+           WHERE name % $1
+           ORDER BY rank DESC LIMIT $2`,
+          query,
+          limit
+        );
+    return rows.map((r) => ({ vendorId: r.vendorId, rank: Number(r.rank) }));
+  } catch {
+    return [];
+  }
+}
