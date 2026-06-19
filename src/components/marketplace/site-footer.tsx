@@ -15,43 +15,53 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
+import { cn } from "@/lib/utils";
+
+const INACTIVE = "opacity-45 pointer-events-none cursor-default";
 
 const COLUMNS = [
   {
     title: "FindMyBites",
     links: [
-      "Bakers & Bakeries",
-      "Catering Services",
-      "Dessert Specialists",
-      "Cake Artists",
-      "Food Trucks",
-      "Private Chefs",
+      { label: "Cake Artists", href: "#explore", active: true },
+      { label: "Bakers & Bakeries", href: "#explore", active: true },
+      { label: "Caterers", href: "#explore", active: true },
+      { label: "Private Chefs", href: "#explore", active: true },
+      { label: "Food Trucks", href: "#explore", active: true },
+      { label: "Dessert Makers", href: "#explore", active: true },
     ],
   },
   {
     title: "PimpMyParty",
     links: [
-      "Event Planners",
-      "Decorators & Stylists",
-      "Entertainers",
-      "DJs & Music",
-      "Photographers",
-      "Venues & Spaces",
+      { label: "Event Planners", href: "#explore", active: true },
+      { label: "Decorators", href: "#explore", active: true },
+      { label: "DJs", href: "#explore", active: true },
+      { label: "Photographers", href: "#explore", active: true },
+      { label: "Venues", href: "#explore", active: true },
+      { label: "Florists", href: "#explore", active: true },
     ],
   },
   {
     title: "Company",
-    links: ["About us", "How it works", "Careers", "Press", "Blog", "Contact"],
+    links: [
+      { label: "About us", href: "#", active: false },
+      { label: "How it works", href: "#how-it-works", active: true },
+      { label: "Careers", href: "#", active: false },
+      { label: "Press", href: "#", active: false },
+      { label: "Blog", href: "#", active: false },
+      { label: "Contact", href: "#", active: false },
+    ],
   },
   {
     title: "Support",
     links: [
-      "Help center",
-      "Trust & safety",
-      "Vendor guidelines",
-      "Cancellation policy",
-      "Terms",
-      "Privacy",
+      { label: "Help center", href: "#", active: false },
+      { label: "Trust & safety", href: "#", active: false },
+      { label: "Vendor guidelines", href: "#", active: false },
+      { label: "Cancellation policy", href: "#", active: false },
+      { label: "Terms", href: "#", active: false },
+      { label: "Privacy", href: "#", active: false },
     ],
   },
 ];
@@ -149,12 +159,18 @@ export function SiteFooter() {
               <h4 className="text-sm font-semibold">{col.title}</h4>
               <ul className="mt-3 space-y-2">
                 {col.links.map((l) => (
-                  <li key={l}>
+                  <li key={l.label}>
                     <Link
-                      href="#explore"
-                      className="text-sm text-muted-foreground transition-colors hover:text-brand"
+                      href={l.href}
+                      title={l.active ? undefined : "Coming soon"}
+                      className={cn(
+                        "text-sm transition-colors",
+                        l.active
+                          ? "text-muted-foreground hover:text-brand"
+                          : "pointer-events-none cursor-default opacity-45"
+                      )}
                     >
-                      {l}
+                      {l.label}
                     </Link>
                   </li>
                 ))}

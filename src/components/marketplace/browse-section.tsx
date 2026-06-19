@@ -97,8 +97,8 @@ export function BrowseSection() {
             )}
           >
             <span>All categories</span>
-            <span className="text-xs text-muted-foreground">
-              {cats.reduce((acc, c) => acc + (catCountMap.get(c.id) ?? 0), 0)}
+            <span className={cn("text-xs", cats.reduce((acc, c) => acc + (catCountMap.get(c.id) ?? 0), 0) === 0 ? "text-muted-foreground/40" : "text-muted-foreground")}>
+              ({cats.reduce((acc, c) => acc + (catCountMap.get(c.id) ?? 0), 0)})
             </span>
           </button>
           {cats.map((c) => (
@@ -116,8 +116,8 @@ export function BrowseSection() {
                 <CategoryIcon name={c.icon} className="size-4 text-muted-foreground" />
                 {c.label}
               </span>
-              <span className="text-xs text-muted-foreground">
-                {catCountMap.get(c.id) ?? 0}
+              <span className={cn("text-xs", (catCountMap.get(c.id) ?? 0) === 0 ? "text-muted-foreground/40" : "text-muted-foreground")}>
+                ({catCountMap.get(c.id) ?? 0})
               </span>
             </button>
           ))}
@@ -381,7 +381,19 @@ export function BrowseSection() {
                 ))}
               </div>
             ) : vendors.length === 0 ? (
-              <EmptyState onReset={resetFilters} />
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card py-20 text-center">
+                <div className="grid size-16 place-items-center rounded-full bg-muted">
+                  <SearchX className="size-7 text-muted-foreground" />
+                </div>
+                <h3 className="mt-4 text-lg font-semibold">No vendors found yet</h3>
+                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                  Be the first to list your business and reach customers worldwide.
+                </p>
+                <Button onClick={resetFilters} className="mt-5 bg-brand text-brand-foreground hover:bg-brand/90">
+                  <X className="size-4" />
+                  Clear all filters
+                </Button>
+              </div>
             ) : (
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 <AnimatePresence mode="popLayout">

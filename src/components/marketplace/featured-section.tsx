@@ -65,7 +65,11 @@ export function FeaturedSection() {
               <Skeleton key={i} className="aspect-[3/4] w-72 shrink-0 rounded-2xl" />
             ))}
           </div>
-        ) : vendors.length === 0 ? null : (
+        ) : vendors.length === 0 ? (
+          <p className="mt-8 py-8 text-center text-sm text-muted-foreground">
+            Featured vendors coming soon — check back shortly.
+          </p>
+        ) : (
           <div
             ref={scrollerRef}
             className="no-scrollbar mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2"

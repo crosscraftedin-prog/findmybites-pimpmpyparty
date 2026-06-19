@@ -13,25 +13,25 @@ export function StatsBar() {
     {
       icon: Users,
       label: "Verified vendors",
-      value: data ? formatNumber(data.totalVendors) : "—",
+      value: data ? formatNumber(data.totalVendors) : "0",
       hint: "across both ecosystems",
     },
     {
       icon: Globe2,
       label: "Countries",
-      value: data ? String(data.countries) : "—",
+      value: data ? String(data.countries) : "0",
       hint: "on 6 continents",
     },
     {
       icon: Star,
       label: "Avg. rating",
-      value: data ? data.avgRating.toFixed(1) : "—",
-      hint: data ? `${data.totalReviews} reviews` : "reviews",
+      value: data ? data.avgRating.toFixed(1) : "0.0",
+      hint: data ? `${data.totalReviews} reviews` : "loading…",
     },
     {
       icon: MessageSquareQuote,
       label: "Customer reviews",
-      value: data ? formatNumber(data.totalReviews) : "—",
+      value: data ? formatNumber(data.totalReviews) : "0",
       hint: "verified & honest",
     },
   ];

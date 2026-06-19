@@ -145,13 +145,20 @@ export function Hero() {
               <p className="text-xs text-white/70">{content.stat2.label}</p>
             </div>
             <div className="h-10 w-px bg-white/20" />
-            <div className="flex items-center gap-2 text-xs text-white/80">
-              <ShieldCheck className="size-4" />
-              Verified vendors
+            <div>
+              <p className="text-2xl font-extrabold text-white sm:text-3xl">100%</p>
+              <p className="flex items-center gap-1 text-xs text-white/80">
+                <ShieldCheck className="size-4" />
+                Verified vendors
+              </p>
             </div>
-            <div className="flex items-center gap-2 text-xs text-white/80">
-              <Globe2 className="size-4" />
-              Global from day one
+            <div className="h-10 w-px bg-white/20" />
+            <div>
+              <p className="text-2xl font-extrabold text-white sm:text-3xl">6</p>
+              <p className="flex items-center gap-1 text-xs text-white/80">
+                <Globe2 className="size-4" />
+                Continents
+              </p>
             </div>
           </div>
         </motion.div>
