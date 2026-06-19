@@ -41,6 +41,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { getCategory, CURRENCY_SYMBOLS } from "@/lib/constants";
+import { getCategoryFields } from "@/lib/category-fields";
 import { CategoryIcon } from "@/components/marketplace/icon";
 import { formatPrice, countryCodeToFlag, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -282,7 +283,7 @@ export function VendorDashboard() {
             </div>
 
             {/* Products / Services */}
-            <ProductsSection vendorId={data?.vendors[0]?.id ?? null} currency={data?.vendors[0]?.currency} ecosystem={data?.vendors[0]?.ecosystem} />
+            <ProductsSection vendorId={data?.vendors[0]?.id ?? null} currency={data?.vendors[0]?.currency} ecosystem={data?.vendors[0]?.ecosystem} category={data?.vendors[0]?.category} />
 
             {/* Recent bookings + reviews */}
             <div className="grid gap-4 lg:grid-cols-2">
@@ -383,10 +384,12 @@ function ProductsSection({
   vendorId,
   currency,
   ecosystem,
+  category,
 }: {
   vendorId: string | null;
   currency?: string;
   ecosystem?: string;
+  category?: string;
 }) {
   const { data, isLoading } = useProducts(vendorId);
   const createProduct = useCreateProduct();
@@ -395,38 +398,34 @@ function ProductsSection({
   const [showForm, setShowForm] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
 
-  // form state
-  const [form, setForm] = React.useState({
-    name: "",
-    price: "",
-    description: "",
-    productType: "",
-    sizes: "",
-    flavours: "",
-    weight: "",
-    prepTime: "",
-    deliveryAvailable: false,
-    minGuests: "",
-    pricePerHead: "",
-  });
+  // category-specific field config
+  const catConfig = getCategoryFields(category ?? "");
+  const isFMB = ecosystem === "FINDMYBITES";
+
+  // form state — includes all fields
+  const EMPTY_FORM = {
+    name: "", price: "", description: "", productType: "",
+    sizes: "", flavours: "", weight: "", prepTime: "",
+    deliveryAvailable: false, minGuests: "", pricePerHead: "",
+    servings: "", shape: "", eggless: false,
+    sameDay: false, customOrder: false, pickupAvailable: false,
+    featured: false, videoUrl: "",
+  };
+  const [form, setForm] = React.useState(EMPTY_FORM);
+  const [extraFieldsForm, setExtraFieldsForm] = React.useState<Record<string, string>>({});
 
   const set = (k: keyof typeof form, v: string | boolean) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  // Reset form to empty (for adding)
   const resetForm = () => {
-    setForm({
-      name: "", price: "", description: "", productType: "",
-      sizes: "", flavours: "", weight: "", prepTime: "",
-      deliveryAvailable: false, minGuests: "", pricePerHead: "",
-    });
+    setForm(EMPTY_FORM);
+    setExtraFieldsForm({});
     setEditingId(null);
   };
 
-  // Start editing a product — loads its data into the form
   const onEdit = (p: typeof products[0]) => {
     setEditingId(p.id);
-    setShowForm(false); // close the "add" form if open
+    setShowForm(false);
     setForm({
       name: p.name,
       price: String(p.price),
@@ -439,38 +438,53 @@ function ProductsSection({
       deliveryAvailable: p.deliveryAvailable,
       minGuests: p.minGuests != null ? String(p.minGuests) : "",
       pricePerHead: p.pricePerHead != null ? String(p.pricePerHead) : "",
+      servings: p.servings ?? "",
+      shape: p.shape ?? "",
+      eggless: p.eggless ?? false,
+      sameDay: p.sameDay ?? false,
+      customOrder: p.customOrder ?? false,
+      pickupAvailable: p.pickupAvailable ?? false,
+      featured: p.featured ?? false,
+      videoUrl: p.videoUrl ?? "",
     });
+    setExtraFieldsForm(p.extraFields ?? {});
   };
 
   const products = data?.products ?? [];
   const symbol = currency ? (CURRENCY_SYMBOLS[currency] ?? currency) : "$";
-  const isFMB = ecosystem === "FINDMYBITES";
-
-  // product type options
-  const productTypes = isFMB
-    ? ["Cake", "Cupcake", "Cookie", "Chocolate", "Catering", "Bread", "Dessert", "Other"]
-    : ["Photography Package", "DJ Package", "Decoration Package", "Venue", "Entertainment", "Planning Package", "Other"];
 
   const onAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vendorId || !form.name.trim()) return;
-    const payload = {
+    const payload: Record<string, unknown> = {
       vendorId,
       name: form.name.trim(),
       price: Number(form.price) || 0,
       description: form.description.trim() || undefined,
       productType: form.productType || undefined,
-      sizes: form.sizes.trim() || undefined,
-      flavours: form.flavours.trim() || undefined,
-      weight: form.weight.trim() || undefined,
-      prepTime: form.prepTime.trim() || undefined,
       deliveryAvailable: form.deliveryAvailable,
-      minGuests: form.minGuests ? Number(form.minGuests) : undefined,
-      pricePerHead: form.pricePerHead ? Number(form.pricePerHead) : undefined,
+      pickupAvailable: form.pickupAvailable,
+      sameDay: form.sameDay,
+      customOrder: form.customOrder,
+      featured: form.featured,
+      videoUrl: form.videoUrl.trim() || undefined,
     };
+    // conditionally add category-specific fields
+    if (catConfig.show.sizes) payload.sizes = form.sizes.trim() || undefined;
+    if (catConfig.show.flavours) payload.flavours = form.flavours.trim() || undefined;
+    if (catConfig.show.weight) payload.weight = form.weight.trim() || undefined;
+    if (catConfig.show.prepTime) payload.prepTime = form.prepTime.trim() || undefined;
+    if (catConfig.show.servings) payload.servings = form.servings.trim() || undefined;
+    if (catConfig.show.shape) payload.shape = form.shape.trim() || undefined;
+    if (catConfig.show.eggless) payload.eggless = form.eggless;
+    if (catConfig.show.minGuests) payload.minGuests = form.minGuests ? Number(form.minGuests) : undefined;
+    if (catConfig.show.pricePerHead) payload.pricePerHead = form.pricePerHead ? Number(form.pricePerHead) : undefined;
+    // extra fields
+    const hasExtra = Object.values(extraFieldsForm).some((v) => v.trim());
+    if (hasExtra) payload.extraFields = JSON.stringify(extraFieldsForm);
+
     try {
       if (editingId) {
-        // Update existing product via PATCH
         const res = await fetch(`/api/products/${editingId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -478,11 +492,9 @@ function ProductsSection({
         });
         if (!res.ok) throw new Error("Failed to update");
         toast.success("Product updated!");
-        // invalidate the products query
         queryClient.invalidateQueries({ queryKey: ["products", vendorId] });
       } else {
-        // Create new product
-        await createProduct.mutateAsync(payload);
+        await createProduct.mutateAsync(payload as Parameters<typeof createProduct.mutateAsync>[0]);
         toast.success("Product added!");
       }
       resetForm();
@@ -499,6 +511,94 @@ function ProductsSection({
   };
 
   if (!vendorId) return null;
+
+  // Shared form fields component (used for both add and edit)
+  const formFields = (
+    <>
+      {/* Name + Price */}
+      <div className="grid gap-2 sm:grid-cols-[1fr_120px]">
+        <div>
+          <label className="mb-1 block text-xs font-semibold">Name</label>
+          <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder={isFMB ? "e.g. Luxury Wedding Cake" : "e.g. Wedding Photography Package"} className="h-9" required />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold">Price ({symbol})</label>
+          <Input type="number" value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" className="h-9" min={0} />
+        </div>
+      </div>
+
+      {/* Product type */}
+      <div>
+        <label className="mb-1 block text-xs font-semibold">{catConfig.noun} type</label>
+        <select value={form.productType} onChange={(e) => set("productType", e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+          <option value="">Select type</option>
+          {catConfig.types.map((t) => <option key={t} value={t.toLowerCase()}>{t}</option>)}
+        </select>
+      </div>
+
+      {/* Description */}
+      <div>
+        <label className="mb-1 block text-xs font-semibold">Description</label>
+        <textarea value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Describe your product or package..." className="h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm" maxLength={500} />
+      </div>
+
+      {/* Category-specific fields */}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {catConfig.show.sizes && <div><label className="mb-1 block text-xs font-semibold">Sizes</label><Input value={form.sizes} onChange={(e) => set("sizes", e.target.value)} placeholder="1kg, 2kg, 3kg" className="h-9" /></div>}
+        {catConfig.show.flavours && <div><label className="mb-1 block text-xs font-semibold">Flavours</label><Input value={form.flavours} onChange={(e) => set("flavours", e.target.value)} placeholder="Vanilla, Chocolate, Red Velvet" className="h-9" /></div>}
+        {catConfig.show.weight && <div><label className="mb-1 block text-xs font-semibold">Weight</label><Input value={form.weight} onChange={(e) => set("weight", e.target.value)} placeholder="500g, 1kg" className="h-9" /></div>}
+        {catConfig.show.prepTime && <div><label className="mb-1 block text-xs font-semibold">Prep time</label><Input value={form.prepTime} onChange={(e) => set("prepTime", e.target.value)} placeholder="24 hours, 3 days" className="h-9" /></div>}
+        {catConfig.show.servings && <div><label className="mb-1 block text-xs font-semibold">Servings</label><Input value={form.servings} onChange={(e) => set("servings", e.target.value)} placeholder="Serves 10-20" className="h-9" /></div>}
+        {catConfig.show.shape && <div><label className="mb-1 block text-xs font-semibold">Shape</label><Input value={form.shape} onChange={(e) => set("shape", e.target.value)} placeholder="Round, Square, Heart" className="h-9" /></div>}
+        {catConfig.show.minGuests && <div><label className="mb-1 block text-xs font-semibold">Min guests</label><Input type="number" value={form.minGuests} onChange={(e) => set("minGuests", e.target.value)} placeholder="50" className="h-9" min={0} /></div>}
+        {catConfig.show.pricePerHead && <div><label className="mb-1 block text-xs font-semibold">Price per head</label><Input type="number" value={form.pricePerHead} onChange={(e) => set("pricePerHead", e.target.value)} placeholder="250" className="h-9" min={0} /></div>}
+      </div>
+
+      {/* Extra category-specific fields */}
+      {catConfig.extraFields.length > 0 && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {catConfig.extraFields.map((ef) => (
+            <div key={ef.key}>
+              <label className="mb-1 block text-xs font-semibold">{ef.label}</label>
+              <Input
+                value={extraFieldsForm[ef.key] ?? ""}
+                onChange={(e) => setExtraFieldsForm((prev) => ({ ...prev, [ef.key]: e.target.value }))}
+                placeholder={ef.placeholder}
+                className="h-9"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Video URL */}
+      <div>
+        <label className="mb-1 block text-xs font-semibold">Video URL (optional)</label>
+        <Input value={form.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="YouTube or Vimeo link" className="h-9" />
+      </div>
+
+      {/* Toggle badges */}
+      <div className="flex flex-wrap gap-3">
+        {catConfig.show.eggless && (
+          <label className="flex items-center gap-1.5 text-xs font-medium"><input type="checkbox" checked={form.eggless} onChange={(e) => set("eggless", e.target.checked)} className="size-4 rounded" /> 🥚 Eggless</label>
+        )}
+        <label className="flex items-center gap-1.5 text-xs font-medium"><input type="checkbox" checked={form.deliveryAvailable} onChange={(e) => set("deliveryAvailable", e.target.checked)} className="size-4 rounded" /> 🚚 Delivery</label>
+        <label className="flex items-center gap-1.5 text-xs font-medium"><input type="checkbox" checked={form.pickupAvailable} onChange={(e) => set("pickupAvailable", e.target.checked)} className="size-4 rounded" /> 🏪 Pickup</label>
+        <label className="flex items-center gap-1.5 text-xs font-medium"><input type="checkbox" checked={form.sameDay} onChange={(e) => set("sameDay", e.target.checked)} className="size-4 rounded" /> ⚡ Same-day</label>
+        <label className="flex items-center gap-1.5 text-xs font-medium"><input type="checkbox" checked={form.customOrder} onChange={(e) => set("customOrder", e.target.checked)} className="size-4 rounded" /> 🎨 Custom orders</label>
+        <label className="flex items-center gap-1.5 text-xs font-medium"><input type="checkbox" checked={form.featured} onChange={(e) => set("featured", e.target.checked)} className="size-4 rounded" /> ⭐ Featured</label>
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" className="bg-brand text-brand-foreground hover:bg-brand/90">
+          {editingId ? "Save changes" : "Add"}
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => { resetForm(); setShowForm(false); setEditingId(null); }}>
+          Cancel
+        </Button>
+      </div>
+    </>
+  );
 
   return (
     <div>
@@ -795,15 +895,32 @@ function ProductsSection({
                 </button>
               </div>
               {/* Extra details */}
-              {(p.sizes || p.flavours || p.weight || p.prepTime || p.minGuests || p.pricePerHead) && (
+              {(p.sizes || p.flavours || p.weight || p.prepTime || p.minGuests || p.pricePerHead || p.servings || p.shape || p.eggless || p.sameDay || p.customOrder || p.pickupAvailable || p.featured || p.deliveryAvailable) && (
                 <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border pt-2">
+                  {p.featured && <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold text-brand-soft-foreground">⭐ Featured</span>}
                   {p.sizes && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">📏 {p.sizes}</span>}
                   {p.flavours && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">🍰 {p.flavours}</span>}
                   {p.weight && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">⚖️ {p.weight}</span>}
+                  {p.servings && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">🍽️ {p.servings}</span>}
+                  {p.shape && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">⬡ {p.shape}</span>}
+                  {p.eggless && <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] text-green-700">🥚 Eggless</span>}
                   {p.prepTime && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">⏱️ {p.prepTime}</span>}
-                  {p.minGuests != null && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">👥 Min {p.minGuests} guests</span>}
+                  {p.minGuests != null && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">👥 Min {p.minGuests}</span>}
                   {p.pricePerHead != null && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">💰 {symbol}{p.pricePerHead}/head</span>}
+                  {p.sameDay && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">⚡ Same-day</span>}
+                  {p.customOrder && <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] text-purple-700">🎨 Custom</span>}
                   {p.deliveryAvailable && <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">🚚 Delivery</span>}
+                  {p.pickupAvailable && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-700">🏪 Pickup</span>}
+                  {p.inStock === false && <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] text-rose-700">Out of stock</span>}
+                  {p.stockCount != null && p.inStock && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">📦 {p.stockCount} in stock</span>}
+                </div>
+              )}
+              {/* Extra category fields */}
+              {p.extraFields && Object.entries(p.extraFields).filter(([,v]) => v).length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {Object.entries(p.extraFields).filter(([,v]) => v).map(([k, v]) => (
+                    <span key={k} className="rounded bg-muted px-1.5 py-0.5 text-[10px]">{v}</span>
+                  ))}
                 </div>
               )}
             </div>
