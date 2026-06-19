@@ -42,6 +42,7 @@ import { getCategoryFields } from "@/lib/category-fields";
 import { formatPrice, countryCodeToFlag, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { ImageUpload } from "@/components/marketplace/image-upload";
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
@@ -495,6 +496,7 @@ function ProductsSection({
     servings: "", shape: "", eggless: false,
     sameDay: false, customOrder: false, pickupAvailable: false,
     featured: false, videoUrl: "",
+    image1: "", image2: "", image3: "",
   };
   const [form, setForm] = React.useState(EMPTY_FORM);
   const [extraFieldsForm, setExtraFieldsForm] = React.useState<Record<string, string>>({});
@@ -511,6 +513,7 @@ function ProductsSection({
   const onEdit = (p: typeof products[0]) => {
     setEditingId(p.id);
     setShowForm(false);
+    const imgs = p.images ?? [];
     setForm({
       name: p.name, price: String(p.price), description: p.description ?? "",
       productType: p.productType ?? "", sizes: p.sizes ?? "", flavours: p.flavours ?? "",
@@ -521,6 +524,7 @@ function ProductsSection({
       sameDay: p.sameDay ?? false, customOrder: p.customOrder ?? false,
       pickupAvailable: p.pickupAvailable ?? false, featured: p.featured ?? false,
       videoUrl: p.videoUrl ?? "",
+      image1: imgs[0] ?? "", image2: imgs[1] ?? "", image3: imgs[2] ?? "",
     });
     setExtraFieldsForm(p.extraFields ?? {});
   };
@@ -537,6 +541,7 @@ function ProductsSection({
       deliveryAvailable: form.deliveryAvailable, pickupAvailable: form.pickupAvailable,
       sameDay: form.sameDay, customOrder: form.customOrder, featured: form.featured,
       videoUrl: form.videoUrl.trim() || undefined,
+      images: [form.image1, form.image2, form.image3].filter(Boolean),
     };
     if (catConfig.show.sizes) payload.sizes = form.sizes.trim() || undefined;
     if (catConfig.show.flavours) payload.flavours = form.flavours.trim() || undefined;
@@ -618,6 +623,25 @@ function ProductsSection({
           ))}
         </div>
       )}
+      {/* Product images — up to 3 */}
+      <div>
+        <label className="mb-1 block text-xs font-semibold">Product images (up to 3)</label>
+        <div className="grid grid-cols-3 gap-2">
+          {[1, 2, 3].map((n) => {
+            const key = `image${n}` as keyof typeof form;
+            return (
+              <ImageUpload
+                key={n}
+                label={`Image ${n}`}
+                aspect="square"
+                value={form[key] as string}
+                onChange={(url) => set(key, url)}
+                className="w-full"
+              />
+            );
+          })}
+        </div>
+      </div>
       <div>
         <label className="mb-1 block text-xs font-semibold">Video URL (optional)</label>
         <Input value={form.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="YouTube or Vimeo link" className="h-9" />

@@ -74,6 +74,25 @@ export async function PATCH(
       if (Number.isFinite(n) && n >= 0) data.price = Math.round(n);
     }
     if (typeof body.image === "string") data.image = body.image;
+    if (typeof body.videoUrl === "string") data.videoUrl = body.videoUrl.trim() || null;
+    if (typeof body.productType === "string") data.productType = body.productType;
+    if (typeof body.sizes === "string") data.sizes = body.sizes || null;
+    if (typeof body.flavours === "string") data.flavours = body.flavours || null;
+    if (typeof body.weight === "string") data.weight = body.weight || null;
+    if (typeof body.prepTime === "string") data.prepTime = body.prepTime || null;
+    if (typeof body.servings === "string") data.servings = body.servings || null;
+    if (typeof body.shape === "string") data.shape = body.shape || null;
+    if (typeof body.eggless === "boolean") data.eggless = body.eggless;
+    if (typeof body.sameDay === "boolean") data.sameDay = body.sameDay;
+    if (typeof body.customOrder === "boolean") data.customOrder = body.customOrder;
+    if (typeof body.pickupAvailable === "boolean") data.pickupAvailable = body.pickupAvailable;
+    if (typeof body.deliveryAvailable === "boolean") data.deliveryAvailable = body.deliveryAvailable;
+    if (typeof body.featured === "boolean") data.featured = body.featured;
+    if (typeof body.minGuests === "number") data.minGuests = body.minGuests;
+    if (typeof body.pricePerHead === "number") data.pricePerHead = body.pricePerHead;
+    if (Array.isArray(body.images)) {
+      data.images = JSON.stringify(body.images.filter((u: unknown) => typeof u === "string").slice(0, 8));
+    }
 
     const updated = await db.product.update({ where: { id }, data });
     return NextResponse.json({ product: updated });

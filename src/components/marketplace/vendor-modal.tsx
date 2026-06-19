@@ -51,6 +51,7 @@ import { StarRating } from "./star-rating";
 import { ReviewList } from "./review-list";
 import { ReviewForm } from "./review-form";
 import { BookingForm } from "./booking-form";
+import type { Product as ApiProduct } from "@/lib/types";
 
 export function VendorModal() {
   const slug = useMarketplace((s) => s.selectedVendorSlug);
@@ -65,6 +66,7 @@ export function VendorModal() {
   );
   const { data: productsData } = useProducts(vendor?.id ?? null);
   const products = productsData?.products ?? [];
+  const [selectedProduct, setSelectedProduct] = React.useState<ApiProduct | null>(null);
 
   const onEditClick = () => {
     if (!vendor) return;
@@ -472,7 +474,11 @@ export function VendorModal() {
                         {products.map((p) => {
                           const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency;
                           return (
-                            <div key={p.id} className="rounded-2xl border border-border bg-card p-4">
+                            <div
+                              key={p.id}
+                              onClick={() => setSelectedProduct(p)}
+                              className="cursor-pointer rounded-2xl border border-border bg-card p-4 transition-all hover:border-brand-border hover:shadow-md"
+                            >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
@@ -550,6 +556,13 @@ export function VendorModal() {
         )}
       </DialogContent>
     </Dialog>
+
+    {/* Product detail modal */}
+    <ProductDetailModal
+      product={selectedProduct}
+      currency={vendor?.currency ?? "USD"}
+      onClose={() => setSelectedProduct(null)}
+    />
   );
 }
 
@@ -572,5 +585,136 @@ function Stat({
       </div>
       <p className="mt-1 text-sm font-bold capitalize">{value}</p>
     </div>
+  );
+}
+
+// ── Product detail modal ────────────────────────────────────────────────────
+function ProductDetailModal({
+  product,
+  currency,
+  onClose,
+}: {
+  product: ApiProduct | null;
+  currency: string;
+  onClose: () => void;
+}) {
+  if (!product) return null;
+  const symbol = CURRENCY_SYMBOLS[currency] ?? currency;
+  const images = product.images ?? [];
+  const hasVideo = product.videoUrl && (
+    product.videoUrl.includes("youtube.com") ||
+    product.videoUrl.includes("youtu.be") ||
+    product.videoUrl.includes("vimeo.com")
+  );
+
+  // Extract YouTube embed URL
+  let embedUrl = "";
+  if (product.videoUrl) {
+    if (product.videoUrl.includes("youtu.be/")) {
+      embedUrl = `https://www.youtube.com/embed/${product.videoUrl.split("youtu.be/")[1]?.split("?")[0]}`;
+    } else if (product.videoUrl.includes("watch?v=")) {
+      embedUrl = `https://www.youtube.com/embed/${product.videoUrl.split("watch?v=")[1]?.split("&")[0]}`;
+    } else if (product.videoUrl.includes("vimeo.com/")) {
+      embedUrl = `https://player.vimeo.com/video/${product.videoUrl.split("vimeo.com/")[1]?.split("?")[0]}`;
+    }
+  }
+
+  return (
+    <Dialog open={!!product} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[92vh] gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogTitle className="sr-only">{product.name}</DialogTitle>
+        <DialogDescription className="sr-only">Product details</DialogDescription>
+        <ScrollArea className="max-h-[90vh] overflow-y-auto">
+          {/* Image gallery */}
+          {images.length > 0 && (
+            <div className="relative aspect-video overflow-hidden bg-muted">
+              <img src={images[0]} alt={product.name} className="h-full w-full object-cover" />
+              {images.length > 1 && (
+                <div className="absolute bottom-2 left-2 flex gap-1">
+                  {images.slice(0, 3).map((img, i) => (
+                    <div key={i} className="size-12 overflow-hidden rounded-md border-2 border-white/80">
+                      <img src={img} alt="" className="h-full w-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="p-5">
+            {/* Title + price */}
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold">{product.name}</h2>
+                {product.productType && (
+                  <span className="mt-1 inline-block rounded bg-brand-soft px-2 py-0.5 text-[11px] font-medium capitalize text-brand-soft-foreground">
+                    {product.productType}
+                  </span>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-extrabold tabular-nums">
+                  {symbol}{product.price.toLocaleString("en-US")}
+                </p>
+                {product.pricePerHead != null && (
+                  <p className="text-xs text-muted-foreground">{symbol}{product.pricePerHead}/head</p>
+                )}
+              </div>
+            </div>
+
+            {/* Description */}
+            {product.description && (
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{product.description}</p>
+            )}
+
+            {/* Video embed */}
+            {hasVideo && embedUrl && (
+              <div className="mt-4 overflow-hidden rounded-xl">
+                <iframe
+                  src={embedUrl}
+                  width="100%"
+                  height="220"
+                  style={{ border: 0 }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title={product.name}
+                />
+              </div>
+            )}
+
+            {/* Attributes */}
+            {(product.sizes || product.flavours || product.weight || product.prepTime || product.servings || product.shape || product.minGuests != null || product.eggless || product.sameDay || product.customOrder || product.deliveryAvailable || product.pickupAvailable || product.featured) && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {product.featured && <span className="rounded-lg bg-brand-soft px-2 py-1 text-[11px] font-bold text-brand-soft-foreground">⭐ Featured</span>}
+                {product.sizes && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">📏 {product.sizes}</span>}
+                {product.flavours && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">🍰 {product.flavours}</span>}
+                {product.weight && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">⚖️ {product.weight}</span>}
+                {product.servings && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">🍽️ {product.servings}</span>}
+                {product.shape && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">⬡ {product.shape}</span>}
+                {product.eggless && <span className="rounded-lg bg-green-100 px-2 py-1 text-[11px] text-green-700">🥚 Eggless</span>}
+                {product.prepTime && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">⏱️ {product.prepTime}</span>}
+                {product.minGuests != null && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">👥 Min {product.minGuests} guests</span>}
+                {product.sameDay && <span className="rounded-lg bg-amber-100 px-2 py-1 text-[11px] text-amber-700">⚡ Same-day</span>}
+                {product.customOrder && <span className="rounded-lg bg-purple-100 px-2 py-1 text-[11px] text-purple-700">🎨 Custom orders</span>}
+                {product.deliveryAvailable && <span className="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] text-emerald-700">🚚 Delivery</span>}
+                {product.pickupAvailable && <span className="rounded-lg bg-blue-100 px-2 py-1 text-[11px] text-blue-700">🏪 Pickup</span>}
+              </div>
+            )}
+
+            {/* Extra category fields */}
+            {product.extraFields && Object.entries(product.extraFields).filter(([, v]) => v).length > 0 && (
+              <div className="mt-3 rounded-lg border border-border bg-muted/30 p-3">
+                <p className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">Details</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(product.extraFields).filter(([, v]) => v).map(([k, v]) => (
+                    <span key={k} className="rounded bg-background px-2 py-0.5 text-[11px]">{v}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   );
 }
