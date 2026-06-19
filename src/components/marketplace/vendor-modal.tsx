@@ -434,30 +434,17 @@ export function VendorModal() {
                 )}
 
                 {/* Instant quote CTA */}
-                <div className="mt-5 flex gap-2">
+                <div className="mt-5">
                   <Button
                     onClick={() => {
                       const tabsEl = document.querySelector('[data-slot="tabs-trigger"][value="book"]') as HTMLElement;
                       tabsEl?.click();
                     }}
-                    className="flex-1 bg-brand text-brand-foreground hover:bg-brand/90"
+                    className="w-full bg-brand text-brand-foreground hover:bg-brand/90"
                   >
                     <Zap className="size-4" />
                     Get Instant Quote
                   </Button>
-                  {vendor.whatsapp && (
-                    <a
-                      href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(
-                        `Hi ${vendor.name}, I'd like an instant quote for my event.`
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-md bg-[#25D366] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#1da851]"
-                    >
-                      <MessageCircle className="size-4" />
-                      WhatsApp
-                    </a>
-                  )}
                 </div>
 
                 {/* Tabs */}
