@@ -280,7 +280,7 @@ export async function PATCH(
     const logoUrl = isSafeUploadUrl(body.logoUrl) ? body.logoUrl : null;
     if (bannerUrl !== null || logoUrl !== null) {
       const cat = typeof data.category === "string" ? data.category : existing.category;
-      const fallback = getCategory(cat)?.image ?? "/vendors/baker.png";
+      const fallback = getCategoryMigrated(cat)?.image ?? "/vendors/baker.png";
       const hero = bannerUrl ?? existing.heroImage;
       const avatar = logoUrl ?? bannerUrl ?? existing.avatarImage;
       data.heroImage = hero;

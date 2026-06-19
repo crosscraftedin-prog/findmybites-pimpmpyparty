@@ -3,7 +3,7 @@ import { Prisma, type Vendor as DbVendor } from "@prisma/client";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
-import { COUNTRIES, getCategory, SUBCATEGORIES } from "@/lib/constants";
+import { COUNTRIES, getCategoryMigrated, migrateCategory, SUBCATEGORIES } from "@/lib/constants";
 import {
   isValidEcosystem,
   isValidPriceRange,
@@ -373,7 +373,7 @@ export async function POST(req: NextRequest) {
     }
 
     // --- images: prefer uploaded banner/logo, fall back to category default ---
-    const cat = getCategory(category);
+    const cat = getCategoryMigrated(category);
     const fallbackImage = cat?.image ?? "/vendors/baker.png";
 
     const bannerUrl = isSafeUploadUrl(body.bannerUrl) ? body.bannerUrl : "";
@@ -427,7 +427,7 @@ export async function POST(req: NextRequest) {
         name,
         slug,
         ecosystem,
-        category,
+        category: migrateCategory(category), // migrate old slugs → new 6-category architecture
         tagline,
         description,
         city,

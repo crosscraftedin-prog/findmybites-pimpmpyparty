@@ -31,7 +31,7 @@ import {
 } from "@/lib/queries";
 import { useMarketplace } from "@/lib/store";
 import { countryCodeToFlag, timeAgo } from "@/lib/format";
-import { getCategory } from "@/lib/constants";
+import { getCategoryMigrated } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export function AdminVendors() {
@@ -166,7 +166,7 @@ export function AdminVendors() {
               </tr>
             ) : (
               vendors.map((v) => {
-                const cat = getCategory(v.category);
+                const cat = getCategoryMigrated(v.category);
                 return (
                   <tr key={v.id} className="transition-colors hover:bg-muted/30">
                     <td className="px-4 py-3">
@@ -294,7 +294,7 @@ export function AdminVendors() {
               <Skeleton key={i} className="h-24 rounded-2xl" />
             ))
           : vendors.map((v) => {
-              const cat = getCategory(v.category);
+              const cat = getCategoryMigrated(v.category);
               return (
                 <div
                   key={v.id}

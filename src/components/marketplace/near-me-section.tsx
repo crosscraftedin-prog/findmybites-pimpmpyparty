@@ -27,7 +27,7 @@ import {
   type UserLocation,
 } from "@/lib/geo";
 import { countryCodeToFlag } from "@/lib/format";
-import { getCategory } from "@/lib/constants";
+import { getCategoryMigrated } from "@/lib/constants";
 import { CategoryIcon } from "./icon";
 import { VendorImage } from "./vendor-image";
 import { StarRating } from "./star-rating";
@@ -374,7 +374,7 @@ function NearVendorCard({
   index: number;
   onClick: () => void;
 }) {
-  const cat = getCategory(vendor.category);
+  const cat = getCategoryMigrated(vendor.category);
   return (
     <motion.button
       initial={{ opacity: 0, y: 14 }}

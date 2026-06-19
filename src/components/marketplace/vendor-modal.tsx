@@ -42,7 +42,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useMarketplace } from "@/lib/store";
 import { useVendor, useReviews, useProducts } from "@/lib/queries";
-import { getCategory, CURRENCY_SYMBOLS } from "@/lib/constants";
+import { getCategoryMigrated, CURRENCY_SYMBOLS } from "@/lib/constants";
 import { formatPrice, countryCodeToFlag } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CategoryIcon } from "./icon";
@@ -78,7 +78,7 @@ export function VendorModal() {
     }
   };
 
-  const cat = vendor ? getCategory(vendor.category) : undefined;
+  const cat = vendor ? getCategoryMigrated(vendor.category) : undefined;
   const reviews = reviewsData?.reviews ?? vendor?.reviews ?? [];
 
   return (

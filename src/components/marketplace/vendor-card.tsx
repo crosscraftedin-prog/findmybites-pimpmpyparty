@@ -4,7 +4,7 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import { MapPin, BadgeCheck, Clock, Heart, MessageCircle } from "lucide-react";
 import type { Vendor } from "@/lib/types";
-import { getCategory } from "@/lib/constants";
+import { getCategoryMigrated } from "@/lib/constants";
 import { formatPrice, countryCodeToFlag } from "@/lib/format";
 import { useMarketplace } from "@/lib/store";
 import { CategoryIcon } from "./icon";
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 export function VendorCard({ vendor, index = 0 }: { vendor: Vendor; index?: number }) {
   const openVendor = useMarketplace((s) => s.openVendor);
-  const cat = getCategory(vendor.category);
+  const cat = getCategoryMigrated(vendor.category);
   const [liked, setLiked] = React.useState(false);
 
   return (

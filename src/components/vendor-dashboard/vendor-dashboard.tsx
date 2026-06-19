@@ -51,7 +51,7 @@ import {
 } from "@/lib/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
-import { getCategory, CURRENCY_SYMBOLS } from "@/lib/constants";
+import { getCategoryMigrated, CURRENCY_SYMBOLS, migrateCategory } from "@/lib/constants";
 import { getCategoryFields } from "@/lib/category-fields";
 import { formatPrice, countryCodeToFlag, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -298,7 +298,7 @@ export function VendorDashboard() {
 
   const vendorName = vendor?.name ?? user?.email?.split("@")[0] ?? "Vendor";
   const vendorInitials = getInitials(vendorName).toUpperCase() || "V";
-  const cat = vendor ? getCategory(vendor.category) : null;
+  const cat = vendor ? getCategoryMigrated(vendor.category) : null;
 
   // Greeting subtitle
   const greetingSub =
@@ -1470,12 +1470,22 @@ function ProductsSection({
           <Input type="number" value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" className="h-9" min={0} />
         </div>
       </div>
-      <div>
-        <label className="mb-1 block text-xs font-semibold">{catConfig.noun} type</label>
-        <select value={form.productType} onChange={(e) => set("productType", e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-          <option value="">Select type</option>
-          {catConfig.types.map((t) => <option key={t} value={t.toLowerCase()}>{t}</option>)}
-        </select>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {/* Category (read-only — inherits from vendor's business category) */}
+        <div>
+          <label className="mb-1 block text-xs font-semibold">Category</label>
+          <div className="flex h-9 items-center rounded-md border border-input bg-muted/30 px-3 text-sm text-muted-foreground">
+            {getCategoryMigrated(category ?? "")?.label ?? "—"}
+          </div>
+        </div>
+        {/* Subcategory (= product type) */}
+        <div>
+          <label className="mb-1 block text-xs font-semibold">Subcategory</label>
+          <select value={form.productType} onChange={(e) => set("productType", e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">Select subcategory</option>
+            {catConfig.types.map((t) => <option key={t} value={t.toLowerCase()}>{t}</option>)}
+          </select>
+        </div>
       </div>
       <div>
         <label className="mb-1 block text-xs font-semibold">Description</label>

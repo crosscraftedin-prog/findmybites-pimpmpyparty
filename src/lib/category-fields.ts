@@ -5,6 +5,8 @@
  * hours + equipment, photographers have hours + deliverables, etc.
  */
 
+import { migrateCategory } from "./constants";
+
 export interface CategoryFieldConfig {
   /** display name for "product" vs "package" vs "service" */
   noun: string;
@@ -43,45 +45,40 @@ const ALL_OFF = {
 };
 
 export const CATEGORY_FIELDS: Record<string, CategoryFieldConfig> = {
-  // ── FindMyBites ──
-  bakers: {
+  // ── FindMyBites — NEW 6-category architecture ──
+  "bakers-bakery": {
     noun: "Product",
-    types: ["Bread", "Loaf", "Pastry", "Viennoiserie", "Bagel", "Roll", "Other"],
-    show: {
-      ...ALL_OFF,
-      sizes: true, weight: true, prepTime: true, servings: true,
-      inventory: true, pricingTiers: true,
-    },
-    extraFields: [
-      { key: "flourType", label: "Flour type", placeholder: "Whole wheat, all-purpose, sourdough starter" },
+    types: [
+      // Cakes
+      "Wedding Cake", "Birthday Cake", "Anniversary Cake", "Baby Shower Cake",
+      "Engagement Cake", "Corporate Cake", "Theme Cake", "Fondant Cake",
+      "Buttercream Cake", "Custom Cake", "Designer Cake", "Vegan Cake",
+      "Eggless Cake",
+      // Cupcakes
+      "Wedding Cupcakes", "Birthday Cupcakes", "Mini Cupcakes", "Custom Cupcakes",
+      // Chocolates
+      "Handmade Chocolates", "Truffles", "Chocolate Bouquet", "Chocolate Box",
+      // Desserts
+      "Cheesecake", "Dessert Cup", "Tiramisu", "Mousse", "Pudding",
+      "Other",
     ],
-  },
-  "cake-artists": {
-    noun: "Cake",
-    types: ["Wedding Cake", "Birthday Cake", "Custom Cake", "Sculptural Cake", "Cupcake Box", "Other"],
     show: {
       ...ALL_OFF,
       sizes: true, flavours: true, weight: true, prepTime: true,
       servings: true, shape: true, eggless: true, inventory: true, pricingTiers: true,
     },
     extraFields: [
-      { key: "tiers", label: "Tiers", placeholder: "1, 2, 3, 4+" },
+      { key: "tiers", label: "Tiers (for cakes)", placeholder: "1, 2, 3, 4+" },
       { key: "icingType", label: "Icing type", placeholder: "Fondant, buttercream, ganache" },
     ],
   },
-  desserts: {
-    noun: "Dessert",
-    types: ["Macarons", "Chocolates", "Tiramisu", "Pudding", "Dessert Table", "Ice Cream", "Other"],
-    show: {
-      ...ALL_OFF,
-      sizes: true, flavours: true, weight: true, prepTime: true,
-      servings: true, eggless: true, inventory: true, pricingTiers: true,
-    },
-    extraFields: [],
-  },
-  catering: {
+  caterers: {
     noun: "Menu",
-    types: ["Wedding Menu", "Corporate Buffet", "Private Dinner", "BBQ Package", "Canape Package", "Other"],
+    types: [
+      "Live Counter", "Wedding Menu", "Corporate Buffet", "Private Dinner",
+      "BBQ Package", "Buffet Package", "Canape Package",
+      "Vegetarian Menu", "Vegan Menu", "Halal Menu", "Other",
+    ],
     show: {
       ...ALL_OFF,
       minGuests: true, pricePerHead: true, servings: true, prepTime: true,
@@ -92,9 +89,27 @@ export const CATEGORY_FIELDS: Record<string, CategoryFieldConfig> = {
       { key: "vegOption", label: "Veg / Non-veg", placeholder: "Veg, Non-veg, Both" },
     ],
   },
+  "chef-staff": {
+    noun: "Service",
+    types: [
+      "Private Chef", "Wedding Chef", "Corporate Chef", "Pastry Chef",
+      "Bartender", "Cocktail Maker", "Mixologist", "Bar Staff",
+      "Waiter", "Waitress", "Host", "Hostess", "Serving Staff",
+      "Event Crew", "Kitchen Assistant", "Cleaner", "Other",
+    ],
+    show: {
+      ...ALL_OFF,
+      minGuests: true, pricePerHead: true, prepTime: true, servings: true,
+      pricingTiers: true,
+    },
+    extraFields: [
+      { key: "experience", label: "Experience", placeholder: "5+ years, Michelin-trained" },
+      { key: "cuisine", label: "Specialty cuisine", placeholder: "French, Japanese, Modern Indian" },
+    ],
+  },
   "food-trucks": {
     noun: "Menu Item",
-    types: ["Taco", "Burger", "Pizza", "BBQ", "Asian", "Dessert", "Other"],
+    types: ["Burger", "Pizza", "BBQ", "Street Food", "Dessert", "Ice Cream", "Coffee", "Other"],
     show: {
       ...ALL_OFF,
       sizes: true, flavours: true, prepTime: true, servings: true,
@@ -104,18 +119,78 @@ export const CATEGORY_FIELDS: Record<string, CategoryFieldConfig> = {
       { key: "minimumOrder", label: "Minimum order", placeholder: "10 plates" },
     ],
   },
+  "beverage-specialists": {
+    noun: "Package",
+    types: ["Coffee Catering", "Tea Catering", "Mocktail Bar", "Juice Bar", "Smoothie Bar", "Bubble Tea", "Other"],
+    show: {
+      ...ALL_OFF,
+      minGuests: true, pricePerHead: true, servings: true, prepTime: true,
+      pricingTiers: true,
+    },
+    extraFields: [
+      { key: "capacity", label: "Capacity", placeholder: "Up to 100, up to 500 guests" },
+      { key: "equipment", label: "Equipment", placeholder: "Espresso machine, bar setup, blenders" },
+    ],
+  },
+  "specialty-food": {
+    noun: "Product",
+    types: ["Organic", "Keto & Low-Carb", "Vegan & Plant-Based", "Gluten-Free", "Halal", "Kosher", "Sugar-Free", "Dairy-Free", "Other"],
+    show: {
+      ...ALL_OFF,
+      sizes: true, weight: true, prepTime: true, servings: true,
+      inventory: true, pricingTiers: true,
+    },
+    extraFields: [
+      { key: "certification", label: "Certification", placeholder: "USDA Organic, Halal-certified" },
+    ],
+  },
+  // ── Old FindMyBites category aliases (backward compatibility) ──
+  // These map old slugs to the same config as their new equivalent so existing
+  // vendors' product forms still render correctly.
+  bakers: {
+    noun: "Product",
+    types: ["Bread", "Loaf", "Pastry", "Viennoiserie", "Bagel", "Roll", "Other"],
+    show: { ...ALL_OFF, sizes: true, weight: true, prepTime: true, servings: true, inventory: true, pricingTiers: true },
+    extraFields: [{ key: "flourType", label: "Flour type", placeholder: "Whole wheat, all-purpose, sourdough starter" }],
+  },
+  "cake-artists": {
+    noun: "Cake",
+    types: ["Wedding Cake", "Birthday Cake", "Custom Cake", "Sculptural Cake", "Cupcake Box", "Other"],
+    show: { ...ALL_OFF, sizes: true, flavours: true, weight: true, prepTime: true, servings: true, shape: true, eggless: true, inventory: true, pricingTiers: true },
+    extraFields: [
+      { key: "tiers", label: "Tiers", placeholder: "1, 2, 3, 4+" },
+      { key: "icingType", label: "Icing type", placeholder: "Fondant, buttercream, ganache" },
+    ],
+  },
+  desserts: {
+    noun: "Dessert",
+    types: ["Macarons", "Chocolates", "Tiramisu", "Pudding", "Dessert Table", "Ice Cream", "Other"],
+    show: { ...ALL_OFF, sizes: true, flavours: true, weight: true, prepTime: true, servings: true, eggless: true, inventory: true, pricingTiers: true },
+    extraFields: [],
+  },
+  catering: {
+    noun: "Menu",
+    types: ["Wedding Menu", "Corporate Buffet", "Private Dinner", "BBQ Package", "Canape Package", "Other"],
+    show: { ...ALL_OFF, minGuests: true, pricePerHead: true, servings: true, prepTime: true, pricingTiers: true },
+    extraFields: [
+      { key: "cuisine", label: "Cuisine type", placeholder: "Indian, Italian, Mexican, Fusion" },
+      { key: "vegOption", label: "Veg / Non-veg", placeholder: "Veg, Non-veg, Both" },
+    ],
+  },
   "private-chefs": {
     noun: "Menu",
     types: ["Tasting Menu", "Dinner Party", "BBQ Experience", "Cooking Class", "Other"],
-    show: {
-      ...ALL_OFF,
-      minGuests: true, pricePerHead: true, prepTime: true, servings: true,
-      pricingTiers: true,
-    },
+    show: { ...ALL_OFF, minGuests: true, pricePerHead: true, prepTime: true, servings: true, pricingTiers: true },
     extraFields: [
       { key: "courses", label: "Courses", placeholder: "5, 7, 9" },
       { key: "cuisine", label: "Cuisine", placeholder: "French, Japanese, Modern Indian" },
     ],
+  },
+  "specialty-foods": {
+    noun: "Product",
+    types: ["Organic", "Vegan", "Gluten-Free", "Keto", "Halal", "Kosher", "Other"],
+    show: { ...ALL_OFF, sizes: true, weight: true, prepTime: true, servings: true, inventory: true, pricingTiers: true },
+    extraFields: [{ key: "certification", label: "Certification", placeholder: "USDA Organic, Halal-certified" }],
   },
 
   // ── PimpMyParty ──
@@ -301,17 +376,14 @@ export const CATEGORY_FIELDS: Record<string, CategoryFieldConfig> = {
       { key: "includes", label: "Includes", placeholder: "Speakers, mics, mixer, technician" },
     ],
   },
-  // backward compat
-  desserts: {
-    noun: "Dessert",
-    types: ["Macarons", "Chocolates", "Tiramisu", "Dessert Table", "Ice Cream", "Other"],
-    show: { ...ALL_OFF, sizes: true, flavours: true, weight: true, eggless: true, inventory: true, pricingTiers: true },
-    extraFields: [],
-  },
 };
 
 export function getCategoryFields(category: string): CategoryFieldConfig {
+  // Apply category migration first so old slugs (cake-artists, bakers, etc.)
+  // resolve to their new 6-category config.
+  const migrated = migrateCategory(category);
   return (
+    CATEGORY_FIELDS[migrated] ??
     CATEGORY_FIELDS[category] ?? {
       noun: "Product",
       types: ["Other"],

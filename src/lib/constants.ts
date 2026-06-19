@@ -26,54 +26,18 @@ export interface CategoryDef {
 }
 
 export const CATEGORIES: CategoryDef[] = [
-  // ---- FindMyBites (Food) — 10 categories ----
+  // ---- FindMyBites (Food) — 6 categories (NEW ARCHITECTURE) ----
   {
-    id: "cake-artists",
+    id: "bakers-bakery",
     ecosystem: "FINDMYBITES",
-    label: "Cake Artists",
-    description: "Custom celebration cakes, wedding cakes, sculptural cakes.",
+    label: "Bakers & Bakery",
+    description: "Cakes, cupcakes, chocolates, desserts — all baked goods in one place.",
     icon: "Cake",
     image: "/vendors/cake-artist.png",
     accent: "from-orange-400 to-rose-500",
   },
   {
-    id: "bakers",
-    ecosystem: "FINDMYBITES",
-    label: "Bakers & Bakeries",
-    description: "Artisan breads, pastries, and baked goods crafted fresh daily.",
-    icon: "Croissant",
-    image: "/vendors/baker.png",
-    accent: "from-amber-400 to-orange-500",
-  },
-  {
-    id: "cupcake-specialists",
-    ecosystem: "FINDMYBITES",
-    label: "Cupcake Specialists",
-    description: "Gourmet cupcakes, mini desserts, and dessert boxes.",
-    icon: "Cookie",
-    image: "/vendors/desserts.png",
-    accent: "from-pink-400 to-fuchsia-500",
-  },
-  {
-    id: "chocolatiers",
-    ecosystem: "FINDMYBITES",
-    label: "Chocolatiers",
-    description: "Handcrafted chocolates, truffles, and chocolate gifts.",
-    icon: "Cookie",
-    image: "/vendors/desserts.png",
-    accent: "from-amber-600 to-orange-700",
-  },
-  {
-    id: "dessert-makers",
-    ecosystem: "FINDMYBITES",
-    label: "Dessert Makers",
-    description: "Macarons, puddings, ice cream, and sweet tables for every occasion.",
-    icon: "Cookie",
-    image: "/vendors/desserts.png",
-    accent: "from-pink-400 to-fuchsia-500",
-  },
-  {
-    id: "catering",
+    id: "caterers",
     ecosystem: "FINDMYBITES",
     label: "Caterers",
     description: "Full-service catering for weddings, corporate events, and gatherings.",
@@ -82,10 +46,10 @@ export const CATEGORIES: CategoryDef[] = [
     accent: "from-rose-400 to-red-500",
   },
   {
-    id: "private-chefs",
+    id: "chef-staff",
     ecosystem: "FINDMYBITES",
-    label: "Private Chefs",
-    description: "Personal chefs bringing fine dining to your home or venue.",
+    label: "Chef & Staff",
+    description: "Private chefs, pastry chefs, bartenders, waiters, and event crew.",
     icon: "ChefHat",
     image: "/vendors/private-chef.png",
     accent: "from-lime-400 to-emerald-500",
@@ -94,7 +58,7 @@ export const CATEGORIES: CategoryDef[] = [
     id: "food-trucks",
     ecosystem: "FINDMYBITES",
     label: "Food Trucks",
-    description: "Mobile kitchens serving street food, BBQ, tacos, and global bites.",
+    description: "Mobile kitchens serving street food, BBQ, pizza, and global bites.",
     icon: "Truck",
     image: "/vendors/food-truck.png",
     accent: "from-yellow-400 to-amber-500",
@@ -103,16 +67,16 @@ export const CATEGORIES: CategoryDef[] = [
     id: "beverage-specialists",
     ecosystem: "FINDMYBITES",
     label: "Beverage Specialists",
-    description: "Baristas, bartenders, juice bars, and beverage catering.",
+    description: "Coffee, tea, mocktail, juice, smoothie, and bubble tea catering.",
     icon: "Coffee",
     image: "/vendors/catering.png",
     accent: "from-teal-400 to-cyan-500",
   },
   {
-    id: "specialty-foods",
+    id: "specialty-food",
     ecosystem: "FINDMYBITES",
-    label: "Specialty Foods",
-    description: "Organic, vegan, gluten-free, and artisanal specialty foods.",
+    label: "Specialty Food",
+    description: "Organic, keto, vegan, gluten-free, halal, kosher, sugar-free, dairy-free.",
     icon: "UtensilsCrossed",
     image: "/vendors/catering.png",
     accent: "from-green-400 to-teal-500",
@@ -400,46 +364,50 @@ export const RESPONSE_TIME_OPTIONS = [
 /** Subcategory options keyed by category id. Helps customers filter more
  *  precisely and gives vendors a more specific positioning. */
 export const SUBCATEGORIES: Record<string, string[]> = {
-  "cake-artists": [
+  // ── FindMyBites (Food) — NEW 6-category architecture ──
+  "bakers-bakery": [
+    // CAKES
     "Wedding Cakes", "Birthday Cakes", "Anniversary Cakes", "Baby Shower Cakes",
-    "Custom Cakes", "Designer Cakes", "Vegan Cakes", "Eggless Cakes", "Other",
+    "Engagement Cakes", "Corporate Cakes", "Theme Cakes", "Fondant Cakes",
+    "Buttercream Cakes", "Custom Cakes", "Designer Cakes", "Vegan Cakes",
+    "Eggless Cakes",
+    // CUPCAKES
+    "Wedding Cupcakes", "Birthday Cupcakes", "Mini Cupcakes", "Custom Cupcakes",
+    // CHOCOLATES
+    "Handmade Chocolates", "Truffles", "Chocolate Bouquets", "Chocolate Boxes",
+    // DESSERTS
+    "Cheesecakes", "Dessert Cups", "Tiramisu", "Mousse", "Puddings",
+    // OTHER
+    "Custom Vendor Entry",
   ],
-  bakers: [
-    "Sourdough", "Bread & Loaves", "Pastries & Viennoiserie", "Wedding Bread",
-    "Bagels", "Gluten-free", "Other",
+  caterers: [
+    "Live Counters", "Wedding Catering", "Corporate Catering", "Private Dining",
+    "BBQ & Grill", "Buffet Catering", "Canapés & Cocktails",
+    "Vegetarian Catering", "Vegan Catering", "Halal Catering",
+    "Custom Vendor Entry",
   ],
-  "cupcake-specialists": [
-    "Gourmet Cupcakes", "Mini Desserts", "Dessert Boxes", "Vegan Cupcakes",
-    "Custom Cupcakes", "Other",
-  ],
-  chocolatiers: [
-    "Truffles", "Pralines", "Chocolate Bars", "Chocolate Gifts",
-    "Sugar-Free Chocolate", "Artisan Chocolate", "Other",
-  ],
-  "dessert-makers": [
-    "Macarons", "Tiramisu & Puddings", "Ice Cream & Gelato", "Dessert Tables",
-    "Vegan Desserts", "Donuts", "Other",
-  ],
-  catering: [
-    "Wedding Catering", "Corporate Catering", "Private Dining", "Buffet",
-    "BBQ & Grill", "Canapés & Cocktails", "Veg Catering", "Other",
-  ],
-  "private-chefs": [
-    "Fine Dining", "Tasting Menus", "BBQ & Grill", "Vegan / Vegetarian",
-    "Cuisine-Specific", "In-home Dinner Parties", "Other",
+  "chef-staff": [
+    "Private Chef", "Wedding Chef", "Corporate Chef", "Pastry Chef",
+    "Bartender", "Cocktail Maker", "Mixologist", "Bar Staff",
+    "Waiters", "Waitresses", "Hosts", "Hostesses", "Serving Staff",
+    "Event Crew", "Kitchen Assistants", "Cleaners",
+    "Custom Vendor Entry",
   ],
   "food-trucks": [
-    "Tacos & Mexican", "BBQ", "Burgers", "Asian Street Food", "Pizza",
-    "Dessert Truck", "Other",
+    "Burgers", "Pizza", "BBQ", "Street Food", "Desserts", "Ice Cream", "Coffee",
+    "Vendor Types What They Sell",
   ],
   "beverage-specialists": [
-    "Coffee & Espresso Bar", "Cocktail Bartending", "Juice & Smoothie Bar",
-    "Wine Tasting", "Mocktail Bar", "Other",
+    "Coffee Catering", "Tea Catering", "Mocktail Bar", "Juice Bar",
+    "Smoothie Bar", "Bubble Tea",
+    "Vendor Types What They Sell",
   ],
-  "specialty-foods": [
-    "Organic & Farm-to-Table", "Vegan & Plant-Based", "Gluten-Free",
-    "Keto & Low-Carb", "Halal", "Kosher", "Other",
+  "specialty-food": [
+    "Organic", "Keto & Low-Carb", "Vegan & Plant-Based", "Gluten-Free",
+    "Halal", "Kosher", "Sugar-Free", "Dairy-Free",
+    "Custom Vendor Entry",
   ],
+  // ── PimpMyParty (Events) — unchanged ──
   "event-planners": [
     "Weddings", "Corporate Events", "Birthdays", "Brand Activations",
     "Destination Events", "Festivals", "Other",
@@ -500,10 +468,65 @@ export const SUBCATEGORIES: Record<string, string[]> = {
     "Sound Systems", "Stage Lighting", "LED Walls", "AV Production",
     "Live Streaming Setup", "Other",
   ],
-  // ── Backward compatibility aliases (old category IDs map to same subcats) ──
-  desserts: ["Macarons", "Chocolates & Truffles", "Tiramisu & Puddings", "Dessert Tables", "Ice Cream & Gelato", "Vegan Desserts", "Other"],
+  // ── Backward compatibility aliases (old category IDs map to new subcats) ──
+  // These ensure existing vendors with old category slugs still render.
+  "cake-artists": ["Wedding Cakes", "Birthday Cakes", "Custom Cakes", "Designer Cakes", "Vegan Cakes", "Eggless Cakes", "Other"],
+  bakers: ["Wedding Cakes", "Custom Cakes", "Other"],
+  "cupcake-specialists": ["Wedding Cupcakes", "Birthday Cupcakes", "Mini Cupcakes", "Custom Cupcakes", "Other"],
+  chocolatiers: ["Handmade Chocolates", "Truffles", "Chocolate Boxes", "Other"],
+  "dessert-makers": ["Cheesecakes", "Tiramisu", "Mousse", "Puddings", "Other"],
+  catering: ["Wedding Catering", "Corporate Catering", "Buffet Catering", "BBQ & Grill", "Other"],
+  "private-chefs": ["Private Chef", "Pastry Chef", "Other"],
+  "specialty-foods": ["Organic", "Vegan & Plant-Based", "Gluten-Free", "Halal", "Kosher", "Other"],
 };
 
 export function subcategoriesFor(category: string): string[] {
   return SUBCATEGORIES[category] ?? ["Other"];
+}
+
+/**
+ * Migration map: old FindMyBites category slugs → new category slugs.
+ * Used to migrate existing vendors/products to the new 6-category architecture.
+ *
+ * Old (10) → New (6) mapping:
+ *   cake-artists         → bakers-bakery
+ *   bakers               → bakers-bakery
+ *   cupcake-specialists  → bakers-bakery
+ *   chocolatiers         → bakers-bakery
+ *   dessert-makers       → bakers-bakery
+ *   catering             → caterers
+ *   private-chefs        → chef-staff
+ *   food-trucks          → food-trucks (unchanged slug)
+ *   beverage-specialists → beverage-specialists (unchanged slug)
+ *   specialty-foods      → specialty-food
+ */
+export const CATEGORY_MIGRATION_MAP: Record<string, string> = {
+  "cake-artists": "bakers-bakery",
+  bakers: "bakers-bakery",
+  "cupcake-specialists": "bakers-bakery",
+  chocolatiers: "bakers-bakery",
+  "dessert-makers": "bakers-bakery",
+  catering: "caterers",
+  "private-chefs": "chef-staff",
+  "food-trucks": "food-trucks",
+  "beverage-specialists": "beverage-specialists",
+  "specialty-foods": "specialty-food",
+};
+
+/**
+ * Returns the migrated category slug for a given (possibly old) category id.
+ * If the category is already a new one (or a PimpMyParty category), it's
+ * returned unchanged. Old FindMyBites slugs are remapped via
+ * CATEGORY_MIGRATION_MAP.
+ */
+export function migrateCategory(category: string): string {
+  return CATEGORY_MIGRATION_MAP[category] ?? category;
+}
+
+/**
+ * Returns the category definition for a given id, applying the migration map
+ * first so that old category slugs still resolve to their new definition.
+ */
+export function getCategoryMigrated(id: string): CategoryDef | undefined {
+  return getCategory(migrateCategory(id));
 }
