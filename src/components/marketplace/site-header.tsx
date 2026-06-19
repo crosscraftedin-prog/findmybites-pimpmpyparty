@@ -17,6 +17,7 @@ import {
   Star,
   ShieldCheck,
   LayoutDashboard,
+  LogIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,6 +161,31 @@ export function SiteHeader() {
           </Button>
         )}
 
+        {/* Vendor Login — for existing vendors to access their dashboard */}
+        {session && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
+            onClick={() => openVendorDashboard()}
+          >
+            <LayoutDashboard className="size-4" />
+            Vendor Login
+          </Button>
+        )}
+        {!session && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
+            onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
+          >
+            <LogIn className="size-4" />
+            Vendor Login
+          </Button>
+        )}
+
+        {/* List Your Business — for new vendors to start onboarding */}
         <Button
           size="sm"
           className="hidden bg-brand text-brand-foreground hover:bg-brand/90 sm:inline-flex"
@@ -219,6 +245,17 @@ export function SiteHeader() {
                     );
                   })}
                 </nav>
+                {/* Vendor Login — mobile */}
+                <SheetClose asChild>
+                  <Button
+                    variant="outline"
+                    onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
+                  >
+                    <LogIn className="size-4" />
+                    Vendor Login
+                  </Button>
+                </SheetClose>
+                {/* List Your Business — mobile */}
                 <SheetClose asChild>
                   <Button
                     className="bg-brand text-brand-foreground hover:bg-brand/90"
