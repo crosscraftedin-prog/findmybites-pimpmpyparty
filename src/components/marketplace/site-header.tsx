@@ -141,20 +141,6 @@ export function SiteHeader() {
 
         <UserMenu />
 
-        {/* Dashboard icon — visible when signed in (opens vendor dashboard) */}
-        {session && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
-            onClick={() => openVendorDashboard()}
-            aria-label="Vendor dashboard"
-            title="Vendor dashboard"
-          >
-            <LayoutDashboard className="size-4" />
-          </Button>
-        )}
-
         {/* Vendor Login — only when NOT signed in (triggers auth → dashboard) */}
         {!session && (
           <Button
