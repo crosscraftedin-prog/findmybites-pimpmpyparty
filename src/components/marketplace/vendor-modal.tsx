@@ -82,6 +82,7 @@ export function VendorModal() {
   const reviews = reviewsData?.reviews ?? vendor?.reviews ?? [];
 
   return (
+    <>
     <Dialog open={!!slug} onOpenChange={(o) => !o && closeVendor()}>
       <DialogContent className="max-h-[92vh] gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogTitle className="sr-only">
@@ -563,6 +564,7 @@ export function VendorModal() {
       currency={vendor?.currency ?? "USD"}
       onClose={() => setSelectedProduct(null)}
     />
+    </>
   );
 }
 
