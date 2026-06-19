@@ -606,9 +606,15 @@ function GeoPreview({
   const query = [address, city, state, zipCode, country]
     .filter((p) => p.trim())
     .join(", ");
-  const { data, isLoading, isError } = useGeocode(query, query.length > 5);
+  // Only attempt geocoding when we have at least city + country
+  const hasEnough = city.trim().length >= 2 && country.trim().length >= 2;
+  const { data, isLoading } = useGeocode(query, hasEnough && query.length > 5);
 
-  if (query.length <= 5) return null;
+  // Don't render anything if there's not enough address info
+  if (!hasEnough) return null;
+
+  // Only show the preview box when we have a result or are loading
+  if (!isLoading && !data) return null;
 
   return (
     <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs">
@@ -623,13 +629,7 @@ function GeoPreview({
           </span>{" "}
           — visible in “Near Me” search
         </span>
-      ) : isError ? (
-        <span className="text-amber-600">
-          Couldn’t pinpoint this address — we’ll retry on save.
-        </span>
-      ) : (
-        <span className="text-muted-foreground">Address not found yet.</span>
-      )}
+      ) : null}
     </div>
   );
 }

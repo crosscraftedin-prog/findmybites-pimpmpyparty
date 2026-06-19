@@ -334,7 +334,7 @@ export function useGeocode(address: string, enabled = true) {
       if (!res.ok) return null;
       return (await res.json()) as { lat: number; lng: number };
     },
-    staleTime: Infinity, // addresses don't move — cache forever
+    staleTime: 5 * 60 * 1000, // cache 5 min — re-try if address changed
   });
 }
 
