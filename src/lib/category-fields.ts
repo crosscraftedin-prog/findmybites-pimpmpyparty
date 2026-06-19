@@ -194,6 +194,120 @@ export const CATEGORY_FIELDS: Record<string, CategoryFieldConfig> = {
       { key: "pricing", label: "Pricing mode", placeholder: "Per day, per hour, per event" },
     ],
   },
+  // ── NEW categories ──
+  "cupcake-specialists": {
+    noun: "Product",
+    types: ["Cupcake Box", "Mini Desserts", "Custom Cupcakes", "Vegan Cupcakes", "Other"],
+    show: { ...ALL_OFF, sizes: true, flavours: true, eggless: true, inventory: true, pricingTiers: true },
+    extraFields: [{ key: "perBox", label: "Per box quantity", placeholder: "6, 12, 24" }],
+  },
+  chocolatiers: {
+    noun: "Product",
+    types: ["Truffles", "Pralines", "Chocolate Bars", "Gift Boxes", "Other"],
+    show: { ...ALL_OFF, weight: true, flavours: true, inventory: true, pricingTiers: true },
+    extraFields: [{ key: "packaging", label: "Packaging", placeholder: "Gift box, bulk" }],
+  },
+  "dessert-makers": {
+    noun: "Dessert",
+    types: ["Macarons", "Tiramisu", "Ice Cream", "Dessert Table", "Donuts", "Other"],
+    show: { ...ALL_OFF, sizes: true, flavours: true, weight: true, eggless: true, inventory: true, pricingTiers: true },
+    extraFields: [],
+  },
+  "beverage-specialists": {
+    noun: "Service",
+    types: ["Coffee Bar", "Cocktail Bar", "Juice Bar", "Wine Tasting", "Other"],
+    show: { ...ALL_OFF, minGuests: true, pricePerHead: true, pricingTiers: true },
+    extraFields: [{ key: "menu", label: "Menu items", placeholder: "Espresso, cappuccino, cocktails" }],
+  },
+  "specialty-foods": {
+    noun: "Product",
+    types: ["Organic", "Vegan", "Gluten-Free", "Halal", "Keto", "Other"],
+    show: { ...ALL_OFF, weight: true, inventory: true, pricingTiers: true },
+    extraFields: [{ key: "dietary", label: "Dietary info", placeholder: "Vegan, gluten-free, organic" }],
+  },
+  videographers: {
+    noun: "Package",
+    types: ["Wedding Film", "Event Coverage", "Drone Video", "Promo Video", "Other"],
+    show: { ...ALL_OFF, pricingTiers: true },
+    extraFields: [
+      { key: "hours", label: "Hours of coverage", placeholder: "4, 8, 12" },
+      { key: "deliverables", label: "Deliverables", placeholder: "5-min film, raw footage" },
+      { key: "editors", label: "Videographers", placeholder: "1, 2" },
+    ],
+  },
+  florists: {
+    noun: "Arrangement",
+    types: ["Bridal Bouquet", "Centerpieces", "Floral Arch", "Event Florals", "Other"],
+    show: { ...ALL_OFF, sizes: true, pricingTiers: true },
+    extraFields: [
+      { key: "flowerType", label: "Flower type", placeholder: "Roses, lilies, peonies" },
+      { key: "bouquetType", label: "Bouquet type", placeholder: "Hand-tied, cascade, posy" },
+    ],
+  },
+  "rental-services": {
+    noun: "Rental",
+    types: ["Tents", "Furniture", "Tableware", "Lighting", "Power", "Other"],
+    show: { ...ALL_OFF, inventory: true, pricingTiers: true },
+    extraFields: [
+      { key: "quantity", label: "Available quantity", placeholder: "50 chairs, 20 tables" },
+      { key: "rentalPeriod", label: "Rental period", placeholder: "Per day, per event" },
+    ],
+  },
+  "makeup-artists": {
+    noun: "Service",
+    types: ["Bridal Makeup", "Party Makeup", "Editorial", "HD Makeup", "Airbrush", "Other"],
+    show: { ...ALL_OFF, pricingTiers: true },
+    extraFields: [
+      { key: "trials", label: "Trial included", placeholder: "Yes / No" },
+      { key: "products", label: "Products used", placeholder: "MAC, Huda, Charlotte Tilbury" },
+    ],
+  },
+  "beauty-services": {
+    noun: "Service",
+    types: ["Hair Styling", "Mehndi", "Spa", "Nail Art", "Grooming", "Other"],
+    show: { ...ALL_OFF, pricingTiers: true },
+    extraFields: [{ key: "duration", label: "Duration", placeholder: "1 hour, 2 hours" }],
+  },
+  transportation: {
+    noun: "Service",
+    types: ["Limousine", "Party Bus", "Guest Shuttle", "Vintage Car", "Other"],
+    show: { ...ALL_OFF, minGuests: true, pricingTiers: true },
+    extraFields: [
+      { key: "capacity", label: "Vehicle capacity", placeholder: "8, 15, 30 passengers" },
+      { key: "hours", label: "Hours included", placeholder: "4, 8" },
+    ],
+  },
+  "invitation-printing": {
+    noun: "Product",
+    types: ["Wedding Invitations", "Birthday Cards", "Corporate Stationery", "Digital Invites", "Other"],
+    show: { ...ALL_OFF, sizes: true, inventory: true, pricingTiers: true },
+    extraFields: [{ key: "material", label: "Material", placeholder: "Cardstock, handmade paper" }],
+  },
+  "kids-party-services": {
+    noun: "Package",
+    types: ["Bounce House", "Mascot Visit", "Games Package", "Face Painting", "Other"],
+    show: { ...ALL_OFF, pricingTiers: true },
+    extraFields: [
+      { key: "ageRange", label: "Age range", placeholder: "3-8 years" },
+      { key: "duration", label: "Duration", placeholder: "1 hour, 2 hours" },
+    ],
+  },
+  "audio-visual-services": {
+    noun: "Package",
+    types: ["Sound System", "Stage Lighting", "LED Wall", "AV Production", "Other"],
+    show: { ...ALL_OFF, pricingTiers: true },
+    extraFields: [
+      { key: "capacity", label: "Venue capacity", placeholder: "Up to 500, up to 1000" },
+      { key: "includes", label: "Includes", placeholder: "Speakers, mics, mixer, technician" },
+    ],
+  },
+  // backward compat
+  desserts: {
+    noun: "Dessert",
+    types: ["Macarons", "Chocolates", "Tiramisu", "Dessert Table", "Ice Cream", "Other"],
+    show: { ...ALL_OFF, sizes: true, flavours: true, weight: true, eggless: true, inventory: true, pricingTiers: true },
+    extraFields: [],
+  },
 };
 
 export function getCategoryFields(category: string): CategoryFieldConfig {

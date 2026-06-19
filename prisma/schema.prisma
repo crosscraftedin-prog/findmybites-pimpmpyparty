@@ -22,6 +22,39 @@ model User {
   createdAt     DateTime  @default(now())
 }
 
+// Master category table — normalized, admin-managed, future-proof.
+// The old CATEGORIES constant in constants.ts maps to these rows via the
+// `slug` field (e.g. "bakers", "cake-artists", "djs").
+model Category {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  label       String
+  ecosystem   String
+  description String?
+  icon        String?
+  image       String?
+  accent      String?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  subcategories Subcategory[]
+}
+
+// Subcategory table — belongs to a Category, admin-managed.
+model Subcategory {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  label       String
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  description String?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([categoryId])
+}
+
 // A vendor / business listed on the marketplace.
 // ecosystem: "FINDMYBITES" (food) or "PIMPMYPARTY" (events & party services)
 model Vendor {
