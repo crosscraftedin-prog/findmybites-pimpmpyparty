@@ -18,6 +18,7 @@ import {
   MessageCircle,
   Navigation,
   Pencil,
+  Package,
 } from "lucide-react";
 import {
   Dialog,
@@ -30,9 +31,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMarketplace } from "@/lib/store";
-import { useVendor, useReviews } from "@/lib/queries";
-import { getCategory } from "@/lib/constants";
+import { useVendor, useReviews, useProducts } from "@/lib/queries";
+import { getCategory, CURRENCY_SYMBOLS } from "@/lib/constants";
 import { formatPrice, countryCodeToFlag } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { CategoryIcon } from "./icon";
 import { VendorImage } from "./vendor-image";
 import { StarRating } from "./star-rating";
@@ -51,6 +53,8 @@ export function VendorModal() {
   const { data: reviewsData, isLoading: reviewsLoading } = useReviews(
     vendor?.id ?? null
   );
+  const { data: productsData } = useProducts(vendor?.id ?? null);
+  const products = productsData?.products ?? [];
 
   const onEditClick = () => {
     if (!vendor) return;
@@ -286,17 +290,73 @@ export function VendorModal() {
                 )}
 
                 {/* Tabs */}
-                <Tabs defaultValue="book" className="mt-6">
-                  <TabsList className="grid w-full grid-cols-2">
+                <Tabs defaultValue={products.length > 0 ? "products" : "book"} className="mt-6">
+                  <TabsList className={cn("grid w-full", products.length > 0 ? "grid-cols-3" : "grid-cols-2")}>
+                    {products.length > 0 && (
+                      <TabsTrigger value="products">
+                        <Package className="size-4" />
+                        Products ({products.length})
+                      </TabsTrigger>
+                    )}
                     <TabsTrigger value="book">
                       <CalendarPlus className="size-4" />
-                      Book this vendor
+                      Book
                     </TabsTrigger>
                     <TabsTrigger value="reviews">
                       <MessageSquareQuote className="size-4" />
                       Reviews ({vendor.reviewCount})
                     </TabsTrigger>
                   </TabsList>
+
+                  {products.length > 0 && (
+                    <TabsContent value="products" className="mt-4">
+                      <div className="space-y-3">
+                        {products.map((p) => {
+                          const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency;
+                          return (
+                            <div key={p.id} className="rounded-2xl border border-border bg-card p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-bold">{p.name}</h4>
+                                    {p.productType && (
+                                      <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium capitalize text-brand-soft-foreground">
+                                        {p.productType}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {p.description && (
+                                    <p className="mt-1 text-sm text-muted-foreground">{p.description}</p>
+                                  )}
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  <p className="text-lg font-extrabold tabular-nums">
+                                    {symbol}{p.price.toLocaleString("en-US")}
+                                  </p>
+                                  {p.pricePerHead != null && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {symbol}{p.pricePerHead}/head
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {/* attributes */}
+                              {(p.sizes || p.flavours || p.weight || p.prepTime || p.minGuests || p.deliveryAvailable) && (
+                                <div className="mt-3 flex flex-wrap gap-1.5">
+                                  {p.sizes && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">📏 {p.sizes}</span>}
+                                  {p.flavours && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">🍰 {p.flavours}</span>}
+                                  {p.weight && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">⚖️ {p.weight}</span>}
+                                  {p.prepTime && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">⏱️ {p.prepTime}</span>}
+                                  {p.minGuests != null && <span className="rounded-lg bg-muted px-2 py-1 text-[11px]">👥 Min {p.minGuests} guests</span>}
+                                  {p.deliveryAvailable && <span className="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] text-emerald-700">🚚 Delivery available</span>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </TabsContent>
+                  )}
 
                   <TabsContent value="book" className="mt-4">
                     <BookingForm vendorId={vendor.id} />
