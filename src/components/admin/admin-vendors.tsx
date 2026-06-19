@@ -137,7 +137,7 @@ export function AdminVendors() {
       </p>
 
       {/* Table (desktop) */}
-      <div className="hidden overflow-hidden rounded-2xl border border-border md:block">
+      <div className="hidden overflow-x-auto rounded-2xl border border-border md:block">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
