@@ -38,6 +38,7 @@ import {
   useCreateProduct,
   useDeleteProduct,
 } from "@/lib/queries";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { getCategory, CURRENCY_SYMBOLS } from "@/lib/constants";
 import { CategoryIcon } from "@/components/marketplace/icon";
@@ -390,7 +391,9 @@ function ProductsSection({
   const { data, isLoading } = useProducts(vendorId);
   const createProduct = useCreateProduct();
   const deleteProduct = useDeleteProduct();
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
 
   // form state
   const [form, setForm] = React.useState({
@@ -410,6 +413,35 @@ function ProductsSection({
   const set = (k: keyof typeof form, v: string | boolean) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  // Reset form to empty (for adding)
+  const resetForm = () => {
+    setForm({
+      name: "", price: "", description: "", productType: "",
+      sizes: "", flavours: "", weight: "", prepTime: "",
+      deliveryAvailable: false, minGuests: "", pricePerHead: "",
+    });
+    setEditingId(null);
+  };
+
+  // Start editing a product — loads its data into the form
+  const onEdit = (p: typeof products[0]) => {
+    setEditingId(p.id);
+    setShowForm(false); // close the "add" form if open
+    setForm({
+      name: p.name,
+      price: String(p.price),
+      description: p.description ?? "",
+      productType: p.productType ?? "",
+      sizes: p.sizes ?? "",
+      flavours: p.flavours ?? "",
+      weight: p.weight ?? "",
+      prepTime: p.prepTime ?? "",
+      deliveryAvailable: p.deliveryAvailable,
+      minGuests: p.minGuests != null ? String(p.minGuests) : "",
+      pricePerHead: p.pricePerHead != null ? String(p.pricePerHead) : "",
+    });
+  };
+
   const products = data?.products ?? [];
   const symbol = currency ? (CURRENCY_SYMBOLS[currency] ?? currency) : "$";
   const isFMB = ecosystem === "FINDMYBITES";
@@ -422,30 +454,41 @@ function ProductsSection({
   const onAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vendorId || !form.name.trim()) return;
+    const payload = {
+      vendorId,
+      name: form.name.trim(),
+      price: Number(form.price) || 0,
+      description: form.description.trim() || undefined,
+      productType: form.productType || undefined,
+      sizes: form.sizes.trim() || undefined,
+      flavours: form.flavours.trim() || undefined,
+      weight: form.weight.trim() || undefined,
+      prepTime: form.prepTime.trim() || undefined,
+      deliveryAvailable: form.deliveryAvailable,
+      minGuests: form.minGuests ? Number(form.minGuests) : undefined,
+      pricePerHead: form.pricePerHead ? Number(form.pricePerHead) : undefined,
+    };
     try {
-      await createProduct.mutateAsync({
-        vendorId,
-        name: form.name.trim(),
-        price: Number(form.price) || 0,
-        description: form.description.trim() || undefined,
-        productType: form.productType || undefined,
-        sizes: form.sizes.trim() || undefined,
-        flavours: form.flavours.trim() || undefined,
-        weight: form.weight.trim() || undefined,
-        prepTime: form.prepTime.trim() || undefined,
-        deliveryAvailable: form.deliveryAvailable,
-        minGuests: form.minGuests ? Number(form.minGuests) : undefined,
-        pricePerHead: form.pricePerHead ? Number(form.pricePerHead) : undefined,
-      });
-      setForm({
-        name: "", price: "", description: "", productType: "",
-        sizes: "", flavours: "", weight: "", prepTime: "",
-        deliveryAvailable: false, minGuests: "", pricePerHead: "",
-      });
+      if (editingId) {
+        // Update existing product via PATCH
+        const res = await fetch(`/api/products/${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("Failed to update");
+        toast.success("Product updated!");
+        // invalidate the products query
+        queryClient.invalidateQueries({ queryKey: ["products", vendorId] });
+      } else {
+        // Create new product
+        await createProduct.mutateAsync(payload);
+        toast.success("Product added!");
+      }
+      resetForm();
       setShowForm(false);
-      toast.success("Product added!");
     } catch {
-      toast.error("Failed to add product");
+      toast.error(editingId ? "Failed to update product" : "Failed to add product");
     }
   };
 
@@ -465,7 +508,7 @@ function ProductsSection({
           {isFMB ? "Products" : "Packages & Services"}
         </h3>
         <button
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => { resetForm(); setShowForm((v) => !v); }}
           className="inline-flex items-center gap-1 rounded-full bg-brand px-3 py-1 text-xs font-semibold text-brand-foreground transition-transform hover:scale-105"
         >
           <Plus className="size-3" />
@@ -473,7 +516,62 @@ function ProductsSection({
         </button>
       </div>
 
-      {/* Enhanced product form */}
+      {/* Edit form (shown when editing a product) */}
+      {editingId && !showForm && (
+        <form
+          onSubmit={onAdd}
+          className="mb-3 space-y-3 rounded-xl border-2 border-brand-border bg-brand-soft/30 p-4"
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wide text-brand">Edit product</p>
+            <button type="button" onClick={() => { resetForm(); setEditingId(null); }} className="text-xs text-muted-foreground hover:text-foreground">Cancel edit</button>
+          </div>
+          {/* Name + Price */}
+          <div className="grid gap-2 sm:grid-cols-[1fr_120px]">
+            <div>
+              <label className="mb-1 block text-xs font-semibold">Name</label>
+              <Input value={form.name} onChange={(e) => set("name", e.target.value)} className="h-9" required />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold">Price ({symbol})</label>
+              <Input type="number" value={form.price} onChange={(e) => set("price", e.target.value)} className="h-9" min={0} />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold">{isFMB ? "Product type" : "Package type"}</label>
+            <select value={form.productType} onChange={(e) => set("productType", e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option value="">Select type</option>
+              {productTypes.map((t) => <option key={t} value={t.toLowerCase()}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold">Description</label>
+            <textarea value={form.description} onChange={(e) => set("description", e.target.value)} className="h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm" maxLength={500} />
+          </div>
+          {isFMB ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div><label className="mb-1 block text-xs font-semibold">Sizes</label><Input value={form.sizes} onChange={(e) => set("sizes", e.target.value)} placeholder="1kg, 2kg" className="h-9" /></div>
+              <div><label className="mb-1 block text-xs font-semibold">Flavours</label><Input value={form.flavours} onChange={(e) => set("flavours", e.target.value)} placeholder="Vanilla, Chocolate" className="h-9" /></div>
+              <div><label className="mb-1 block text-xs font-semibold">Weight</label><Input value={form.weight} onChange={(e) => set("weight", e.target.value)} placeholder="500g" className="h-9" /></div>
+              <div><label className="mb-1 block text-xs font-semibold">Prep time</label><Input value={form.prepTime} onChange={(e) => set("prepTime", e.target.value)} placeholder="24 hours" className="h-9" /></div>
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div><label className="mb-1 block text-xs font-semibold">Min guests</label><Input type="number" value={form.minGuests} onChange={(e) => set("minGuests", e.target.value)} className="h-9" min={0} /></div>
+              <div><label className="mb-1 block text-xs font-semibold">Price per head</label><Input type="number" value={form.pricePerHead} onChange={(e) => set("pricePerHead", e.target.value)} className="h-9" min={0} /></div>
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-xs font-medium">
+            <input type="checkbox" checked={form.deliveryAvailable} onChange={(e) => set("deliveryAvailable", e.target.checked)} className="size-4 rounded" /> Delivery available
+          </label>
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" className="bg-brand text-brand-foreground hover:bg-brand/90">Save changes</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => { resetForm(); setEditingId(null); }}>Cancel</Button>
+          </div>
+        </form>
+      )}
+
+      {/* Add product form */}
       {showForm && (
         <form
           onSubmit={onAdd}
@@ -681,7 +779,14 @@ function ProductsSection({
                   {p.price.toLocaleString("en-US")}
                 </span>
                 <button
-                  title="Delete"
+                  title="Edit product"
+                  onClick={() => onEdit(p)}
+                  className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <Edit3 className="size-3.5" />
+                </button>
+                <button
+                  title="Delete product"
                   onClick={() => onDelete(p.id)}
                   disabled={deleteProduct.isPending}
                   className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-rose-100 hover:text-rose-600 disabled:opacity-50"
