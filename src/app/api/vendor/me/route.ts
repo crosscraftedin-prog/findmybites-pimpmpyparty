@@ -100,11 +100,20 @@ export async function GET(_req: NextRequest) {
     }
     const email = session.user.email;
 
-    // fetch all vendors owned by this user
-    const vendors = await db.vendor.findMany({
+    // fetch all vendors owned by this user — try exact match first,
+    // then case-insensitive match as fallback
+    let vendors = await db.vendor.findMany({
       where: { userEmail: email },
       orderBy: { createdAt: "desc" },
     });
+
+    // Fallback: case-insensitive search if exact match found nothing
+    if (vendors.length === 0) {
+      vendors = await db.vendor.findMany({
+        where: { userEmail: { equals: email, mode: "insensitive" } },
+        orderBy: { createdAt: "desc" },
+      });
+    }
 
     if (vendors.length === 0) {
       return NextResponse.json({

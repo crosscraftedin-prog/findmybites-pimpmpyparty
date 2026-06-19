@@ -627,10 +627,20 @@ export function useVendorDashboard(enabled = true) {
     enabled,
     queryFn: async () => {
       const res = await fetch("/api/vendor/me");
+      if (res.status === 401) {
+        // Not authenticated — return empty data instead of throwing
+        return {
+          vendors: [],
+          bookings: [],
+          reviews: [],
+          stats: { totalListings: 0, pending: 0, approved: 0, totalBookings: 0, pendingBookings: 0, avgRating: 0 },
+        } as VendorDashboardData;
+      }
       if (!res.ok) throw new Error("Failed to fetch dashboard");
       return (await res.json()) as VendorDashboardData;
     },
     staleTime: 15 * 1000,
+    retry: 1,
   });
 }
 
