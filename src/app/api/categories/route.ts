@@ -23,12 +23,16 @@ export async function GET(req: NextRequest) {
       ? CATEGORIES.filter((c) => c.ecosystem === ecosystemParam)
       : CATEGORIES;
 
-    const categories: CategoryWithCount[] = await Promise.all(
-      cats.map(async (c) => {
+    // Run sequentially to avoid exhausting the Supabase pooler connection
+    // limit (same fix as admin/stats — Promise.all with 15+ parallel count
+    // queries fails on the free tier).
+    const categories: CategoryWithCount[] = [];
+    for (const c of cats) {
+      try {
         const count = await db.vendor.count({
           where: { ecosystem: c.ecosystem, category: c.id, approved: true },
         });
-        return {
+        categories.push({
           id: c.id,
           ecosystem: c.ecosystem,
           label: c.label,
@@ -37,9 +41,20 @@ export async function GET(req: NextRequest) {
           image: c.image,
           accent: c.accent,
           count,
-        };
-      })
-    );
+        });
+      } catch {
+        categories.push({
+          id: c.id,
+          ecosystem: c.ecosystem,
+          label: c.label,
+          description: c.description,
+          icon: c.icon,
+          image: c.image,
+          accent: c.accent,
+          count: 0,
+        });
+      }
+    }
 
     return NextResponse.json({ categories });
   } catch (err) {
