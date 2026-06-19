@@ -184,10 +184,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ vendors, total });
   } catch (err) {
     console.error("[api/vendors] GET failed:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch vendors" },
-      { status: 500 }
-    );
+    // Return empty list instead of 500 so the homepage doesn't break
+    // entirely when the DB is unreachable.
+    return NextResponse.json({ vendors: [], total: 0 });
   }
 }
 
