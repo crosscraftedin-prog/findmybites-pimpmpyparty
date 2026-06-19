@@ -64,7 +64,16 @@ export function resolveSubcategory(
   return s && SUBCATEGORIES[category]?.includes(s) ? s : null;
 }
 
-/** Only accept local /uploads/ paths (prevents arbitrary remote/javascript URLs). */
+/** Accept either local /uploads/ paths or Supabase Storage public URLs.
+ *  Prevents arbitrary remote/javascript URLs. */
 export function isSafeUploadUrl(u: unknown): u is string {
-  return typeof u === "string" && u.startsWith("/uploads/") && u.length < 200;
+  if (typeof u !== "string" || u.length > 500) return false;
+  // local uploads (legacy/dev)
+  if (u.startsWith("/uploads/")) return true;
+  // Supabase Storage public URLs
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (supabaseUrl && u.startsWith(`${supabaseUrl}/storage/v1/object/public/`)) return true;
+  // also accept generic supabase.co storage URLs (for safety)
+  if (u.includes(".supabase.co/storage/v1/object/public/")) return true;
+  return false;
 }
