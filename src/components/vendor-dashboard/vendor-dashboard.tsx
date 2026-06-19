@@ -144,20 +144,21 @@ function getVendorPlan(v: { featured: boolean; verified: boolean; ecosystem: str
   return { plan: "free", label: "Free" };
 }
 
-/** Derive profile completeness from filled vendor fields. */
-function profileCompleteness(v: any): number {
+/** Derive profile completeness from filled vendor fields per spec:
+ * name, description, phone, whatsapp, city, country, category,
+ * at least 1 photo, at least 1 review. */
+function profileCompleteness(v: any, reviewCount = 0): number {
   if (!v) return 0;
   const fields = [
     !!v.name,
     !!v.description,
-    !!v.tagline,
-    !!v.heroImage,
-    !!v.avatarImage,
+    !!v.phone || !!v.whatsapp, // phone (WhatsApp counts)
     !!v.whatsapp,
-    !!v.instagram,
-    !!v.website,
-    v.gallery?.length >= 3,
-    v.gallery?.length >= 6,
+    !!v.city,
+    !!v.country || !!v.countryCode,
+    !!v.category,
+    (v.gallery?.length ?? 0) >= 1, // at least 1 photo
+    reviewCount >= 1, // at least 1 review
   ];
   const filled = fields.filter(Boolean).length;
   return Math.round((filled / fields.length) * 100);
@@ -196,7 +197,7 @@ function Skeleton({ className }: { className?: string }) {
 
 function ShimmerCard() {
   return (
-    <div className="rounded-lg p-3.5" style={{ background: "rgba(0,0,0,0.03)" }}>
+    <div className="rounded-lg p-3.5" style={{ background: "#F1EFE8" }}>
       <Skeleton className="mb-2 h-3 w-20" />
       <Skeleton className="h-6 w-16" />
       <Skeleton className="mt-2 h-2.5 w-24" />
@@ -217,7 +218,7 @@ function KPICard({
   loading?: boolean;
 }) {
   return (
-    <div className="rounded-lg p-3.5" style={{ background: "rgba(0,0,0,0.03)" }}>
+    <div className="rounded-lg p-3.5" style={{ background: "#F1EFE8" }}>
       <p className="mb-1 text-[11px] text-black/50">{label}</p>
       {loading ? (
         <Skeleton className="h-6 w-16" />
@@ -238,7 +239,7 @@ function PlanPill({ plan, label }: { plan: string; label: string }) {
       ? { background: CORAL_TINT, color: CORAL_DARK }
       : plan === "pro"
         ? { background: PURPLE_TINT, color: PURPLE_DARK }
-        : { background: "rgba(0,0,0,0.05)", color: "rgba(0,0,0,0.5)" };
+        : { background: "#F1EFE8", color: "#5F5E5A" };
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
@@ -605,8 +606,21 @@ export function VendorDashboard() {
                         <div className="flex flex-col items-center py-8 text-center">
                           <MessageSquare className="size-8 text-black/20" />
                           <p className="mt-2 text-[12px] text-black/40">
-                            No enquiries yet — your listing is live!
+                            No enquiries yet. Your listing is live — customers
+                            will find you soon!
                           </p>
+                          {vendor && (
+                            <button
+                              onClick={() => {
+                                close();
+                                setTimeout(() => openVendor(vendor.slug), 150);
+                              }}
+                              className="mt-3 text-[11px] font-medium hover:underline"
+                              style={{ color: CORAL_DARK }}
+                            >
+                              View your listing →
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <div>
@@ -645,7 +659,7 @@ export function VendorDashboard() {
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <div
                           className="rounded-lg p-2 text-center"
-                          style={{ background: "rgba(0,0,0,0.03)" }}
+                          style={{ background: "#F1EFE8" }}
                         >
                           <p className="text-[16px] font-medium">
                             {stats.avgRating.toFixed(1)}
@@ -654,7 +668,7 @@ export function VendorDashboard() {
                         </div>
                         <div
                           className="rounded-lg p-2 text-center"
-                          style={{ background: "rgba(0,0,0,0.03)" }}
+                          style={{ background: "#F1EFE8" }}
                         >
                           <p className="text-[16px] font-medium">{reviewCount}</p>
                           <p className="text-[10px] text-black/40">Reviews</p>
@@ -664,7 +678,7 @@ export function VendorDashboard() {
                       <div className="mt-3">
                         <div className="mb-1 flex justify-between text-[11px] text-black/40">
                           <span>Profile completeness</span>
-                          <span>{profileCompleteness(vendor)}%</span>
+                          <span>{profileCompleteness(vendor, reviewCount)}%</span>
                         </div>
                         <div
                           className="h-1.5 overflow-hidden rounded-full"
@@ -673,7 +687,7 @@ export function VendorDashboard() {
                           <div
                             className="h-full rounded-full transition-all"
                             style={{
-                              width: `${profileCompleteness(vendor)}%`,
+                              width: `${profileCompleteness(vendor, reviewCount)}%`,
                               background: CORAL,
                             }}
                           />
@@ -1213,15 +1227,37 @@ function PlanCard({
   onUpgrade: () => void;
   detailed?: boolean;
 }) {
+  // Tiered feature list per spec:
+  // Free: Basic listing, WhatsApp booking link, up to 5 gallery photos
+  // Baker Pro (adds): Verified badge, up to 20 gallery photos, basic analytics,
+  //   customer reviews enabled
+  // Business (adds): Priority placement, homepage spotlight, ad banner slot,
+  //   advanced analytics, unlimited gallery photos
   const features = [
+    // Free tier
+    { label: "Basic listing (name, category, location)", included: true },
+    { label: "WhatsApp booking link", included: true },
+    { label: "Up to 5 gallery photos", included: true },
+    // Pro tier
     { label: "Verified badge on listing", included: plan !== "free" },
     { label: "Up to 20 gallery photos", included: plan !== "free" },
-    { label: "WhatsApp direct booking link", included: plan !== "free" },
     { label: "Basic analytics dashboard", included: plan !== "free" },
-    { label: "Priority placement in search", included: plan === "business" },
+    { label: "Customer reviews enabled", included: plan !== "free" },
+    // Business tier
+    { label: "Priority placement in search results", included: plan === "business" },
     { label: "Featured in homepage spotlight", included: plan === "business" },
     { label: "Ad banner slot access", included: plan === "business" },
+    { label: "Advanced analytics (views, conversion, demographics)", included: plan === "business" },
+    { label: "Unlimited gallery photos", included: plan === "business" },
   ];
+
+  // Upgrade CTA per plan
+  const upgradeCta =
+    plan === "free"
+      ? "Upgrade to Baker Pro — ₹299/mo"
+      : plan === "pro"
+        ? "Upgrade to Business — ₹499/mo"
+        : null;
 
   return (
     <div
@@ -1235,8 +1271,8 @@ function PlanCard({
         <span
           className="rounded-full px-2 py-0.5 text-[10px] font-medium"
           style={{
-            background: plan === "business" ? CORAL_TINT : PURPLE_TINT,
-            color: plan === "business" ? CORAL_DARK : PURPLE_DARK,
+            background: plan === "business" ? CORAL_TINT : plan === "pro" ? PURPLE_TINT : "#F1EFE8",
+            color: plan === "business" ? CORAL_DARK : plan === "pro" ? PURPLE_DARK : "#5F5E5A",
           }}
         >
           {planLabel}
@@ -1256,21 +1292,20 @@ function PlanCard({
           </div>
         ))}
       </div>
-      {plan !== "business" && (
+      {upgradeCta ? (
         <button
           onClick={onUpgrade}
           className="w-full rounded-lg py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
           style={{ background: CORAL }}
         >
-          Upgrade to Business — ₹499/mo
+          {upgradeCta}
         </button>
-      )}
-      {plan === "business" && (
+      ) : (
         <div
           className="rounded-lg p-2.5 text-center text-[12px] font-medium"
           style={{ background: GREEN_BG, color: GREEN_TEXT }}
         >
-          ✓ You're on the Business plan — all features unlocked
+          You're on the top plan. Thanks for supporting us 🎉
         </div>
       )}
     </div>
