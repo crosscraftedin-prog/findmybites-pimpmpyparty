@@ -534,18 +534,49 @@ export function AdminPanelPage({
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [statsRes, adminVendorsRes, signupsRes] = await Promise.all([
+      // Fetch each endpoint independently so one failure doesn't sink the
+      // whole dashboard. Promise.allSettled ensures we always reach finally.
+      const [statsRes, adminVendorsRes, signupsRes] = await Promise.allSettled([
         fetch("/api/admin/stats"),
-        fetch("/api/admin/vendors?pageSize=200"),
+        fetch("/api/admin/vendors?pageSize=100"),
         fetch("/api/admin/signups"),
       ]);
 
-      const stats = await statsRes.json();
-      const adminVendors = await adminVendorsRes.json();
-      const vendors: Vendor[] = adminVendors.vendors ?? [];
+      // Parse stats (if it succeeded)
+      let stats: { totals?: { vendors?: number; approved?: number } } = {};
+      if (statsRes.status === "fulfilled" && statsRes.value.ok) {
+        try {
+          stats = (await statsRes.value.json()) as typeof stats;
+        } catch {
+          stats = {};
+        }
+      }
 
-      // KPIs — derived from real data
-      const totalVendors = stats.totals?.vendors ?? 0;
+      // Parse vendors (if it succeeded)
+      let vendors: Vendor[] = [];
+      if (adminVendorsRes.status === "fulfilled" && adminVendorsRes.value.ok) {
+        try {
+          const data = await adminVendorsRes.value.json();
+          vendors = data.vendors ?? [];
+        } catch {
+          vendors = [];
+        }
+      }
+
+      // Parse signups (if it succeeded)
+      let signups: { month: string; food: number; party: number }[] = [];
+      if (signupsRes.status === "fulfilled" && signupsRes.value.ok) {
+        try {
+          const data = await signupsRes.value.json();
+          signups = data.data ?? [];
+        } catch {
+          signups = [];
+        }
+      }
+      setSignupsData(signups);
+
+      // KPIs — derived from whatever data we got (graceful with empty)
+      const totalVendors = stats.totals?.vendors ?? vendors.length;
       const activeListings = stats.totals?.approved ?? vendors.filter((v) => v.approved).length;
       const paidSubscribers = vendors.filter(
         (v) => v.featured || v.verified
@@ -591,12 +622,6 @@ export function AdminPanelPage({
 
       // All vendors for table
       setAllVendors(vendors);
-
-      // Signups chart
-      if (signupsRes.ok) {
-        const signups = await signupsRes.json();
-        setSignupsData(signups.data ?? []);
-      }
 
       // Activity feed (best-effort)
       try {

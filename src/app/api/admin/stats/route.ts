@@ -23,6 +23,10 @@ export async function GET(_req: NextRequest) {
     };
 
     const totalVendors = await safe(() => db.vendor.count(), 0);
+    const approvedVendors = await safe(
+      () => db.vendor.count({ where: { approved: true } }),
+      0
+    );
     const totalReviews = await safe(() => db.review.count(), 0);
     const totalBookings = await safe(() => db.booking.count(), 0);
     const pendingBookings = await safe(
@@ -94,6 +98,7 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({
       totals: {
         vendors: totalVendors,
+        approved: approvedVendors,
         reviews: totalReviews,
         bookings: totalBookings,
         pendingBookings,
