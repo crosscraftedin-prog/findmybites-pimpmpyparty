@@ -181,18 +181,15 @@ export function SiteHeader() {
           </Button>
         )}
 
-        {/* If signed in and has a business → show "Edit business"; otherwise show "List your business" */}
+        {/* If signed in and has a business → show "Vendor dashboard"; otherwise show "List your business" */}
         {session && hasVendor ? (
           <Button
             size="sm"
             className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
-            onClick={() => {
-              if (vendorSlug) openEditVendor(vendorSlug);
-              else openVendorDashboard();
-            }}
+            onClick={() => openVendorDashboard()}
           >
-            <Edit3 className="size-4" />
-            Edit business
+            <LayoutDashboard className="size-4" />
+            Dashboard
           </Button>
         ) : (
           <Button
@@ -265,15 +262,15 @@ export function SiteHeader() {
                     Vendor Login
                   </Button>
                 </SheetClose>
-                {/* Edit / List business — mobile */}
+                {/* Dashboard / List business — mobile */}
                 {session && hasVendor ? (
                   <SheetClose asChild>
                     <Button
                       className="bg-brand text-brand-foreground hover:bg-brand/90"
-                      onClick={() => vendorSlug ? openEditVendor(vendorSlug) : openVendorDashboard()}
+                      onClick={() => openVendorDashboard()}
                     >
-                      <Edit3 className="size-4" />
-                      Edit business
+                      <LayoutDashboard className="size-4" />
+                      Dashboard
                     </Button>
                   </SheetClose>
                 ) : (
