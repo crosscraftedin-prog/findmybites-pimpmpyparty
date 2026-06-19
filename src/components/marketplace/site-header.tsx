@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { useVendorDashboard } from "@/lib/queries";
 import {
   Menu,
   Search,
@@ -18,6 +19,7 @@ import {
   ShieldCheck,
   LayoutDashboard,
   LogIn,
+  Edit3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +49,10 @@ export function SiteHeader() {
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
   const { user: session } = useSupabaseSession();
   const { isAdmin } = useIsAdmin();
+  // Check if this user already has a vendor listing
+  const { data: vendorData } = useVendorDashboard(!!session);
+  const hasVendor = (vendorData?.vendors?.length ?? 0) > 0;
+  const vendorSlug = vendorData?.vendors?.[0]?.slug ?? null;
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -175,15 +181,29 @@ export function SiteHeader() {
           </Button>
         )}
 
-        {/* List Your Business — for new vendors to start onboarding */}
-        <Button
-          size="sm"
-          className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
-          onClick={() => requireAuth("list-vendor", () => openListVendor())}
-        >
-          <Sparkles className="size-4" />
-          List your business
-        </Button>
+        {/* If signed in and has a business → show "Edit business"; otherwise show "List your business" */}
+        {session && hasVendor ? (
+          <Button
+            size="sm"
+            className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
+            onClick={() => {
+              if (vendorSlug) openEditVendor(vendorSlug);
+              else openVendorDashboard();
+            }}
+          >
+            <Edit3 className="size-4" />
+            Edit business
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
+            onClick={() => requireAuth("list-vendor", () => openListVendor())}
+          >
+            <Sparkles className="size-4" />
+            List your business
+          </Button>
+        )}
 
         {/* Mobile menu */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -245,16 +265,28 @@ export function SiteHeader() {
                     Vendor Login
                   </Button>
                 </SheetClose>
-                {/* List Your Business — mobile */}
-                <SheetClose asChild>
-                  <Button
-                    className="bg-brand text-brand-foreground hover:bg-brand/90"
-                    onClick={() => requireAuth("list-vendor", () => openListVendor())}
-                  >
-                    <Sparkles className="size-4" />
-                    List your business
-                  </Button>
-                </SheetClose>
+                {/* Edit / List business — mobile */}
+                {session && hasVendor ? (
+                  <SheetClose asChild>
+                    <Button
+                      className="bg-brand text-brand-foreground hover:bg-brand/90"
+                      onClick={() => vendorSlug ? openEditVendor(vendorSlug) : openVendorDashboard()}
+                    >
+                      <Edit3 className="size-4" />
+                      Edit business
+                    </Button>
+                  </SheetClose>
+                ) : (
+                  <SheetClose asChild>
+                    <Button
+                      className="bg-brand text-brand-foreground hover:bg-brand/90"
+                      onClick={() => requireAuth("list-vendor", () => openListVendor())}
+                    >
+                      <Sparkles className="size-4" />
+                      List your business
+                    </Button>
+                  </SheetClose>
+                )}
                 {isAdmin && (
                   <SheetClose asChild>
                     <Button variant="outline" onClick={() => openAdmin()}>

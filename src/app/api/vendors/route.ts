@@ -408,6 +408,20 @@ export async function POST(req: NextRequest) {
       console.error("[api/vendors] auth read failed (non-fatal):", authErr);
     }
 
+    // --- prevent duplicate: one vendor per email ---
+    if (ownerEmail) {
+      const existing = await db.vendor.findFirst({
+        where: { userEmail: ownerEmail },
+        select: { id: true, name: true, slug: true },
+      });
+      if (existing) {
+        return NextResponse.json(
+          { error: "You already have a business listing. Use 'Edit business' to update it." },
+          { status: 409 }
+        );
+      }
+    }
+
     // --- create ---
     const created = await db.vendor.create({
       data: {
