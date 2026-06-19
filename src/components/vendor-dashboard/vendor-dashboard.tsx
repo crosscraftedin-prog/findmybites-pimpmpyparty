@@ -641,7 +641,7 @@ function ProductsSection({
             <label className="mb-1 block text-xs font-semibold">{isFMB ? "Product type" : "Package type"}</label>
             <select value={form.productType} onChange={(e) => set("productType", e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
               <option value="">Select type</option>
-              {productTypes.map((t) => <option key={t} value={t.toLowerCase()}>{t}</option>)}
+              {catConfig.types.map((t) => <option key={t} value={t.toLowerCase()}>{t}</option>)}
             </select>
           </div>
           <div>
@@ -713,7 +713,7 @@ function ProductsSection({
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="">Select type (optional)</option>
-              {productTypes.map((t) => (
+              {catConfig.types.map((t) => (
                 <option key={t} value={t.toLowerCase()}>
                   {t}
                 </option>
