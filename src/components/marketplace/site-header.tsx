@@ -81,7 +81,7 @@ export function SiteHeader() {
           : "border-b border-transparent bg-background/0"
       )}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8 overflow-x-hidden">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-3 sm:gap-3 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link
           href="#top"
@@ -135,16 +135,30 @@ export function SiteHeader() {
 
         <UserMenu />
 
+        {/* Dashboard icon — visible when signed in (opens vendor dashboard) */}
         {session && (
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground hover:text-foreground"
+            className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
             onClick={() => openVendorDashboard()}
-            aria-label="My dashboard"
-            title="My dashboard"
+            aria-label="Vendor dashboard"
+            title="Vendor dashboard"
           >
             <LayoutDashboard className="size-4" />
+          </Button>
+        )}
+
+        {/* Vendor Login — only when NOT signed in (triggers auth → dashboard) */}
+        {!session && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hidden text-muted-foreground hover:text-foreground lg:inline-flex"
+            onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
+          >
+            <LogIn className="size-4" />
+            <span className="hidden lg:inline">Vendor Login</span>
           </Button>
         )}
 
@@ -161,34 +175,10 @@ export function SiteHeader() {
           </Button>
         )}
 
-        {/* Vendor Login — for existing vendors to access their dashboard */}
-        {session && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
-            onClick={() => openVendorDashboard()}
-          >
-            <LayoutDashboard className="size-4" />
-            Vendor Login
-          </Button>
-        )}
-        {!session && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
-            onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
-          >
-            <LogIn className="size-4" />
-            Vendor Login
-          </Button>
-        )}
-
         {/* List Your Business — for new vendors to start onboarding */}
         <Button
           size="sm"
-          className="hidden bg-brand text-brand-foreground hover:bg-brand/90 sm:inline-flex"
+          className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
           onClick={() => requireAuth("list-vendor", () => openListVendor())}
         >
           <Sparkles className="size-4" />

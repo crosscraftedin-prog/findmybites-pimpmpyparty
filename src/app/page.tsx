@@ -19,7 +19,7 @@ import { SignInDialog } from "@/components/auth/sign-in-dialog";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-background overflow-x-hidden">
+    <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
       <main className="flex-1">
         <Hero />
