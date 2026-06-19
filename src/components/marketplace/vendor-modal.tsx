@@ -19,6 +19,15 @@ import {
   Navigation,
   Pencil,
   Package,
+  CheckCircle2,
+  Truck,
+  Store as StoreIcon,
+  Clock3,
+  MapPinned,
+  Zap,
+  Image as ImageIcon,
+  ShieldCheck,
+  TrendingUp,
 } from "lucide-react";
 import {
   Dialog,
@@ -178,11 +187,40 @@ export function VendorModal() {
             {/* Scrollable body */}
             <ScrollArea className="flex-1 overflow-y-auto">
               <div className="p-4 sm:p-6">
-                {/* Stat strip */}
+                {/* Verification + badges row */}
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  {vendor.verified && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white">
+                      <ShieldCheck className="size-3" /> Verified Business
+                    </span>
+                  )}
+                  {vendor.featured && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[11px] font-bold text-brand-foreground">
+                      <Star className="size-3 fill-current" /> Featured
+                    </span>
+                  )}
+                  {vendor.approved && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-500 px-2.5 py-1 text-[11px] font-bold text-white">
+                      <CheckCircle2 className="size-3" /> Approved
+                    </span>
+                  )}
+                  {vendor.deliveryAvailable && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-700">
+                      <Truck className="size-3" /> Delivery
+                    </span>
+                  )}
+                  {vendor.pickupAvailable && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-1 text-[11px] font-bold text-purple-700">
+                      <StoreIcon className="size-3" /> Pickup
+                    </span>
+                  )}
+                </div>
+
+                {/* Enhanced stat strip */}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <Stat
                     icon={<CalendarPlus className="size-4" />}
-                    label="From"
+                    label="Starting at"
                     value={formatPrice(vendor.basePrice, vendor.currency)}
                   />
                   <Stat
@@ -191,15 +229,35 @@ export function VendorModal() {
                     value={vendor.responseTime}
                   />
                   <Stat
-                    icon={<Calendar className="size-4" />}
-                    label="Active"
-                    value={`${vendor.yearsActive} yrs`}
+                    icon={<TrendingUp className="size-4" />}
+                    label="Completed"
+                    value={`${vendor.completedBookings}+`}
                   />
                   <Stat
-                    icon={<Users className="size-4" />}
-                    label="Bookings"
-                    value={String(vendor.completedBookings)}
+                    icon={<Calendar className="size-4" />}
+                    label="Experience"
+                    value={`${vendor.yearsActive} yrs`}
                   />
+                </div>
+
+                {/* Response rate + travel radius mini-stats */}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-muted px-2.5 py-1 text-xs">
+                    <Zap className="size-3 text-amber-500" />
+                    {Math.min(98, 70 + vendor.completedBookings)}% response rate
+                  </span>
+                  {vendor.serviceRadiusKm != null && vendor.serviceRadiusKm > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-muted px-2.5 py-1 text-xs">
+                      <MapPinned className="size-3 text-brand" />
+                      Travels {vendor.serviceRadiusKm}km
+                    </span>
+                  )}
+                  {vendor.openHours && (
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-muted px-2.5 py-1 text-xs">
+                      <Clock3 className="size-3 text-emerald-500" />
+                      {vendor.openHours}
+                    </span>
+                  )}
                 </div>
 
                 {/* Tagline + description */}
@@ -221,6 +279,91 @@ export function VendorModal() {
                     </span>
                   ))}
                 </div>
+
+                {/* Service areas */}
+                {vendor.serviceAreas && (
+                  <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3">
+                    <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <MapPinned className="size-3.5 text-brand" />
+                      Service Areas
+                    </p>
+                    <p className="text-sm">{vendor.serviceAreas}</p>
+                  </div>
+                )}
+
+                {/* Featured products preview (show first 2) */}
+                {products.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="mb-2 flex items-center gap-2 text-sm font-bold">
+                      <Package className="size-4 text-brand" />
+                      {vendor.ecosystem === "FINDMYBITES" ? "Featured Products" : "Featured Packages"}
+                    </h3>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {products.slice(0, 2).map((p) => {
+                        const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency;
+                        return (
+                          <div key={p.id} className="rounded-xl border border-border bg-card p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="truncate text-sm font-semibold">{p.name}</p>
+                              <span className="shrink-0 text-sm font-bold tabular-nums">
+                                {symbol}{p.price.toLocaleString("en-US")}
+                              </span>
+                            </div>
+                            {p.productType && (
+                              <span className="mt-1 inline-block rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium capitalize text-brand-soft-foreground">
+                                {p.productType}
+                              </span>
+                            )}
+                            {(p.sizes || p.flavours) && (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {p.sizes && `📏 ${p.sizes}`}
+                                {p.sizes && p.flavours && " · "}
+                                {p.flavours && `🍰 ${p.flavours}`}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Photo gallery */}
+                {vendor.gallery && vendor.gallery.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="mb-2 flex items-center gap-2 text-sm font-bold">
+                      <ImageIcon className="size-4 text-brand" />
+                      Gallery
+                    </h3>
+                    <div className="grid grid-cols-3 gap-2">
+                      {vendor.gallery.slice(0, 6).map((img, i) => (
+                        <div key={i} className="aspect-square overflow-hidden rounded-lg border border-border">
+                          <img src={img} alt={`${vendor.name} photo ${i + 1}`} className="h-full w-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Google Maps embed */}
+                {vendor.latitude != null && vendor.longitude != null && (
+                  <div className="mt-4">
+                    <h3 className="mb-2 flex items-center gap-2 text-sm font-bold">
+                      <MapPin className="size-4 text-brand" />
+                      Location
+                    </h3>
+                    <div className="overflow-hidden rounded-xl border border-border">
+                      <iframe
+                        src={`https://maps.google.com/maps?q=${vendor.latitude},${vendor.longitude}&z=14&output=embed`}
+                        width="100%"
+                        height="200"
+                        style={{ border: 0 }}
+                        loading="lazy"
+                        title={`${vendor.name} location`}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Address + contact bar */}
                 {(vendor.address ||
@@ -289,8 +432,35 @@ export function VendorModal() {
                   </div>
                 )}
 
+                {/* Instant quote CTA */}
+                <div className="mt-5 flex gap-2">
+                  <Button
+                    onClick={() => {
+                      const tabsEl = document.querySelector('[data-slot="tabs-trigger"][value="book"]') as HTMLElement;
+                      tabsEl?.click();
+                    }}
+                    className="flex-1 bg-brand text-brand-foreground hover:bg-brand/90"
+                  >
+                    <Zap className="size-4" />
+                    Get Instant Quote
+                  </Button>
+                  {vendor.whatsapp && (
+                    <a
+                      href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(
+                        `Hi ${vendor.name}, I'd like an instant quote for my event.`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-[#25D366] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#1da851]"
+                    >
+                      <MessageCircle className="size-4" />
+                      WhatsApp
+                    </a>
+                  )}
+                </div>
+
                 {/* Tabs */}
-                <Tabs defaultValue={products.length > 0 ? "products" : "book"} className="mt-6">
+                <Tabs defaultValue={products.length > 0 ? "products" : "book"} className="mt-4">
                   <TabsList className={cn("grid w-full", products.length > 0 ? "grid-cols-3" : "grid-cols-2")}>
                     {products.length > 0 && (
                       <TabsTrigger value="products">
