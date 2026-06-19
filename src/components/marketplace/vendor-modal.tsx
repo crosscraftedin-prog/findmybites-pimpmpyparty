@@ -39,6 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { useMarketplace } from "@/lib/store";
 import { useVendor, useReviews, useProducts } from "@/lib/queries";
 import { getCategory, CURRENCY_SYMBOLS } from "@/lib/constants";
