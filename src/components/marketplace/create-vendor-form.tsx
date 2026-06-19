@@ -12,6 +12,8 @@ import {
   Sparkles,
   MessageCircle,
   Navigation,
+  UtensilsCrossed,
+  PartyPopper,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,15 +146,23 @@ export function CreateVendorForm({
     editingVendor ? formStateFromVendor(editingVendor) : EMPTY
   );
 
-  // If the editingVendor prop changes (e.g. user opens edit on a different
-  // vendor), re-seed the form from it.
+  // Platform selection step — vendor picks FindMyBites OR PimpMyParty
+  // (no "both" option). Skipped when editing (ecosystem already set).
+  const [selectedPlatform, setSelectedPlatform] = React.useState<Ecosystem | null>(
+    isEditing ? ecosystem : null
+  );
+
+  // If the editingVendor prop changes, re-seed the form + platform.
   React.useEffect(() => {
     if (editingVendor) {
       setForm(formStateFromVendor(editingVendor));
+      setSelectedPlatform(editingVendor.ecosystem);
     }
   }, [editingVendor]);
 
-  const cats = categoriesFor(ecosystem);
+  // Use the selected platform (or the editing vendor's ecosystem)
+  const activeEcosystem: Ecosystem = selectedPlatform ?? ecosystem;
+  const cats = categoriesFor(activeEcosystem);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -225,7 +235,7 @@ export function CreateVendorForm({
         });
         onUpdated?.(res.vendor);
       } else {
-        const res = await createVendor.mutateAsync({ ...payload, ecosystem });
+        const res = await createVendor.mutateAsync({ ...payload, ecosystem: activeEcosystem });
         toast.success("Listing submitted for approval!", {
           description: `${res.vendor.name} will appear publicly once an admin approves it.`,
         });
@@ -244,6 +254,83 @@ export function CreateVendorForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      {/* Platform selection — only for new listings (not editing) */}
+      {!isEditing && !selectedPlatform && (
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-base font-bold">Where would you like to list your business?</h3>
+            <p className="text-xs text-muted-foreground">Choose one platform. You can't change this later.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* FindMyBites */}
+            <button
+              type="button"
+              onClick={() => setSelectedPlatform("FINDMYBITES")}
+              className="group flex flex-col items-start gap-2 rounded-2xl border-2 border-border bg-card p-4 text-left transition-all hover:border-amber-500 hover:shadow-md"
+            >
+              <div className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-sm">
+                <UtensilsCrossed className="size-5" />
+              </div>
+              <div>
+                <p className="font-bold">FindMyBites</p>
+                <p className="text-xs text-muted-foreground">Food & bakery businesses</p>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Cakes</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Bakers</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Caterers</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Chefs</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">+6 more</span>
+              </div>
+            </button>
+            {/* PimpMyParty */}
+            <button
+              type="button"
+              onClick={() => setSelectedPlatform("PIMPMYPARTY")}
+              className="group flex flex-col items-start gap-2 rounded-2xl border-2 border-border bg-card p-4 text-left transition-all hover:border-fuchsia-500 hover:shadow-md"
+            >
+              <div className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 text-white shadow-sm">
+                <PartyPopper className="size-5" />
+              </div>
+              <div>
+                <p className="font-bold">PimpMyParty</p>
+                <p className="text-xs text-muted-foreground">Event & party services</p>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Planners</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">DJs</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Venues</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Photographers</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">+11 more</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Show the rest of the form only after platform is selected (or when editing) */}
+      {(isEditing || selectedPlatform) && (
+        <>
+          {/* Selected platform badge */}
+          {!isEditing && selectedPlatform && (
+            <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-4 py-2.5">
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                {selectedPlatform === "FINDMYBITES" ? (
+                  <><UtensilsCrossed className="size-4 text-amber-500" /> FindMyBites</>
+                ) : (
+                  <><PartyPopper className="size-4 text-fuchsia-500" /> PimpMyParty</>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => { setSelectedPlatform(null); setForm(EMPTY); }}
+                className="text-xs text-muted-foreground underline hover:text-foreground"
+              >
+                Change
+              </button>
+            </div>
+          )}
+
       {/* Business name */}
       <Field label="Business name" required>
         <Input
@@ -587,6 +674,8 @@ export function CreateVendorForm({
         <Sparkles className="size-3.5 text-brand" />
         Free to list · Visible worldwide instantly · No commission
       </p>
+        </>
+      )}
     </form>
   );
 }
