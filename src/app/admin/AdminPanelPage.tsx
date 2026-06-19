@@ -11,7 +11,7 @@ import {
   Bell,
   Mail,
   Settings,
-  Speakerphone,
+  Megaphone,
   X,
   Search,
   TrendingUp,
@@ -122,7 +122,7 @@ const NAV_SECTIONS = [
   {
     title: "PLATFORM",
     items: [
-      { id: "ad-banners", label: "Ad banners", icon: Speakerphone },
+      { id: "ad-banners", label: "Ad banners", icon: Megaphone },
       { id: "messages", label: "Messages", icon: Mail },
       { id: "settings", label: "Settings", icon: Settings },
     ],
