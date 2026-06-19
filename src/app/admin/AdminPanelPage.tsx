@@ -7,7 +7,7 @@ import {
   Users,
   CheckCircle2,
   Tag,
-  Confetti,
+  PartyPopper,
   Bell,
   Mail,
   Settings,
@@ -114,7 +114,7 @@ const NAV_SECTIONS = [
     title: "PIMPMYPARTY",
     brand: "party" as const,
     items: [
-      { id: "party-vendors", label: "Party vendors", icon: Confetti },
+      { id: "party-vendors", label: "Party vendors", icon: PartyPopper },
       { id: "party-approvals", label: "Approvals", icon: CheckCircle2 },
       { id: "party-categories", label: "Categories", icon: Tag },
     ],
