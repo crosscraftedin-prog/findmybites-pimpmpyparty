@@ -307,7 +307,7 @@ export function VendorDashboard() {
   if (open && !isLoading && !vendor) {
     return (
       <Dialog open={open} onOpenChange={(o) => !o && close()}>
-        <DialogContent className="max-h-[90vh] gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogContent className="max-h-[90vh] gap-0 overflow-hidden p-0 sm:max-w-[90vw]">
           <DialogTitle className="sr-only">Vendor dashboard</DialogTitle>
           <DialogDescription className="sr-only">
             Create your business listing to get started.
@@ -345,7 +345,7 @@ export function VendorDashboard() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="h-[95vh] max-h-[95vh] w-[97vw] max-w-[97vw] gap-0 overflow-hidden p-0">
+      <DialogContent className="h-[95vh] max-h-[95vh] w-[97vw] max-w-[97vw] gap-0 overflow-hidden p-0 sm:max-w-[97vw]">
         <DialogTitle className="sr-only">Vendor dashboard</DialogTitle>
         <DialogDescription className="sr-only">
           Manage your business listings, enquiries, products and reviews.
