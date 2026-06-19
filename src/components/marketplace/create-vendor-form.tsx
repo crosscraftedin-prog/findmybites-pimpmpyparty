@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/select";
 import { useCreateVendor, useUpdateVendor, useGeocode } from "@/lib/queries";
 import { useMarketplace } from "@/lib/store";
+import { useSupabaseSession } from "@/hooks/use-supabase-session";
+import { rememberVendorEmail } from "@/lib/vendor-emails";
 import {
   CATEGORIES,
   COUNTRIES,
@@ -141,6 +143,7 @@ export function CreateVendorForm({
 }) {
   const createVendor = useCreateVendor();
   const updateVendor = useUpdateVendor();
+  const { user } = useSupabaseSession();
   const isEditing = !!editingVendor;
   const [form, setForm] = React.useState<FormState>(
     editingVendor ? formStateFromVendor(editingVendor) : EMPTY
@@ -236,6 +239,9 @@ export function CreateVendorForm({
         onUpdated?.(res.vendor);
       } else {
         const res = await createVendor.mutateAsync({ ...payload, ecosystem: activeEcosystem });
+        // Remember this email as a vendor owner so the header instantly shows
+        // "Dashboard" on future sign-ins (no waiting for the vendor query).
+        if (user?.email) rememberVendorEmail(user.email);
         toast.success("Listing submitted for approval!", {
           description: `${res.vendor.name} will appear publicly once an admin approves it.`,
         });

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useVendorDashboard } from "@/lib/queries";
+import { isVendorEmail } from "@/lib/vendor-emails";
 import {
   Menu,
   Search,
@@ -51,7 +52,12 @@ export function SiteHeader() {
   const { isAdmin } = useIsAdmin();
   // Check if this user already has a vendor listing
   const { data: vendorData } = useVendorDashboard(!!session);
-  const hasVendor = (vendorData?.vendors?.length ?? 0) > 0;
+  // Use remembered vendor emails for INSTANT feedback — avoids the flicker
+  // where the header shows "List your business" for a split second (or
+  // permanently if the DB query fails) before the vendor data loads.
+  const rememberedIsVendor = isVendorEmail(session?.email);
+  const hasVendor =
+    (vendorData?.vendors?.length ?? 0) > 0 || rememberedIsVendor;
   const vendorSlug = vendorData?.vendors?.[0]?.slug ?? null;
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);

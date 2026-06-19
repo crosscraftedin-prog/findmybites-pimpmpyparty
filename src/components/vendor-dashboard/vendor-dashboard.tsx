@@ -23,6 +23,7 @@ import {
   Lock,
   Check,
   Building2,
+  Loader2,
 } from "lucide-react";
 import {
   Dialog,
@@ -41,6 +42,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useMarketplace } from "@/lib/store";
+import { isVendorEmail } from "@/lib/vendor-emails";
 import {
   useVendorDashboard,
   useProducts,
@@ -303,8 +305,58 @@ export function VendorDashboard() {
       ? `You have ${pendingEnquiries} new ${pendingEnquiries === 1 ? "enquiry" : "enquiries"} since yesterday`
       : "No new enquiries — all caught up!";
 
-  // If no vendor listing exists, show empty state
+  // If no vendor listing exists, show empty state.
+  // BUT: if the email is remembered as a vendor owner, the query might just
+  // be loading or temporarily failing — show a retry state instead of
+  // "No business yet" to avoid confusing a real vendor.
+  const rememberedIsVendor = isVendorEmail(user?.email);
   if (open && !isLoading && !vendor) {
+    // If the email is remembered but no vendor came back, the listing might
+    // have been deleted OR the query failed. Show a graceful state that
+    // offers both "retry" and "create new".
+    if (rememberedIsVendor) {
+      return (
+        <Dialog open={open} onOpenChange={(o) => !o && close()}>
+          <DialogContent className="max-h-[90vh] gap-0 overflow-hidden p-0 sm:max-w-[90vw]">
+            <DialogTitle className="sr-only">Vendor dashboard</DialogTitle>
+            <DialogDescription className="sr-only">
+              Loading your business listing.
+            </DialogDescription>
+            <div className="flex flex-col items-center justify-center p-8 text-center">
+              <div
+                className="grid size-16 place-items-center rounded-2xl"
+                style={{ background: CORAL_TINT }}
+              >
+                <Loader2 className="size-8 animate-spin" style={{ color: CORAL }} />
+              </div>
+              <h2 className="mt-4 text-lg font-bold">Loading your dashboard…</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                We're having trouble loading your business listing. Please try
+                again.
+              </p>
+              <Button
+                onClick={() => {
+                  // Refetch by toggling the query via the hook
+                  window.location.reload();
+                }}
+                className="mt-5 gap-1.5 rounded-xl text-white"
+                style={{ background: CORAL }}
+              >
+                <Loader2 className="size-4" />
+                Retry
+              </Button>
+              <button
+                onClick={close}
+                className="mt-3 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Close
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+    // Genuinely no vendor listing — offer to create one
     return (
       <Dialog open={open} onOpenChange={(o) => !o && close()}>
         <DialogContent className="max-h-[90vh] gap-0 overflow-hidden p-0 sm:max-w-[90vw]">
