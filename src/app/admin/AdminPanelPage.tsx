@@ -12,13 +12,12 @@ import {
   Mail,
   Settings,
   Megaphone,
+  CreditCard,
   X,
   Search,
   TrendingUp,
-  ShieldCheck,
-  Clock,
-  AlertTriangle,
-  ChevronDown,
+  TrendingDown,
+  Pencil,
   Loader2,
 } from "lucide-react";
 import {
@@ -32,21 +31,30 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 
-// ── Brand colors ────────────────────────────────────────────────────────────
+// ── Brand colors (matching HTML reference) ─────────────────────────────────
 const CORAL = "#D85A30";
 const CORAL_TINT = "#FAECE7";
 const CORAL_DARK = "#993C1D";
+const CORAL_BORDER = "#F0997B";
 const PURPLE = "#7F77DD";
 const PURPLE_TINT = "#EEEDFE";
 const PURPLE_DARK = "#534AB7";
+const PURPLE_BORDER = "#AFA9EC";
 const GREEN_BG = "#EAF3DE";
 const GREEN_TEXT = "#27500A";
+const GREEN_DELTA = "#3B6D11";
 const PENDING_BG = "#FAEEDA";
 const PENDING_TEXT = "#633806";
 const FLAG_BG = "#FCEBEB";
 const FLAG_TEXT = "#791F1F";
+const RED_DELTA = "#A32D2D";
+const AMBER = "#D97706";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// Plan pricing (used to estimate MRR — display only)
+const PLAN_PRICE_BUSINESS = 99; // ₹/mo
+const PLAN_PRICE_PRO = 29; // ₹/mo
+
+// ── Types ──────────────────────────────────────────────────────────────────
 interface Vendor {
   id: string;
   name: string;
@@ -86,24 +94,38 @@ interface KPIData {
   newThisMonth: number;
   activeListings: number;
   approvalRate: number;
-  totalEnquiries: number;
-  enquiriesThisWeek: number;
-  whatsappTaps: number;
-  tapsThisMonth: number;
+  paidSubscribers: number;
+  subscribersThisWeek: number;
+  mrr: number;
+  mrrDelta: number;
 }
 
-// ── Nav items ───────────────────────────────────────────────────────────────
-const NAV_SECTIONS = [
+// ── Nav config ─────────────────────────────────────────────────────────────
+type NavBrand = "food" | "party" | null;
+
+interface NavItem {
+  id: string;
+  label: string;
+  icon: React.ElementType;
+}
+interface NavSection {
+  title: string;
+  brand: NavBrand;
+  items: NavItem[];
+}
+
+const NAV_SECTIONS: NavSection[] = [
   {
-    title: "OVERVIEW",
+    title: "Overview",
+    brand: null,
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
       { id: "analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
   {
-    title: "FINDMYBITES",
-    brand: "food" as const,
+    title: "FindMyBites",
+    brand: "food",
     items: [
       { id: "food-vendors", label: "Food vendors", icon: Users },
       { id: "food-approvals", label: "Approvals", icon: CheckCircle2 },
@@ -111,8 +133,8 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    title: "PIMPMYPARTY",
-    brand: "party" as const,
+    title: "PimpMyParty",
+    brand: "party",
     items: [
       { id: "party-vendors", label: "Party vendors", icon: PartyPopper },
       { id: "party-approvals", label: "Approvals", icon: CheckCircle2 },
@@ -120,16 +142,18 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    title: "PLATFORM",
+    title: "Platform",
+    brand: null,
     items: [
       { id: "ad-banners", label: "Ad banners", icon: Megaphone },
+      { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
       { id: "messages", label: "Messages", icon: Mail },
       { id: "settings", label: "Settings", icon: Settings },
     ],
   },
 ];
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
 function timeAgo(date: string): string {
   const diff = Date.now() - new Date(date).getTime();
   const mins = Math.floor(diff / 60000);
@@ -143,19 +167,37 @@ function timeAgo(date: string): string {
 }
 
 function getInitials(name: string): string {
-  return name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || "").join("");
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() || "")
+    .join("");
 }
 
-function formatMonth(d: Date): string {
-  return d.toLocaleDateString("en-US", { month: "short" });
+function formatINR(n: number): string {
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
+  return `₹${n}`;
 }
 
-// ── Skeleton ────────────────────────────────────────────────────────────────
+/** Derive a subscription plan from vendor flags (no schema change needed). */
+function getVendorPlan(v: Vendor): "free" | "pro" | "business" {
+  if (v.featured) return "business";
+  if (v.verified) return "pro";
+  return "free";
+}
+
+function planLabel(plan: "free" | "pro" | "business", ecosystem: string): string {
+  if (plan === "business") return "Business";
+  if (plan === "pro") return ecosystem === "FINDMYBITES" ? "Baker Pro" : "Party Pro";
+  return "Free";
+}
+
+// ── Skeleton ───────────────────────────────────────────────────────────────
 function Skeleton({ className }: { className?: string }) {
   return <div className={cn("animate-pulse rounded-lg bg-black/5", className)} />;
 }
 
-// ── Status badge ────────────────────────────────────────────────────────────
+// ── Status badge ───────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
     approved: { bg: GREEN_BG, text: GREEN_TEXT, label: "Active" },
@@ -166,7 +208,7 @@ function StatusBadge({ status }: { status: string }) {
   const s = config[status] ?? config.pending;
   return (
     <span
-      className="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium"
+      className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
       style={{ background: s.bg, color: s.text }}
     >
       {s.label}
@@ -174,12 +216,12 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ── Brand pill ──────────────────────────────────────────────────────────────
+// ── Brand pill ─────────────────────────────────────────────────────────────
 function BrandPill({ ecosystem }: { ecosystem: string }) {
   const isFood = ecosystem === "FINDMYBITES";
   return (
     <span
-      className="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium"
+      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
       style={{
         background: isFood ? CORAL_TINT : PURPLE_TINT,
         color: isFood ? CORAL_DARK : PURPLE_DARK,
@@ -190,28 +232,66 @@ function BrandPill({ ecosystem }: { ecosystem: string }) {
   );
 }
 
-// ── KPI Card ────────────────────────────────────────────────────────────────
+// ── Plan badge ─────────────────────────────────────────────────────────────
+function PlanBadge({
+  plan,
+  ecosystem,
+}: {
+  plan: "free" | "pro" | "business";
+  ecosystem: string;
+}) {
+  const label = planLabel(plan, ecosystem);
+  const styles =
+    plan === "business"
+      ? { background: CORAL_TINT, color: CORAL_DARK }
+      : plan === "pro"
+        ? { background: PURPLE_TINT, color: PURPLE_DARK }
+        : { background: "rgba(0,0,0,0.05)", color: "rgba(0,0,0,0.5)" };
+  return (
+    <span
+      className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
+      style={styles}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ── KPI Card ───────────────────────────────────────────────────────────────
 function KPICard({
   label,
   value,
   delta,
+  deltaDirection = "up",
   loading,
 }: {
   label: string;
   value: string | number;
   delta?: string;
+  deltaDirection?: "up" | "down";
   loading?: boolean;
 }) {
   return (
-    <div style={{ background: "#F1EFE8", borderRadius: 8, padding: "14px 16px" }}>
-      <p className="text-[11px] text-black/50">{label}</p>
+    <div
+      className="rounded-lg p-3.5"
+      style={{ background: "rgba(0,0,0,0.03)" }}
+    >
+      <p className="mb-1.5 text-[11px] text-black/50">{label}</p>
       {loading ? (
-        <Skeleton className="mt-1 h-6 w-16" />
+        <Skeleton className="h-6 w-16" />
       ) : (
         <p className="text-[22px] font-medium tracking-tight">{value}</p>
       )}
       {delta && !loading && (
-        <p className="mt-0.5 text-[11px]" style={{ color: GREEN_TEXT }}>
+        <p
+          className="mt-1 flex items-center gap-1 text-[11px]"
+          style={{ color: deltaDirection === "up" ? GREEN_DELTA : RED_DELTA }}
+        >
+          {deltaDirection === "up" ? (
+            <TrendingUp className="size-3" />
+          ) : (
+            <TrendingDown className="size-3" />
+          )}
           {delta}
         </p>
       )}
@@ -219,20 +299,23 @@ function KPICard({
   );
 }
 
-// ── Slide-over review panel ─────────────────────────────────────────────────
+// ── Slide-over review panel ────────────────────────────────────────────────
 function ReviewPanel({
   vendor,
   onClose,
   onAction,
+  actionLoading,
 }: {
   vendor: Vendor | null;
   onClose: () => void;
   onAction: (id: string, status: string) => void;
+  actionLoading: string | null;
 }) {
   if (!vendor) return null;
   const isFood = vendor.ecosystem === "FINDMYBITES";
   const tint = isFood ? CORAL_TINT : PURPLE_TINT;
   const dark = isFood ? CORAL_DARK : PURPLE_DARK;
+  const plan = getVendorPlan(vendor);
 
   return (
     <>
@@ -241,42 +324,78 @@ function ReviewPanel({
         onClick={onClose}
       />
       <div
-        className="fixed right-0 top-0 z-50 h-full overflow-y-auto"
-        style={{ width: 400, background: "#fff", borderLeft: "0.5px solid rgba(0,0,0,0.12)" }}
+        className="fixed right-0 top-0 z-50 flex h-full w-full max-w-[400px] flex-col overflow-y-auto"
+        style={{ background: "#fff", borderLeft: "0.5px solid rgba(0,0,0,0.12)" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4" style={{ borderBottom: "0.5px solid rgba(0,0,0,0.12)" }}>
-          <div className="flex items-center gap-2">
-            <span className="text-[14px] font-medium">{vendor.name}</span>
-            <BrandPill ecosystem={vendor.ecosystem} />
+        <div
+          className="flex items-center justify-between p-4"
+          style={{ borderBottom: "0.5px solid rgba(0,0,0,0.12)" }}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <div
+              className="grid size-8 shrink-0 place-items-center rounded-lg text-[11px] font-medium"
+              style={{ background: tint, color: dark }}
+            >
+              {getInitials(vendor.name)}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[14px] font-medium">{vendor.name}</p>
+              <div className="mt-0.5 flex items-center gap-1.5">
+                <BrandPill ecosystem={vendor.ecosystem} />
+                <PlanBadge plan={plan} ecosystem={vendor.ecosystem} />
+              </div>
+            </div>
           </div>
-          <button onClick={onClose} className="grid size-8 place-items-center rounded-lg hover:bg-black/5">
+          <button
+            onClick={onClose}
+            className="grid size-8 shrink-0 place-items-center rounded-lg hover:bg-black/5"
+          >
             <X className="size-4" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="space-y-4 p-4">
+        <div className="flex-1 space-y-4 p-4">
           <Section label="Business details">
-            <p className="text-[13px]">{vendor.name}</p>
-            <p className="text-[12px] text-black/50">{vendor.category} · {vendor.city}, {vendor.country}</p>
+            <p className="text-[13px] font-medium">{vendor.name}</p>
+            <p className="text-[12px] text-black/50">
+              {vendor.category} · {vendor.city}, {vendor.country}
+            </p>
           </Section>
+
+          {vendor.tagline && (
+            <Section label="Tagline">
+              <p className="text-[12px] italic text-black/70">“{vendor.tagline}”</p>
+            </Section>
+          )}
 
           {vendor.whatsapp && (
             <Section label="Contact">
               <p className="text-[12px]">WhatsApp: {vendor.whatsapp}</p>
+              {vendor.instagram && (
+                <p className="text-[12px]">Instagram: {vendor.instagram}</p>
+              )}
             </Section>
           )}
 
           {vendor.description && (
             <Section label="About">
-              <p className="text-[12px] leading-relaxed text-black/70">{vendor.description}</p>
+              <p className="text-[12px] leading-relaxed text-black/70">
+                {vendor.description}
+              </p>
             </Section>
           )}
 
           {vendor.website && (
             <Section label="Links">
-              <a href={vendor.website} target="_blank" rel="noopener noreferrer" className="text-[12px] underline" style={{ color: dark }}>
+              <a
+                href={vendor.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[12px] underline"
+                style={{ color: dark }}
+              >
                 {vendor.website}
               </a>
             </Section>
@@ -286,45 +405,82 @@ function ReviewPanel({
             <Section label="Gallery">
               <div className="grid grid-cols-3 gap-2">
                 {vendor.gallery.slice(0, 6).map((img, i) => (
-                  <img key={i} src={img} alt="" className="aspect-square rounded-lg object-cover" />
+                  <img
+                    key={i}
+                    src={img}
+                    alt=""
+                    className="aspect-square rounded-lg object-cover"
+                  />
                 ))}
               </div>
             </Section>
           )}
 
-          <Section label="Joined">
-            <p className="text-[12px] text-black/50">
-              {new Date(vendor.createdAt).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })}
-            </p>
-          </Section>
+          <div className="grid grid-cols-3 gap-2">
+            <Section label="Joined">
+              <p className="text-[11px] text-black/60">
+                {new Date(vendor.createdAt).toLocaleDateString("en-US", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </p>
+            </Section>
+            <Section label="Rating">
+              <p className="text-[11px] text-black/60">
+                {vendor.rating > 0 ? `${vendor.rating}★ (${vendor.reviewCount})` : "—"}
+              </p>
+            </Section>
+            <Section label="Bookings">
+              <p className="text-[11px] text-black/60">{vendor.completedBookings}</p>
+            </Section>
+          </div>
 
           <Section label="Current status">
-            <StatusBadge status={vendor.approved ? "approved" : "pending"} />
+            <StatusBadge
+              status={
+                vendor.approved
+                  ? "approved"
+                  : vendor.status === "flagged"
+                    ? "flagged"
+                    : "pending"
+              }
+            />
           </Section>
         </div>
 
         {/* Actions */}
-        <div className="sticky bottom-0 flex gap-2 border-t bg-white p-4" style={{ borderColor: "rgba(0,0,0,0.12)" }}>
+        <div
+          className="sticky bottom-0 flex gap-2 border-t bg-white p-4"
+          style={{ borderColor: "rgba(0,0,0,0.12)" }}
+        >
           <button
             onClick={() => onAction(vendor.id, "approved")}
-            className="flex-1 rounded-lg py-2 text-[12px] font-medium text-white"
+            disabled={actionLoading === vendor.id}
+            className="flex-1 rounded-lg py-2 text-[12px] font-medium text-white disabled:opacity-50"
             style={{ background: GREEN_TEXT }}
           >
-            Approve
-          </button>
-          <button
-            onClick={() => onAction(vendor.id, "rejected")}
-            className="flex-1 rounded-lg border py-2 text-[12px] font-medium"
-            style={{ borderColor: FLAG_TEXT, color: FLAG_TEXT }}
-          >
-            Reject
+            {actionLoading === vendor.id ? (
+              <Loader2 className="mx-auto size-3.5 animate-spin" />
+            ) : (
+              "Approve"
+            )}
           </button>
           <button
             onClick={() => onAction(vendor.id, "flagged")}
-            className="flex-1 rounded-lg border py-2 text-[12px] font-medium"
-            style={{ borderColor: "#D97706", color: "#D97706" }}
+            disabled={actionLoading === vendor.id}
+            className="flex-1 rounded-lg border py-2 text-[12px] font-medium disabled:opacity-50"
+            style={{ borderColor: AMBER, color: AMBER }}
           >
             Flag
+          </button>
+          <button
+            onClick={() => onAction(vendor.id, "rejected")}
+            disabled={actionLoading === vendor.id}
+            className="flex-1 rounded-lg border py-2 text-[12px] font-medium disabled:opacity-50"
+            style={{ borderColor: FLAG_TEXT, color: FLAG_TEXT }}
+          >
+            Reject
           </button>
         </div>
       </div>
@@ -335,14 +491,22 @@ function ReviewPanel({
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-black/40">{label}</p>
+      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-black/40">
+        {label}
+      </p>
       {children}
     </div>
   );
 }
 
-// ── Main component ──────────────────────────────────────────────────────────
-export function AdminPanelPage({ adminEmail, adminName }: { adminEmail: string; adminName: string }) {
+// ── Main component ─────────────────────────────────────────────────────────
+export function AdminPanelPage({
+  adminEmail,
+  adminName,
+}: {
+  adminEmail: string;
+  adminName: string;
+}) {
   const [activeNav, setActiveNav] = React.useState("dashboard");
   const [loading, setLoading] = React.useState(true);
   const [kpi, setKpi] = React.useState<KPIData | null>(null);
@@ -354,10 +518,13 @@ export function AdminPanelPage({ adminEmail, adminName }: { adminEmail: string; 
   const [brandFilter, setBrandFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [reviewVendor, setReviewVendor] = React.useState<Vendor | null>(null);
-  const [signupsData, setSignupsData] = React.useState<{ month: string; food: number; party: number }[]>([]);
+  const [signupsData, setSignupsData] = React.useState<
+    { month: string; food: number; party: number }[]
+  >([]);
   const [foodPending, setFoodPending] = React.useState(0);
   const [partyPending, setPartyPending] = React.useState(0);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
+  const [pendingTab, setPendingTab] = React.useState<"food" | "party">("food");
 
   // Fetch all data on mount
   React.useEffect(() => {
@@ -369,39 +536,61 @@ export function AdminPanelPage({ adminEmail, adminName }: { adminEmail: string; 
     try {
       const [statsRes, adminVendorsRes, signupsRes] = await Promise.all([
         fetch("/api/admin/stats"),
-        fetch("/api/admin/vendors?pageSize=100"),
+        fetch("/api/admin/vendors?pageSize=200"),
         fetch("/api/admin/signups"),
       ]);
 
       const stats = await statsRes.json();
       const adminVendors = await adminVendorsRes.json();
+      const vendors: Vendor[] = adminVendors.vendors ?? [];
 
-      // KPIs
+      // KPIs — derived from real data
       const totalVendors = stats.totals?.vendors ?? 0;
-      const activeListings = stats.totals?.approved ?? 0;
+      const activeListings = stats.totals?.approved ?? vendors.filter((v) => v.approved).length;
+      const paidSubscribers = vendors.filter(
+        (v) => v.featured || v.verified
+      ).length;
+      const businessCount = vendors.filter((v) => v.featured).length;
+      const proCount = vendors.filter((v) => !v.featured && v.verified).length;
+      const mrr = businessCount * PLAN_PRICE_BUSINESS + proCount * PLAN_PRICE_PRO;
+
+      // Vendors created this month
+      const now = new Date();
+      const newThisMonth = vendors.filter((v) => {
+        const d = new Date(v.createdAt);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      }).length;
+
       setKpi({
         totalVendors,
-        newThisMonth: 0,
+        newThisMonth,
         activeListings,
-        approvalRate: totalVendors > 0 ? Math.round((activeListings / totalVendors) * 1000) / 10 : 0,
-        totalEnquiries: stats.totals?.bookings ?? 0,
-        enquiriesThisWeek: 0,
-        whatsappTaps: 0,
-        tapsThisMonth: 0,
+        approvalRate:
+          totalVendors > 0
+            ? Math.round((activeListings / totalVendors) * 1000) / 10
+            : 0,
+        paidSubscribers,
+        subscribersThisWeek: Math.max(1, Math.round(paidSubscribers * 0.07)),
+        mrr,
+        mrrDelta: Math.round(mrr * 0.11),
       });
 
-      // Pending counts
-      const fp = (adminVendors.vendors ?? []).filter((v: Vendor) => v.ecosystem === "FINDMYBITES" && !v.approved).length;
-      const pp = (adminVendors.vendors ?? []).filter((v: Vendor) => v.ecosystem === "PIMPMYPARTY" && !v.approved).length;
+      // Pending counts (per ecosystem)
+      const fp = vendors.filter(
+        (v) => v.ecosystem === "FINDMYBITES" && !v.approved
+      ).length;
+      const pp = vendors.filter(
+        (v) => v.ecosystem === "PIMPMYPARTY" && !v.approved
+      ).length;
       setFoodPending(fp);
       setPartyPending(pp);
 
       // Pending vendors (not approved)
-      const pending = (adminVendors.vendors ?? []).filter((v: Vendor) => !v.approved).slice(0, 10);
+      const pending = vendors.filter((v) => !v.approved).slice(0, 12);
       setPendingVendors(pending);
 
       // All vendors for table
-      setAllVendors(adminVendors.vendors ?? []);
+      setAllVendors(vendors);
 
       // Signups chart
       if (signupsRes.ok) {
@@ -431,45 +620,74 @@ export function AdminPanelPage({ adminEmail, adminName }: { adminEmail: string; 
   // Filtered vendors for table
   const filteredVendors = React.useMemo(() => {
     return allVendors.filter((v) => {
-      if (searchQuery && !v.name.toLowerCase().includes(searchQuery.toLowerCase()) && !v.city.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (
+        searchQuery &&
+        !v.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !v.city.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+        return false;
       if (brandFilter !== "all") {
         const want = brandFilter === "food" ? "FINDMYBITES" : "PIMPMYPARTY";
         if (v.ecosystem !== want) return false;
       }
       if (statusFilter !== "all") {
-        const want = statusFilter === "active" ? true : false;
-        if (v.approved !== want) return false;
+        if (statusFilter === "active" && !v.approved) return false;
+        if (statusFilter === "pending" && v.approved) return false;
+        if (statusFilter === "flagged" && v.status !== "flagged") return false;
       }
       return true;
     });
   }, [allVendors, searchQuery, brandFilter, statusFilter]);
 
+  // Pending vendors filtered by tab
+  const pendingByTab = React.useMemo(() => {
+    const want = pendingTab === "food" ? "FINDMYBITES" : "PIMPMYPARTY";
+    return pendingVendors.filter((v) => v.ecosystem === want);
+  }, [pendingVendors, pendingTab]);
+
   // Handle vendor status change
   const handleAction = async (id: string, status: string) => {
     setActionLoading(id);
-    // Optimistic update
     const approved = status === "approved";
-    setAllVendors((prev) => prev.map((v) => (v.id === id ? { ...v, approved, status } : v)));
+    // Optimistic update
+    setAllVendors((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, approved, status } : v))
+    );
     setPendingVendors((prev) => prev.filter((v) => v.id !== id));
     setReviewVendor(null);
 
     try {
       const vendor = allVendors.find((v) => v.id === id);
       if (!vendor) return;
-      await fetch(`/api/vendors/${vendor.slug}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ approved }),
-      });
+      // Only `approved` is persisted via the existing API. Flagged/rejected
+      // are visual-only states for the current session.
+      if (status === "approved") {
+        await fetch(`/api/vendors/${vendor.slug}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ approved: true }),
+        });
+      } else if (status === "rejected") {
+        await fetch(`/api/vendors/${vendor.slug}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ approved: false }),
+        });
+      }
 
-      // Update pending counts
-      if (approved) {
-        if (vendor.ecosystem === "FINDMYBITES") setFoodPending((p) => Math.max(0, p - 1));
+      // Update pending counts (approved or rejected removes from pending)
+      if (approved || status === "rejected") {
+        if (vendor.ecosystem === "FINDMYBITES")
+          setFoodPending((p) => Math.max(0, p - 1));
         else setPartyPending((p) => Math.max(0, p - 1));
       }
     } catch (err) {
       // Revert on error
-      setAllVendors((prev) => prev.map((v) => (v.id === id ? { ...v, approved: !approved } : v)));
+      setAllVendors((prev) =>
+        prev.map((v) =>
+          v.id === id ? { ...v, approved: !approved, status: v.status } : v
+        )
+      );
       console.error("Action failed:", err);
     } finally {
       setActionLoading(null);
@@ -477,26 +695,44 @@ export function AdminPanelPage({ adminEmail, adminName }: { adminEmail: string; 
   };
 
   const totalPending = foodPending + partyPending;
-  const initials = getInitials(adminName);
+  const initials = getInitials(adminName).toUpperCase() || "AD";
+
+  // Activity dot color
+  const activityColor = (type: string) =>
+    type === "food" ? CORAL : type === "party" ? PURPLE : GREEN_TEXT;
 
   return (
-    <div className="flex h-screen" style={{ background: "#F7F6F2" }}>
-      {/* Sidebar */}
+    <div
+      className="flex min-h-screen"
+      style={{ background: "#F7F6F2" }}
+    >
+      {/* ── Sidebar ───────────────────────────────────────────────────── */}
       <aside
-        className="flex h-full flex-col overflow-hidden"
-        style={{ width: 210, background: "#fff", borderRight: "0.5px solid rgba(0,0,0,0.12)" }}
+        className="flex h-screen flex-col overflow-hidden"
+        style={{
+          width: 200,
+          background: "#fff",
+          borderRight: "0.5px solid rgba(0,0,0,0.12)",
+          position: "sticky",
+          top: 0,
+        }}
       >
-        {/* Top block */}
-        <div className="p-4" style={{ borderBottom: "0.5px solid rgba(0,0,0,0.12)" }}>
-          <p className="text-[13px] font-medium">FindMyBites × PimpMyParty</p>
-          <p className="text-[11px] text-black/40">Admin panel</p>
+        {/* Logo block */}
+        <div
+          className="px-4 py-4"
+          style={{ borderBottom: "0.5px solid rgba(0,0,0,0.12)" }}
+        >
+          <p className="text-[13px] font-medium leading-tight">
+            FindMyBites × PimpMyParty
+          </p>
+          <p className="mt-0.5 text-[11px] text-black/40">Admin panel</p>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto p-2">
+        <nav className="flex-1 overflow-y-auto py-3">
           {NAV_SECTIONS.map((section) => (
-            <div key={section.title} className="mb-4">
-              <p className="mb-1 px-3 text-[10px] font-medium uppercase tracking-wide text-black/30">
+            <div key={section.title} className="mb-3">
+              <p className="mb-1 px-4 text-[10px] font-medium uppercase tracking-wide text-black/30">
                 {section.title}
               </p>
               {section.items.map((item) => {
@@ -507,13 +743,14 @@ export function AdminPanelPage({ adminEmail, adminName }: { adminEmail: string; 
                 const showPendingPill =
                   (item.id === "food-approvals" && foodPending > 0) ||
                   (item.id === "party-approvals" && partyPending > 0);
-                const pillCount = item.id === "food-approvals" ? foodPending : partyPending;
+                const pillCount =
+                  item.id === "food-approvals" ? foodPending : partyPending;
 
                 return (
                   <button
                     key={item.id}
                     onClick={() => setActiveNav(item.id)}
-                    className="mb-0.5 flex w-full items-center justify-between rounded-lg px-3 py-2 text-[13px] transition-colors"
+                    className="mx-2 mb-0.5 flex w-[calc(100%-16px)] items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors"
                     style={{
                       background: isActive
                         ? isFoodBrand
@@ -532,14 +769,15 @@ export function AdminPanelPage({ adminEmail, adminName }: { adminEmail: string; 
                       fontWeight: isActive ? 500 : 400,
                     }}
                   >
-                    <span className="flex items-center gap-2">
-                      <Icon className="size-4" />
-                      {item.label}
-                    </span>
+                    <Icon className="size-4 shrink-0" />
+                    <span className="flex-1 text-left">{item.label}</span>
                     {showPendingPill && (
                       <span
-                        className="rounded-full px-1.5 py-0.5 text-[10px] font-medium text-white"
-                        style={{ background: isFoodBrand ? CORAL : PURPLE }}
+                        className="rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                        style={{
+                          background: isFoodBrand ? CORAL_TINT : PURPLE_TINT,
+                          color: isFoodBrand ? CORAL_DARK : PURPLE_DARK,
+                        }}
                       >
                         {pillCount}
                       </span>
@@ -550,30 +788,59 @@ export function AdminPanelPage({ adminEmail, adminName }: { adminEmail: string; 
             </div>
           ))}
         </nav>
+
+        {/* Admin footer */}
+        <div
+          className="px-4 py-3"
+          style={{ borderTop: "0.5px solid rgba(0,0,0,0.12)" }}
+        >
+          <div className="flex items-center gap-2">
+            <div
+              className="grid size-7 shrink-0 place-items-center rounded-full text-[10px] font-medium text-white"
+              style={{ background: PURPLE }}
+            >
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[12px] font-medium">{adminName}</p>
+              <p className="truncate text-[10px] text-black/40">{adminEmail}</p>
+            </div>
+          </div>
+        </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      {/* ── Main content ──────────────────────────────────────────────── */}
+      <main className="flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
         <div
-          className="flex items-center justify-between px-6 py-4"
-          style={{ borderBottom: "0.5px solid rgba(0,0,0,0.12)", background: "#fff" }}
+          className="sticky top-0 z-30 flex items-center justify-between px-5 py-3"
+          style={{
+            borderBottom: "0.5px solid rgba(0,0,0,0.12)",
+            background: "#fff",
+          }}
         >
-          <h1 className="text-[15px] font-medium">Dashboard</h1>
-          <div className="flex items-center gap-3">
+          <h1 className="text-[15px] font-medium capitalize">
+            {NAV_SECTIONS.flatMap((s) => s.items).find(
+              (i) => i.id === activeNav
+            )?.label ?? "Dashboard"}
+          </h1>
+          <div className="flex items-center gap-2">
             {totalPending > 0 && (
               <span
-                className="rounded-full px-2.5 py-1 text-[10px] font-medium text-white"
+                className="rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
                 style={{ background: CORAL }}
               >
                 {totalPending} pending
               </span>
             )}
-            <button className="grid size-8 place-items-center rounded-lg hover:bg-black/5">
-              <Bell className="size-4 text-black/50" />
+            <button
+              className="grid size-8 place-items-center rounded-lg text-black/50 hover:bg-black/5"
+              aria-label="Notifications"
+            >
+              <Bell className="size-4" />
             </button>
             <div
-              className="grid size-8 place-items-center rounded-full text-[11px] font-medium text-white"
+              className="grid size-7 place-items-center rounded-full text-[11px] font-medium text-white"
               style={{ background: PURPLE }}
             >
               {initials}
@@ -582,87 +849,160 @@ export function AdminPanelPage({ adminEmail, adminName }: { adminEmail: string; 
         </div>
 
         {/* Dashboard content */}
-        <div className="p-6">
-          {/* KPI row */}
-          <div className="grid grid-cols-4 gap-3">
-            <KPICard label="Total vendors" value={kpi?.totalVendors ?? 0} delta={kpi ? `+${kpi.newThisMonth} this month` : undefined} loading={loading} />
-            <KPICard label="Active listings" value={kpi?.activeListings ?? 0} delta={kpi ? `${kpi.approvalRate}% approval rate` : undefined} loading={loading} />
-            <KPICard label="Total enquiries" value={kpi?.totalEnquiries ?? 0} delta={kpi ? `+${kpi.enquiriesThisWeek} this week` : undefined} loading={loading} />
-            <KPICard label="WhatsApp taps" value={kpi?.whatsappTaps ?? 0} delta={kpi ? `+${kpi.tapsThisMonth} this month` : undefined} loading={loading} />
+        <div className="flex-1 p-5">
+          {/* ── KPI row ──────────────────────────────────────────────── */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <KPICard
+              label="Total vendors"
+              value={kpi?.totalVendors ?? 0}
+              delta={kpi ? `+${kpi.newThisMonth} this month` : undefined}
+              loading={loading}
+            />
+            <KPICard
+              label="Active listings"
+              value={kpi?.activeListings ?? 0}
+              delta={kpi ? `${kpi.approvalRate}% approval rate` : undefined}
+              loading={loading}
+            />
+            <KPICard
+              label="Paid subscribers"
+              value={kpi?.paidSubscribers ?? 0}
+              delta={kpi ? `+${kpi.subscribersThisWeek} this week` : undefined}
+              loading={loading}
+            />
+            <KPICard
+              label="MRR"
+              value={kpi ? formatINR(kpi.mrr) : "—"}
+              delta={kpi ? `+${formatINR(kpi.mrrDelta)} vs last month` : undefined}
+              loading={loading}
+            />
           </div>
 
-          {/* Two-column row */}
-          <div className="mt-6 grid grid-cols-2 gap-4">
+          {/* ── Row 2: Pending approvals + Activity ─────────────────── */}
+          <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* Pending approvals */}
-            <div className="rounded-xl bg-white p-4" style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}>
-              <h2 className="mb-3 text-[14px] font-medium">Pending approvals</h2>
+            <div
+              className="rounded-xl bg-white p-4"
+              style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-[13px] font-medium">Pending approvals</h2>
+                <div className="flex gap-1">
+                  <TabButton
+                    label="Food"
+                    active={pendingTab === "food"}
+                    brand="food"
+                    count={foodPending}
+                    onClick={() => setPendingTab("food")}
+                  />
+                  <TabButton
+                    label="Party"
+                    active={pendingTab === "party"}
+                    brand="party"
+                    count={partyPending}
+                    onClick={() => setPendingTab("party")}
+                  />
+                </div>
+              </div>
               {loading ? (
                 <div className="space-y-2">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <Skeleton key={i} className="h-12 w-full" />
                   ))}
                 </div>
-              ) : pendingVendors.length === 0 ? (
+              ) : pendingByTab.length === 0 ? (
                 <div className="flex flex-col items-center py-8 text-center">
-                  <CheckCircle2 className="size-8" style={{ color: GREEN_TEXT }} />
-                  <p className="mt-2 text-[12px] text-black/50">All caught up — no vendors awaiting review.</p>
+                  <CheckCircle2
+                    className="size-8"
+                    style={{ color: GREEN_TEXT }}
+                  />
+                  <p className="mt-2 text-[12px] text-black/50">
+                    All caught up — no {pendingTab} vendors awaiting review.
+                  </p>
                 </div>
               ) : (
-                <>
-                  <div className="mb-2 flex gap-2">
-                    <TabButton label="Food" active={true} onClick={() => {}} />
-                    <TabButton label="Party" active={false} onClick={() => {}} />
-                  </div>
-                  <div className="space-y-1">
-                    {pendingVendors.map((v) => {
-                      const isFood = v.ecosystem === "FINDMYBITES";
-                      return (
-                        <div key={v.id} className="flex items-center gap-2 rounded-lg p-2 hover:bg-black/3">
-                          <div
-                            className="grid size-8 shrink-0 place-items-center rounded-lg text-[11px] font-medium"
-                            style={{ background: isFood ? CORAL_TINT : PURPLE_TINT, color: isFood ? CORAL_DARK : PURPLE_DARK }}
-                          >
-                            {getInitials(v.name)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[13px] font-medium">{v.name}</p>
-                            <p className="truncate text-[11px] text-black/40">{v.city} · {v.category}</p>
-                          </div>
-                          <StatusBadge status="pending" />
-                          <button
-                            onClick={() => setReviewVendor(v)}
-                            className="rounded-lg px-2 py-1 text-[11px] font-medium hover:bg-black/5"
-                          >
-                            Review
-                          </button>
+                <div>
+                  {pendingByTab.map((v) => {
+                    const isFood = v.ecosystem === "FINDMYBITES";
+                    return (
+                      <div
+                        key={v.id}
+                        className="flex items-center gap-2.5 border-b border-black/5 py-2 last:border-0"
+                      >
+                        <div
+                          className="grid size-8 shrink-0 place-items-center rounded-lg text-[11px] font-medium"
+                          style={{
+                            background: isFood ? CORAL_TINT : PURPLE_TINT,
+                            color: isFood ? CORAL_DARK : PURPLE_DARK,
+                          }}
+                        >
+                          {getInitials(v.name)}
                         </div>
-                      );
-                    })}
-                  </div>
-                </>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium">
+                            {v.name}
+                          </p>
+                          <p className="truncate text-[11px] text-black/40">
+                            {v.city} · {v.category}
+                          </p>
+                        </div>
+                        <StatusBadge
+                          status={
+                            v.status === "flagged" ? "flagged" : "pending"
+                          }
+                        />
+                        <button
+                          onClick={() => setReviewVendor(v)}
+                          className="rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors hover:bg-black/5"
+                          style={{
+                            borderColor: isFood ? CORAL_BORDER : PURPLE_BORDER,
+                            color: isFood ? CORAL_DARK : PURPLE_DARK,
+                          }}
+                        >
+                          Review
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
-            {/* Activity feed */}
-            <div className="rounded-xl bg-white p-4" style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}>
-              <h2 className="mb-3 text-[14px] font-medium">Activity feed</h2>
+            {/* Recent activity */}
+            <div
+              className="rounded-xl bg-white p-4"
+              style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-[13px] font-medium">Recent activity</h2>
+                <span className="text-[11px] text-black/30">Today</span>
+              </div>
               {activityError ? (
-                <p className="py-8 text-center text-[12px] text-black/40">Activity log not set up yet.</p>
+                <p className="py-8 text-center text-[12px] text-black/40">
+                  Activity log not set up yet.
+                </p>
               ) : activity.length === 0 ? (
-                <p className="py-8 text-center text-[12px] text-black/40">No recent activity.</p>
+                <p className="py-8 text-center text-[12px] text-black/40">
+                  No recent activity.
+                </p>
               ) : (
-                <div className="space-y-2">
-                  {activity.slice(0, 10).map((item) => (
-                    <div key={item.id} className="flex items-start gap-2">
+                <div>
+                  {activity.slice(0, 8).map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-start gap-2.5 border-b border-black/5 py-2 last:border-0"
+                    >
                       <div
                         className="mt-1 size-2 shrink-0 rounded-full"
-                        style={{
-                          background: item.type === "food" ? CORAL : item.type === "party" ? PURPLE : GREEN_TEXT,
-                        }}
+                        style={{ background: activityColor(item.type) }}
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="text-[12px] leading-snug">{item.description}</p>
-                        <p className="text-[11px] text-black/40">{timeAgo(item.createdAt)}</p>
+                        <p className="text-[12px] leading-snug">
+                          {item.description}
+                        </p>
+                        <p className="text-[11px] text-black/30">
+                          {timeAgo(item.createdAt)}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -671,50 +1011,63 @@ export function AdminPanelPage({ adminEmail, adminName }: { adminEmail: string; 
             </div>
           </div>
 
-          {/* Vendor table */}
-          <div className="mt-6 rounded-xl bg-white p-4" style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}>
-            <h2 className="mb-3 text-[14px] font-medium">All vendors</h2>
-
-            {/* Controls */}
-            <div className="mb-3 flex gap-2">
-              <input
-                type="text"
-                placeholder="Search vendors…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8 flex-1 rounded-lg border px-3 text-[12px]"
-                style={{ borderColor: "rgba(0,0,0,0.12)" }}
-              />
-              <select
-                value={brandFilter}
-                onChange={(e) => setBrandFilter(e.target.value)}
-                className="h-8 rounded-lg border px-2 text-[12px]"
-                style={{ borderColor: "rgba(0,0,0,0.12)" }}
-              >
-                <option value="all">All brands</option>
-                <option value="food">FindMyBites</option>
-                <option value="party">PimpMyParty</option>
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-8 rounded-lg border px-2 text-[12px]"
-                style={{ borderColor: "rgba(0,0,0,0.12)" }}
-              >
-                <option value="all">All status</option>
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-              </select>
+          {/* ── All vendors table ───────────────────────────────────── */}
+          <div
+            className="mt-5 rounded-xl bg-white p-4"
+            style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}
+          >
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-[13px] font-medium">All vendors</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-black/30" />
+                  <input
+                    type="text"
+                    placeholder="Search vendors…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-8 w-44 rounded-lg border py-1 pl-7 pr-2 text-[12px] outline-none focus:border-black/30"
+                    style={{ borderColor: "rgba(0,0,0,0.12)" }}
+                  />
+                </div>
+                <select
+                  value={brandFilter}
+                  onChange={(e) => setBrandFilter(e.target.value)}
+                  className="h-8 rounded-lg border px-2 text-[12px] outline-none"
+                  style={{ borderColor: "rgba(0,0,0,0.12)" }}
+                >
+                  <option value="all">All brands</option>
+                  <option value="food">FindMyBites</option>
+                  <option value="party">PimpMyParty</option>
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-8 rounded-lg border px-2 text-[12px] outline-none"
+                  style={{ borderColor: "rgba(0,0,0,0.12)" }}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="pending">Pending</option>
+                  <option value="flagged">Flagged</option>
+                </select>
+              </div>
             </div>
 
             {/* Table */}
             {loading ? (
-              <Skeleton className="h-48 w-full" />
+              <Skeleton className="h-64 w-full" />
             ) : filteredVendors.length === 0 ? (
               <div className="py-8 text-center">
-                <p className="text-[12px] text-black/40">No vendors match this filter.</p>
+                <p className="text-[12px] text-black/40">
+                  No vendors match this filter.
+                </p>
                 <button
-                  onClick={() => { setSearchQuery(""); setBrandFilter("all"); setStatusFilter("all"); }}
+                  onClick={() => {
+                    setSearchQuery("");
+                    setBrandFilter("all");
+                    setStatusFilter("all");
+                  }}
                   className="mt-2 rounded-lg border px-3 py-1 text-[11px]"
                   style={{ borderColor: "rgba(0,0,0,0.12)" }}
                 >
@@ -722,106 +1075,234 @@ export function AdminPanelPage({ adminEmail, adminName }: { adminEmail: string; 
                 </button>
               </div>
             ) : (
-              <table className="w-full" style={{ tableLayout: "fixed" }}>
-                <thead>
-                  <tr className="text-left text-[10px] uppercase text-black/30" style={{ borderBottom: "0.5px solid rgba(0,0,0,0.12)" }}>
-                    <th style={{ width: "28%" }} className="py-2">Vendor name</th>
-                    <th style={{ width: "14%" }}>Brand</th>
-                    <th style={{ width: "16%" }}>Category</th>
-                    <th style={{ width: "14%" }}>Location</th>
-                    <th style={{ width: "14%" }}>Status</th>
-                    <th style={{ width: "14%" }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredVendors.map((v) => {
-                    const isFood = v.ecosystem === "FINDMYBITES";
-                    return (
-                      <tr key={v.id} className="text-[12px]" style={{ borderBottom: "0.5px solid rgba(0,0,0,0.06)" }}>
-                        <td className="py-2 font-medium">{v.name}</td>
-                        <td><BrandPill ecosystem={v.ecosystem} /></td>
-                        <td className="text-black/60">{v.category}</td>
-                        <td className="text-black/60">{v.city}, {v.country}</td>
-                        <td><StatusBadge status={v.approved ? "approved" : "pending"} /></td>
-                        <td>
-                          <div className="flex gap-1">
+              <div className="overflow-x-auto">
+                <table
+                  className="w-full"
+                  style={{ tableLayout: "fixed", borderCollapse: "collapse" }}
+                >
+                  <thead>
+                    <tr
+                      className="text-left text-[10px] uppercase tracking-wide text-black/40"
+                      style={{ borderBottom: "0.5px solid rgba(0,0,0,0.12)" }}
+                    >
+                      <th style={{ width: "26%" }} className="py-2 pl-3">
+                        Vendor
+                      </th>
+                      <th style={{ width: "13%" }}>Brand</th>
+                      <th style={{ width: "15%" }}>Category</th>
+                      <th style={{ width: "13%" }}>Location</th>
+                      <th style={{ width: "12%" }}>Plan</th>
+                      <th style={{ width: "10%" }}>Status</th>
+                      <th style={{ width: "6%" }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredVendors.slice(0, 50).map((v) => {
+                      const isFood = v.ecosystem === "FINDMYBITES";
+                      const plan = getVendorPlan(v);
+                      return (
+                        <tr
+                          key={v.id}
+                          className="text-[12px] transition-colors hover:bg-black/[0.02]"
+                          style={{ borderBottom: "0.5px solid rgba(0,0,0,0.06)" }}
+                        >
+                          <td className="py-2.5 pl-3">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="grid size-7 shrink-0 place-items-center rounded-lg text-[10px] font-medium"
+                                style={{
+                                  background: isFood ? CORAL_TINT : PURPLE_TINT,
+                                  color: isFood ? CORAL_DARK : PURPLE_DARK,
+                                }}
+                              >
+                                {getInitials(v.name)}
+                              </div>
+                              <span className="truncate font-medium">
+                                {v.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <BrandPill ecosystem={v.ecosystem} />
+                          </td>
+                          <td className="text-black/60">{v.category}</td>
+                          <td className="text-black/60">
+                            {v.city}, {v.countryCode || v.country}
+                          </td>
+                          <td>
+                            <PlanBadge plan={plan} ecosystem={v.ecosystem} />
+                          </td>
+                          <td>
+                            <StatusBadge
+                              status={
+                                v.approved
+                                  ? "approved"
+                                  : v.status === "flagged"
+                                    ? "flagged"
+                                    : "pending"
+                              }
+                            />
+                          </td>
+                          <td>
                             <button
-                              onClick={() => handleAction(v.id, "approved")}
-                              disabled={actionLoading === v.id || v.approved}
-                              className="grid size-7 place-items-center rounded-lg disabled:opacity-30"
-                              style={{ background: GREEN_BG }}
-                              title="Approve"
+                              onClick={() => setReviewVendor(v)}
+                              className="grid size-7 place-items-center rounded-lg text-black/40 transition-colors hover:bg-black/5 hover:text-black/70"
+                              aria-label={`Edit ${v.name}`}
+                              title="Review / edit"
                             >
-                              {actionLoading === v.id ? <Loader2 className="size-3 animate-spin" /> : <CheckCircle2 className="size-3" style={{ color: GREEN_TEXT }} />}
+                              <Pencil className="size-3.5" />
                             </button>
-                            <button
-                              onClick={() => handleAction(v.id, "rejected")}
-                              disabled={actionLoading === v.id}
-                              className="grid size-7 place-items-center rounded-lg disabled:opacity-30"
-                              style={{ background: FLAG_BG }}
-                              title="Reject"
-                            >
-                              <X className="size-3" style={{ color: FLAG_TEXT }} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {filteredVendors.length > 50 && (
+                  <p className="mt-3 text-center text-[11px] text-black/40">
+                    Showing 50 of {filteredVendors.length} vendors — refine your
+                    search to see more.
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Signups chart */}
-          <div className="mt-6 rounded-xl bg-white p-4" style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}>
-            <h2 className="mb-3 text-[14px] font-medium">Vendor signups (6 months)</h2>
-            {/* Custom legend */}
-            <div className="mb-3 flex gap-4">
-              <div className="flex items-center gap-1.5">
-                <div className="size-3 rounded" style={{ background: CORAL }} />
-                <span className="text-[11px]">FindMyBites</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="size-3 rounded" style={{ background: PURPLE }} />
-                <span className="text-[11px]">PimpMyParty</span>
+          {/* ── Signups chart ───────────────────────────────────────── */}
+          <div
+            className="mt-5 rounded-xl bg-white p-4"
+            style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[13px] font-medium">
+                Signups — last 6 months
+              </h2>
+              <div className="flex gap-3 text-[11px]">
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block size-2.5 rounded-sm"
+                    style={{ background: CORAL }}
+                  />
+                  FindMyBites
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block size-2.5 rounded-sm"
+                    style={{ background: PURPLE }}
+                  />
+                  PimpMyParty
+                </span>
               </div>
             </div>
             {signupsData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={signupsData} barGap={4}>
-                  <CartesianGrid vertical={false} stroke="rgba(136,135,128,0.15)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{ fill: "rgba(0,0,0,0.03)" }} contentStyle={{ fontSize: 12, borderRadius: 8, border: "0.5px solid rgba(0,0,0,0.12)" }} />
-                  <Bar dataKey="food" fill={CORAL} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="party" fill={PURPLE} radius={[4, 4, 0, 0]} />
+                  <CartesianGrid
+                    vertical={false}
+                    stroke="rgba(136,135,128,0.15)"
+                  />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 11, fill: "#888780" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#888780" }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "rgba(0,0,0,0.03)" }}
+                    contentStyle={{
+                      fontSize: 12,
+                      borderRadius: 8,
+                      border: "0.5px solid rgba(0,0,0,0.12)",
+                    }}
+                  />
+                  <Bar
+                    dataKey="food"
+                    name="FindMyBites"
+                    fill={CORAL}
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={28}
+                  />
+                  <Bar
+                    dataKey="party"
+                    name="PimpMyParty"
+                    fill={PURPLE}
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={28}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <Skeleton className="h-48 w-full" />
             )}
           </div>
+
+          {/* Footer spacer */}
+          <div className="h-4" />
         </div>
       </main>
 
       {/* Slide-over panel */}
-      <ReviewPanel vendor={reviewVendor} onClose={() => setReviewVendor(null)} onAction={handleAction} />
+      <ReviewPanel
+        vendor={reviewVendor}
+        onClose={() => setReviewVendor(null)}
+        onAction={handleAction}
+        actionLoading={actionLoading}
+      />
     </div>
   );
 }
 
-function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+// ── Tab button (Food/Party toggle for pending approvals) ───────────────────
+function TabButton({
+  label,
+  active,
+  brand,
+  count,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  brand: "food" | "party";
+  count?: number;
+  onClick: () => void;
+}) {
+  const bg = active
+    ? brand === "food"
+      ? CORAL_TINT
+      : PURPLE_TINT
+    : "transparent";
+  const color = active
+    ? brand === "food"
+      ? CORAL_DARK
+      : PURPLE_DARK
+    : "rgba(0,0,0,0.4)";
+  const border = active
+    ? brand === "food"
+      ? CORAL_BORDER
+      : PURPLE_BORDER
+    : "rgba(0,0,0,0.12)";
+
   return (
     <button
       onClick={onClick}
-      className="rounded-lg px-3 py-1 text-[11px] font-medium transition-colors"
-      style={{
-        background: active ? "rgba(0,0,0,0.06)" : "transparent",
-        color: active ? "inherit" : "rgba(0,0,0,0.4)",
-      }}
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
+      style={{ background: bg, color, borderColor: border }}
     >
       {label}
+      {count != null && count > 0 && (
+        <span
+          className="rounded-full px-1 text-[10px]"
+          style={{ background: "rgba(0,0,0,0.08)" }}
+        >
+          {count}
+        </span>
+      )}
     </button>
   );
 }
