@@ -146,7 +146,6 @@ model Product {
   description String?
   price       Int
   image       String?
-  // product type (e.g. "cake", "cupcake", "catering", "photography", "dj", "venue")
   productType String?
   // FindMyBites-specific
   sizes       String?
@@ -154,14 +153,40 @@ model Product {
   weight      String?
   prepTime    String?
   deliveryAvailable Boolean @default(false)
-  // PimpMyParty / catering-specific
   minGuests   Int?
   pricePerHead Int?
-  // multiple images (JSON array of URLs)
   images      String?
+  // ── NEW: enhanced product fields ──
+  // media
+  videoUrl    String?
+  // pricing tiers (JSON: [{"label":"Small","price":100},{"label":"Large","price":200}])
+  pricingTiers String?
+  // food-specific
+  servings    String?
+  shape       String?
+  eggless     Boolean  @default(false)
+  // availability
+  sameDay     Boolean  @default(false)
+  customOrder Boolean  @default(false)
+  pickupAvailable Boolean @default(false)
+  // featured badge
+  featured    Boolean  @default(false)
+  // SEO
+  metaTitle   String?
+  metaDescription String?
+  // availability by location
+  availableCountries String?
+  availableStates  String?
+  availableCities  String?
+  // inventory
+  inStock     Boolean  @default(true)
+  stockCount  Int?
+  // category-specific extra fields (JSON for flexibility)
+  extraFields String?
   createdAt   DateTime @default(now())
 
   @@index([vendorId])
   @@index([productType])
   @@index([slug])
+  @@index([featured])
 }

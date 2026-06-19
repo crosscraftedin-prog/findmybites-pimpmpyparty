@@ -73,6 +73,24 @@ export interface Product {
   minGuests?: number | null;
   pricePerHead?: number | null;
   images?: string[] | null;
+  // enhanced fields
+  videoUrl?: string | null;
+  pricingTiers?: { label: string; price: number }[] | null;
+  servings?: string | null;
+  shape?: string | null;
+  eggless?: boolean;
+  sameDay?: boolean;
+  customOrder?: boolean;
+  pickupAvailable?: boolean;
+  featured?: boolean;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  availableCountries?: string | null;
+  availableStates?: string | null;
+  availableCities?: string | null;
+  inStock?: boolean;
+  stockCount?: number | null;
+  extraFields?: Record<string, string> | null;
   createdAt: string;
 }
 
