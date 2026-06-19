@@ -54,8 +54,8 @@ const FLAG_TEXT = "#791F1F";
 const RED_DELTA = "#A32D2D";
 const AMBER = "#D97706";
 
-const PLAN_PRICE_BUSINESS = 99;
-const PLAN_PRICE_PRO = 29;
+const PLAN_PRICE_BUSINESS = 499;
+const PLAN_PRICE_PRO = 299;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Vendor {
@@ -244,7 +244,7 @@ function PlanBadge({
       ? { background: CORAL_TINT, color: CORAL_DARK }
       : plan === "pro"
         ? { background: PURPLE_TINT, color: PURPLE_DARK }
-        : { background: "rgba(0,0,0,0.05)", color: "rgba(0,0,0,0.5)" };
+        : { background: "#F1EFE8", color: "#5F5E5A" };
   return (
     <span
       className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
@@ -269,7 +269,7 @@ function KPICard({
   loading?: boolean;
 }) {
   return (
-    <div className="rounded-lg p-3.5" style={{ background: "rgba(0,0,0,0.03)" }}>
+    <div className="rounded-lg p-3.5" style={{ background: "#F1EFE8" }}>
       <p className="mb-1.5 text-[11px] text-black/50">{label}</p>
       {loading ? (
         <Skeleton className="h-6 w-16" />
