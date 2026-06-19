@@ -111,7 +111,12 @@ function formStateFromVendor(v: Vendor): FormState {
     yearsActive: v.yearsActive ? String(v.yearsActive) : "1",
     logoUrl:
       v.avatarImage && v.avatarImage !== v.heroImage ? v.avatarImage : "",
-    bannerUrl: v.heroImage?.startsWith("/uploads/") ? v.heroImage : "",
+    bannerUrl:
+      v.heroImage &&
+      (v.heroImage.startsWith("/uploads/") ||
+        v.heroImage.includes("supabase.co/storage"))
+        ? v.heroImage
+        : "",
     instagram: v.instagram ?? "",
     website: v.website ?? "",
     whatsapp: v.whatsapp ?? "",
