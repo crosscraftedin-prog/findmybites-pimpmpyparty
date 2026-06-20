@@ -129,6 +129,10 @@ model Vendor {
   @@index([createdAt])
   @@index([approved])
   @@index([userEmail])
+  @@index([city])
+  @@index([state])
+  @@index([latitude])
+  @@index([longitude])
   // composite indexes for the most common filter+sort combos at scale
   @@index([ecosystem, category])
   @@index([ecosystem, continent])
@@ -136,6 +140,8 @@ model Vendor {
   @@index([ecosystem, priceRange])
   @@index([ecosystem, rating])
   @@index([ecosystem, approved])
+  @@index([ecosystem, city])
+  @@index([approved, latitude, longitude])
 }
 
 model Review {

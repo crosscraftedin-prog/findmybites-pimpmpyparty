@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   LogIn,
   Edit3,
+  Navigation,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,6 +139,19 @@ export function SiteHeader() {
           />
         </div>
 
+        {/* Near Me button (desktop + mobile) */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.location.href = "/near-me"}
+          className="shrink-0 gap-1.5 border-brand/30 text-brand hover:bg-brand-soft"
+          aria-label="Find vendors near me"
+          title="Find vendors near your location"
+        >
+          <Navigation className="size-4" />
+          <span className="hidden sm:inline">Near Me</span>
+        </Button>
+
         {/* Ecosystem toggle (desktop) */}
         <div className="hidden md:block">
           <EcosystemToggle size="sm" />
@@ -229,6 +243,15 @@ export function SiteHeader() {
                   />
                 </div>
                 <nav className="flex flex-col gap-1">
+                  <SheetClose asChild>
+                    <Link
+                      href="/near-me"
+                      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-brand hover:bg-brand-soft"
+                    >
+                      <Navigation className="size-4" />
+                      📍 Near Me
+                    </Link>
+                  </SheetClose>
                   {NAV_LINKS.map((l) => {
                     const Icon = l.icon;
                     return (

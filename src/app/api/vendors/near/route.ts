@@ -82,6 +82,9 @@ export async function GET(req: NextRequest) {
       Number.isFinite(radiusParam) && radiusParam > 0 ? radiusParam : 0;
     const ecosystem = sp.get("ecosystem") ?? undefined;
     const category = sp.get("category") ?? undefined;
+    const minRating = Number(sp.get("minRating")) || 0;
+    const verifiedOnly = sp.get("verified") === "true";
+    const featuredOnly = sp.get("featured") === "true";
     const limitParam = Number(sp.get("limit"));
     const limit =
       Number.isFinite(limitParam) && limitParam > 0
@@ -102,6 +105,9 @@ export async function GET(req: NextRequest) {
     };
     if (ecosystem) where.ecosystem = ecosystem;
     if (category) where.category = category;
+    if (minRating > 0) where.rating = { gte: minRating };
+    if (verifiedOnly) where.verified = true;
+    if (featuredOnly) where.featured = true;
 
     // Bounding box: 1 deg latitude ≈ 111 km. For longitude, shrink by
     // cos(lat). Add a small safety margin. When radius=0 (global) skip the
@@ -171,9 +177,13 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("[api/vendors/near] GET failed:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch nearby vendors." },
-      { status: 500 }
-    );
+    // Return empty list instead of 500 so the UI shows "no vendors" state
+    // instead of an error — matches the pattern used in /api/vendors and /api/stats
+    return NextResponse.json({
+      vendors: [],
+      total: 0,
+      center: { lat, lng },
+      radius,
+    });
   }
 }
