@@ -449,14 +449,6 @@ export function VendorModal() {
                     <Zap className="size-4" />
                     Get Instant Quote
                   </Button>
-                  {/* Claim this business */}
-                  <Link
-                    href={`/claim/${vendor.id}`}
-                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  >
-                    <ShieldCheck className="size-3.5" />
-                    Claim this business
-                  </Link>
                 </div>
 
                 {/* Tabs */}
