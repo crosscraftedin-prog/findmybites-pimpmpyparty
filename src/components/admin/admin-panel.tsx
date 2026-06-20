@@ -567,6 +567,8 @@ export function AdminPanel() {
   const [partyPending, setPartyPending] = React.useState(0);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
   const [pendingTab, setPendingTab] = React.useState<"food" | "party">("food");
+  const [vendorPage, setVendorPage] = React.useState(0);
+  const VENDORS_PER_PAGE = 25;
 
   // LAZY LOADING: Only fetch stats + signups on mount (fast KPI load).
   // Vendors and activity are loaded separately when the dashboard tab is active.
@@ -724,6 +726,11 @@ export function AdminPanel() {
       return true;
     });
   }, [allVendors, searchQuery, brandFilter, statusFilter]);
+
+  // Reset to page 0 when filters change
+  React.useEffect(() => {
+    setVendorPage(0);
+  }, [searchQuery, brandFilter, statusFilter]);
 
   const pendingByTab = React.useMemo(() => {
     const want = pendingTab === "food" ? "FINDMYBITES" : "PIMPMYPARTY";
@@ -1187,7 +1194,9 @@ export function AdminPanel() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredVendors.slice(0, 50).map((v) => {
+                        {filteredVendors
+                          .slice(vendorPage * VENDORS_PER_PAGE, (vendorPage + 1) * VENDORS_PER_PAGE)
+                          .map((v) => {
                           const isFood = v.ecosystem === "FINDMYBITES";
                           const plan = getVendorPlan(v);
                           return (
@@ -1246,12 +1255,39 @@ export function AdminPanel() {
                         })}
                       </tbody>
                     </table>
-                    {filteredVendors.length > 50 && (
-                      <p className="mt-3 text-center text-[11px] text-black/40">
-                        Showing 50 of {filteredVendors.length} vendors — refine your
-                        search to see more.
-                      </p>
-                    )}
+                    {(() => {
+                      const totalPages = Math.ceil(filteredVendors.length / VENDORS_PER_PAGE);
+                      const start = vendorPage * VENDORS_PER_PAGE + 1;
+                      const end = Math.min((vendorPage + 1) * VENDORS_PER_PAGE, filteredVendors.length);
+                      return (
+                        <div className="mt-3 flex items-center justify-between">
+                          <p className="text-[11px] text-black/40">
+                            Showing {start}–{end} of {filteredVendors.length} vendors
+                          </p>
+                          {totalPages > 1 && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => setVendorPage((p) => Math.max(0, p - 1))}
+                                disabled={vendorPage === 0}
+                                className="rounded-lg border border-black/10 px-2.5 py-1 text-[11px] font-medium text-black/60 transition-colors hover:bg-black/5 disabled:opacity-30"
+                              >
+                                ← Prev
+                              </button>
+                              <span className="px-2 text-[11px] text-black/40">
+                                Page {vendorPage + 1} of {totalPages}
+                              </span>
+                              <button
+                                onClick={() => setVendorPage((p) => Math.min(totalPages - 1, p + 1))}
+                                disabled={vendorPage >= totalPages - 1}
+                                className="rounded-lg border border-black/10 px-2.5 py-1 text-[11px] font-medium text-black/60 transition-colors hover:bg-black/5 disabled:opacity-30"
+                              >
+                                Next →
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

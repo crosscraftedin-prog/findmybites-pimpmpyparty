@@ -27,6 +27,16 @@ const EXT_BY_TYPE: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
+    // Auth check — only signed-in users can upload images
+    const supabase = await createSupabaseServerClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: "Authentication required to upload images." },
+        { status: 401 }
+      );
+    }
+
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) {
@@ -54,9 +64,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Use the server-side Supabase client (has the anon key, which has
-    // storage write permissions if the bucket allows public uploads).
-    const supabase = await createSupabaseServerClient();
+    // Use the server-side Supabase client (already created above for auth check)
+    // to upload the file to Storage.
 
     // Generate a unique filename
     const ext = EXT_BY_TYPE[type] ?? "bin";
