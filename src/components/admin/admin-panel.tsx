@@ -35,6 +35,7 @@ import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { cn } from "@/lib/utils";
 import { AdminCategoriesSection } from "@/components/admin/admin-categories";
+import { AdminErrorBoundary } from "@/components/admin/admin-error-boundary";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
 const CORAL = "#D85A30";
@@ -567,20 +568,18 @@ export function AdminPanel() {
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
   const [pendingTab, setPendingTab] = React.useState<"food" | "party">("food");
 
-  const fetchAll = React.useCallback(async () => {
+  // LAZY LOADING: Only fetch stats + signups on mount (fast KPI load).
+  // Vendors and activity are loaded separately when the dashboard tab is active.
+  const fetchStats = React.useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch each endpoint independently so one failure doesn't sink the
-      // whole dashboard. Promise.allSettled ensures we always get to the
-      // finally block and setLoading(false) runs.
-      const [statsRes, adminVendorsRes, signupsRes] = await Promise.allSettled([
+      const [statsRes, signupsRes] = await Promise.allSettled([
         fetch("/api/admin/stats"),
-        fetch("/api/admin/vendors?pageSize=100"),
         fetch("/api/admin/signups"),
       ]);
 
-      // Parse stats (if it succeeded)
-      let stats: { totals?: { vendors?: number; approved?: number } } = {};
+      // Parse stats
+      let stats: { totals?: { vendors?: number; approved?: number; reviews?: number; bookings?: number } } = {};
       if (statsRes.status === "fulfilled" && statsRes.value.ok) {
         try {
           stats = (await statsRes.value.json()) as typeof stats;
@@ -589,18 +588,7 @@ export function AdminPanel() {
         }
       }
 
-      // Parse vendors (if it succeeded)
-      let vendors: Vendor[] = [];
-      if (adminVendorsRes.status === "fulfilled" && adminVendorsRes.value.ok) {
-        try {
-          const data = await adminVendorsRes.value.json();
-          vendors = data.vendors ?? [];
-        } catch {
-          vendors = [];
-        }
-      }
-
-      // Parse signups (if it succeeded)
+      // Parse signups
       let signups: { month: string; food: number; party: number }[] = [];
       if (signupsRes.status === "fulfilled" && signupsRes.value.ok) {
         try {
@@ -612,10 +600,43 @@ export function AdminPanel() {
       }
       setSignupsData(signups);
 
-      // Compute KPIs from whatever data we got (graceful with empty)
-      const totalVendors = stats.totals?.vendors ?? vendors.length;
-      const activeListings =
-        stats.totals?.approved ?? vendors.filter((v) => v.approved).length;
+      // Compute KPIs from stats only (no need to load all vendors)
+      const totalVendors = stats.totals?.vendors ?? 0;
+      const activeListings = stats.totals?.approved ?? 0;
+      // For paid subscribers, we need vendor data — but we can estimate from
+      // stats if vendors are loaded. For now, use a conservative estimate.
+      // The full vendor list loads lazily when the admin clicks the vendors tab.
+      setKpi({
+        totalVendors,
+        newThisMonth: 0, // updated when vendors load
+        activeListings,
+        approvalRate:
+          totalVendors > 0
+            ? Math.round((activeListings / totalVendors) * 1000) / 10
+            : 0,
+        paidSubscribers: 0, // updated when vendors load
+        subscribersThisWeek: 0,
+        mrr: 0, // updated when vendors load
+        mrrDelta: 0,
+      });
+    } catch (err) {
+      console.error("Admin stats fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Load vendors separately (lazy — only when dashboard tab is active)
+  const [vendorsLoaded, setVendorsLoaded] = React.useState(false);
+  const fetchVendors = React.useCallback(async () => {
+    if (vendorsLoaded) return; // already loaded, don't re-fetch
+    try {
+      const res = await fetch("/api/admin/vendors?pageSize=50");
+      if (!res.ok) return;
+      const data = await res.json();
+      const vendors: Vendor[] = data.vendors ?? [];
+
+      // Update KPIs that need vendor data
       const paidSubscribers = vendors.filter(
         (v) => v.featured || v.verified
       ).length;
@@ -632,19 +653,14 @@ export function AdminPanel() {
         );
       }).length;
 
-      setKpi({
-        totalVendors,
+      setKpi((prev) => prev ? {
+        ...prev,
         newThisMonth,
-        activeListings,
-        approvalRate:
-          totalVendors > 0
-            ? Math.round((activeListings / totalVendors) * 1000) / 10
-            : 0,
         paidSubscribers,
         subscribersThisWeek: Math.max(1, Math.round(paidSubscribers * 0.07)),
         mrr,
         mrrDelta: Math.round(mrr * 0.11),
-      });
+      } : prev);
 
       const fp = vendors.filter(
         (v) => v.ecosystem === "FINDMYBITES" && !v.approved
@@ -658,30 +674,35 @@ export function AdminPanel() {
       const pending = vendors.filter((v) => !v.approved).slice(0, 12);
       setPendingVendors(pending);
       setAllVendors(vendors);
+      setVendorsLoaded(true);
 
-      // Activity feed (best-effort)
-      try {
-        const actRes = await fetch("/api/admin/activity");
-        if (actRes.ok) {
-          const act = await actRes.json();
-          setActivity(act.items ?? []);
-        } else {
-          setActivityError(true);
-        }
-      } catch {
-        setActivityError(true);
-      }
+      // Fetch activity in parallel (best-effort, non-blocking)
+      fetch("/api/admin/activity")
+        .then((r) => r.ok ? r.json() : null)
+        .then((act) => {
+          if (act?.items) setActivity(act.items);
+          else setActivityError(true);
+        })
+        .catch(() => setActivityError(true));
     } catch (err) {
-      console.error("Admin fetch failed:", err);
-    } finally {
-      setLoading(false);
+      console.error("Admin vendors fetch failed:", err);
     }
-  }, []);
+  }, [vendorsLoaded]);
 
-  // Fetch when modal opens
+  // Fetch stats when modal opens (fast — just counts)
   React.useEffect(() => {
-    if (isOpen) fetchAll();
-  }, [isOpen, fetchAll]);
+    if (isOpen) {
+      fetchStats();
+      setVendorsLoaded(false); // reset on reopen
+    }
+  }, [isOpen, fetchStats]);
+
+  // Lazy-load vendors when dashboard tab is active (after stats finish)
+  React.useEffect(() => {
+    if (isOpen && !loading && !vendorsLoaded && activeNav === "dashboard") {
+      fetchVendors();
+    }
+  }, [isOpen, loading, vendorsLoaded, activeNav, fetchVendors]);
 
   const filteredVendors = React.useMemo(() => {
     return allVendors.filter((v) => {
@@ -919,6 +940,7 @@ export function AdminPanel() {
 
             {/* Scrollable content */}
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <AdminErrorBoundary>
               {/* Categories management view (food-categories / party-categories nav) */}
               {activeNav === "food-categories" || activeNav === "party-categories" ? (
                 <AdminCategoriesSection
@@ -1306,6 +1328,7 @@ export function AdminPanel() {
               <div className="h-4" />
               </>
               )}
+              </AdminErrorBoundary>
             </div>
           </main>
         </div>

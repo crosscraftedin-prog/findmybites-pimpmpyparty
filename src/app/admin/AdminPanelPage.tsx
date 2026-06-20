@@ -526,24 +526,21 @@ export function AdminPanelPage({
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
   const [pendingTab, setPendingTab] = React.useState<"food" | "party">("food");
 
-  // Fetch all data on mount
+  // LAZY LOADING: Only fetch stats + signups on mount (fast KPI load).
+  // Vendors and activity load separately after stats finish.
   React.useEffect(() => {
-    fetchAll();
+    fetchStats();
   }, []);
 
-  const fetchAll = async () => {
+  const fetchStats = async () => {
     setLoading(true);
     try {
-      // Fetch each endpoint independently so one failure doesn't sink the
-      // whole dashboard. Promise.allSettled ensures we always reach finally.
-      const [statsRes, adminVendorsRes, signupsRes] = await Promise.allSettled([
+      const [statsRes, signupsRes] = await Promise.allSettled([
         fetch("/api/admin/stats"),
-        fetch("/api/admin/vendors?pageSize=100"),
         fetch("/api/admin/signups"),
       ]);
 
-      // Parse stats (if it succeeded)
-      let stats: { totals?: { vendors?: number; approved?: number } } = {};
+      let stats: { totals?: { vendors?: number; approved?: number; reviews?: number; bookings?: number } } = {};
       if (statsRes.status === "fulfilled" && statsRes.value.ok) {
         try {
           stats = (await statsRes.value.json()) as typeof stats;
@@ -552,18 +549,6 @@ export function AdminPanelPage({
         }
       }
 
-      // Parse vendors (if it succeeded)
-      let vendors: Vendor[] = [];
-      if (adminVendorsRes.status === "fulfilled" && adminVendorsRes.value.ok) {
-        try {
-          const data = await adminVendorsRes.value.json();
-          vendors = data.vendors ?? [];
-        } catch {
-          vendors = [];
-        }
-      }
-
-      // Parse signups (if it succeeded)
       let signups: { month: string; food: number; party: number }[] = [];
       if (signupsRes.status === "fulfilled" && signupsRes.value.ok) {
         try {
@@ -575,70 +560,74 @@ export function AdminPanelPage({
       }
       setSignupsData(signups);
 
-      // KPIs — derived from whatever data we got (graceful with empty)
-      const totalVendors = stats.totals?.vendors ?? vendors.length;
-      const activeListings = stats.totals?.approved ?? vendors.filter((v) => v.approved).length;
-      const paidSubscribers = vendors.filter(
-        (v) => v.featured || v.verified
-      ).length;
+      const totalVendors = stats.totals?.vendors ?? 0;
+      const activeListings = stats.totals?.approved ?? 0;
+      setKpi({
+        totalVendors,
+        newThisMonth: 0,
+        activeListings,
+        approvalRate: totalVendors > 0 ? Math.round((activeListings / totalVendors) * 1000) / 10 : 0,
+        paidSubscribers: 0,
+        subscribersThisWeek: 0,
+        mrr: 0,
+        mrrDelta: 0,
+      });
+
+      // Load vendors + activity in the background (non-blocking)
+      fetchVendorsAndActivity();
+    } catch (err) {
+      console.error("Admin stats fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchVendorsAndActivity = async () => {
+    try {
+      const res = await fetch("/api/admin/vendors?pageSize=50");
+      if (!res.ok) return;
+      const data = await res.json();
+      const vendors: Vendor[] = data.vendors ?? [];
+
+      const paidSubscribers = vendors.filter((v) => v.featured || v.verified).length;
       const businessCount = vendors.filter((v) => v.featured).length;
       const proCount = vendors.filter((v) => !v.featured && v.verified).length;
       const mrr = businessCount * PLAN_PRICE_BUSINESS + proCount * PLAN_PRICE_PRO;
 
-      // Vendors created this month
       const now = new Date();
       const newThisMonth = vendors.filter((v) => {
         const d = new Date(v.createdAt);
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       }).length;
 
-      setKpi({
-        totalVendors,
+      setKpi((prev) => prev ? {
+        ...prev,
         newThisMonth,
-        activeListings,
-        approvalRate:
-          totalVendors > 0
-            ? Math.round((activeListings / totalVendors) * 1000) / 10
-            : 0,
         paidSubscribers,
         subscribersThisWeek: Math.max(1, Math.round(paidSubscribers * 0.07)),
         mrr,
         mrrDelta: Math.round(mrr * 0.11),
-      });
+      } : prev);
 
-      // Pending counts (per ecosystem)
-      const fp = vendors.filter(
-        (v) => v.ecosystem === "FINDMYBITES" && !v.approved
-      ).length;
-      const pp = vendors.filter(
-        (v) => v.ecosystem === "PIMPMYPARTY" && !v.approved
-      ).length;
+      const fp = vendors.filter((v) => v.ecosystem === "FINDMYBITES" && !v.approved).length;
+      const pp = vendors.filter((v) => v.ecosystem === "PIMPMYPARTY" && !v.approved).length;
       setFoodPending(fp);
       setPartyPending(pp);
 
-      // Pending vendors (not approved)
       const pending = vendors.filter((v) => !v.approved).slice(0, 12);
       setPendingVendors(pending);
-
-      // All vendors for table
       setAllVendors(vendors);
 
-      // Activity feed (best-effort)
-      try {
-        const actRes = await fetch("/api/admin/activity");
-        if (actRes.ok) {
-          const act = await actRes.json();
-          setActivity(act.items ?? []);
-        } else {
-          setActivityError(true);
-        }
-      } catch {
-        setActivityError(true);
-      }
+      // Activity feed (best-effort, non-blocking)
+      fetch("/api/admin/activity")
+        .then((r) => r.ok ? r.json() : null)
+        .then((act) => {
+          if (act?.items) setActivity(act.items);
+          else setActivityError(true);
+        })
+        .catch(() => setActivityError(true));
     } catch (err) {
-      console.error("Admin fetch failed:", err);
-    } finally {
-      setLoading(false);
+      console.error("Admin vendors fetch failed:", err);
     }
   };
 
