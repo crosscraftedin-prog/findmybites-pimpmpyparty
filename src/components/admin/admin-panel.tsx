@@ -780,14 +780,14 @@ export function AdminPanel() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="h-[95vh] max-h-[95vh] w-[97vw] max-w-[97vw] gap-0 overflow-hidden p-0 sm:max-w-[97vw]">
+      <DialogContent className="flex h-[100vh] max-h-[100vh] w-[100vw] max-w-[100vw] gap-0 overflow-hidden rounded-none border-0 p-0 sm:max-w-[100vw]">
         <DialogTitle className="sr-only">Admin panel</DialogTitle>
         <DialogDescription className="sr-only">
           Manage vendors, approvals, subscriptions and platform metrics.
         </DialogDescription>
 
         <div
-          className="flex h-full"
+          className="flex h-screen w-full"
           style={{ background: "#F7F6F2" }}
         >
           {/* ── Sidebar ─────────────────────────────────────────────── */}

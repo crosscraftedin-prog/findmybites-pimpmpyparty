@@ -398,13 +398,13 @@ export function VendorDashboard() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="h-[95vh] max-h-[95vh] w-[97vw] max-w-[97vw] gap-0 overflow-hidden p-0 sm:max-w-[97vw]">
+      <DialogContent className="flex h-[100vh] max-h-[100vh] w-[100vw] max-w-[100vw] gap-0 overflow-hidden rounded-none border-0 p-0 sm:max-w-[100vw]">
         <DialogTitle className="sr-only">Vendor dashboard</DialogTitle>
         <DialogDescription className="sr-only">
           Manage your business listings, enquiries, products and reviews.
         </DialogDescription>
 
-        <div className="flex h-full" style={{ background: "#F7F6F2" }}>
+        <div className="flex h-screen w-full" style={{ background: "#F7F6F2" }}>
           {/* ── Sidebar ─────────────────────────────────────────────── */}
           <aside
             className="hidden flex-col overflow-hidden md:flex"
