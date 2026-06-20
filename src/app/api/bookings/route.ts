@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { type Booking as DbBooking } from "@prisma/client";
 import { db } from "@/lib/db";
+import { rateLimit } from "@/lib/rate-limit";
 import type { Booking as ApiBooking } from "@/lib/types";
 
 function transformBooking(b: DbBooking): ApiBooking {
@@ -51,6 +52,10 @@ interface CreateBookingBody {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: max 5 bookings per minute per IP (prevent spam)
+    const limited = rateLimit(req, { windowMs: 60_000, max: 5 });
+    if (limited) return limited;
+
     const body = (await req.json()) as CreateBookingBody;
     const {
       vendorId,

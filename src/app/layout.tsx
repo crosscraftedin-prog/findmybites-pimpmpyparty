@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Providers } from "@/lib/providers";
 import { EcosystemSync } from "@/components/marketplace/ecosystem-sync";
+import { GoogleAnalytics } from "@/components/analytics/google-analytics";
+import { ErrorMonitoring } from "@/components/analytics/error-monitoring";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -53,6 +55,8 @@ export default function RootLayout({
       >
         <Providers>
           <EcosystemSync />
+          <GoogleAnalytics />
+          <ErrorMonitoring />
           {children}
           <Toaster />
           <SonnerToaster richColors position="top-center" />

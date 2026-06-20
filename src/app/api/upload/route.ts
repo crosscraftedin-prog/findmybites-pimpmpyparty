@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * POST /api/upload
@@ -27,6 +28,10 @@ const EXT_BY_TYPE: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: max 20 uploads per minute per IP
+    const limited = rateLimit(req, { windowMs: 60_000, max: 20 });
+    if (limited) return limited;
+
     // Auth check — only signed-in users can upload images
     const supabase = await createSupabaseServerClient();
     const { data: { session } } = await supabase.auth.getSession();
