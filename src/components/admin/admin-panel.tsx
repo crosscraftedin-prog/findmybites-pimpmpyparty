@@ -36,6 +36,7 @@ import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { cn } from "@/lib/utils";
 import { AdminCategoriesSection } from "@/components/admin/admin-categories";
 import { AdminErrorBoundary } from "@/components/admin/admin-error-boundary";
+import { AdminClaimsSection } from "@/components/admin/admin-claims";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
 const CORAL = "#D85A30";
@@ -151,6 +152,7 @@ const NAV_SECTIONS: NavSection[] = [
     brand: null,
     items: [
       { id: "ad-banners", label: "Ad banners", icon: Megaphone },
+      { id: "claims", label: "Claims", icon: ShieldCheck },
       { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
       { id: "messages", label: "Messages", icon: Mail },
       { id: "settings", label: "Settings", icon: Settings },
@@ -948,8 +950,11 @@ export function AdminPanel() {
             {/* Scrollable content */}
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
               <AdminErrorBoundary>
-              {/* Categories management view (food-categories / party-categories nav) */}
-              {activeNav === "food-categories" || activeNav === "party-categories" ? (
+              {/* Claims management view */}
+              {activeNav === "claims" ? (
+                <AdminClaimsSection />
+              ) : /* Categories management view (food-categories / party-categories nav) */
+              activeNav === "food-categories" || activeNav === "party-categories" ? (
                 <AdminCategoriesSection
                   ecosystem={
                     activeNav === "food-categories" ? "FINDMYBITES" : "PIMPMYPARTY"
