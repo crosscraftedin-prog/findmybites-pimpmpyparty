@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { AdminCategoriesSection } from "@/components/admin/admin-categories";
 import { AdminErrorBoundary } from "@/components/admin/admin-error-boundary";
 import { AdminClaimsSection } from "@/components/admin/admin-claims";
+import { AdminCreateBusiness } from "@/components/admin/admin-create-business";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
 const CORAL = "#D85A30";
@@ -953,7 +954,16 @@ export function AdminPanel() {
               <AdminErrorBoundary>
               {/* Claims management view */}
               {activeNav === "claims" ? (
-                <AdminClaimsSection />
+                <div>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-[15px] font-medium">Vendor Claims</h2>
+                    <div className="flex gap-2">
+                      <AdminCreateBusiness ecosystem="FINDMYBITES" />
+                      <AdminCreateBusiness ecosystem="PIMPMYPARTY" />
+                    </div>
+                  </div>
+                  <AdminClaimsSection />
+                </div>
               ) : /* Categories management view (food-categories / party-categories nav) */
               activeNav === "food-categories" || activeNav === "party-categories" ? (
                 <AdminCategoriesSection
