@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma, type Vendor as DbVendor } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -60,6 +61,8 @@ function transformVendor(v: DbVendor): ApiVendor {
  */
 export async function GET(req: NextRequest) {
   try {
+  const guard = await requireAdmin();
+  if (guard) return guard;
     const sp = req.nextUrl.searchParams;
     const ecosystem = sp.get("ecosystem") ?? undefined;
     const search = sp.get("search") ?? undefined;

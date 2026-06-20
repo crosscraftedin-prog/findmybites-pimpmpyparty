@@ -127,12 +127,15 @@ model Vendor {
   @@index([basePrice])
   @@index([countryCode])
   @@index([createdAt])
+  @@index([approved])
+  @@index([userEmail])
   // composite indexes for the most common filter+sort combos at scale
   @@index([ecosystem, category])
   @@index([ecosystem, continent])
   @@index([ecosystem, featured])
   @@index([ecosystem, priceRange])
   @@index([ecosystem, rating])
+  @@index([ecosystem, approved])
 }
 
 model Review {

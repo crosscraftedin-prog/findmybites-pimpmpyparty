@@ -30,6 +30,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { AdminCategoriesSection } from "@/components/admin/admin-categories";
+import { AdminErrorBoundary } from "@/components/admin/admin-error-boundary";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
 const CORAL = "#D85A30";
@@ -863,7 +865,17 @@ export function AdminPanelPage({
         </div>
 
         {/* Dashboard content */}
-        <div className="flex-1 p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <AdminErrorBoundary>
+          {/* Categories management view (food-categories / party-categories nav) */}
+          {activeNav === "food-categories" || activeNav === "party-categories" ? (
+            <AdminCategoriesSection
+              ecosystem={
+                activeNav === "food-categories" ? "FINDMYBITES" : "PIMPMYPARTY"
+              }
+            />
+          ) : (
+          <>
           {/* ── KPI row ──────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KPICard
@@ -1258,6 +1270,9 @@ export function AdminPanelPage({
 
           {/* Footer spacer */}
           <div className="h-4" />
+          </>
+          )}
+          </AdminErrorBoundary>
         </div>
       </main>
 

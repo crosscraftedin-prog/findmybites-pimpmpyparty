@@ -15,41 +15,38 @@ export async function GET() {
       }
     };
 
-    const totalVendors = await safe(() => db.vendor.count(), 0);
-    const totalReviews = await safe(() => db.review.count(), 0);
-    const totalBookings = await safe(() => db.booking.count(), 0);
-    const findmybitesCount = await safe(
-      () => db.vendor.count({ where: { ecosystem: "FINDMYBITES" } }),
-      0
-    );
-    const pimpmpypartyCount = await safe(
-      () => db.vendor.count({ where: { ecosystem: "PIMPMYPARTY" } }),
-      0
-    );
-    const continentGroups = await safe(
-      () =>
-        db.vendor.groupBy({
-          by: ["continent"],
-          _count: { _all: true },
-        }),
-      []
-    );
-    const categoryGroups = await safe(
-      () =>
-        db.vendor.groupBy({
-          by: ["ecosystem", "category"],
-          _count: { _all: true },
-        }),
-      []
-    );
-    const countryGroups = await safe(
-      () => db.vendor.groupBy({ by: ["country"] }),
-      []
-    );
-    const avgAgg = await safe(
-      () => db.vendor.aggregate({ _avg: { rating: true } }),
-      { _avg: { rating: null } }
-    );
+    // Run all queries in parallel for ~5x speedup vs sequential
+    const [
+      totalVendorsR,
+      totalReviewsR,
+      totalBookingsR,
+      findmybitesCountR,
+      pimpmpypartyCountR,
+      continentGroupsR,
+      categoryGroupsR,
+      countryGroupsR,
+      avgAggR,
+    ] = await Promise.allSettled([
+      db.vendor.count(),
+      db.review.count(),
+      db.booking.count(),
+      db.vendor.count({ where: { ecosystem: "FINDMYBITES" } }),
+      db.vendor.count({ where: { ecosystem: "PIMPMYPARTY" } }),
+      db.vendor.groupBy({ by: ["continent"], _count: { _all: true } }),
+      db.vendor.groupBy({ by: ["ecosystem", "category"], _count: { _all: true } }),
+      db.vendor.groupBy({ by: ["country"] }),
+      db.vendor.aggregate({ _avg: { rating: true } }),
+    ]);
+
+    const totalVendors = totalVendorsR.status === "fulfilled" ? totalVendorsR.value : 0;
+    const totalReviews = totalReviewsR.status === "fulfilled" ? totalReviewsR.value : 0;
+    const totalBookings = totalBookingsR.status === "fulfilled" ? totalBookingsR.value : 0;
+    const findmybitesCount = findmybitesCountR.status === "fulfilled" ? findmybitesCountR.value : 0;
+    const pimpmpypartyCount = pimpmpypartyCountR.status === "fulfilled" ? pimpmpypartyCountR.value : 0;
+    const continentGroups = continentGroupsR.status === "fulfilled" ? continentGroupsR.value : [];
+    const categoryGroups = categoryGroupsR.status === "fulfilled" ? categoryGroupsR.value : [];
+    const countryGroups = countryGroupsR.status === "fulfilled" ? countryGroupsR.value : [];
+    const avgAgg = avgAggR.status === "fulfilled" ? avgAggR.value : { _avg: { rating: null } };
 
     const avgRating = Math.round((avgAgg._avg.rating ?? 0) * 10) / 10;
     const countries = countryGroups.length;

@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -8,6 +9,8 @@ import { db } from "@/lib/db";
  */
 export async function GET(req: NextRequest) {
   try {
+  const guard = await requireAdmin();
+  if (guard) return guard;
     const sp = req.nextUrl.searchParams;
     const ecosystem = sp.get("ecosystem");
 
@@ -69,6 +72,8 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
+  const guard = await requireAdmin();
+  if (guard) return guard;
     const body = await req.json();
     const { label, ecosystem, description, icon, image, accent } = body;
 

@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import type { Booking } from "@/lib/types";
@@ -26,6 +27,8 @@ function transformBooking(b: typeof db.booking): Booking {
  */
 export async function GET(req: NextRequest) {
   try {
+  const guard = await requireAdmin();
+  if (guard) return guard;
     const sp = req.nextUrl.searchParams;
     const status = sp.get("status") ?? undefined;
     const pageRaw = Number(sp.get("page"));

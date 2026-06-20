@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -8,6 +9,8 @@ import { db } from "@/lib/db";
  */
 export async function GET(_req: NextRequest) {
   try {
+  const guard = await requireAdmin();
+  if (guard) return guard;
     // Build activity from recent bookings, reviews, and vendor signups
     const [recentBookings, recentReviews, recentVendors] = await Promise.all([
       db.booking.findMany({

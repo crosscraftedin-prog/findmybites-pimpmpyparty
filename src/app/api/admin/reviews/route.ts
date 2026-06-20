@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import type { Review } from "@/lib/types";
@@ -22,6 +23,8 @@ function transformReview(r: typeof db.review): Review {
  */
 export async function GET(req: NextRequest) {
   try {
+  const guard = await requireAdmin();
+  if (guard) return guard;
     const sp = req.nextUrl.searchParams;
     const ratingRaw = sp.get("rating");
     const pageRaw = Number(sp.get("page"));

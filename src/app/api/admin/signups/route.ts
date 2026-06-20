@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -7,6 +8,8 @@ import { db } from "@/lib/db";
  */
 export async function GET(_req: NextRequest) {
   try {
+  const guard = await requireAdmin();
+  if (guard) return guard;
     const now = new Date();
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 

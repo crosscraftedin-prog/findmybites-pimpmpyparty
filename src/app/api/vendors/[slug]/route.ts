@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
 import { COUNTRIES, getCategory } from "@/lib/constants";
+import { requireAdmin } from "@/lib/admin-guard";
 import {
   isValidPriceRange,
   sanitizeInstagram,
@@ -347,6 +348,10 @@ export async function PUT(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    // Admin guard — only admins can approve/feature/verify vendors
+    const guard = await requireAdmin();
+    if (guard) return guard;
+
     const { slug } = await params;
     const body = (await req.json()) as AdminToggleBody;
     const data: Prisma.VendorUpdateInput = {};

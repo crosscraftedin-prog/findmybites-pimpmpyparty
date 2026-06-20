@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -11,6 +12,8 @@ import { db } from "@/lib/db";
  */
 export async function GET(_req: NextRequest) {
   try {
+  const guard = await requireAdmin();
+  if (guard) return guard;
     const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
       try {
         return await fn();

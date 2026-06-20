@@ -288,12 +288,9 @@ export const CATEGORY_FIELDS: Record<string, CategoryFieldConfig> = {
     show: { ...ALL_OFF, sizes: true, flavours: true, weight: true, eggless: true, inventory: true, pricingTiers: true },
     extraFields: [],
   },
-  "beverage-specialists": {
-    noun: "Service",
-    types: ["Coffee Bar", "Cocktail Bar", "Juice Bar", "Wine Tasting", "Other"],
-    show: { ...ALL_OFF, minGuests: true, pricePerHead: true, pricingTiers: true },
-    extraFields: [{ key: "menu", label: "Menu items", placeholder: "Espresso, cappuccino, cocktails" }],
-  },
+  // NOTE: beverage-specialists is defined above at line 122 with the new
+  // 6-category architecture config. The old duplicate was removed to prevent
+  // the last-definition-wins behavior from overriding the new config.
   "specialty-foods": {
     noun: "Product",
     types: ["Organic", "Vegan", "Gluten-Free", "Halal", "Keto", "Other"],
