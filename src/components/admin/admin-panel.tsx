@@ -19,6 +19,7 @@ import {
   TrendingDown,
   Pencil,
   Loader2,
+  ShieldCheck,
 } from "lucide-react";
 import {
   BarChart,
