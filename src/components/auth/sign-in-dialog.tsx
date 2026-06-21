@@ -52,6 +52,10 @@ export function SignInDialog() {
       } else if (intentStr.startsWith("edit-vendor:")) {
         const slug = intentStr.replace("edit-vendor:", "");
         useMarketplace.getState().openEditVendor(slug);
+      } else if (intentStr.startsWith("claim-token:")) {
+        // Redirect to the claim-token page after sign-in
+        const tokenPath = intentStr.replace("claim-token:", "");
+        window.location.href = `/claim-token/${tokenPath}`;
       }
     },
     []
