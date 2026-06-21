@@ -120,6 +120,14 @@ export default function ClaimStatusPage() {
                   >
                     {CLAIM_STATUS_LABEL[c.status]}
                   </Badge>
+                  {c.status === "approved" && (
+                    <Link
+                      href="/dashboard"
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#C65D47] px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-90"
+                    >
+                      Go to Dashboard →
+                    </Link>
+                  )}
                 </div>
               );
             })
