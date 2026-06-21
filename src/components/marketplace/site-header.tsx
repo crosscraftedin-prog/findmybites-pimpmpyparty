@@ -22,6 +22,7 @@ import {
   LogIn,
   Edit3,
   Navigation,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,14 +50,16 @@ export function SiteHeader() {
   const openVendorDashboard = useMarketplace((s) => s.openVendorDashboard);
   const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
-  const { user: session } = useSupabaseSession();
+  const { user: session, loading: sessionLoading } = useSupabaseSession();
   const { isAdmin } = useIsAdmin();
   // Check if this user already has a vendor listing
-  const { data: vendorData } = useVendorDashboard(!!session);
+  const { data: vendorData, isLoading: vendorLoading } = useVendorDashboard(!!session && !sessionLoading);
   // Use remembered vendor emails for INSTANT feedback — avoids the flicker
   // where the header shows "List your business" for a split second (or
   // permanently if the DB query fails) before the vendor data loads.
   const rememberedIsVendor = isVendorEmail(session?.email);
+  // While session OR vendor data is loading, show "Checking..." (not "List your business")
+  const authChecking = sessionLoading || (!!session && vendorLoading && !rememberedIsVendor);
   const hasVendor =
     (vendorData?.vendors?.length ?? 0) > 0 || rememberedIsVendor;
   const vendorSlug = vendorData?.vendors?.[0]?.slug ?? null;
@@ -187,8 +190,17 @@ export function SiteHeader() {
           </Button>
         )}
 
-        {/* If signed in and has a business → show "Vendor dashboard"; otherwise show "List your business" */}
-        {session && hasVendor ? (
+        {/* Auth-aware button: Checking → Dashboard → List your business */}
+        {authChecking ? (
+          <Button
+            size="sm"
+            disabled
+            className="hidden bg-muted text-muted-foreground lg:inline-flex"
+          >
+            <Loader2 className="size-4 animate-spin" />
+            <span className="hidden lg:inline">Checking…</span>
+          </Button>
+        ) : session && hasVendor ? (
           <Button
             size="sm"
             className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
@@ -197,7 +209,7 @@ export function SiteHeader() {
             <LayoutDashboard className="size-4" />
             Dashboard
           </Button>
-        ) : (
+        ) : session ? (
           <Button
             size="sm"
             className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
@@ -205,6 +217,15 @@ export function SiteHeader() {
           >
             <Sparkles className="size-4" />
             List your business
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
+            onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
+          >
+            <LogIn className="size-4" />
+            <span className="hidden lg:inline">Vendor Login</span>
           </Button>
         )}
 
@@ -277,8 +298,13 @@ export function SiteHeader() {
                     Vendor Login
                   </Button>
                 </SheetClose>
-                {/* Dashboard / List business — mobile */}
-                {session && hasVendor ? (
+                {/* Dashboard / List business — mobile (auth-aware) */}
+                {authChecking ? (
+                  <Button disabled className="bg-muted text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" />
+                    Checking…
+                  </Button>
+                ) : session && hasVendor ? (
                   <SheetClose asChild>
                     <Button
                       className="bg-brand text-brand-foreground hover:bg-brand/90"
@@ -288,7 +314,7 @@ export function SiteHeader() {
                       Dashboard
                     </Button>
                   </SheetClose>
-                ) : (
+                ) : session ? (
                   <SheetClose asChild>
                     <Button
                       className="bg-brand text-brand-foreground hover:bg-brand/90"
@@ -296,6 +322,16 @@ export function SiteHeader() {
                     >
                       <Sparkles className="size-4" />
                       List your business
+                    </Button>
+                  </SheetClose>
+                ) : (
+                  <SheetClose asChild>
+                    <Button
+                      className="bg-brand text-brand-foreground hover:bg-brand/90"
+                      onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
+                    >
+                      <LogIn className="size-4" />
+                      Vendor Login
                     </Button>
                   </SheetClose>
                 )}

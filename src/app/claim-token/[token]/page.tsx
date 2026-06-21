@@ -113,7 +113,6 @@ export default function ClaimTokenPage() {
     router.push("/claim-status");
   };
 
-  // eslint-disable-next-line react-hooks/immutability
   const handleSignIn = () => {
     setAuthIntent(`claim-token:${token}`);
     openAuthDialog();
