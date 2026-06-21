@@ -179,7 +179,7 @@ function VendorCard({ vendor, ecoColor, ecoTint }: { vendor: Vendor; ecoColor: s
 
   return (
     <Link
-      href={`/vendor/${vendor.slug}`}
+      href={vendor?.slug ? `/vendor/${vendor.slug}` : "#"}
       className="group overflow-hidden rounded-xl border border-black/10 bg-white transition-all hover:shadow-md"
     >
       {/* Image */}

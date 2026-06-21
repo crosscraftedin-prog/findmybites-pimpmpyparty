@@ -97,7 +97,7 @@ export default function ClaimStatusPage() {
                     </p>
                     {v ? (
                       <Link
-                        href={`/vendor/${v.slug}`}
+                        href={v?.slug ? `/vendor/${v.slug}` : "#"}
                         className="block truncate text-lg font-bold hover:text-[#C65D47]"
                       >
                         {v.name}

@@ -413,7 +413,7 @@ export default function VendorDashboardPage() {
         {/* View listing */}
         <div className="mt-6 text-center">
           <Button
-            onClick={() => router.push(`/vendor/${vendor.slug}`)}
+            onClick={() => vendor?.slug && router.push(`/vendor/${vendor.slug}`)}
             variant="outline"
             className="gap-1.5"
           >
