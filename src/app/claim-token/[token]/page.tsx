@@ -109,10 +109,11 @@ export default function ClaimTokenPage() {
     router.push("/claim-status");
   };
 
-  const handleSignIn = React.useCallback(() => {
+  // eslint-disable-next-line react-hooks/immutability
+  const handleSignIn = () => {
     setAuthIntent(`claim-token:${token}`);
     openAuthDialog();
-  }, [setAuthIntent, openAuthDialog, token]);
+  };
 
   if (authLoading) {
     return (
