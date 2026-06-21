@@ -396,21 +396,23 @@ export async function POST(req: NextRequest) {
     const geo = geoQuery ? await geocodeAddress(geoQuery) : null;
 
     // --- attach the signed-in vendor user as the owner ---
-    // Best-effort: if the Supabase server client fails (e.g. cookie issue on
-    // Vercel), we still create the vendor — just without the owner email.
+    // Set BOTH userEmail AND owner_user_id so organic signups are found
+    // by the same owner_user_id lookup used everywhere else.
     let ownerEmail: string | null = null;
+    let ownerId: string | null = null;
     try {
       const supabase = await createSupabaseServerClient();
       const { data: { session: supaSession } } = await supabase.auth.getSession();
       ownerEmail = supaSession?.user?.email ?? null;
+      ownerId = supaSession?.user?.id ?? null;
     } catch (authErr) {
       console.error("[api/vendors] auth read failed (non-fatal):", authErr);
     }
 
-    // --- prevent duplicate: one vendor per email ---
-    if (ownerEmail) {
+    // --- prevent duplicate: one vendor per user ---
+    if (ownerId) {
       const existing = await db.vendor.findFirst({
-        where: { userEmail: ownerEmail },
+        where: { owner_user_id: ownerId },
         select: { id: true, name: true, slug: true },
       });
       if (existing) {
@@ -462,6 +464,7 @@ export async function POST(req: NextRequest) {
         longitude: geo?.lng ?? null,
         serviceRadiusKm,
         userEmail: ownerEmail,
+        owner_user_id: ownerId ?? undefined,
       },
     });
 

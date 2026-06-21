@@ -25,20 +25,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "name and vendorId are required" }, { status: 400 });
     }
 
-    // Verify ownership — vendor must own this business
+    // Verify ownership — vendor must own this business via owner_user_id
     const vendor = await db.vendor.findUnique({
       where: { id: vendorId },
-      select: { id: true, owner_user_id: true, userEmail: true },
+      select: { id: true, owner_user_id: true },
     });
 
     if (!vendor) {
       return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
     }
 
-    // Check if the current user owns this vendor (by owner_user_id OR userEmail)
-    const isOwner =
-      vendor.owner_user_id === session.user.id ||
-      (vendor.userEmail && vendor.userEmail === session.user.email);
+    // Single source of truth: owner_user_id must match session.user.id
+    const isOwner = vendor.owner_user_id === session.user.id;
 
     if (!isOwner) {
       return NextResponse.json({ error: "Not authorized to add products to this vendor" }, { status: 403 });
@@ -112,16 +110,14 @@ export async function DELETE(req: NextRequest) {
     // Find the product and verify ownership
     const product = await db.product.findUnique({
       where: { id: productId },
-      include: { vendor: { select: { owner_user_id: true, userEmail: true } } },
+      include: { vendor: { select: { owner_user_id: true } } },
     });
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    const isOwner =
-      product.vendor.owner_user_id === session.user.id ||
-      (product.vendor.userEmail && product.vendor.userEmail === session.user.email);
+    const isOwner = product.vendor.owner_user_id === session.user.id;
 
     if (!isOwner) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });

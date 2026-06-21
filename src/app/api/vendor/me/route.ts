@@ -98,21 +98,12 @@ export async function GET(_req: NextRequest) {
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
-    const email = session.user.email;
     const userId = session.user.id;
 
-    // Fetch vendors owned by this user — check BOTH userEmail AND owner_user_id.
-    // userEmail: set for organic signups (vendor created their own listing)
-    // owner_user_id: set for admin-invited vendors (claimed via invite token)
-    // This fixes the race condition where admin-created vendors have userEmail=null.
+    // Single source of truth: owner_user_id must match the authenticated user.
+    // Both organic signups and admin-invited vendors get owner_user_id set.
     let vendors = await db.vendor.findMany({
-      where: {
-        OR: [
-          { userEmail: email },
-          { userEmail: { equals: email, mode: "insensitive" } },
-          { owner_user_id: userId },
-        ],
-      },
+      where: { owner_user_id: userId },
       orderBy: { createdAt: "desc" },
     });
 

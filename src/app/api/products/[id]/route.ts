@@ -20,12 +20,12 @@ export async function DELETE(
 
     const product = await db.product.findUnique({
       where: { id },
-      include: { vendor: { select: { userEmail: true } } },
+      include: { vendor: { select: { owner_user_id: true } } },
     });
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
-    if (product.vendor.userEmail !== session.user.email) {
+    if (product.vendor.owner_user_id !== session.user.id) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
@@ -55,12 +55,12 @@ export async function PATCH(
 
     const product = await db.product.findUnique({
       where: { id },
-      include: { vendor: { select: { userEmail: true } } },
+      include: { vendor: { select: { owner_user_id: true } } },
     });
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
-    if (product.vendor.userEmail !== session.user.email) {
+    if (product.vendor.owner_user_id !== session.user.id) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 

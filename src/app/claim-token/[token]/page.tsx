@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useMarketplace } from "@/lib/store";
-import { rememberVendorEmail } from "@/lib/vendor-emails";
 import { useClaimAuth } from "@/hooks/use-claim-auth";
 import { Button } from "@/components/ui/button";
 import { Loader2, Store, ShieldCheck, ArrowRight } from "lucide-react";
@@ -92,9 +91,6 @@ export default function ClaimTokenPage() {
       });
 
       if (approveRes.ok) {
-        // Remember this email as a vendor so the header instantly shows
-        // "Dashboard" (not "List your business") after redirect
-        if (user?.email) rememberVendorEmail(user.email);
         setSubmitting(false);
         toast.success("Business claimed! Welcome aboard!");
         router.push("/dashboard");

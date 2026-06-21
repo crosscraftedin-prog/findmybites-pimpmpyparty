@@ -150,27 +150,19 @@ export async function PATCH(
       );
     }
 
-    // Ownership check: vendor owner OR admin can update
+    // Ownership check: vendor owner (via owner_user_id) OR admin can update
     const supabase = await createSupabaseServerClient();
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user?.email) {
-      const isOwner = existing.userEmail === session.user.email;
+    if (session?.user?.id) {
+      const isOwner = existing.owner_user_id === session.user.id;
       const isAdmin = ADMIN_EMAILS.some(
         (e) => e.toLowerCase() === session.user.email!.toLowerCase()
       );
       if (!isOwner && !isAdmin) {
-        // Check owner_user_id match
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("id", session.user.id)
-          .maybeSingle();
-        if (existing.owner_user_id !== session.user.id && !isAdmin) {
-          return NextResponse.json(
-            { error: "Not authorized to edit this vendor" },
-            { status: 403 }
-          );
-        }
+        return NextResponse.json(
+          { error: "Not authorized to edit this vendor" },
+          { status: 403 }
+        );
       }
     }
 
