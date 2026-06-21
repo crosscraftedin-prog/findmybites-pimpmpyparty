@@ -99,21 +99,22 @@ export async function GET(_req: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
     const email = session.user.email;
+    const userId = session.user.id;
 
-    // fetch all vendors owned by this user — try exact match first,
-    // then case-insensitive match as fallback
+    // Fetch vendors owned by this user — check BOTH userEmail AND owner_user_id.
+    // userEmail: set for organic signups (vendor created their own listing)
+    // owner_user_id: set for admin-invited vendors (claimed via invite token)
+    // This fixes the race condition where admin-created vendors have userEmail=null.
     let vendors = await db.vendor.findMany({
-      where: { userEmail: email },
+      where: {
+        OR: [
+          { userEmail: email },
+          { userEmail: { equals: email, mode: "insensitive" } },
+          { owner_user_id: userId },
+        ],
+      },
       orderBy: { createdAt: "desc" },
     });
-
-    // Fallback: case-insensitive search if exact match found nothing
-    if (vendors.length === 0) {
-      vendors = await db.vendor.findMany({
-        where: { userEmail: { equals: email, mode: "insensitive" } },
-        orderBy: { createdAt: "desc" },
-      });
-    }
 
     if (vendors.length === 0) {
       return NextResponse.json({
