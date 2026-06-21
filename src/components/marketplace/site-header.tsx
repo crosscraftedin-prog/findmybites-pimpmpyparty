@@ -125,17 +125,6 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        {/* Search (desktop) */}
-        <div className="relative ml-auto hidden max-w-xs flex-1 md:block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${ECOSYSTEM_META[ecosystem].label}…`}
-            className="h-9 rounded-full border-border bg-muted/50 pl-9 pr-3 text-sm"
-          />
-        </div>
-
         {/* Near Me button (desktop + mobile) */}
         <Button
           variant="outline"
@@ -234,15 +223,6 @@ export function SiteHeader() {
                     Marketplace
                   </p>
                   <EcosystemToggle className="w-full" />
-                </div>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search vendors, cities…"
-                    className="h-10 rounded-lg border-border pl-9"
-                  />
                 </div>
                 <nav className="flex flex-col gap-1">
                   <SheetClose asChild>
