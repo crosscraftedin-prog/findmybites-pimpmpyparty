@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
-import { COUNTRIES, getCategory } from "@/lib/constants";
+import { COUNTRIES, getCategory, ADMIN_EMAILS } from "@/lib/constants";
 import { requireAdmin } from "@/lib/admin-guard";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   isValidPriceRange,
   sanitizeInstagram,
@@ -147,6 +148,30 @@ export async function PATCH(
         { error: "Vendor not found" },
         { status: 404 }
       );
+    }
+
+    // Ownership check: vendor owner OR admin can update
+    const supabase = await createSupabaseServerClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.email) {
+      const isOwner = existing.userEmail === session.user.email;
+      const isAdmin = ADMIN_EMAILS.some(
+        (e) => e.toLowerCase() === session.user.email!.toLowerCase()
+      );
+      if (!isOwner && !isAdmin) {
+        // Check owner_user_id match
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        if (existing.owner_user_id !== session.user.id && !isAdmin) {
+          return NextResponse.json(
+            { error: "Not authorized to edit this vendor" },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     // Build a partial update object. Only fields actually present in the body
@@ -301,8 +326,9 @@ export async function PATCH(
     return NextResponse.json({ vendor: transformVendor(updated) });
   } catch (err) {
     console.error("[api/vendors/[slug]] PATCH failed:", err);
+    const errMsg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
-      { error: "Failed to update vendor" },
+      { error: `Failed to update vendor: ${errMsg}` },
       { status: 500 }
     );
   }
