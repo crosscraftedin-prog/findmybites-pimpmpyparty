@@ -113,6 +113,9 @@ model Vendor {
   // Stored as a plain string (not a FK) because auth users live in Supabase's
   // auth.users table, not our User table — a FK constraint would fail.
   userEmail        String?
+  // Added by supabase_addon.sql — links to auth.users(id) for claim system.
+  // Nullable because legacy vendors created before the claim system don't have it.
+  owner_user_id    String?
   createdAt        DateTime  @default(now())
   reviews          Review[]
   bookings         Booking[]
