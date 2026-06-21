@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { supabaseBrowser } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,8 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Send, Copy, Loader2, Store, MessageCircle } from "lucide-react";
-import { CATEGORIES, ECOSYSTEM_META } from "@/lib/constants";
+import { Plus, Copy, Loader2, Store, MessageCircle } from "lucide-react";
+import { CATEGORIES } from "@/lib/constants";
 import type { Ecosystem } from "@/lib/types";
 
 interface CreatedVendor {
@@ -69,75 +68,38 @@ export function AdminCreateBusiness({ ecosystem }: { ecosystem: Ecosystem }) {
 
     setLoading(true);
     try {
-      // 1. Create the vendor listing (unclaimed, not approved)
-      // Use supabase client to insert directly (admin is authenticated)
-      const vendorData: Record<string, any> = {
-        name: name.trim(),
-        slug: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now().toString(36),
-        ecosystem,
-        category,
-        tagline: tagline.trim() || `Business listing`,
-        description: description.trim() || `${name.trim()} — ${category}`,
-        city: city.trim(),
-        country: country.trim(),
-        countryCode: country.trim() === "India" ? "IN" : "US",
-        continent: country.trim() === "India" ? "Asia" : "North America",
-        currency: country.trim() === "India" ? "INR" : "USD",
-        priceRange: "$$",
-        basePrice: 0,
-        rating: 0,
-        reviewCount: 0,
-        heroImage: "",
-        avatarImage: "",
-        gallery: "[]",
-        tags: "[]",
-        featured: false,
-        verified: false,
-        approved: false,
-        responseTime: "24 hours",
-        yearsActive: 1,
-        completedBookings: 0,
-        whatsapp: whatsapp.trim().replace(/\D/g, ""),
-        ownership_status: "unclaimed",
-        latitude: null,
-        longitude: null,
-      };
-
-      const { data: vendor, error: vendorError } = await supabaseBrowser
-        .from("Vendor")
-        .insert(vendorData)
-        .select("id,name,whatsapp")
-        .single();
-
-      if (vendorError || !vendor) {
-        toast.error("Failed to create business: " + (vendorError?.message || "Unknown error"));
-        setLoading(false);
-        return;
-      }
-
-      // 2. Generate invite token
-      const { data: tokenData, error: tokenError } = await supabaseBrowser.rpc(
-        "generate_invite_token",
-        { p_vendor_id: vendor.id, p_ttl_hours: 168 }
-      );
-
-      if (tokenError || !tokenData) {
-        toast.error("Business created but invite token failed: " + tokenError?.message);
-        setLoading(false);
-        return;
-      }
-
-      const tokenRow = Array.isArray(tokenData) ? tokenData[0] : tokenData;
-      const inviteUrl = `${window.location.origin}/claim-token/${tokenRow.token}`;
-
-      setCreated({
-        id: vendor.id,
-        name: vendor.name,
-        whatsapp: vendor.whatsapp || whatsapp.trim(),
-        inviteUrl,
+      // Use server-side API route (bypasses RLS via Prisma)
+      const res = await fetch("/api/admin/create-business", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          whatsapp: whatsapp.trim(),
+          category,
+          ecosystem,
+          city: city.trim(),
+          country: country.trim(),
+          tagline: tagline.trim(),
+          description: description.trim(),
+        }),
       });
 
-      toast.success(`Business "${vendor.name}" created! Invite link ready.`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to create business");
+        setLoading(false);
+        return;
+      }
+
+      setCreated({
+        id: data.vendor.id,
+        name: data.vendor.name,
+        whatsapp: data.vendor.whatsapp || whatsapp.trim(),
+        inviteUrl: data.inviteUrl,
+      });
+
+      toast.success(`Business "${data.vendor.name}" created! Invite link ready.`);
     } catch (err) {
       toast.error("Something went wrong");
       console.error(err);
