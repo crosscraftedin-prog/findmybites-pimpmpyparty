@@ -159,19 +159,6 @@ export function SiteHeader() {
 
         <UserMenu />
 
-        {/* Vendor Login — only when NOT signed in (triggers auth → dashboard) */}
-        {!session && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden text-muted-foreground hover:text-foreground lg:inline-flex"
-            onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
-          >
-            <LogIn className="size-4" />
-            <span className="hidden lg:inline">Vendor Login</span>
-          </Button>
-        )}
-
         {isAdmin && (
           <Button
             variant="ghost"
@@ -283,17 +270,7 @@ export function SiteHeader() {
                     );
                   })}
                 </nav>
-                {/* Vendor Login — mobile */}
-                <SheetClose asChild>
-                  <Button
-                    variant="outline"
-                    onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
-                  >
-                    <LogIn className="size-4" />
-                    Vendor Login
-                  </Button>
-                </SheetClose>
-                {/* Dashboard / List business — mobile (auth-aware) */}
+                {/* Dashboard / List business / Vendor Login — mobile (auth-aware) */}
                 {authChecking ? (
                   <Button disabled className="bg-muted text-muted-foreground">
                     <Loader2 className="size-4 animate-spin" />
