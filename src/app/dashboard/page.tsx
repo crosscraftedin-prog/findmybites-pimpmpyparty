@@ -97,13 +97,12 @@ export default function VendorDashboardPage() {
           avatarImage: v.avatarImage || "",
         });
 
-        // Load products
-        const { data: prods } = await supabaseBrowser
-          .from("Product")
-          .select("id,name,price,description,productType")
-          .eq("vendorId", v.id)
-          .order("createdAt", { ascending: false });
-        setProducts(prods || []);
+        // Load products via API (bypasses RLS)
+        const prodsRes = await fetch(`/api/vendor/products?vendorId=${v.id}`);
+        if (prodsRes.ok) {
+          const prodsData = await prodsRes.json();
+          setProducts(prodsData.products || []);
+        }
       }
     } catch (err) {
       console.error("Failed to load vendor:", err);
@@ -138,20 +137,27 @@ export default function VendorDashboardPage() {
     if (!vendor || !productForm.name.trim()) return;
     setSaving(true);
     try {
-      const { data, error } = await supabaseBrowser
-        .from("Product")
-        .insert({
+      const res = await fetch("/api/vendor/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           vendorId: vendor.id,
           name: productForm.name.trim(),
           price: Number(productForm.price) || 0,
           description: productForm.description.trim() || null,
           productType: productForm.productType || null,
-        })
-        .select("id,name,price,description,productType")
-        .single();
+        }),
+      });
 
-      if (error) throw error;
-      setProducts([data, ...products]);
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to add product");
+        setSaving(false);
+        return;
+      }
+
+      setProducts([data.product, ...products]);
       setProductForm({ name: "", price: "", description: "", productType: "" });
       setShowProductForm(false);
       toast.success("Product added!");
@@ -164,8 +170,11 @@ export default function VendorDashboardPage() {
   const deleteProduct = async (id: string) => {
     if (!confirm("Delete this product?")) return;
     try {
-      const { error } = await supabaseBrowser.from("Product").delete().eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/vendor/products?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete");
+      }
       setProducts(products.filter((p) => p.id !== id));
       toast.success("Product deleted");
     } catch (err: any) {
