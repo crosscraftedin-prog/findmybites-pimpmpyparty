@@ -37,7 +37,6 @@ const NAV_LINKS = [
   { href: "#explore", label: "Explore", icon: Compass },
   { href: "#categories", label: "Categories", icon: LayoutGrid },
   { href: "#featured", label: "Featured", icon: Star },
-  { href: "#how-it-works", label: "How it works", icon: Sparkles },
 ];
 
 export function SiteHeader() {
