@@ -40,17 +40,43 @@ export default function ClaimTokenPage() {
     }
 
     // Submit the claim
-    const { error } = await supabaseBrowser.rpc("submit_claim", {
+    const { data: claimId, error: claimErr } = await supabaseBrowser.rpc("submit_claim", {
       p_vendor_id: vData,
       p_method: "invite_token",
       p_phone: null,
       p_token: token,
     });
-    setSubmitting(false);
-    if (error) {
-      setErrorMsg(error.message);
+    if (claimErr) {
+      setErrorMsg(claimErr.message);
+      setSubmitting(false);
       return;
     }
+
+    // AUTO-APPROVE: Since admin created this business and sent the invite,
+    // auto-approve the claim so the vendor can go straight to their dashboard.
+    // No manual admin approval needed for invite-token claims.
+    if (claimId) {
+      const approveRes = await fetch("/api/claim/auto-approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ claimId }),
+      });
+
+      if (approveRes.ok) {
+        setSubmitting(false);
+        toast.success("Business claimed! Welcome aboard!");
+        router.push("/dashboard");
+        return;
+      }
+
+      // If auto-approve fails, fall back to manual review
+      setSubmitting(false);
+      toast.success("Claim submitted — awaiting admin review");
+      router.push("/claim-status");
+      return;
+    }
+
+    setSubmitting(false);
     toast.success("Claim submitted — awaiting admin review");
     router.push("/claim-status");
   };
