@@ -109,10 +109,10 @@ export default function ClaimTokenPage() {
     router.push("/claim-status");
   };
 
-  const handleSignIn = () => {
+  const handleSignIn = React.useCallback(() => {
     setAuthIntent(`claim-token:${token}`);
     openAuthDialog();
-  };
+  }, [setAuthIntent, openAuthDialog, token]);
 
   if (authLoading) {
     return (
