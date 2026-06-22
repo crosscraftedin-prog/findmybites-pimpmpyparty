@@ -46,6 +46,7 @@ export interface Vendor {
   longitude?: number | null;
   serviceRadiusKm?: number | null;
   userEmail?: string | null;
+  owner_user_id?: string | null;
   createdAt: string;
 }
 

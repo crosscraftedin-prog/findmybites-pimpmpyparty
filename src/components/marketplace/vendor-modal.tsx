@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
   BadgeCheck,
   MapPin,
@@ -61,7 +62,12 @@ export function VendorModal() {
   const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
   const { user: session } = useSupabaseSession();
+  const { isAdmin } = useIsAdmin();
   const { data: vendor, isLoading } = useVendor(slug);
+
+  // Only show Edit button to the vendor owner OR admin (SECURITY)
+  const isOwner = vendor?.owner_user_id === session?.id;
+  const canEdit = isOwner || isAdmin;
   const { data: reviewsData, isLoading: reviewsLoading } = useReviews(
     vendor?.id ?? null
   );
@@ -125,7 +131,8 @@ export function VendorModal() {
                 }
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-              {/* Edit listing button (top-right of hero) */}
+              {/* Edit listing button — ONLY for owner or admin (SECURITY) */}
+              {canEdit && (
               <button
                 onClick={onEditClick}
                 className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-colors hover:bg-black/75"
@@ -134,6 +141,7 @@ export function VendorModal() {
                 <Pencil className="size-3.5" />
                 Edit
               </button>
+              )}
               {/* Logo avatar (only if the vendor uploaded a distinct logo) */}
               {vendor.avatarImage && vendor.avatarImage !== vendor.heroImage && (
                 <div className="absolute -bottom-8 left-4 size-20 overflow-hidden rounded-2xl border-4 border-background bg-background shadow-lg sm:left-6 sm:size-24">
