@@ -39,6 +39,7 @@ interface Product {
   price: number;
   description: string | null;
   productType: string | null;
+  image: string | null;
 }
 
 export default function VendorDashboardPage() {
@@ -57,6 +58,7 @@ export default function VendorDashboardPage() {
     price: "",
     description: "",
     productType: "",
+    image: "",
   });
 
   React.useEffect(() => {
@@ -146,6 +148,7 @@ export default function VendorDashboardPage() {
           price: Number(productForm.price) || 0,
           description: productForm.description.trim() || null,
           productType: productForm.productType || null,
+          image: productForm.image.trim() || null,
         }),
       });
 
@@ -158,7 +161,7 @@ export default function VendorDashboardPage() {
       }
 
       setProducts([data.product, ...products]);
-      setProductForm({ name: "", price: "", description: "", productType: "" });
+      setProductForm({ name: "", price: "", description: "", productType: "", image: "" });
       setShowProductForm(false);
       toast.success("Product added!");
     } catch (err: any) {
@@ -359,6 +362,17 @@ export default function VendorDashboardPage() {
                     placeholder="Describe this product..."
                   />
                 </div>
+                <div className="sm:col-span-2">
+                  <Label>Product Image URL</Label>
+                  <Input
+                    value={productForm.image}
+                    onChange={(e) => setProductForm({ ...productForm, image: e.target.value })}
+                    placeholder="https://... (upload image first, then paste URL here)"
+                  />
+                  {productForm.image && (
+                    <img src={productForm.image} alt="Preview" className="mt-2 size-20 rounded-lg object-cover" />
+                  )}
+                </div>
               </div>
               <div className="mt-3 flex gap-2">
                 <Button onClick={addProduct} disabled={saving} size="sm" className="text-white" style={{ background: ecoColor }}>
@@ -380,8 +394,16 @@ export default function VendorDashboardPage() {
               {products.map((p) => (
                 <div
                   key={p.id}
-                  className="flex items-center justify-between rounded-lg border border-black/10 p-3"
+                  className="flex items-center gap-3 rounded-lg border border-black/10 p-3"
                 >
+                  {/* Product image */}
+                  {p.image ? (
+                    <img src={p.image} alt={p.name} className="size-12 shrink-0 rounded-lg object-cover" />
+                  ) : (
+                    <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-muted">
+                      <Package className="size-5 text-muted-foreground/40" />
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{p.name}</p>
                     {p.description && (
