@@ -42,11 +42,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Not authorized to add products to this vendor" }, { status: 403 });
     }
 
+    // Generate a unique slug for the product
+    const baseSlug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const slug = `${baseSlug}-${Date.now().toString(36)}`;
+
     // Create the product
     const product = await db.product.create({
       data: {
         vendorId,
         name: name.trim(),
+        slug,
         price: Number(price) || 0,
         description: description?.trim() || undefined,
         productType: productType || undefined,
