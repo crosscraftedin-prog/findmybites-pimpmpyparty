@@ -20,6 +20,7 @@ import {
   Pencil,
   Loader2,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import {
   BarChart,
@@ -39,6 +40,7 @@ import { AdminCategoriesSection } from "@/components/admin/admin-categories";
 import { AdminErrorBoundary } from "@/components/admin/admin-error-boundary";
 import { AdminClaimsSection } from "@/components/admin/admin-claims";
 import { AdminCreateBusiness } from "@/components/admin/admin-create-business";
+import { toast } from "sonner";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
 const CORAL = "#D85A30";
@@ -786,6 +788,32 @@ export function AdminPanel() {
 
   const totalPending = foodPending + partyPending;
   const initials = getInitials(adminName).toUpperCase() || "AD";
+
+  // Delete a vendor (admin only) — cascades to reviews, bookings, products
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Delete "${name}"? This will also delete all its reviews, bookings, and products. This cannot be undone.`)) return;
+    setActionLoading(id);
+    try {
+      const vendor = allVendors.find((v) => v.id === id);
+      if (!vendor) return;
+      const res = await fetch(`/api/vendors/${vendor.slug}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Failed to delete vendor");
+        return;
+      }
+      // Remove from local state
+      setAllVendors((prev) => prev.filter((v) => v.id !== id));
+      setPendingVendors((prev) => prev.filter((v) => v.id !== id));
+      setReviewVendor(null);
+      toast.success(`"${name}" deleted`);
+    } catch (err) {
+      console.error("Delete failed:", err);
+      toast.error("Failed to delete vendor");
+    } finally {
+      setActionLoading(null);
+    }
+  };
   const activityColor = (type: string) =>
     type === "food" ? CORAL : type === "party" ? PURPLE : GREEN_TEXT;
 
@@ -1257,14 +1285,29 @@ export function AdminPanel() {
                                 />
                               </td>
                               <td>
-                                <button
-                                  onClick={() => setReviewVendor(v)}
-                                  className="grid size-7 place-items-center rounded-lg text-black/40 transition-colors hover:bg-black/5 hover:text-black/70"
-                                  aria-label={`Edit ${v.name}`}
-                                  title="Review / edit"
-                                >
-                                  <Pencil className="size-3.5" />
-                                </button>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => setReviewVendor(v)}
+                                    className="grid size-7 place-items-center rounded-lg text-black/40 transition-colors hover:bg-black/5 hover:text-black/70"
+                                    aria-label={`Edit ${v.name}`}
+                                    title="Review / edit"
+                                  >
+                                    <Pencil className="size-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(v.id, v.name)}
+                                    disabled={actionLoading === v.id}
+                                    className="grid size-7 place-items-center rounded-lg text-black/40 transition-colors hover:bg-red-100 hover:text-red-600 disabled:opacity-30"
+                                    aria-label={`Delete ${v.name}`}
+                                    title="Delete vendor"
+                                  >
+                                    {actionLoading === v.id ? (
+                                      <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="size-3.5" />
+                                    )}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
