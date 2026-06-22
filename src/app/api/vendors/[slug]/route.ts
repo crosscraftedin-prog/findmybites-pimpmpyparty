@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
-import { COUNTRIES, getCategory, ADMIN_EMAILS } from "@/lib/constants";
+import { COUNTRIES, getCategory, getCategoryMigrated, ADMIN_EMAILS } from "@/lib/constants";
 import { requireAdmin } from "@/lib/admin-guard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
