@@ -4,7 +4,6 @@ import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { useMarketplace } from "@/lib/store";
 import { useClaimAuth } from "@/hooks/use-claim-auth";
 import { Button } from "@/components/ui/button";
 import { Loader2, Store, ShieldCheck, ArrowRight } from "lucide-react";
@@ -14,8 +13,6 @@ export default function ClaimTokenPage() {
   const token = params.token;
   const router = useRouter();
   const { user, loading: authLoading } = useClaimAuth();
-  const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
-  const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
   const [submitting, setSubmitting] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const [vendorName, setVendorName] = React.useState<string | null>(null);
@@ -109,9 +106,25 @@ export default function ClaimTokenPage() {
     router.push("/claim-status");
   };
 
-  const handleSignIn = () => {
-    setAuthIntent(`claim-token:${token}`);
-    openAuthDialog();
+  const handleSignIn = async () => {
+    // Store the intent so after Google OAuth redirect, user comes back here
+    try {
+      localStorage.setItem("fmb-pmp:auth-intent", `claim-token:${token}`);
+    } catch {}
+
+    // Directly trigger Google OAuth (not the modal dialog which only exists on homepage)
+    setSubmitting(true);
+    try {
+      await supabaseBrowser.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+    } catch {
+      toast.error("Google sign-in failed. Please try again.");
+      setSubmitting(false);
+    }
   };
 
   if (authLoading) {
@@ -137,10 +150,19 @@ export default function ClaimTokenPage() {
           </p>
           <Button
             onClick={handleSignIn}
+            disabled={submitting}
             className="mt-6 w-full rounded-full bg-[#1A1A1A] py-3 text-white hover:bg-black"
           >
-            Sign in to Continue
-            <ArrowRight className="ml-2 size-4" />
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" /> Connecting…
+              </>
+            ) : (
+              <>
+                Sign in to Continue
+                <ArrowRight className="ml-2 size-4" />
+              </>
+            )}
           </Button>
           <p className="mt-3 text-center text-xs text-muted-foreground">
             After signing in, you'll be redirected back here automatically.
