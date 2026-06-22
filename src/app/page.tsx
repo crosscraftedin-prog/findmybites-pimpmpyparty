@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { SiteHeader } from "@/components/marketplace/site-header";
 import { SiteFooter } from "@/components/marketplace/site-footer";
 import { Hero } from "@/components/marketplace/hero";
@@ -13,11 +14,23 @@ import { HowItWorks } from "@/components/marketplace/how-it-works";
 import { BecomeVendor } from "@/components/marketplace/become-vendor";
 import { VendorModal } from "@/components/marketplace/vendor-modal";
 import { ListVendorDialog } from "@/components/marketplace/list-vendor-dialog";
-import { AdminPanel } from "@/components/admin/admin-panel";
-import { VendorDashboard } from "@/components/vendor-dashboard/vendor-dashboard";
 import { SignInDialog } from "@/components/auth/sign-in-dialog";
+import { useMarketplace } from "@/lib/store";
+
+// Lazy-load heavy components that only open when user interacts (admin panel,
+// vendor dashboard). These ship recharts + framer-motion (~500KB) which
+// shouldn't be in the initial bundle for logged-out visitors.
+const AdminPanel = React.lazy(() =>
+  import("@/components/admin/admin-panel").then((m) => ({ default: m.AdminPanel }))
+);
+const VendorDashboard = React.lazy(() =>
+  import("@/components/vendor-dashboard/vendor-dashboard").then((m) => ({ default: m.VendorDashboard }))
+);
 
 export default function Home() {
+  const adminOpen = useMarketplace((s) => s.adminOpen);
+  const vendorDashboardOpen = useMarketplace((s) => s.vendorDashboardOpen);
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
@@ -35,9 +48,18 @@ export default function Home() {
       <SiteFooter />
       <VendorModal />
       <ListVendorDialog />
-      <AdminPanel />
-      <VendorDashboard />
       <SignInDialog />
+      {/* Lazy-loaded: only rendered when opened */}
+      {adminOpen && (
+        <React.Suspense fallback={null}>
+          <AdminPanel />
+        </React.Suspense>
+      )}
+      {vendorDashboardOpen && (
+        <React.Suspense fallback={null}>
+          <VendorDashboard />
+        </React.Suspense>
+      )}
     </div>
   );
 }

@@ -54,6 +54,7 @@ export function NearMePageClient() {
   const [vendors, setVendors] = React.useState<NearVendor[]>([]);
   const [loadingVendors, setLoadingVendors] = React.useState(false);
   const [fetchError, setFetchError] = React.useState<string | null>(null);
+  const [retryCount, setRetryCount] = React.useState(0);
 
   // Fetch vendors when location or filters change
   React.useEffect(() => {
@@ -98,7 +99,7 @@ export function NearMePageClient() {
     return () => {
       cancelled = true;
     };
-  }, [location, radius, category, minRating, verifiedOnly, featuredOnly, ecosystem]);
+  }, [location, radius, category, minRating, verifiedOnly, featuredOnly, ecosystem, retryCount]);
 
   // Auto-request location on mount if not already set
   React.useEffect(() => {
@@ -298,11 +299,9 @@ export function NearMePageClient() {
                 <p className="mt-3 text-[14px] font-medium">{fetchError}</p>
                 <button
                   onClick={() => {
-                    if (location) {
-                      setVendors([]);
-                      // Trigger re-fetch by toggling a state
-                      setRadius((r) => r);
-                    }
+                    setVendors([]);
+                    setFetchError(null);
+                    setRetryCount((c) => c + 1);
                   }}
                   className="mt-3 rounded-lg border border-black/15 px-4 py-2 text-[13px] font-medium hover:bg-black/5"
                 >

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { type Booking as DbBooking } from "@prisma/client";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Booking as ApiBooking } from "@/lib/types";
 
 function transformBooking(b: DbBooking): ApiBooking {
@@ -23,18 +24,27 @@ function transformBooking(b: DbBooking): ApiBooking {
 
 export async function GET(req: NextRequest) {
   try {
-    const vendorId = req.nextUrl.searchParams.get("vendorId") ?? undefined;
+    // Require auth — bookings contain customer PII (name, email, message)
+    const supabase = await createSupabaseServerClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
+    const vendorId = req.nextUrl.searchParams.get("vendorId");
+    if (!vendorId) {
+      return NextResponse.json({ bookings: [] });
+    }
+
     const bookings = await db.booking.findMany({
-      where: vendorId ? { vendorId } : undefined,
+      where: { vendorId },
       orderBy: { createdAt: "desc" },
+      take: 50,
     });
     return NextResponse.json({ bookings: bookings.map(transformBooking) });
   } catch (err) {
     console.error("[api/bookings] GET failed:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch bookings" },
-      { status: 500 }
-    );
+    return NextResponse.json({ bookings: [] });
   }
 }
 

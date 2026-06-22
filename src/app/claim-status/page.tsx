@@ -22,7 +22,10 @@ export default function ClaimStatusPage() {
 
   React.useEffect(() => {
     async function load() {
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
       const { data: cs } = await supabaseBrowser
         .from("vendor_claims")
         .select("*")

@@ -70,7 +70,7 @@ export async function GET() {
       })),
     };
 
-    return NextResponse.json(stats);
+    return NextResponse.json(stats, { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } });
   } catch (err) {
     console.error("[api/stats] GET failed:", err);
     // Return graceful empty stats instead of 500 so the homepage doesn't

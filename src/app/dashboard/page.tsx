@@ -64,7 +64,7 @@ export default function VendorDashboardPage() {
   React.useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      router.push("/login?returnTo=/dashboard");
+      router.push("/");
       return;
     }
     loadVendor();
@@ -209,7 +209,7 @@ export default function VendorDashboardPage() {
 
   const catConfig = getCategoryFields(vendor.category);
   const ecoColor = vendor.ecosystem === "FINDMYBITES" ? "#D85A30" : "#7F77DD";
-  const symbol = "₹";
+  const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
 
   return (
     <div className="min-h-screen bg-[#F7F6F2]">

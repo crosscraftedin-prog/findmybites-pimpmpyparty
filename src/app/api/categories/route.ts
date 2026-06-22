@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       count: countMap.get(`${c.ecosystem}:${c.id}`) ?? 0,
     }));
 
-    return NextResponse.json({ categories });
+    return NextResponse.json({ categories }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } });
   } catch (err) {
     console.error("[api/categories] GET failed:", err);
     // Graceful fallback — return categories with 0 counts

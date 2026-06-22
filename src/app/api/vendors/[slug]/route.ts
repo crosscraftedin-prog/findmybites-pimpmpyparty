@@ -152,19 +152,24 @@ export async function PATCH(
     }
 
     // Ownership check: vendor owner (via owner_user_id) OR admin can update
+    // MUST require auth — no anonymous updates allowed
     const supabase = await createSupabaseServerClient();
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user?.id) {
-      const isOwner = existing.owner_user_id === session.user.id;
-      const isAdmin = ADMIN_EMAILS.some(
-        (e) => e.toLowerCase() === session.user.email!.toLowerCase()
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
       );
-      if (!isOwner && !isAdmin) {
-        return NextResponse.json(
-          { error: "Not authorized to edit this vendor" },
-          { status: 403 }
-        );
-      }
+    }
+    const isOwner = existing.owner_user_id === session.user.id;
+    const isAdmin = ADMIN_EMAILS.some(
+      (e) => e.toLowerCase() === session.user.email!.toLowerCase()
+    );
+    if (!isOwner && !isAdmin) {
+      return NextResponse.json(
+        { error: "Not authorized to edit this vendor" },
+        { status: 403 }
+      );
     }
 
     // Build a partial update object. Only fields actually present in the body
@@ -334,6 +339,10 @@ export async function DELETE(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    // Admin-only — deleting vendors is destructive (cascades to reviews/bookings/products)
+    const guard = await requireAdmin();
+    if (guard) return guard;
+
     const { slug } = await params;
     const existing = await db.vendor.findUnique({ where: { slug } });
     if (!existing) {
