@@ -42,6 +42,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useMarketplace } from "@/lib/store";
+import { SubscriptionModal } from "@/components/SubscriptionModal";
 import {
   useVendorDashboard,
   useProducts,
@@ -261,6 +262,7 @@ export function VendorDashboard() {
   const { data, isLoading } = useVendorDashboard(open && !!user);
 
   const [activeNav, setActiveNav] = React.useState("overview");
+  const [showSubModal, setShowSubModal] = React.useState(false);
 
   const stats = data?.stats ?? {
     totalListings: 0,
@@ -745,7 +747,31 @@ export function VendorDashboard() {
                   </div>
 
                   {/* Plan card */}
-                  <PlanCard plan={plan} planLabel={planLabel} onUpgrade={() => setActiveNav("plan")} />
+                  {/* Plan card on overview — compact version */}
+                  <div
+                    className="mt-4 rounded-xl bg-white p-4"
+                    style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}
+                  >
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="text-[13px] font-medium">Your current plan</h2>
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                        style={{
+                          background: plan === "business" ? CORAL_TINT : plan === "pro" ? PURPLE_TINT : "#F1EFE8",
+                          color: plan === "business" ? CORAL_DARK : plan === "pro" ? PURPLE_DARK : "#5F5E5A",
+                        }}
+                      >
+                        {planLabel}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setActiveNav("plan")}
+                      className="w-full rounded-lg py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                      style={{ background: CORAL }}
+                    >
+                      View all plans & upgrade →
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -995,11 +1021,11 @@ export function VendorDashboard() {
 
               {/* ── PLAN & BILLING ────────────────────────────────────── */}
               {activeNav === "plan" && (
-                <PlanCard
+                <SubscriptionPlanView
                   plan={plan}
                   planLabel={planLabel}
-                  onUpgrade={() => toast.info("Billing integration coming soon!")}
-                  detailed
+                  vendor={vendor}
+                  onUpgrade={() => setShowSubModal(true)}
                 />
               )}
 
@@ -1064,6 +1090,19 @@ export function VendorDashboard() {
             </div>
           </main>
         </div>
+
+        {/* Subscription Modal — shows all 3 plans */}
+        <SubscriptionModal
+          isOpen={showSubModal}
+          onClose={() => setShowSubModal(false)}
+          vendorCountry={vendor?.countryCode || "US"}
+          vendorBrand={vendor?.ecosystem === "FINDMYBITES" ? "food" : "party"}
+          currentPlan={plan as "free" | "pro" | "business"}
+          onSelectPlan={(selectedPlan, billing) => {
+            toast.info(`Selected ${selectedPlan} (${billing}) — payment integration coming soon!`);
+            setShowSubModal(false);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -1166,98 +1205,153 @@ function EnquiryRow({
 }
 
 // ── Plan card ──────────────────────────────────────────────────────────────
-function PlanCard({
+function SubscriptionPlanView({
   plan,
   planLabel,
+  vendor,
   onUpgrade,
-  detailed = false,
 }: {
   plan: string;
   planLabel: string;
+  vendor: any;
   onUpgrade: () => void;
-  detailed?: boolean;
 }) {
-  // Tiered feature list per spec:
-  // Free: Basic listing, WhatsApp booking link, up to 5 gallery photos
-  // Baker Pro (adds): Verified badge, up to 20 gallery photos, basic analytics,
-  //   customer reviews enabled
-  // Business (adds): Priority placement, homepage spotlight, ad banner slot,
-  //   advanced analytics, unlimited gallery photos
-  const features = [
-    // Free tier
-    { label: "Basic listing (name, category, location)", included: true },
-    { label: "WhatsApp booking link", included: true },
-    { label: "Up to 5 gallery photos", included: true },
-    // Pro tier
-    { label: "Verified badge on listing", included: plan !== "free" },
-    { label: "Up to 20 gallery photos", included: plan !== "free" },
-    { label: "Basic analytics dashboard", included: plan !== "free" },
-    { label: "Customer reviews enabled", included: plan !== "free" },
-    // Business tier
-    { label: "Priority placement in search results", included: plan === "business" },
-    { label: "Featured in homepage spotlight", included: plan === "business" },
-    { label: "Ad banner slot access", included: plan === "business" },
-    { label: "Advanced analytics (views, conversion, demographics)", included: plan === "business" },
-    { label: "Unlimited gallery photos", included: plan === "business" },
+  const isFood = vendor?.ecosystem === "FINDMYBITES";
+  const brandColor = isFood ? CORAL : PURPLE;
+  const brandTint = isFood ? CORAL_TINT : PURPLE_TINT;
+  const brandDark = isFood ? CORAL_DARK : PURPLE_DARK;
+  const proName = isFood ? "Baker Pro" : "Vendor Pro";
+
+  const plans = [
+    {
+      key: "free",
+      name: "Free",
+      desc: "Get started and be discovered",
+      price: "₹0",
+      note: "forever",
+      isCurrent: plan === "free",
+      features: [
+        { label: "Basic listing (name, city, category)", included: true },
+        { label: "WhatsApp booking link", included: true },
+        { label: "Up to 5 gallery photos", included: true },
+        { label: "Verified badge", included: false },
+        { label: "Analytics dashboard", included: false },
+      ],
+    },
+    {
+      key: "pro",
+      name: proName,
+      desc: isFood ? "For serious food vendors ready to grow" : "Get leads and grow your events business",
+      price: "₹299",
+      note: "/month",
+      isCurrent: plan === "pro",
+      popular: true,
+      features: [
+        { label: "Everything in Free", included: true },
+        { label: "Verified badge on listing", included: true },
+        { label: "Up to 20 gallery photos", included: true },
+        { label: "Basic analytics dashboard", included: true },
+        { label: "Customer reviews enabled", included: true },
+        { label: "Priority placement in search", included: false },
+      ],
+    },
+    {
+      key: "business",
+      name: "Business",
+      desc: "Maximum visibility + AI-powered growth",
+      price: "₹499",
+      note: "/month",
+      isCurrent: plan === "business",
+      features: [
+        { label: `Everything in ${proName}`, included: true },
+        { label: "Priority placement in search", included: true },
+        { label: "Homepage spotlight feature", included: true },
+        { label: "Ad banner slot access", included: true },
+        { label: "Advanced analytics", included: true },
+        { label: "Unlimited gallery photos", included: true },
+      ],
+    },
   ];
 
-  // Upgrade CTA per plan
-  const upgradeCta =
-    plan === "free"
-      ? "Upgrade to Baker Pro — ₹299/mo"
-      : plan === "pro"
-        ? "Upgrade to Business — ₹499/mo"
-        : null;
-
   return (
-    <div
-      className={cn("mt-4 rounded-xl bg-white p-4", detailed && "mt-0")}
-      style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}
-    >
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-[13px] font-medium">
-          {detailed ? "Your plan & billing" : "Your current plan"}
-        </h2>
+    <div>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-[15px] font-medium">Your plan & billing</h2>
         <span
-          className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+          className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
           style={{
             background: plan === "business" ? CORAL_TINT : plan === "pro" ? PURPLE_TINT : "#F1EFE8",
             color: plan === "business" ? CORAL_DARK : plan === "pro" ? PURPLE_DARK : "#5F5E5A",
           }}
         >
-          {planLabel}
+          Current: {planLabel}
         </span>
       </div>
-      <div className="mb-3.5 flex flex-col gap-1.5">
-        {features.map((f, i) => (
-          <div key={i} className="flex items-center gap-2 text-[12px]">
-            {f.included ? (
-              <Check className="size-3.5 shrink-0" style={{ color: GREEN_TEXT }} />
-            ) : (
-              <Lock className="size-3.5 shrink-0 text-black/25" />
+
+      {/* All 3 plans side-by-side */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {plans.map((p) => (
+          <div
+            key={p.key}
+            className={`relative flex flex-col rounded-lg border bg-white p-4 ${p.popular ? "border-2" : "border border-black/10"}`}
+            style={p.popular ? { borderColor: isFood ? CORAL_BORDER : PURPLE_BORDER } : undefined}
+          >
+            {p.popular && (
+              <div
+                className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full px-2.5 py-0.5 text-[9px] font-medium text-white"
+                style={{ background: brandColor }}
+              >
+                Most popular
+              </div>
             )}
-            <span style={{ color: f.included ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)" }}>
-              {f.label}
-            </span>
+            <p className="text-[13px] font-medium" style={{ color: brandDark }}>{p.name}</p>
+            <p className="mt-0.5 text-[10px] leading-snug text-black/40">{p.desc}</p>
+            <div className="mt-3">
+              <span className="text-[24px] font-medium tracking-tight">{p.price}</span>
+              <span className="ml-1 text-[10px] text-black/40">{p.note}</span>
+            </div>
+            <div className="mt-3">
+              {p.isCurrent ? (
+                <div className="rounded-md bg-black/5 py-2 text-center text-[11px] font-medium text-black/40">
+                  Current plan
+                </div>
+              ) : (
+                <button
+                  onClick={onUpgrade}
+                  className={`w-full rounded-md py-2 text-[11px] font-medium transition-opacity hover:opacity-90 ${
+                    p.key === "business" ? "text-white" : ""
+                  }`}
+                  style={
+                    p.key === "business"
+                      ? { background: brandColor }
+                      : { background: brandTint, color: brandDark, border: `1px solid ${isFood ? CORAL_BORDER : PURPLE_BORDER}` }
+                  }
+                >
+                  {p.key === "pro" ? `Start ${proName}` : "Go Business"}
+                </button>
+              )}
+            </div>
+            <div className="mt-4 flex-1">
+              {p.features.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 py-1.5">
+                  {f.included ? (
+                    <Check className="size-3.5 shrink-0" style={{ color: brandColor }} />
+                  ) : (
+                    <Lock className="size-3.5 shrink-0 text-black/25" />
+                  )}
+                  <span className={f.included ? "text-[12px] text-black/60" : "text-[12px] text-black/30"}>
+                    {f.label}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
-      {upgradeCta ? (
-        <button
-          onClick={onUpgrade}
-          className="w-full rounded-lg py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
-          style={{ background: CORAL }}
-        >
-          {upgradeCta}
-        </button>
-      ) : (
-        <div
-          className="rounded-lg p-2.5 text-center text-[12px] font-medium"
-          style={{ background: GREEN_BG, color: GREEN_TEXT }}
-        >
-          You're on the top plan. Thanks for supporting us 🎉
-        </div>
-      )}
+
+      <p className="mt-4 text-center text-[10px] text-black/40">
+        All plans include WhatsApp direct booking. No transaction fees. Cancel anytime.
+      </p>
     </div>
   );
 }
