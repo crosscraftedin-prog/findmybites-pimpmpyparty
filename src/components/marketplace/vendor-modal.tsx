@@ -314,8 +314,18 @@ export function VendorModal() {
                     <div className="grid gap-2 sm:grid-cols-2">
                       {products.slice(0, 2).map((p) => {
                         const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency;
+                        const pImages = p.images ?? (p.image ? [p.image] : []);
                         return (
-                          <div key={p.id} className="rounded-xl border border-border bg-card p-3">
+                          <div
+                            key={p.id}
+                            onClick={() => setSelectedProduct(p)}
+                            className="cursor-pointer rounded-xl border border-border bg-card p-3 transition-all hover:border-brand-border hover:shadow-md"
+                          >
+                            {pImages.length > 0 && (
+                              <div className="mb-2 aspect-video overflow-hidden rounded-lg">
+                                <img src={pImages[0]} alt={p.name} className="h-full w-full object-cover" />
+                              </div>
+                            )}
                             <div className="flex items-center justify-between gap-2">
                               <p className="truncate text-sm font-semibold">{p.name}</p>
                               <span className="shrink-0 text-sm font-bold tabular-nums">
@@ -483,13 +493,19 @@ export function VendorModal() {
                       <div className="space-y-3">
                         {products.map((p) => {
                           const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency;
+                          const pImages = p.images ?? (p.image ? [p.image] : []);
                           return (
                             <div
                               key={p.id}
                               onClick={() => setSelectedProduct(p)}
                               className="cursor-pointer rounded-2xl border border-border bg-card p-4 transition-all hover:border-brand-border hover:shadow-md"
                             >
-                              <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                {pImages.length > 0 && (
+                                  <div className="size-16 shrink-0 overflow-hidden rounded-lg">
+                                    <img src={pImages[0]} alt={p.name} className="h-full w-full object-cover" />
+                                  </div>
+                                )}
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
                                     <h4 className="font-bold">{p.name}</h4>
@@ -609,9 +625,16 @@ function ProductDetailModal({
   currency: string;
   onClose: () => void;
 }) {
+  const [activeImage, setActiveImage] = React.useState(0);
+
+  React.useEffect(() => {
+    setActiveImage(0);
+  }, [product?.id]);
+
   if (!product) return null;
   const symbol = CURRENCY_SYMBOLS[currency] ?? currency;
-  const images = product.images ?? [];
+  // Handle both 'images' (array) and 'image' (single) fields
+  const images = product.images ?? (product.image ? [product.image] : []);
   const hasVideo = product.videoUrl && (
     product.videoUrl.includes("youtube.com") ||
     product.videoUrl.includes("youtu.be") ||
@@ -636,16 +659,22 @@ function ProductDetailModal({
         <DialogTitle className="sr-only">{product.name}</DialogTitle>
         <DialogDescription className="sr-only">Product details</DialogDescription>
         <ScrollArea className="max-h-[90vh] overflow-y-auto">
-          {/* Image gallery */}
+          {/* Image gallery — clickable thumbnails */}
           {images.length > 0 && (
             <div className="relative aspect-video overflow-hidden bg-muted">
-              <img src={images[0]} alt={product.name} className="h-full w-full object-cover" />
+              <img src={images[activeImage] ?? images[0]} alt={product.name} className="h-full w-full object-cover" />
               {images.length > 1 && (
-                <div className="absolute bottom-2 left-2 flex gap-1">
-                  {images.slice(0, 3).map((img, i) => (
-                    <div key={i} className="size-12 overflow-hidden rounded-md border-2 border-white/80">
+                <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-2">
+                  {images.map((img, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActiveImage(i)}
+                      className={`size-12 overflow-hidden rounded-lg border-2 transition-all ${
+                        i === activeImage ? "border-white opacity-100" : "border-white/40 opacity-60 hover:opacity-100"
+                      }`}
+                    >
                       <img src={img} alt="" className="h-full w-full object-cover" />
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
