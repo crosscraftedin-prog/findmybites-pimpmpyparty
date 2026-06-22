@@ -66,6 +66,7 @@ const CORAL_BORDER = "#F0997B";
 const PURPLE = "#7F77DD";
 const PURPLE_TINT = "#EEEDFE";
 const PURPLE_DARK = "#534AB7";
+const PURPLE_BORDER = "#AFA9EC";
 const GREEN = "#639922";
 const GREEN_BG = "#EAF3DE";
 const GREEN_TEXT = "#3B6D11";
