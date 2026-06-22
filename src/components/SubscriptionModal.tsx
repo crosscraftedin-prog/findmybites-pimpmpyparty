@@ -32,15 +32,16 @@ const PRICING_BY_COUNTRY: Record<
     pro: { monthly: number; yearly: number };
     business: { monthly: number; yearly: number };
     label: string;
+    note?: string;
   }
 > = {
-  IN: { symbol: "₹", pro: { monthly: 299, yearly: 239 }, business: { monthly: 499, yearly: 399 }, label: "India" },
-  US: { symbol: "$", pro: { monthly: 5, yearly: 4 }, business: { monthly: 9, yearly: 7 }, label: "United States" },
-  GB: { symbol: "£", pro: { monthly: 4, yearly: 3 }, business: { monthly: 7, yearly: 6 }, label: "United Kingdom" },
-  AU: { symbol: "A$", pro: { monthly: 8, yearly: 6 }, business: { monthly: 13, yearly: 10 }, label: "Australia" },
-  AE: { symbol: "AED", pro: { monthly: 18, yearly: 14 }, business: { monthly: 33, yearly: 26 }, label: "UAE" },
-  SG: { symbol: "S$", pro: { monthly: 7, yearly: 6 }, business: { monthly: 12, yearly: 10 }, label: "Singapore" },
-  NG: { symbol: "₦", pro: { monthly: 2000, yearly: 1600 }, business: { monthly: 3500, yearly: 2800 }, label: "Nigeria" },
+  IN: { symbol: "₹", pro: { monthly: 299, yearly: 239 }, business: { monthly: 499, yearly: 399 }, label: "India — prices in ₹", note: "Prices in Indian Rupees. No transaction fees. Cancel anytime." },
+  US: { symbol: "$", pro: { monthly: 5, yearly: 4 }, business: { monthly: 9, yearly: 7 }, label: "United States — prices in $", note: "Prices in USD. No transaction fees. Cancel anytime." },
+  GB: { symbol: "£", pro: { monthly: 4, yearly: 3 }, business: { monthly: 7, yearly: 6 }, label: "United Kingdom — prices in £", note: "Prices in GBP. No transaction fees. Cancel anytime." },
+  AU: { symbol: "A$", pro: { monthly: 8, yearly: 6 }, business: { monthly: 13, yearly: 10 }, label: "Australia — prices in A$", note: "Prices in AUD. No transaction fees. Cancel anytime." },
+  AE: { symbol: "AED", pro: { monthly: 18, yearly: 14 }, business: { monthly: 33, yearly: 26 }, label: "UAE — prices in AED", note: "Prices in AED. No transaction fees. Cancel anytime." },
+  SG: { symbol: "S$", pro: { monthly: 7, yearly: 6 }, business: { monthly: 12, yearly: 10 }, label: "Singapore — prices in S$", note: "Prices in SGD. No transaction fees. Cancel anytime." },
+  NG: { symbol: "₦", pro: { monthly: 2000, yearly: 1600 }, business: { monthly: 3500, yearly: 2800 }, label: "Nigeria — prices in ₦", note: "Prices in NGN. No transaction fees. Cancel anytime." },
   CA: { symbol: "CA$", pro: { monthly: 7, yearly: 6 }, business: { monthly: 12, yearly: 10 }, label: "Canada" },
   ZA: { symbol: "R", pro: { monthly: 90, yearly: 72 }, business: { monthly: 160, yearly: 128 }, label: "South Africa" },
 };
@@ -370,7 +371,9 @@ export function SubscriptionModal({
             {isFood ? "Grow your food business" : "Grow your events business"}
           </h2>
           <p className="mt-0.5 text-[12px] text-black/40">
-            Get discovered by thousands of customers — zero commission, always.
+            {isFood
+              ? "Get discovered by thousands of customers — zero commission, always."
+              : "Connect with hosts, couples, and corporates — zero commission, always."}
           </p>
 
           {/* Billing toggle */}
@@ -440,7 +443,7 @@ export function SubscriptionModal({
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-3">
           <p className="text-[10px] text-black/40">
-            All plans include WhatsApp direct booking. No transaction fees. Cancel anytime.
+            {pricing.note || "All plans include WhatsApp direct booking. No transaction fees. Cancel anytime."}
           </p>
           <button className="inline-flex items-center gap-1 text-[10px] text-black/40 transition-colors hover:text-black/60">
             <HelpCircle className="size-3" />
