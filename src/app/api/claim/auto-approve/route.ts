@@ -51,10 +51,10 @@ export async function POST(req: NextRequest) {
       WHERE id = ${claimId}::uuid
     `;
 
-    // Update the vendor
+    // Update the vendor — set approved=true so it shows on the public site
     await db.$executeRaw`
       UPDATE public."Vendor" 
-      SET ownership_status = 'claimed', "owner_user_id" = ${c.user_id}::uuid, verified = true
+      SET ownership_status = 'claimed', "owner_user_id" = ${c.user_id}::uuid, verified = true, approved = true
       WHERE id = ${c.vendor_id}
     `;
 
