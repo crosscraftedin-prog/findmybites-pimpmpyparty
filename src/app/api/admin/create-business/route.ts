@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin-guard";
 import { COUNTRIES } from "@/lib/constants";
+import { geocodeAddress } from "@/lib/geocode";
 
 /**
  * POST /api/admin/create-business
@@ -46,6 +47,16 @@ export async function POST(req: NextRequest) {
     };
     const continent = continentMap[countryName] || "Asia";
 
+    // Geocode the address to get lat/lng for Near Me search
+    const geoQuery = `${city.trim()}, ${countryName}`;
+    let geo: { lat: number; lng: number } | null = null;
+    try {
+      geo = await geocodeAddress(geoQuery);
+    } catch {
+      // Geocoding failed — vendor will be created without coordinates
+      // (won't show in Near Me until vendor adds their address)
+    }
+
     const vendor = await db.vendor.create({
       data: {
         name: name.trim(),
@@ -74,8 +85,8 @@ export async function POST(req: NextRequest) {
         yearsActive: 1,
         completedBookings: 0,
         whatsapp: whatsapp.trim().replace(/\D/g, ""),
-        latitude: null,
-        longitude: null,
+        latitude: geo?.lat ?? null,
+        longitude: geo?.lng ?? null,
       },
     });
 
