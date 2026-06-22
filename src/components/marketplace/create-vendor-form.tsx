@@ -41,6 +41,7 @@ import {
 } from "@/lib/constants";
 import { countryCodeToFlag } from "@/lib/format";
 import { ImageUpload } from "./image-upload";
+import { SubscriptionModal } from "@/components/SubscriptionModal";
 import type { Ecosystem, Vendor } from "@/lib/types";
 
 interface FormState {
@@ -764,6 +765,9 @@ export function CreateVendorSuccess({
   onView: () => void;
   onAgain: () => void;
 }) {
+  const [showUpgrade, setShowUpgrade] = React.useState(false);
+  const brand = vendor.ecosystem === "FINDMYBITES" ? "food" : "party";
+
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-brand-border bg-brand-soft p-8 text-center">
       <div className="grid size-16 place-items-center rounded-full bg-amber-500 text-white shadow-lg">
@@ -788,6 +792,25 @@ export function CreateVendorSuccess({
         </span>
       </div>
 
+      {/* Upgrade suggestion */}
+      <div className="mt-5 w-full rounded-xl border border-brand-border bg-background p-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="size-4 text-brand" />
+          <p className="text-sm font-bold">Grow faster with a paid plan</p>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Get verified badge, analytics, more gallery photos, and priority search placement.
+        </p>
+        <Button
+          size="sm"
+          onClick={() => setShowUpgrade(true)}
+          className="mt-3 gap-1.5 bg-brand text-brand-foreground hover:bg-brand/90"
+        >
+          <Sparkles className="size-3.5" />
+          View Plans
+        </Button>
+      </div>
+
       <div className="mt-6 flex flex-col gap-2 sm:flex-row">
         <Button
           onClick={onView}
@@ -801,6 +824,19 @@ export function CreateVendorSuccess({
           Add another business
         </Button>
       </div>
+
+      {/* Subscription modal */}
+      <SubscriptionModal
+        isOpen={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        vendorCountry={vendor.countryCode || "US"}
+        vendorBrand={brand as "food" | "party"}
+        currentPlan={"free"}
+        onSelectPlan={(plan, billing) => {
+          toast.info(`Selected ${plan} (${billing}) — payment integration coming soon!`);
+          setShowUpgrade(false);
+        }}
+      />
     </div>
   );
 }

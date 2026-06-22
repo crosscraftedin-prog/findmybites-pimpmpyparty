@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Store, Package, Plus, Trash2, Star, ArrowRight } from "lucide-react";
+import { Loader2, Store, Package, Plus, Trash2, Star, ArrowRight, Sparkles } from "lucide-react";
 import { CATEGORIES, CURRENCY_SYMBOLS } from "@/lib/constants";
 import { getCategoryFields } from "@/lib/category-fields";
+import { SubscriptionModal } from "@/components/SubscriptionModal";
 
 interface VendorData {
   id: string;
@@ -24,6 +25,7 @@ interface VendorData {
   city: string;
   state: string | null;
   country: string;
+  countryCode: string;
   whatsapp: string | null;
   instagram: string | null;
   website: string | null;
@@ -50,6 +52,7 @@ export default function VendorDashboardPage() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [showProductForm, setShowProductForm] = React.useState(false);
+  const [showSubscription, setShowSubscription] = React.useState(false);
 
   // Form state
   const [form, setForm] = React.useState<Record<string, string>>({});
@@ -432,8 +435,8 @@ export default function VendorDashboardPage() {
           )}
         </section>
 
-        {/* View listing */}
-        <div className="mt-6 text-center">
+        {/* View listing + Upgrade */}
+        <div className="mt-6 flex items-center justify-center gap-3">
           <Button
             onClick={() => vendor?.slug && router.push(`/vendor/${vendor.slug}`)}
             variant="outline"
@@ -441,8 +444,29 @@ export default function VendorDashboardPage() {
           >
             View Public Listing <ArrowRight className="size-4" />
           </Button>
+          <Button
+            onClick={() => setShowSubscription(true)}
+            className="gap-1.5 text-white"
+            style={{ background: ecoColor }}
+          >
+            <Sparkles className="size-4" />
+            Upgrade Plan
+          </Button>
         </div>
       </main>
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        isOpen={showSubscription}
+        onClose={() => setShowSubscription(false)}
+        vendorCountry={vendor?.countryCode || "US"}
+        vendorBrand={vendor?.ecosystem === "FINDMYBITES" ? "food" : "party"}
+        currentPlan={"free"}
+        onSelectPlan={(plan, billing) => {
+          toast.info(`Selected ${plan} (${billing}) — payment integration coming soon!`);
+          setShowSubscription(false);
+        }}
+      />
     </div>
   );
 }
