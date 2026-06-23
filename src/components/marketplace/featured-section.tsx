@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Flame } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { useFeaturedVendors } from "@/lib/queries";
+import { getPlaceholderVendors } from "@/lib/placeholder-vendors";
 import { VendorCard } from "./vendor-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,8 @@ import { Button } from "@/components/ui/button";
 export function FeaturedSection() {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const { data, isLoading } = useFeaturedVendors(ecosystem);
+  const realVendors = data?.vendors ?? [];
+  const displayVendors = realVendors.length > 0 ? realVendors : getPlaceholderVendors(ecosystem);
   const scrollerRef = React.useRef<HTMLDivElement>(null);
 
   const vendors = data?.vendors ?? [];
@@ -65,7 +68,7 @@ export function FeaturedSection() {
               <Skeleton key={i} className="aspect-[3/4] w-72 shrink-0 rounded-2xl" />
             ))}
           </div>
-        ) : vendors.length === 0 ? (
+        ) : displayVendors.length === 0 ? (
           <p className="mt-8 py-8 text-center text-sm text-muted-foreground">
             Featured vendors coming soon — check back shortly.
           </p>
@@ -74,7 +77,7 @@ export function FeaturedSection() {
             ref={scrollerRef}
             className="no-scrollbar mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2"
           >
-            {vendors.map((v, i) => (
+            {displayVendors.map((v, i) => (
               <motion.div
                 key={v.id}
                 initial={{ opacity: 0, scale: 0.96 }}
