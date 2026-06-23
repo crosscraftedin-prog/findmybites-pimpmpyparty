@@ -21,6 +21,7 @@ import {
   Loader2,
   ShieldCheck,
   Trash2,
+  Download,
 } from "lucide-react";
 import {
   BarChart,
@@ -83,6 +84,7 @@ interface Vendor {
   whatsapp: string | null;
   instagram: string | null;
   website: string | null;
+  userEmail: string | null;
   gallery: string[];
   createdAt: string;
   heroImage: string;
@@ -378,11 +380,19 @@ function ReviewPanel({
             </Section>
           )}
 
-          {vendor.whatsapp && (
+          {(vendor.whatsapp || vendor.userEmail || vendor.instagram) && (
             <Section label="Contact">
-              <p className="text-[12px]">WhatsApp: {vendor.whatsapp}</p>
+              {vendor.userEmail && (
+                <p className="text-[12px]">📧 Email: {vendor.userEmail}</p>
+              )}
+              {vendor.whatsapp && (
+                <p className="text-[12px]">📞 WhatsApp: {vendor.whatsapp}</p>
+              )}
               {vendor.instagram && (
-                <p className="text-[12px]">Instagram: {vendor.instagram}</p>
+                <p className="text-[12px]">📸 Instagram: {vendor.instagram}</p>
+              )}
+              {vendor.website && (
+                <p className="text-[12px]">🌐 Website: {vendor.website}</p>
               )}
             </Section>
           )}
@@ -1193,6 +1203,44 @@ export function AdminPanel() {
                       <option value="pending">Pending</option>
                       <option value="flagged">Flagged</option>
                     </select>
+                    {/* Download CSV button */}
+                    <button
+                      onClick={() => {
+                        const headers = ["Name", "Brand", "Category", "City", "Country", "WhatsApp", "Email", "Plan", "Status", "Rating", "Reviews", "Created"];
+                        const rows = filteredVendors.map((v) => {
+                          const p = getVendorPlan(v);
+                          const s = v.approved ? "Active" : v.status === "flagged" ? "Flagged" : "Pending";
+                          return [
+                            `"${v.name}"`,
+                            v.ecosystem === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty",
+                            v.category,
+                            v.city,
+                            v.country,
+                            v.whatsapp || "",
+                            v.userEmail || "",
+                            p,
+                            s,
+                            v.rating,
+                            v.reviewCount,
+                            new Date(v.createdAt).toLocaleDateString(),
+                          ].join(",");
+                        });
+                        const csv = [headers.join(","), ...rows].join("\n");
+                        const blob = new Blob([csv], { type: "text/csv" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `vendors-${new Date().toISOString().split("T")[0]}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        toast.success("Vendor data downloaded");
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-medium text-black/60 transition-colors hover:bg-black/5"
+                      title="Download all vendors as CSV"
+                    >
+                      <Download className="size-3.5" />
+                      CSV
+                    </button>
                   </div>
                 </div>
 
@@ -1226,14 +1274,15 @@ export function AdminPanel() {
                           className="text-left text-[10px] uppercase tracking-wide text-black/40"
                           style={{ borderBottom: "0.5px solid rgba(0,0,0,0.12)" }}
                         >
-                          <th style={{ width: "26%" }} className="py-2 pl-3">
+                          <th style={{ width: "20%" }} className="py-2 pl-3">
                             Vendor
                           </th>
-                          <th style={{ width: "13%" }}>Brand</th>
-                          <th style={{ width: "15%" }}>Category</th>
-                          <th style={{ width: "13%" }}>Location</th>
-                          <th style={{ width: "12%" }}>Plan</th>
-                          <th style={{ width: "10%" }}>Status</th>
+                          <th style={{ width: "10%" }}>Brand</th>
+                          <th style={{ width: "12%" }}>Category</th>
+                          <th style={{ width: "11%" }}>Location</th>
+                          <th style={{ width: "13%" }}>Contact</th>
+                          <th style={{ width: "9%" }}>Plan</th>
+                          <th style={{ width: "9%" }}>Status</th>
                           <th style={{ width: "6%" }}></th>
                         </tr>
                       </thead>
@@ -1269,6 +1318,24 @@ export function AdminPanel() {
                               <td className="text-black/60">{v.category}</td>
                               <td className="text-black/60">
                                 {v.city}, {v.countryCode || v.country}
+                              </td>
+                              {/* Contact column */}
+                              <td className="text-black/60">
+                                {v.whatsapp && (
+                                  <div className="flex items-center gap-1 text-[11px]">
+                                    <span className="text-[9px]">📞</span>
+                                    <span>{v.whatsapp}</span>
+                                  </div>
+                                )}
+                                {v.userEmail && (
+                                  <div className="flex items-center gap-1 text-[11px] truncate">
+                                    <span className="text-[9px]">✉️</span>
+                                    <span className="truncate">{v.userEmail}</span>
+                                  </div>
+                                )}
+                                {!v.whatsapp && !v.userEmail && (
+                                  <span className="text-[10px] text-black/30">—</span>
+                                )}
                               </td>
                               <td>
                                 <PlanBadge plan={plan} ecosystem={v.ecosystem} />
