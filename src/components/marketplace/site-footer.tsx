@@ -45,23 +45,20 @@ const COLUMNS = [
   {
     title: "Company",
     links: [
-      { label: "About us", href: "#", active: false },
+      { label: "About us", href: "/about", active: true },
       { label: "How it works", href: "#how-it-works", active: true },
-      { label: "Careers", href: "#", active: false },
-      { label: "Press", href: "#", active: false },
-      { label: "Blog", href: "#", active: false },
-      { label: "Contact", href: "#", active: false },
+      { label: "Careers", href: "/careers", active: true },
+      { label: "Blog", href: "/blog", active: true },
+      { label: "Contact", href: "/contact", active: true },
     ],
   },
   {
     title: "Support",
     links: [
-      { label: "Help center", href: "#", active: false },
-      { label: "Trust & safety", href: "#", active: false },
-      { label: "Vendor guidelines", href: "#", active: false },
-      { label: "Cancellation policy", href: "#", active: false },
-      { label: "Terms", href: "#", active: false },
-      { label: "Privacy", href: "#", active: false },
+      { label: "Help center", href: "/help", active: true },
+      { label: "Trust & safety", href: "/trust-safety", active: true },
+      { label: "Terms", href: "/terms", active: true },
+      { label: "Privacy", href: "/privacy", active: true },
     ],
   },
 ];
