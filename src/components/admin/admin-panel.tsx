@@ -506,6 +506,226 @@ function ReviewPanel({
 }
 
 // ── Tab button ─────────────────────────────────────────────────────────────
+
+// ── Vendor Table Section (for Food/Party vendors tabs) ─────────────────────
+function VendorTableSection({
+  title,
+  allVendors,
+  loading,
+  searchQuery,
+  setSearchQuery,
+  statusFilter,
+  setStatusFilter,
+  vendorPage,
+  setVendorPage,
+  VENDORS_PER_PAGE,
+  setReviewVendor,
+  handleDelete,
+  actionLoading,
+  ecoColor,
+  forceEcosystem,
+}: any) {
+  const filtered = React.useMemo(() => {
+    return allVendors.filter((v: Vendor) => {
+      if (forceEcosystem && v.ecosystem !== forceEcosystem) return false;
+      if (searchQuery && !v.name.toLowerCase().includes(searchQuery.toLowerCase()) && !v.city.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (statusFilter === "active" && !v.approved) return false;
+      if (statusFilter === "pending" && v.approved) return false;
+      return true;
+    });
+  }, [allVendors, searchQuery, statusFilter, forceEcosystem]);
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[13px] font-medium">{title} ({filtered.length})</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-black/30" />
+            <input
+              type="text"
+              placeholder="Search vendors…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 w-44 rounded-lg border py-1 pl-7 pr-2 text-[12px] outline-none focus:border-black/30"
+              style={{ borderColor: "rgba(0,0,0,0.12)" }}
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-8 rounded-lg border px-2 text-[12px] outline-none"
+            style={{ borderColor: "rgba(0,0,0,0.12)" }}
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+          </select>
+        </div>
+      </div>
+      {loading ? (
+        <Skeleton className="h-64 w-full" />
+      ) : filtered.length === 0 ? (
+        <div className="py-8 text-center text-[12px] text-black/40">No vendors found.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full" style={{ tableLayout: "fixed", borderCollapse: "collapse" }}>
+            <thead>
+              <tr className="text-left text-[10px] uppercase tracking-wide text-black/40" style={{ borderBottom: "0.5px solid rgba(0,0,0,0.12)" }}>
+                <th style={{ width: "25%" }} className="py-2 pl-3">Vendor</th>
+                <th style={{ width: "15%" }}>Category</th>
+                <th style={{ width: "15%" }}>Location</th>
+                <th style={{ width: "15%" }}>Contact</th>
+                <th style={{ width: "10%" }}>Status</th>
+                <th style={{ width: "6%" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.slice(vendorPage * VENDORS_PER_PAGE, (vendorPage + 1) * VENDORS_PER_PAGE).map((v: Vendor) => {
+                const isFood = v.ecosystem === "FINDMYBITES";
+                return (
+                  <tr key={v.id} className="text-[12px] transition-colors hover:bg-black/[0.02]" style={{ borderBottom: "0.5px solid rgba(0,0,0,0.06)" }}>
+                    <td className="py-2.5 pl-3">
+                      <div className="flex items-center gap-2">
+                        <div className="grid size-7 shrink-0 place-items-center rounded-lg text-[10px] font-medium" style={{ background: isFood ? CORAL_TINT : PURPLE_TINT, color: isFood ? CORAL_DARK : PURPLE_DARK }}>
+                          {getInitials(v.name)}
+                        </div>
+                        <span className="truncate font-medium">{v.name}</span>
+                      </div>
+                    </td>
+                    <td className="text-black/60">{v.category}</td>
+                    <td className="text-black/60">{v.city}, {v.countryCode || v.country}</td>
+                    <td className="text-black/60">
+                      {v.whatsapp && <div className="text-[11px]">📞 {v.whatsapp}</div>}
+                      {v.userEmail && <div className="truncate text-[11px]">✉️ {v.userEmail}</div>}
+                    </td>
+                    <td><StatusBadge status={v.approved ? "approved" : "pending"} /></td>
+                    <td>
+                      <div className="flex gap-1">
+                        <button onClick={() => setReviewVendor(v)} className="grid size-7 place-items-center rounded-lg text-black/40 hover:bg-black/5 hover:text-black/70">
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button onClick={() => handleDelete(v.id, v.name)} disabled={actionLoading === v.id} className="grid size-7 place-items-center rounded-lg text-black/40 hover:bg-red-100 hover:text-red-600">
+                          {actionLoading === v.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Approval Section (for Food/Party approvals tabs) ────────────────────────
+function ApprovalSection({
+  title,
+  pendingVendors,
+  setReviewVendor,
+  ecoColor,
+  ecoTint,
+  ecoDark,
+}: any) {
+  return (
+    <div>
+      <h2 className="mb-3 text-[13px] font-medium">{title} ({pendingVendors.length})</h2>
+      {pendingVendors.length === 0 ? (
+        <div className="flex flex-col items-center py-8 text-center">
+          <CheckCircle2 className="size-8" style={{ color: GREEN_TEXT }} />
+          <p className="mt-2 text-[12px] text-black/50">All caught up — no vendors awaiting review.</p>
+        </div>
+      ) : (
+        <div>
+          {pendingVendors.map((v: Vendor) => {
+            const isFood = v.ecosystem === "FINDMYBITES";
+            return (
+              <div key={v.id} className="flex items-center gap-2.5 border-b border-black/5 py-2 last:border-0">
+                <div className="grid size-8 shrink-0 place-items-center rounded-lg text-[11px] font-medium" style={{ background: isFood ? CORAL_TINT : PURPLE_TINT, color: isFood ? CORAL_DARK : PURPLE_DARK }}>
+                  {getInitials(v.name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium">{v.name}</p>
+                  <p className="truncate text-[11px] text-black/40">{v.city} · {v.category}</p>
+                </div>
+                <StatusBadge status="pending" />
+                <button onClick={() => setReviewVendor(v)} className="rounded-lg border px-2 py-1 text-[11px] font-medium" style={{ borderColor: isFood ? CORAL_BORDER : PURPLE_BORDER, color: isFood ? CORAL_DARK : PURPLE_DARK }}>
+                  Review
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Analytics Section ───────────────────────────────────────────────────────
+function AnalyticsSection({ kpi, loading, signupsData }: any) {
+  return (
+    <div>
+      <h2 className="mb-4 text-[15px] font-medium">Analytics</h2>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KPICard label="Total vendors" value={kpi?.totalVendors ?? 0} delta={kpi ? `+${kpi.newThisMonth} this month` : undefined} loading={loading} />
+        <KPICard label="Active listings" value={kpi?.activeListings ?? 0} delta={kpi ? `${kpi.approvalRate}% approval rate` : undefined} loading={loading} />
+        <KPICard label="Paid subscribers" value={kpi?.paidSubscribers ?? 0} delta={kpi ? `+${kpi.subscribersThisWeek} this week` : undefined} loading={loading} />
+        <KPICard label="MRR" value={kpi ? formatINR(kpi.mrr) : "—"} delta={kpi ? `+${formatINR(kpi.mrrDelta)} vs last month` : undefined} loading={loading} />
+      </div>
+      <div className="mt-5 rounded-xl bg-white p-4" style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-[13px] font-medium">Signups — last 6 months</h2>
+          <div className="flex gap-3 text-[11px]">
+            <span className="flex items-center gap-1.5"><span className="inline-block size-2.5 rounded-sm" style={{ background: CORAL }} />FindMyBites</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block size-2.5 rounded-sm" style={{ background: PURPLE }} />PimpMyParty</span>
+          </div>
+        </div>
+        {signupsData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={signupsData} barGap={4}>
+              <CartesianGrid vertical={false} stroke="rgba(136,135,128,0.15)" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#888780" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#888780" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip cursor={{ fill: "rgba(0,0,0,0.03)" }} contentStyle={{ fontSize: 12, borderRadius: 8, border: "0.5px solid rgba(0,0,0,0.12)" }} />
+              <Bar dataKey="food" name="FindMyBites" fill={CORAL} radius={[4, 4, 0, 0]} maxBarSize={28} />
+              <Bar dataKey="party" name="PimpMyParty" fill={PURPLE} radius={[4, 4, 0, 0]} maxBarSize={28} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <Skeleton className="h-48 w-full" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Placeholder Section (for ad-banners, subscriptions, messages, settings) ─
+function PlaceholderSection({ activeNav }: { activeNav: string }) {
+  const labels: Record<string, { title: string; desc: string }> = {
+    "ad-banners": { title: "Ad Banners", desc: "Manage promotional banner slots shown across the marketplace. Create, schedule, and track banner performance." },
+    "subscriptions": { title: "Subscriptions", desc: "View all vendor subscriptions, manage billing, and track MRR across both platforms." },
+    "messages": { title: "Messages", desc: "Read and respond to messages from vendors and customers." },
+    "settings": { title: "Settings", desc: "Configure platform-wide settings including categories, approval rules, and email templates." },
+  };
+  const config = labels[activeNav] || { title: "Coming Soon", desc: "This feature is under development." };
+
+  return (
+    <div className="rounded-xl bg-white p-8" style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}>
+      <div className="flex flex-col items-center text-center">
+        <div className="grid size-12 place-items-center rounded-full" style={{ background: CORAL_TINT }}>
+          <Settings className="size-5" style={{ color: CORAL }} />
+        </div>
+        <h2 className="mt-3 text-[15px] font-medium">{config.title}</h2>
+        <p className="mt-1 max-w-md text-[12px] text-black/40">{config.desc}</p>
+        <p className="mt-3 text-[10px] text-black/30">This feature will be available soon.</p>
+      </div>
+    </div>
+  );
+}
+
 function TabButton({
   label,
   active,
@@ -1002,13 +1222,51 @@ export function AdminPanel() {
                   </div>
                   <AdminClaimsSection />
                 </div>
-              ) : /* Categories management view (food-categories / party-categories nav) */
+              ) : /* Categories management view */
               activeNav === "food-categories" || activeNav === "party-categories" ? (
                 <AdminCategoriesSection
                   ecosystem={
                     activeNav === "food-categories" ? "FINDMYBITES" : "PIMPMYPARTY"
                   }
                 />
+              ) : /* Food/Party vendors — filtered vendor table */
+              activeNav === "food-vendors" || activeNav === "party-vendors" ? (
+                <VendorTableSection
+                  title={activeNav === "food-vendors" ? "FindMyBites Vendors" : "PimpMyParty Vendors"}
+                  ecosystem={activeNav === "food-vendors" ? "FINDMYBITES" : "PIMPMYPARTY"}
+                  allVendors={allVendors}
+                  loading={loading}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  brandFilter={brandFilter}
+                  setBrandFilter={setBrandFilter}
+                  statusFilter={statusFilter}
+                  setStatusFilter={setStatusFilter}
+                  vendorPage={vendorPage}
+                  setVendorPage={setVendorPage}
+                  VENDORS_PER_PAGE={VENDORS_PER_PAGE}
+                  setReviewVendor={setReviewVendor}
+                  handleDelete={handleDelete}
+                  actionLoading={actionLoading}
+                  ecoColor={activeNav === "food-vendors" ? CORAL : PURPLE}
+                  forceEcosystem={activeNav === "food-vendors" ? "FINDMYBITES" : "PIMPMYPARTY"}
+                />
+              ) : /* Approvals — pending vendors table */
+              activeNav === "food-approvals" || activeNav === "party-approvals" ? (
+                <ApprovalSection
+                  title={activeNav === "food-approvals" ? "FindMyBites Approvals" : "PimpMyParty Approvals"}
+                  pendingVendors={pendingVendors.filter((v) => v.ecosystem === (activeNav === "food-approvals" ? "FINDMYBITES" : "PIMPMYPARTY"))}
+                  setReviewVendor={setReviewVendor}
+                  ecoColor={activeNav === "food-approvals" ? CORAL : PURPLE}
+                  ecoTint={activeNav === "food-approvals" ? CORAL_TINT : PURPLE_TINT}
+                  ecoDark={activeNav === "food-approvals" ? CORAL_DARK : PURPLE_DARK}
+                />
+              ) : /* Analytics — KPIs + chart only */
+              activeNav === "analytics" ? (
+                <AnalyticsSection kpi={kpi} loading={loading} signupsData={signupsData} />
+              ) : /* Placeholder sections */
+              activeNav === "ad-banners" || activeNav === "subscriptions" || activeNav === "messages" || activeNav === "settings" ? (
+                <PlaceholderSection activeNav={activeNav} />
               ) : (
               <>
               {/* KPI row */}
