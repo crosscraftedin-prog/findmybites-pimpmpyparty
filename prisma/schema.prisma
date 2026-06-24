@@ -20,6 +20,7 @@ model User {
   image         String?
   emailVerified DateTime?
   createdAt     DateTime  @default(now())
+
 }
 
 // Master category table — normalized, admin-managed, future-proof.
@@ -38,6 +39,7 @@ model Category {
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   subcategories Subcategory[]
+
 }
 
 // Subcategory table — belongs to a Category, admin-managed.
@@ -53,6 +55,7 @@ model Subcategory {
   createdAt   DateTime @default(now())
 
   @@index([categoryId])
+
 }
 
 // A vendor / business listed on the marketplace.
@@ -145,6 +148,7 @@ model Vendor {
   @@index([ecosystem, approved])
   @@index([ecosystem, city])
   @@index([approved, latitude, longitude])
+
 }
 
 model Review {
@@ -159,6 +163,7 @@ model Review {
   createdAt DateTime @default(now())
 
   @@index([vendorId])
+
 }
 
 model Booking {
@@ -177,6 +182,7 @@ model Booking {
   createdAt DateTime @default(now())
 
   @@index([vendorId])
+
 }
 
 // Products / services offered by a vendor within their single business listing.
@@ -234,4 +240,5 @@ model Product {
   @@index([productType])
   @@index([slug])
   @@index([featured])
+
 }
