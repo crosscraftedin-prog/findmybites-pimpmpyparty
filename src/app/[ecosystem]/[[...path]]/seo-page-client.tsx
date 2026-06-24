@@ -7,6 +7,7 @@ import type { SEOContext } from "@/lib/seo";
 import type { Ecosystem } from "@/lib/types";
 import { countryCodeToFlag, formatPrice } from "@/lib/format";
 import { CURRENCY_SYMBOLS, CATEGORIES } from "@/lib/constants";
+import { getPlaceholderVendors } from "@/lib/placeholder-vendors";
 
 interface Vendor {
   id: string;
@@ -53,6 +54,34 @@ export function SeoPageClient({
   const ecoLabel = ctx.ecosystem === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty";
   const ecoColor = ctx.ecosystem === "FINDMYBITES" ? "#D85A30" : "#7F77DD";
   const ecoTint = ctx.ecosystem === "FINDMYBITES" ? "#FAECE7" : "#EEEDFE";
+
+  // When no real vendors exist for this SEO page, show 10 placeholder cards
+  // using the EXACT same VendorCard component so the page never looks empty.
+  const isUsingPlaceholders = vendors.length === 0;
+  const displayVendors: Vendor[] = React.useMemo(() => {
+    if (vendors.length > 0) return vendors;
+    return getPlaceholderVendors(ctx.ecosystem).map((v) => ({
+      id: v.id,
+      name: v.name,
+      slug: v.slug,
+      ecosystem: v.ecosystem,
+      category: v.category,
+      city: v.city,
+      state: v.state ?? null,
+      country: v.country,
+      countryCode: v.countryCode,
+      rating: v.rating,
+      reviewCount: v.reviewCount,
+      heroImage: v.heroImage,
+      tagline: v.tagline,
+      basePrice: v.basePrice,
+      currency: v.currency,
+      whatsapp: v.whatsapp ?? null,
+      featured: v.featured,
+      verified: v.verified,
+    }));
+  }, [vendors, ctx.ecosystem]);
+  const totalDisplay = isUsingPlaceholders ? displayVendors.length : vendorCount;
 
   // Build H1
   const h1 = buildH1(ctx, vendorCount);
@@ -101,15 +130,20 @@ export function SeoPageClient({
               {vendorCount} {vendorCount === 1 ? "vendor" : "vendors"} found
             </p>
           )}
+          {isUsingPlaceholders && (
+            <p className="mt-2 text-[13px] font-medium" style={{ color: ecoColor }}>
+              {totalDisplay} sample {totalDisplay === 1 ? "vendor" : "vendors"} — be the first to list here
+            </p>
+          )}
         </div>
       </header>
 
       {/* Main content */}
       <main className="mx-auto max-w-6xl px-4 py-6">
         {/* Vendor grid */}
-        {vendors.length > 0 ? (
+        {displayVendors.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {vendors.map((v) => (
+            {displayVendors.map((v) => (
               <VendorCard key={v.id} vendor={v} ecoColor={ecoColor} ecoTint={ecoTint} />
             ))}
           </div>

@@ -23,10 +23,13 @@ export function VendorImage({
 }: VendorImageProps) {
   const [errored, setErrored] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
+  // Skip the <img> entirely when there's no real src — avoids the browser
+  // warning about an empty string being passed to the `src` attribute.
+  const hasSrc = typeof src === "string" && src.length > 0;
 
   return (
     <div className={cn("relative overflow-hidden bg-muted", className)}>
-      {!errored && (
+      {hasSrc && !errored && (
         <img
           src={src}
           alt={alt}
@@ -39,7 +42,7 @@ export function VendorImage({
           )}
         />
       )}
-      {(errored || !loaded) && (
+      {(!hasSrc || errored || !loaded) && (
         <div
           className={cn(
             "absolute inset-0 flex items-center justify-center bg-gradient-to-br",

@@ -14,6 +14,7 @@ import {
 import { useMarketplace, type SortOption } from "@/lib/store";
 import { useVendors, useCategories } from "@/lib/queries";
 import { CATEGORIES, CONTINENTS, PRICE_RANGES, SORT_OPTIONS } from "@/lib/constants";
+import { getPlaceholderVendors } from "@/lib/placeholder-vendors";
 import { CategoryIcon } from "./icon";
 import { VendorCard } from "./vendor-card";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,16 @@ export function BrowseSection() {
     (selectedContinent ? 1 : 0) +
     (priceRange ? 1 : 0) +
     (minRating > 0 ? 1 : 0);
+
+  // When no real vendors exist (and no filters applied), show 10 placeholder
+  // cards using the EXACT same VendorCard component so the design stays
+  // consistent. When filters are applied but return nothing, we still show
+  // the helpful "no matches" empty state so users know to widen filters.
+  const isUsingPlaceholders = vendors.length === 0 && activeFilterCount === 0;
+  const displayVendors = isUsingPlaceholders
+    ? getPlaceholderVendors(ecosystem)
+    : vendors;
+  const totalDisplay = isUsingPlaceholders ? displayVendors.length : total;
 
   const ratingOptions = [
     { value: 4.5, label: "4.5 & up" },
@@ -356,8 +367,13 @@ export function BrowseSection() {
                   </span>
                 ) : (
                   <>
-                    <span className="font-semibold text-foreground">{total}</span>{" "}
-                    {total === 1 ? "vendor" : "vendors"} found
+                    <span className="font-semibold text-foreground">{totalDisplay}</span>{" "}
+                    {totalDisplay === 1 ? "vendor" : "vendors"} found
+                    {isUsingPlaceholders && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        · showing sample vendors
+                      </span>
+                    )}
                   </>
                 )}
               </p>
@@ -380,14 +396,15 @@ export function BrowseSection() {
                   </div>
                 ))}
               </div>
-            ) : vendors.length === 0 ? (
+            ) : displayVendors.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card py-20 text-center">
                 <div className="grid size-16 place-items-center rounded-full bg-muted">
                   <SearchX className="size-7 text-muted-foreground" />
                 </div>
-                <h3 className="mt-4 text-lg font-semibold">No vendors found yet</h3>
+                <h3 className="mt-4 text-lg font-semibold">No vendors match your filters</h3>
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  Be the first to list your business and reach customers worldwide.
+                  Try widening your search — clear a filter, change continent, or
+                  lower the minimum rating.
                 </p>
                 <Button onClick={resetFilters} className="mt-5 bg-brand text-brand-foreground hover:bg-brand/90">
                   <X className="size-4" />
@@ -397,7 +414,7 @@ export function BrowseSection() {
             ) : (
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 <AnimatePresence mode="popLayout">
-                  {vendors.map((v, i) => (
+                  {displayVendors.map((v, i) => (
                     <VendorCard key={v.id} vendor={v} index={i} />
                   ))}
                 </AnimatePresence>
