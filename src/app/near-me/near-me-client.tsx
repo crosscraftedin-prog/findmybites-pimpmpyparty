@@ -15,6 +15,7 @@ import { useNearMe } from "@/hooks/use-near-me";
 import { useMarketplace } from "@/lib/store";
 import { CATEGORIES, CURRENCY_SYMBOLS } from "@/lib/constants";
 import { countryCodeToFlag } from "@/lib/format";
+import { getPlaceholderVendors } from "@/lib/placeholder-vendors";
 import { cn } from "@/lib/utils";
 
 interface NearVendor {
@@ -39,6 +40,36 @@ interface NearVendor {
 }
 
 const RADII = [5, 10, 25, 50, 100];
+
+/**
+ * Build 10 placeholder NearVendor cards (using the same card design) when the
+ * API returns 0 vendors. Distances are synthetic but stay within the user's
+ * selected radius so the cards look natural in the existing NearVendorCard.
+ */
+function getPlaceholderNearVendors(ecosystem: string, radius: number): NearVendor[] {
+  return getPlaceholderVendors(ecosystem as any).map((v, i) => ({
+    id: v.id,
+    name: v.name,
+    slug: v.slug,
+    ecosystem: v.ecosystem,
+    category: v.category,
+    city: v.city,
+    state: v.state ?? null,
+    country: v.country,
+    countryCode: v.countryCode,
+    rating: v.rating,
+    reviewCount: v.reviewCount,
+    heroImage: v.heroImage,
+    tagline: v.tagline,
+    basePrice: v.basePrice,
+    currency: v.currency,
+    featured: v.featured,
+    verified: v.verified,
+    // Distribute synthetic distances across the radius so the cards look
+    // natural — e.g. 8%, 17%, 25% ... 80% of the selected radius.
+    distance: Math.max(0.5, Math.round(((i + 1) / 12) * radius * 10) / 10),
+  }));
+}
 
 export function NearMePageClient() {
   const { location, loading, error, requestLocation, clearLocation } = useNearMe();
@@ -309,19 +340,44 @@ export function NearMePageClient() {
                 </button>
               </div>
             ) : vendors.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-black/15 bg-white py-16 text-center">
-                <MapPin className="mx-auto size-10 text-black/20" />
-                <p className="mt-3 text-[15px] font-medium">No vendors found within {radius} km</p>
-                <p className="mt-1 text-[13px] text-black/40">
-                  Try increasing your search radius, or be the first to list your business here.
-                </p>
-                <button
-                  onClick={() => setRadius(Math.min(100, radius * 2))}
-                  className="mt-4 rounded-lg bg-brand px-4 py-2 text-[13px] font-medium text-white"
-                >
-                  Expand to {Math.min(100, radius * 2)} km
-                </button>
-              </div>
+              (() => {
+                const placeholders = getPlaceholderNearVendors(ecosystem, radius);
+                return (
+                  <>
+                    {/* Sample vendors notice */}
+                    <div className="mb-3 rounded-lg border border-brand/20 bg-brand/5 px-3 py-2 text-[12px] text-brand-soft-foreground">
+                      No vendors found within {radius} km yet — showing{" "}
+                      <strong>{placeholders.length} sample vendors</strong> from
+                      our marketplace so you can see how FindMyBites × PimpMyParty
+                      works. List your business to be the first real vendor here.
+                    </div>
+
+                    {/* Result count */}
+                    <p className="mb-3 text-[13px] text-black/50">
+                      {placeholders.length} sample{" "}
+                      {placeholders.length === 1 ? "vendor" : "vendors"} · try a
+                      wider radius for real listings
+                    </p>
+
+                    {/* Vendor grid */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {placeholders.map((v, i) => (
+                        <NearVendorCard key={v.id} vendor={v} rank={i + 1} />
+                      ))}
+                    </div>
+
+                    {/* Expand button still available */}
+                    <div className="mt-6 text-center">
+                      <button
+                        onClick={() => setRadius(Math.min(100, radius * 2))}
+                        className="rounded-lg bg-brand px-4 py-2 text-[13px] font-medium text-white"
+                      >
+                        Expand to {Math.min(100, radius * 2)} km
+                      </button>
+                    </div>
+                  </>
+                );
+              })()
             ) : (
               <>
                 {/* Result count */}
