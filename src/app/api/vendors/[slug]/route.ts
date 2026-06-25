@@ -404,6 +404,41 @@ export async function PUT(
       data,
       include: { reviews: { orderBy: { createdAt: "desc" } } },
     });
+
+    // ── Update ownership_status + send notification on approve/reject ──
+    // ownership_status is a column added by supabase_addon.sql (not in Prisma
+    // schema), so we use raw SQL. Also insert a notification for the vendor.
+    if (typeof body.approved === "boolean" && existing.owner_user_id) {
+      try {
+        const newStatus = body.approved ? "approved" : "rejected";
+        await db.$executeRaw`
+          UPDATE "Vendor" SET ownership_status = ${newStatus}
+          WHERE id = ${existing.id}
+        `;
+
+        // Insert notification (uses existing notifications table)
+        const notifTitle = body.approved
+          ? "Your listing is live! 🎉"
+          : "Listing update";
+        const notifMsg = body.approved
+          ? `Great news! Your listing "${existing.name}" has been approved and is now live. View your dashboard at /dashboard`
+          : `Thanks for submitting your listing. Unfortunately we couldn't approve it at this time. Please contact hello@findmybites.com for help.`;
+        const notifLink = body.approved ? "/dashboard" : "/";
+
+        await db.$executeRaw`
+          INSERT INTO public.notifications (user_id, title, message, link)
+          VALUES (
+            ${existing.owner_user_id}::uuid,
+            ${notifTitle},
+            ${notifMsg},
+            ${notifLink}
+          )
+        `;
+      } catch (notifErr) {
+        console.error("[api/vendors/[slug]] notification insert failed (non-fatal):", notifErr);
+      }
+    }
+
     return NextResponse.json({ vendor: transformVendor(updated) });
   } catch (err) {
     console.error("[api/vendors/[slug]] PUT failed:", err);

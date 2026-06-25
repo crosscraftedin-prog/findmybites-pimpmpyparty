@@ -9,23 +9,15 @@ import {
   Navigation,
   Expand,
   X,
-  Search,
   AlertCircle,
   Globe2,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMarketplace } from "@/lib/store";
 import { useNearVendors } from "@/lib/queries";
-import {
-  detectUserLocation,
-  geocodeToLocation,
-  clearCachedLocation,
-  type UserLocation,
-} from "@/lib/geo";
+import { clearCachedLocation } from "@/lib/geo";
 import { countryCodeToFlag } from "@/lib/format";
 import { getCategoryMigrated } from "@/lib/constants";
 import { CategoryIcon } from "./icon";
@@ -56,14 +48,13 @@ export function NearMeSection() {
   const radius = useMarketplace((s) => s.nearRadius);
   const setRadius = useMarketplace((s) => s.setNearRadius);
   const openVendor = useMarketplace((s) => s.openVendor);
+  // Location is now shared via the store — set by the LocationBanner.
+  const location = useMarketplace((s) => s.userLocation);
+  const setUserLocation = useMarketplace((s) => s.setUserLocation);
 
-  const [location, setLocation] = React.useState<UserLocation | null>(null);
-  const [detecting, setDetecting] = React.useState(false);
-  const [reason, setReason] = React.useState<
+  const [reason] = React.useState<
     "denied" | "unavailable" | "gps-failed" | null
   >(null);
-  const [manualQuery, setManualQuery] = React.useState("");
-  const [manualSearching, setManualSearching] = React.useState(false);
 
   const { data, isLoading, isFetching } = useNearVendors(
     location?.lat ?? null,
@@ -76,54 +67,10 @@ export function NearMeSection() {
   const vendors = data?.vendors ?? [];
   const total = data?.total ?? 0;
 
-  const detect = async () => {
-    setDetecting(true);
-    setReason(null);
-    try {
-      const { location: loc, reason: r } = await detectUserLocation();
-      if (loc) {
-        setLocation(loc);
-        setOpen(true);
-        if (r) setReason(r);
-        if (r === "denied") {
-          toast.info("Using your approximate location (GPS was denied).");
-        }
-      } else {
-        setReason("unavailable");
-        toast.error(
-          "Couldn't detect your location. Enter your city manually below."
-        );
-        setOpen(true);
-      }
-    } finally {
-      setDetecting(false);
-    }
-  };
-
-  const onManualSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualQuery.trim()) return;
-    setManualSearching(true);
-    try {
-      const loc = await geocodeToLocation(manualQuery.trim());
-      if (loc) {
-        setLocation(loc);
-        setOpen(true);
-        setReason(null);
-        toast.success(`Showing vendors near ${manualQuery.trim()}.`);
-      } else {
-        toast.error("Couldn't find that place. Try a city name.");
-      }
-    } finally {
-      setManualSearching(false);
-    }
-  };
-
   const onChangeLocation = () => {
     clearCachedLocation();
-    setLocation(null);
-    setReason(null);
-    setManualQuery("");
+    setUserLocation(null);
+    setOpen(false);
   };
 
   return (
@@ -144,27 +91,6 @@ export function NearMeSection() {
               expand the radius.
             </p>
           </div>
-
-          {!open && (
-            <Button
-              onClick={detect}
-              disabled={detecting}
-              size="lg"
-              className="bg-brand text-brand-foreground hover:bg-brand/90"
-            >
-              {detecting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Detecting…
-                </>
-              ) : (
-                <>
-                  <LocateFixed className="size-4" />
-                  Near Me
-                </>
-              )}
-            </Button>
-          )}
         </div>
 
         <AnimatePresence>
@@ -213,36 +139,6 @@ export function NearMeSection() {
                     </button>
                   )}
                 </div>
-
-                {/* Manual location search (shown when no location yet, or after change) */}
-                {!location && (
-                  <form
-                    onSubmit={onManualSearch}
-                    className="mb-5 flex flex-col gap-2 sm:flex-row"
-                  >
-                    <div className="relative flex-1">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={manualQuery}
-                        onChange={(e) => setManualQuery(e.target.value)}
-                        placeholder="Enter your city or address — e.g. Lisbon, Portugal"
-                        className="h-11 rounded-full pl-10"
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      disabled={manualSearching || !manualQuery.trim()}
-                      className="h-11 rounded-full bg-brand text-brand-foreground hover:bg-brand/90"
-                    >
-                      {manualSearching ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Search className="size-4" />
-                      )}
-                      Search
-                    </Button>
-                  </form>
-                )}
 
                 {/* Radius toggle */}
                 {location && (

@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type { Ecosystem } from "./types";
+import type { UserLocation } from "./geo";
 
 export type SortOption =
   | "featured"
@@ -53,6 +54,9 @@ interface MarketplaceState {
   setNearMeOpen: (open: boolean) => void;
   nearRadius: number; // 0 = global
   setNearRadius: (km: number) => void;
+  /** Shared user location — set by the LocationBanner, read by NearMeSection. */
+  userLocation: UserLocation | null;
+  setUserLocation: (loc: UserLocation | null) => void;
 
   // Admin panel overlay
   adminOpen: boolean;
@@ -129,6 +133,8 @@ export const useMarketplace = create<MarketplaceState>((set, get) => ({
   setNearMeOpen: (open) => set({ nearMeOpen: open }),
   nearRadius: 10,
   setNearRadius: (km) => set({ nearRadius: km }),
+  userLocation: null,
+  setUserLocation: (loc) => set({ userLocation: loc }),
 
   adminOpen: false,
   openAdmin: () => set({ adminOpen: true }),

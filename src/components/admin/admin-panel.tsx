@@ -22,10 +22,16 @@ import {
   ShieldCheck,
   Trash2,
   Download,
+  Star,
+  Bot,
+  Ticket,
+  Image as ImageIcon,
 } from "lucide-react";
 import {
   BarChart,
   Bar,
+  Line,
+  LineChart,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -41,6 +47,11 @@ import { AdminCategoriesSection } from "@/components/admin/admin-categories";
 import { AdminErrorBoundary } from "@/components/admin/admin-error-boundary";
 import { AdminClaimsSection } from "@/components/admin/admin-claims";
 import { AdminCreateBusiness } from "@/components/admin/admin-create-business";
+import { FeaturedSection } from "@/components/admin/admin-featured";
+import { BroadcastsSection } from "@/components/admin/admin-broadcasts";
+import { JoshLogsSection } from "@/components/admin/admin-josh-logs";
+import { PromoCodesSection } from "@/components/admin/admin-promo-codes";
+import { MRRChart, CountryMap, ConversionFunnel } from "@/components/admin/admin-analytics-extras";
 import { toast } from "sonner";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
@@ -157,7 +168,11 @@ const NAV_SECTIONS: NavSection[] = [
     title: "Platform",
     brand: null,
     items: [
-      { id: "ad-banners", label: "Ad banners", icon: Megaphone },
+      { id: "featured", label: "Featured spots", icon: Star },
+      { id: "broadcasts", label: "Broadcasts", icon: Megaphone },
+      { id: "josh-logs", label: "Josh AI logs", icon: Bot },
+      { id: "promo-codes", label: "Promo codes", icon: Ticket },
+      { id: "ad-banners", label: "Ad banners", icon: ImageIcon },
       { id: "claims", label: "Claims", icon: ShieldCheck },
       { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
       { id: "messages", label: "Messages", icon: Mail },
@@ -1261,9 +1276,26 @@ export function AdminPanel() {
                   ecoTint={activeNav === "food-approvals" ? CORAL_TINT : PURPLE_TINT}
                   ecoDark={activeNav === "food-approvals" ? CORAL_DARK : PURPLE_DARK}
                 />
-              ) : /* Analytics — KPIs + chart only */
+              ) : /* Analytics — KPIs + chart + MRR + country map + funnel */
               activeNav === "analytics" ? (
-                <AnalyticsSection kpi={kpi} loading={loading} signupsData={signupsData} />
+                <div>
+                  <AnalyticsSection kpi={kpi} loading={loading} signupsData={signupsData} />
+                  <ConversionFunnel />
+                  <MRRChart />
+                  <CountryMap />
+                </div>
+              ) : /* Featured vendor management */
+              activeNav === "featured" ? (
+                <FeaturedSection />
+              ) : /* Broadcasts */
+              activeNav === "broadcasts" ? (
+                <BroadcastsSection />
+              ) : /* Josh AI logs */
+              activeNav === "josh-logs" ? (
+                <JoshLogsSection />
+              ) : /* Promo codes */
+              activeNav === "promo-codes" ? (
+                <PromoCodesSection />
               ) : /* Placeholder sections */
               activeNav === "ad-banners" || activeNav === "subscriptions" || activeNav === "messages" || activeNav === "settings" ? (
                 <PlaceholderSection activeNav={activeNav} />

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useVendorDashboard } from "@/lib/queries";
@@ -20,8 +21,8 @@ import {
   LayoutDashboard,
   LogIn,
   Edit3,
-  Navigation,
   Loader2,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,9 +38,11 @@ const NAV_LINKS = [
   { href: "#explore", label: "Explore", icon: Compass },
   { href: "#categories", label: "Categories", icon: LayoutGrid },
   { href: "#featured", label: "Featured", icon: Star },
+  { href: "/about", label: "About", icon: Sparkles },
 ];
 
 export function SiteHeader() {
+  const router = useRouter();
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const setSearch = useMarketplace((s) => s.setSearch);
   const search = useMarketplace((s) => s.search);
@@ -52,11 +55,15 @@ export function SiteHeader() {
   const { isAdmin } = useIsAdmin();
   // Check if this user already has a vendor listing
   const { data: vendorData, isLoading: vendorLoading } = useVendorDashboard(!!session && !sessionLoading);
-  // While session OR vendor data is loading, show "Checking..." (not "List your business")
-  // NEVER show "List your business" until ownership lookup completes.
   const authChecking = sessionLoading || (!!session && vendorLoading);
   const hasVendor = (vendorData?.vendors?.length ?? 0) > 0;
   const vendorSlug = vendorData?.vendors?.[0]?.slug ?? null;
+  const vendorApproved = vendorData?.vendors?.[0]?.approved ?? false;
+  const vendorName = vendorData?.vendors?.[0]?.name ?? null;
+  const vendorEmail = vendorData?.vendors?.[0]?.userEmail ?? null;
+  // Vendor states: approved (show dashboard), pending (show "under review"), rejected (show "resubmit")
+  const isPendingVendor = hasVendor && !vendorApproved;
+  const isApprovedVendor = hasVendor && vendorApproved;
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -125,19 +132,6 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        {/* Near Me button (desktop + mobile) */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.location.href = "/near-me"}
-          className="shrink-0 gap-1.5 border-brand/30 text-brand hover:bg-brand-soft"
-          aria-label="Find vendors near me"
-          title="Find vendors near your location"
-        >
-          <Navigation className="size-4" />
-          <span className="hidden sm:inline">Near Me</span>
-        </Button>
-
         {/* Ecosystem toggle (desktop) */}
         <div className="hidden md:block">
           <EcosystemToggle size="sm" />
@@ -170,14 +164,24 @@ export function SiteHeader() {
             <Loader2 className="size-4 animate-spin" />
             <span className="hidden lg:inline">Checking…</span>
           </Button>
-        ) : session && hasVendor ? (
+        ) : session && isApprovedVendor ? (
           <Button
             size="sm"
             className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
-            onClick={() => openVendorDashboard()}
+            onClick={() => router.push("/dashboard")}
           >
             <LayoutDashboard className="size-4" />
-            Dashboard
+            My Dashboard
+          </Button>
+        ) : session && isPendingVendor ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="hidden border-amber-400/50 text-amber-700 lg:inline-flex"
+            disabled
+          >
+            <Clock className="size-4" />
+            Listing under review 🕐
           </Button>
         ) : session ? (
           <Button
@@ -192,7 +196,7 @@ export function SiteHeader() {
           <Button
             size="sm"
             className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
-            onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
+            onClick={() => requireAuth("vendor-login", () => router.push("/dashboard"))}
           >
             <LogIn className="size-4" />
             <span className="hidden lg:inline">Vendor Login</span>
@@ -225,15 +229,6 @@ export function SiteHeader() {
                   <EcosystemToggle className="w-full" />
                 </div>
                 <nav className="flex flex-col gap-1">
-                  <SheetClose asChild>
-                    <Link
-                      href="/near-me"
-                      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-brand hover:bg-brand-soft"
-                    >
-                      <Navigation className="size-4" />
-                      📍 Near Me
-                    </Link>
-                  </SheetClose>
                   {NAV_LINKS.map((l) => {
                     const Icon = l.icon;
                     return (
@@ -255,14 +250,25 @@ export function SiteHeader() {
                     <Loader2 className="size-4 animate-spin" />
                     Checking…
                   </Button>
-                ) : session && hasVendor ? (
+                ) : session && isApprovedVendor ? (
                   <SheetClose asChild>
                     <Button
                       className="bg-brand text-brand-foreground hover:bg-brand/90"
-                      onClick={() => openVendorDashboard()}
+                      onClick={() => router.push("/dashboard")}
                     >
                       <LayoutDashboard className="size-4" />
-                      Dashboard
+                      My Dashboard
+                    </Button>
+                  </SheetClose>
+                ) : session && isPendingVendor ? (
+                  <SheetClose asChild>
+                    <Button
+                      variant="outline"
+                      className="border-amber-400/50 text-amber-700"
+                      disabled
+                    >
+                      <Clock className="size-4" />
+                      Listing under review 🕐
                     </Button>
                   </SheetClose>
                 ) : session ? (
@@ -279,7 +285,7 @@ export function SiteHeader() {
                   <SheetClose asChild>
                     <Button
                       className="bg-brand text-brand-foreground hover:bg-brand/90"
-                      onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
+                      onClick={() => requireAuth("vendor-login", () => router.push("/dashboard"))}
                     >
                       <LogIn className="size-4" />
                       Vendor Login
