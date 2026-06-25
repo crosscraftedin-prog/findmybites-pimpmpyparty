@@ -474,8 +474,9 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     console.error("[api/vendors] POST failed:", err);
+    const errMsg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
-      { error: "Failed to create vendor" },
+      { error: `Failed to create vendor: ${errMsg}` },
       { status: 500 }
     );
   }
