@@ -22,6 +22,7 @@ import {
   LogIn,
   Edit3,
   Loader2,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,11 +55,15 @@ export function SiteHeader() {
   const { isAdmin } = useIsAdmin();
   // Check if this user already has a vendor listing
   const { data: vendorData, isLoading: vendorLoading } = useVendorDashboard(!!session && !sessionLoading);
-  // While session OR vendor data is loading, show "Checking..." (not "List your business")
-  // NEVER show "List your business" until ownership lookup completes.
   const authChecking = sessionLoading || (!!session && vendorLoading);
   const hasVendor = (vendorData?.vendors?.length ?? 0) > 0;
   const vendorSlug = vendorData?.vendors?.[0]?.slug ?? null;
+  const vendorApproved = vendorData?.vendors?.[0]?.approved ?? false;
+  const vendorName = vendorData?.vendors?.[0]?.name ?? null;
+  const vendorEmail = vendorData?.vendors?.[0]?.userEmail ?? null;
+  // Vendor states: approved (show dashboard), pending (show "under review"), rejected (show "resubmit")
+  const isPendingVendor = hasVendor && !vendorApproved;
+  const isApprovedVendor = hasVendor && vendorApproved;
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -159,7 +164,7 @@ export function SiteHeader() {
             <Loader2 className="size-4 animate-spin" />
             <span className="hidden lg:inline">Checking…</span>
           </Button>
-        ) : session && hasVendor ? (
+        ) : session && isApprovedVendor ? (
           <Button
             size="sm"
             className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
@@ -167,6 +172,16 @@ export function SiteHeader() {
           >
             <LayoutDashboard className="size-4" />
             My Dashboard
+          </Button>
+        ) : session && isPendingVendor ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="hidden border-amber-400/50 text-amber-700 lg:inline-flex"
+            disabled
+          >
+            <Clock className="size-4" />
+            Listing under review 🕐
           </Button>
         ) : session ? (
           <Button
@@ -235,7 +250,7 @@ export function SiteHeader() {
                     <Loader2 className="size-4 animate-spin" />
                     Checking…
                   </Button>
-                ) : session && hasVendor ? (
+                ) : session && isApprovedVendor ? (
                   <SheetClose asChild>
                     <Button
                       className="bg-brand text-brand-foreground hover:bg-brand/90"
@@ -243,6 +258,17 @@ export function SiteHeader() {
                     >
                       <LayoutDashboard className="size-4" />
                       My Dashboard
+                    </Button>
+                  </SheetClose>
+                ) : session && isPendingVendor ? (
+                  <SheetClose asChild>
+                    <Button
+                      variant="outline"
+                      className="border-amber-400/50 text-amber-700"
+                      disabled
+                    >
+                      <Clock className="size-4" />
+                      Listing under review 🕐
                     </Button>
                   </SheetClose>
                 ) : session ? (

@@ -396,17 +396,34 @@ export async function POST(req: NextRequest) {
     const geo = geoQuery ? await geocodeAddress(geoQuery) : null;
 
     // --- attach the signed-in vendor user as the owner ---
-    // Set BOTH userEmail AND owner_user_id so organic signups are found
-    // by the same owner_user_id lookup used everywhere else.
+    // Use getUser() instead of getSession() — it verifies the JWT with Supabase
+    // server-side and is more reliable on Vercel (getSession relies on cookies
+    // that may not propagate correctly in serverless functions).
     let ownerEmail: string | null = null;
     let ownerId: string | null = null;
     try {
       const supabase = await createSupabaseServerClient();
-      const { data: { session: supaSession } } = await supabase.auth.getSession();
-      ownerEmail = supaSession?.user?.email ?? null;
-      ownerId = supaSession?.user?.id ?? null;
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      if (!userErr && user) {
+        ownerEmail = user.email ?? null;
+        ownerId = user.id ?? null;
+      } else {
+        // Fallback to getSession() if getUser() fails
+        const { data: { session: supaSession } } = await supabase.auth.getSession();
+        ownerEmail = supaSession?.user?.email ?? null;
+        ownerId = supaSession?.user?.id ?? null;
+      }
     } catch (authErr) {
       console.error("[api/vendors] auth read failed (non-fatal):", authErr);
+    }
+
+    // If we still couldn't get the user, return an error — don't create
+    // an orphan listing with no owner.
+    if (!ownerId || !ownerEmail) {
+      return NextResponse.json(
+        { error: "You must be signed in to list your business. Please sign in and try again." },
+        { status: 401 }
+      );
     }
 
     // --- prevent duplicate: one vendor per user ---
@@ -467,6 +484,18 @@ export async function POST(req: NextRequest) {
         owner_user_id: ownerId ?? undefined,
       },
     });
+
+    // Set ownership_status = 'pending' via raw SQL (Prisma schema doesn't have
+    // this column — it was added by supabase_addon.sql). This ensures the
+    // admin panel and vendor dashboard can track the listing's lifecycle.
+    try {
+      await db.$executeRaw`
+        UPDATE "Vendor" SET ownership_status = 'pending'
+        WHERE id = ${created.id}
+      `;
+    } catch (statusErr) {
+      console.error("[api/vendors] ownership_status update failed (non-fatal):", statusErr);
+    }
 
     return NextResponse.json(
       { vendor: transformVendor(created) },
