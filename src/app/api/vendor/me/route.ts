@@ -94,14 +94,18 @@ function transformReview(r: typeof db.review): Review {
 export async function GET(_req: NextRequest) {
   try {
     const supabase = await createSupabaseServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    let userId: string;
+    if (userErr || !user?.email) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.email) {
+        return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      }
+      userId = session.user.id;
+    } else {
+      userId = user.id;
     }
-    const userId = session.user.id;
 
-    // Single source of truth: owner_user_id must match the authenticated user.
-    // Both organic signups and admin-invited vendors get owner_user_id set.
     let vendors = await db.vendor.findMany({
       where: { owner_user_id: userId },
       orderBy: { createdAt: "desc" },
