@@ -7,6 +7,7 @@ import type { Ecosystem } from "./types";
  */
 export const ADMIN_EMAILS: string[] = [
   "bookingjosh@gmail.com",
+  "crosscraftedin@gmail.com",
 ];
 
 /** Returns true if the given email is an admin. Case-insensitive. */
