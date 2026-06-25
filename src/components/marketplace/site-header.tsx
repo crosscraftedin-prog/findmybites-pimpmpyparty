@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useVendorDashboard } from "@/lib/queries";
@@ -40,6 +41,7 @@ const NAV_LINKS = [
 ];
 
 export function SiteHeader() {
+  const router = useRouter();
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const setSearch = useMarketplace((s) => s.setSearch);
   const search = useMarketplace((s) => s.search);
@@ -161,10 +163,10 @@ export function SiteHeader() {
           <Button
             size="sm"
             className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
-            onClick={() => openVendorDashboard()}
+            onClick={() => router.push("/dashboard")}
           >
             <LayoutDashboard className="size-4" />
-            Dashboard
+            My Dashboard
           </Button>
         ) : session ? (
           <Button
@@ -179,7 +181,7 @@ export function SiteHeader() {
           <Button
             size="sm"
             className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
-            onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
+            onClick={() => requireAuth("vendor-login", () => router.push("/dashboard"))}
           >
             <LogIn className="size-4" />
             <span className="hidden lg:inline">Vendor Login</span>
@@ -237,10 +239,10 @@ export function SiteHeader() {
                   <SheetClose asChild>
                     <Button
                       className="bg-brand text-brand-foreground hover:bg-brand/90"
-                      onClick={() => openVendorDashboard()}
+                      onClick={() => router.push("/dashboard")}
                     >
                       <LayoutDashboard className="size-4" />
-                      Dashboard
+                      My Dashboard
                     </Button>
                   </SheetClose>
                 ) : session ? (
@@ -257,7 +259,7 @@ export function SiteHeader() {
                   <SheetClose asChild>
                     <Button
                       className="bg-brand text-brand-foreground hover:bg-brand/90"
-                      onClick={() => requireAuth("vendor-login", () => openVendorDashboard())}
+                      onClick={() => requireAuth("vendor-login", () => router.push("/dashboard"))}
                     >
                       <LogIn className="size-4" />
                       Vendor Login
