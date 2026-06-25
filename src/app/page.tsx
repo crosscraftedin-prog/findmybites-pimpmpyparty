@@ -3,6 +3,7 @@
 import * as React from "react";
 import { SiteHeader } from "@/components/marketplace/site-header";
 import { SiteFooter } from "@/components/marketplace/site-footer";
+import { LocationBanner } from "@/components/marketplace/location-banner";
 import { Hero } from "@/components/marketplace/hero";
 import { StatsBar } from "@/components/marketplace/stats-bar";
 import { NearMeSection } from "@/components/marketplace/near-me-section";
@@ -34,6 +35,7 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
+      <LocationBanner />
       <main className="flex-1">
         <Hero />
         <StatsBar />
