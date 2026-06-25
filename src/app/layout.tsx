@@ -49,6 +49,12 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   manifest: "/site.webmanifest",
+  themeColor: "#D85A30",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "FindMyBites",
+  },
   openGraph: {
     title: "FindMyBites × PimpMyParty",
     description:
@@ -64,6 +70,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Register service worker for PWA offline support */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(()=>{})})}`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
