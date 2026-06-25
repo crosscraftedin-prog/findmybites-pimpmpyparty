@@ -41,6 +41,14 @@ export const metadata: Metadata = {
     "global marketplace",
   ],
   authors: [{ name: "FindMyBites × PimpMyParty" }],
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-96x96.png", type: "image/png", sizes: "96x96" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/site.webmanifest",
   openGraph: {
     title: "FindMyBites × PimpMyParty",
     description:
