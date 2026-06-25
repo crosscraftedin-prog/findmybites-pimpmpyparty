@@ -1,35 +1,137 @@
-"use client";
-
-import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useMarketplace } from "@/lib/store";
-import { Loader2 } from "lucide-react";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { db } from "@/lib/db";
+import { parseJsonArray } from "@/lib/format";
+import { getCategoryMigrated } from "@/lib/constants";
+import type { VendorWithRelations } from "@/lib/types";
+import { VendorProfileClient } from "./vendor-profile-client";
 
 /**
- * /vendor/[slug] — redirects to homepage and opens the vendor modal.
+ * /vendor/[slug] — public vendor profile page (what CUSTOMERS see).
  *
- * The vendor profile is displayed as a modal overlay on the homepage
- * (VendorModal component). This route ensures /vendor/[slug] links work
- * from external sources (dashboard, SEO pages, share links) by redirecting
- * to the homepage with the vendor slug pre-selected.
+ * Server component: fetches vendor data for SEO metadata + initial render,
+ * then hands off to the client component for interactivity.
  */
-export default function VendorProfileRedirect() {
-  const params = useParams<{ slug: string }>();
-  const router = useRouter();
-  const openVendor = useMarketplace((s) => s.openVendor);
 
-  React.useEffect(() => {
-    if (params.slug) {
-      // Open the vendor modal on the homepage
-      openVendor(params.slug);
-      // Redirect to homepage (modal will be open)
-      router.push("/");
-    }
-  }, [params.slug, openVendor, router]);
+interface PageProps {
+  params: Promise<{ slug: string }>;
+}
 
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <Loader2 className="size-8 animate-spin text-muted-foreground" />
-    </div>
-  );
+async function getVendor(slug: string): Promise<VendorWithRelations | null> {
+  try {
+    const v = await db.vendor.findUnique({
+      where: { slug },
+      include: { reviews: { orderBy: { createdAt: "desc" }, take: 20 } },
+    });
+    if (!v) return null;
+    return {
+      id: v.id,
+      name: v.name,
+      slug: v.slug,
+      ecosystem: v.ecosystem as VendorWithRelations["ecosystem"],
+      category: v.category,
+      tagline: v.tagline,
+      description: v.description,
+      city: v.city,
+      country: v.country,
+      countryCode: v.countryCode,
+      continent: v.continent,
+      currency: v.currency,
+      priceRange: v.priceRange,
+      basePrice: v.basePrice,
+      rating: v.rating,
+      reviewCount: v.reviewCount,
+      heroImage: v.heroImage,
+      avatarImage: v.avatarImage,
+      gallery: parseJsonArray<string>(v.gallery),
+      tags: parseJsonArray<string>(v.tags),
+      featured: v.featured,
+      approved: v.approved,
+      verified: v.verified,
+      responseTime: v.responseTime,
+      yearsActive: v.yearsActive,
+      completedBookings: v.completedBookings,
+      subcategory: v.subcategory,
+      state: v.state,
+      address: v.address,
+      zipCode: v.zipCode,
+      instagram: v.instagram,
+      website: v.website,
+      whatsapp: v.whatsapp,
+      openHours: v.openHours,
+      deliveryAvailable: v.deliveryAvailable,
+      pickupAvailable: v.pickupAvailable,
+      serviceAreas: v.serviceAreas,
+      metaTitle: v.metaTitle,
+      metaDescription: v.metaDescription,
+      latitude: v.latitude,
+      longitude: v.longitude,
+      serviceRadiusKm: v.serviceRadiusKm,
+      userEmail: v.userEmail,
+      owner_user_id: v.owner_user_id,
+      createdAt: v.createdAt.toISOString(),
+      reviews: v.reviews.map((r) => ({
+        id: r.id,
+        vendorId: r.vendorId,
+        author: r.author,
+        avatar: r.avatar,
+        rating: r.rating,
+        comment: r.comment,
+        eventDate: r.eventDate,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    };
+  } catch (err) {
+    console.error("[vendor/[slug]] getVendor failed:", err);
+    return null;
+  }
+}
+
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const vendor = await getVendor(slug);
+  if (!vendor) {
+    return { title: "Vendor not found — FindMyBites × PimpMyParty" };
+  }
+  const cat = getCategoryMigrated(vendor.category);
+  const title =
+    vendor.metaTitle ||
+    `${vendor.name} — ${cat?.label ?? "Vendor"} in ${vendor.city} | FindMyBites`;
+  const description =
+    vendor.metaDescription ||
+    vendor.tagline ||
+    `${vendor.name} is a ${cat?.label ?? "vendor"} in ${vendor.city}, ${vendor.country}. Book on FindMyBites × PimpMyParty.`;
+  const ogImage = vendor.heroImage || vendor.avatarImage || undefined;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `https://findmybites.com/vendor/${vendor.slug}`,
+    },
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      url: `https://findmybites.com/vendor/${vendor.slug}`,
+      images: ogImage ? [{ url: ogImage }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: ogImage ? [ogImage] : undefined,
+    },
+  };
+}
+
+export default async function VendorProfilePage({ params }: PageProps) {
+  const { slug } = await params;
+  const vendor = await getVendor(slug);
+  if (!vendor) {
+    notFound();
+  }
+  return <VendorProfileClient vendor={vendor} />;
 }
