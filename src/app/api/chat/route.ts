@@ -3,8 +3,13 @@ import ZAI from "z-ai-web-dev-sdk";
 
 /**
  * POST /api/chat
- * AI event planner chatbot ("Josh"). Uses z-ai-web-dev-sdk (Claude-compatible,
- * built into this environment — no API key required).
+ * AI event planner chatbot ("Josh").
+ *
+ * Works in two modes:
+ * 1. Production (Vercel): reads config from env vars (ZAI_BASE_URL, ZAI_API_KEY, etc.)
+ * 2. Local dev: falls back to ZAI.create() which reads /etc/.z-ai-config
+ *
+ * If neither is available, returns a graceful fallback response.
  */
 
 const SYSTEM_PROMPT = `You are Josh, a personal event planner assistant on the FindMyBites × PimpMyParty marketplace. You help customers plan events by finding the perfect vendors.
@@ -81,19 +86,66 @@ interface ChatMessage {
   content: string;
 }
 
+// Graceful fallback response when AI is unavailable
+const FALLBACK_RESPONSE =
+  "I'd love to help you plan your event! 🎉 To get started, tell me: what are you celebrating, which city are you in, and what do you need (cake, catering, DJ, photographer, etc.)?";
+
+/**
+ * Try to create a ZAI instance. Reads from env vars first (for Vercel),
+ * then falls back to the config file (for local dev).
+ */
+async function getZAI(): Promise<ZAI | null> {
+  // 1. Try env vars (production / Vercel)
+  if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
+    try {
+      return new ZAI({
+        baseUrl: process.env.ZAI_BASE_URL,
+        apiKey: process.env.ZAI_API_KEY,
+        chatId: process.env.ZAI_CHAT_ID || "",
+        userId: process.env.ZAI_USER_ID || "",
+        token: process.env.ZAI_TOKEN || "",
+      });
+    } catch {
+      // Fall through to config file
+    }
+  }
+
+  // 2. Try config file (local dev)
+  try {
+    return await ZAI.create();
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { messages } = body as { messages: ChatMessage[] };
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return NextResponse.json({ error: "Messages array is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Messages array is required" },
+        { status: 400 }
+      );
     }
 
-    const zai = await ZAI.create();
+    const zai = await getZAI();
+
+    // If AI is not configured, return a graceful fallback
+    if (!zai) {
+      return NextResponse.json({
+        response: FALLBACK_RESPONSE,
+        fallback: true,
+      });
+    }
+
     const fullMessages: { role: "assistant" | "user"; content: string }[] = [
       { role: "assistant", content: SYSTEM_PROMPT },
-      ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+      ...messages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
     ];
 
     const completion = await zai.chat.completions.create({
@@ -103,13 +155,16 @@ export async function POST(req: NextRequest) {
 
     const response = completion.choices[0]?.message?.content;
     if (!response) {
-      return NextResponse.json({ error: "Empty response from AI" }, { status: 500 });
+      return NextResponse.json({ response: FALLBACK_RESPONSE, fallback: true });
     }
 
     return NextResponse.json({ response, usage: completion.usage });
   } catch (err) {
     console.error("[api/chat] POST failed:", err);
-    const errMsg = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: `Chat failed: ${errMsg}` }, { status: 500 });
+    // Return graceful fallback instead of 500 error
+    return NextResponse.json({
+      response: FALLBACK_RESPONSE,
+      fallback: true,
+    });
   }
 }
