@@ -149,6 +149,7 @@ model Vendor {
   @@index([ecosystem, city])
   @@index([approved, latitude, longitude])
 
+  @@map("vendor_listings")
 }
 
 model Review {
