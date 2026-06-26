@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { createClient } from "@supabase/supabase-js";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
 import { COUNTRIES, getCategory, getCategoryMigrated, ADMIN_EMAILS } from "@/lib/constants";
@@ -407,51 +408,62 @@ export async function PUT(
     });
 
     // ── Update ownership_status + send notification on approve/reject ──
+    // Use Supabase admin client (service role key) to bypass RLS and Prisma
+    // entirely — this is the most reliable way to update ownership_status.
     if (typeof body.approved === "boolean") {
       const newStatus = body.approved ? "approved" : "rejected";
 
-      // STEP 1: Update ownership_status via raw SQL
-      try {
-        console.log("[api/vendors/[slug]] Updating ownership_status to:", newStatus, "for id:", existing.id);
-        const result = await db.$executeRaw(Prisma.sql`
-          UPDATE vendor_listings
-          SET ownership_status = ${newStatus}
-          WHERE id = ${existing.id}
-        `);
-        console.log("[api/vendors/[slug]] ownership_status updated, rows affected:", result);
-      } catch (statusErr: any) {
-        console.error("[api/vendors/[slug]] ownership_status update FAILED:", {
-          message: statusErr?.message,
-          code: statusErr?.code,
-          meta: statusErr?.meta,
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { persistSession: false } }
+      );
+
+      console.log("[api/vendors/[slug]] About to update ownership_status via Supabase");
+      console.log("[api/vendors/[slug]] vendor.id:", existing.id);
+      console.log("[api/vendors/[slug]] newStatus:", newStatus);
+
+      const { data: updateData, error: updateError } = await supabaseAdmin
+        .from("vendor_listings")
+        .update({ ownership_status: newStatus })
+        .eq("id", existing.id)
+        .select();
+
+      if (updateError) {
+        console.error("[api/vendors/[slug]] Supabase ownership_status update FAILED:", {
+          message: updateError.message,
+          code: updateError.code,
+          details: updateError.details,
+          hint: updateError.hint,
         });
+      } else {
+        console.log("[api/vendors/[slug]] Supabase ownership_status update SUCCESS:", JSON.stringify(updateData));
       }
 
-      // STEP 2: Insert notification (separate try/catch so it doesn't block)
+      // Insert notification (also via Supabase admin)
       if (existing.owner_user_id) {
-        try {
-          const notifTitle = body.approved ? "Your listing is live! 🎉" : "Listing update";
-          const notifMsg = body.approved
-            ? `Great news! Your listing "${existing.name}" has been approved and is now live. View your dashboard at /dashboard`
-            : `Thanks for submitting your listing. Unfortunately we couldn't approve it at this time. Please contact hello@findmybites.com for help.`;
-          const notifLink = body.approved ? "/dashboard" : "/";
+        const notifTitle = body.approved ? "Your listing is live! 🎉" : "Listing update";
+        const notifMsg = body.approved
+          ? `Great news! Your listing "${existing.name}" has been approved and is now live. View your dashboard at /dashboard`
+          : `Thanks for submitting your listing. Unfortunately we couldn't approve it at this time. Please contact hello@findmybites.com for help.`;
+        const notifLink = body.approved ? "/dashboard" : "/";
 
-          // Cast owner_user_id to uuid explicitly to avoid Prisma type issues
-          await db.$executeRaw(Prisma.sql`
-            INSERT INTO public.notifications (user_id, title, message, link)
-            VALUES (
-              ${existing.owner_user_id}::uuid,
-              ${notifTitle},
-              ${notifMsg},
-              ${notifLink}
-            )
-          `);
-          console.log("[api/vendors/[slug]] Notification inserted for user:", existing.owner_user_id);
-        } catch (notifErr: any) {
-          console.error("[api/vendors/[slug]] Notification insert FAILED:", {
-            message: notifErr?.message,
-            code: notifErr?.code,
+        const { error: notifError } = await supabaseAdmin
+          .from("notifications")
+          .insert({
+            user_id: existing.owner_user_id,
+            title: notifTitle,
+            message: notifMsg,
+            link: notifLink,
           });
+
+        if (notifError) {
+          console.error("[api/vendors/[slug]] Notification insert FAILED:", {
+            message: notifError.message,
+            code: notifError.code,
+          });
+        } else {
+          console.log("[api/vendors/[slug]] Notification inserted for user:", existing.owner_user_id);
         }
       }
     }
