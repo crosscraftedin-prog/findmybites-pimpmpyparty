@@ -408,32 +408,36 @@ export async function PUT(
 
     // ── Update ownership_status + send notification on approve/reject ──
     if (typeof body.approved === "boolean") {
+      const newStatus = body.approved ? "approved" : "rejected";
+
+      // STEP 1: Update ownership_status via raw SQL
       try {
-        const newStatus = body.approved ? "approved" : "rejected";
-
-        // Use raw SQL to update ownership_status — more reliable than Prisma
-        // on Vercel where the generated client may not include this field.
-        console.log("[api/vendors/[slug]] Updating ownership_status to:", newStatus, "for vendor:", existing.id, existing.slug);
-
-        const result = await db.$executeRaw`
+        console.log("[api/vendors/[slug]] Updating ownership_status to:", newStatus, "for id:", existing.id);
+        const result = await db.$executeRaw(Prisma.sql`
           UPDATE vendor_listings
           SET ownership_status = ${newStatus}
           WHERE id = ${existing.id}
-        `;
+        `);
+        console.log("[api/vendors/[slug]] ownership_status updated, rows affected:", result);
+      } catch (statusErr: any) {
+        console.error("[api/vendors/[slug]] ownership_status update FAILED:", {
+          message: statusErr?.message,
+          code: statusErr?.code,
+          meta: statusErr?.meta,
+        });
+      }
 
-        console.log("[api/vendors/[slug]] Raw SQL update result (rows affected):", result);
-
-        // Insert notification if vendor has an owner
-        if (existing.owner_user_id) {
-          const notifTitle = body.approved
-            ? "Your listing is live! 🎉"
-            : "Listing update";
+      // STEP 2: Insert notification (separate try/catch so it doesn't block)
+      if (existing.owner_user_id) {
+        try {
+          const notifTitle = body.approved ? "Your listing is live! 🎉" : "Listing update";
           const notifMsg = body.approved
             ? `Great news! Your listing "${existing.name}" has been approved and is now live. View your dashboard at /dashboard`
             : `Thanks for submitting your listing. Unfortunately we couldn't approve it at this time. Please contact hello@findmybites.com for help.`;
           const notifLink = body.approved ? "/dashboard" : "/";
 
-          await db.$executeRaw`
+          // Cast owner_user_id to uuid explicitly to avoid Prisma type issues
+          await db.$executeRaw(Prisma.sql`
             INSERT INTO public.notifications (user_id, title, message, link)
             VALUES (
               ${existing.owner_user_id}::uuid,
@@ -441,10 +445,14 @@ export async function PUT(
               ${notifMsg},
               ${notifLink}
             )
-          `;
+          `);
+          console.log("[api/vendors/[slug]] Notification inserted for user:", existing.owner_user_id);
+        } catch (notifErr: any) {
+          console.error("[api/vendors/[slug]] Notification insert FAILED:", {
+            message: notifErr?.message,
+            code: notifErr?.code,
+          });
         }
-      } catch (notifErr) {
-        console.error("[api/vendors/[slug]] ownership_status/notification failed (non-fatal):", notifErr);
       }
     }
 
