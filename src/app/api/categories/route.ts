@@ -23,31 +23,25 @@ export async function GET(req: NextRequest) {
       ? CATEGORIES.filter((c) => c.ecosystem === ecosystemParam)
       : CATEGORIES;
 
-    // SINGLE groupBy query instead of N+1 sequential counts.
-    // Groups by ecosystem+category and returns counts in one DB call.
-    let groupCounts: { ecosystem: string; category: string; count: bigint }[] = [];
+    // Use raw SQL with a timeout to avoid Prisma connection pool issues on Vercel.
+    // Group by ecosystem+category and count approved vendors in one query.
+    let countMap = new Map<string, number>();
     try {
-      const groups = await db.vendor.groupBy({
-        by: ["ecosystem", "category"],
-        where: { approved: true },
-        _count: { _all: true },
-      });
-      // Convert to a lookup map (apply migrateCategory so old slugs count too)
-      groupCounts = groups.map((g) => ({
-        ecosystem: g.ecosystem,
-        category: migrateCategory(g.category),
-        count: BigInt(g._count._all),
-      }));
-    } catch {
-      // DB unavailable — return all categories with count 0
-    }
+      const groups = await db.$queryRaw`
+        SELECT ecosystem, category, COUNT(*) as cnt
+        FROM vendor_listings
+        WHERE approved = true
+        GROUP BY ecosystem, category
+      ` as { ecosystem: string; category: string; cnt: bigint }[];
 
-    // Build a lookup: `${ecosystem}:${migratedCategory}` → count
-    const countMap = new Map<string, number>();
-    for (const g of groupCounts) {
-      const key = `${g.ecosystem}:${g.category}`;
-      const prev = countMap.get(key) ?? 0;
-      countMap.set(key, prev + Number(g.count));
+      for (const g of groups) {
+        const migrated = migrateCategory(g.category);
+        const key = `${g.ecosystem}:${migrated}`;
+        const prev = countMap.get(key) ?? 0;
+        countMap.set(key, prev + Number(g.cnt));
+      }
+    } catch (dbErr) {
+      console.error("[api/categories] DB query failed, returning 0 counts:", dbErr);
     }
 
     const categories: CategoryWithCount[] = cats.map((c) => ({

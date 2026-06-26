@@ -413,6 +413,9 @@ export async function PUT(
     if (typeof body.approved === "boolean") {
       const newStatus = body.approved ? "approved" : "rejected";
 
+      console.log("[api/vendors/[slug]] SUPABASE_SERVICE_ROLE_KEY exists:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+      console.log("[api/vendors/[slug]] NEXT_PUBLIC_SUPABASE_URL exists:", !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
