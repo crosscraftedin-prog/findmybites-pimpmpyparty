@@ -238,10 +238,29 @@ model Product {
   // category-specific extra fields (JSON for flexibility)
   extraFields String?
   createdAt   DateTime @default(now())
+  // ── Package listing system fields ──
+  ecosystem   String?
+  category    String?
+  packageType String?  @default("standard")
+  comparePrice Int?
+  currency    String?  @default("USD")
+  duration    String?
+  capacity    Int?
+  includes    String?  // JSON array
+  dietaryTags String?  // JSON array
+  addOns      String?  // JSON array
+  leadTime    String?
+  isAvailable Boolean  @default(true)
+  isFeatured  Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  updatedAt   DateTime @updatedAt
 
   @@index([vendorId])
   @@index([productType])
   @@index([slug])
   @@index([featured])
+  @@index([ecosystem])
+  @@index([category])
+  @@index([isAvailable])
 
 }

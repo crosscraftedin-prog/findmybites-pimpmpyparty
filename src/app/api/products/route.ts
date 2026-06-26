@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseJsonArray } from "@/lib/format";
-import type { Product as ApiProduct } from "@/lib/types";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { Product } from "@/lib/types";
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
-}
-
-function transformProduct(p: typeof db.product): ApiProduct {
+function transformProduct(p: any): Product {
   return {
     id: p.id,
     vendorId: p.vendorId,
@@ -31,9 +22,8 @@ function transformProduct(p: typeof db.product): ApiProduct {
     minGuests: p.minGuests,
     pricePerHead: p.pricePerHead,
     images: p.images ? parseJsonArray<string>(p.images) : null,
-    // enhanced fields
     videoUrl: p.videoUrl,
-    pricingTiers: p.pricingTiers ? (JSON.parse(p.pricingTiers) as { label: string; price: number }[]) : null,
+    pricingTiers: p.pricingTiers ? JSON.parse(p.pricingTiers) : null,
     servings: p.servings,
     shape: p.shape,
     eggless: p.eggless,
@@ -48,122 +38,117 @@ function transformProduct(p: typeof db.product): ApiProduct {
     availableCities: p.availableCities,
     inStock: p.inStock,
     stockCount: p.stockCount,
-    extraFields: p.extraFields ? (JSON.parse(p.extraFields) as Record<string, string>) : null,
+    extraFields: p.extraFields ? JSON.parse(p.extraFields) : null,
     createdAt: p.createdAt.toISOString(),
-  };
+  } as Product;
 }
 
-/**
- * GET /api/products?vendorId=
- * Returns all products for a vendor (public — shown on the vendor modal).
- */
+// GET /api/products?vendorId=&category=&ecosystem=&featured=&isAvailable=&limit=
 export async function GET(req: NextRequest) {
   try {
-    const vendorId = req.nextUrl.searchParams.get("vendorId");
-    if (!vendorId) {
-      return NextResponse.json(
-        { error: "vendorId is required" },
-        { status: 400 }
-      );
-    }
+    const sp = req.nextUrl.searchParams;
+    const vendorId = sp.get("vendorId");
+    const category = sp.get("category");
+    const ecosystem = sp.get("ecosystem");
+    const featured = sp.get("featured") === "true";
+    const isAvailable = sp.get("isAvailable");
+    const limitRaw = Number(sp.get("limit"));
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(100, limitRaw) : 50;
+
+    const where: any = {};
+    if (vendorId) where.vendorId = vendorId;
+    if (category) where.category = category;
+    if (ecosystem) where.ecosystem = ecosystem;
+    if (featured) where.isFeatured = true;
+    if (isAvailable === "true") where.isAvailable = true;
+    if (isAvailable === "false") where.isAvailable = false;
+
     const products = await db.product.findMany({
-      where: { vendorId },
-      orderBy: { createdAt: "desc" },
+      where,
+      orderBy: [{ isFeatured: "desc" }, { sortOrder: "asc" }, { createdAt: "desc" }],
+      take: limit,
     });
+
     return NextResponse.json({ products: products.map(transformProduct) });
   } catch (err) {
     console.error("[api/products] GET failed:", err);
-    return NextResponse.json({ error: "Failed to fetch products" }, { status: 500 });
+    return NextResponse.json({ products: [] });
   }
 }
 
-/**
- * POST /api/products
- * Create a new product with all the enhanced fields.
- */
+// POST /api/products — create a product (auth required)
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createSupabaseServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    
+    let userId: string | null = null;
+    if (!userErr && user) {
+      userId = user.id;
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      userId = session?.user?.id ?? null;
     }
+    
+    if (!userId) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
+    // Verify vendor ownership
+    const vendor = await db.vendor.findFirst({
+      where: { owner_user_id: userId },
+      select: { id: true, ecosystem: true, category: true, currency: true },
+    });
+    
+    if (!vendor) {
+      return NextResponse.json({ error: "No vendor listing found" }, { status: 404 });
+    }
+
     const body = await req.json();
     const {
-      vendorId, name, description, price, image,
-      productType, sizes, flavours, weight, prepTime,
-      deliveryAvailable, minGuests, pricePerHead, images,
-      // new enhanced fields
-      videoUrl, servings, shape, eggless, sameDay, customOrder,
-      pickupAvailable, featured, metaTitle, metaDescription,
-      availableCountries, availableStates, availableCities,
-      inStock, stockCount, extraFields, pricingTiers,
+      name, description, packageType, price, comparePrice, currency,
+      duration, capacity, includes, dietaryTags, addOns, leadTime,
+      isAvailable, isFeatured, images, productType,
     } = body;
 
-    if (!vendorId || !name || typeof name !== "string") {
-      return NextResponse.json({ error: "vendorId and name are required" }, { status: 400 });
+    if (!name?.trim() || price === undefined) {
+      return NextResponse.json({ error: "Name and price are required" }, { status: 400 });
     }
 
-    // verify the vendor belongs to the signed-in user
-    const vendor = await db.vendor.findUnique({ where: { id: vendorId } });
-    if (!vendor) {
-      return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
-    }
-    if (vendor.userEmail !== session.user.email) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
-    }
+    // Generate slug
+    const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`;
 
-    // generate a unique slug
-    const baseSlug = slugify(`${name}-${vendor.city}`);
-    let slug = baseSlug;
-    let suffix = 1;
-    while (await db.product.findUnique({ where: { slug } })) {
-      suffix += 1;
-      slug = `${baseSlug}-${suffix}`;
-    }
-
-    const priceNum = Number(price);
     const created = await db.product.create({
       data: {
-        vendorId,
-        name: String(name).trim().slice(0, 100),
+        vendorId: vendor.id,
+        name: name.trim(),
         slug,
-        description: typeof description === "string" ? description.trim().slice(0, 1000) : null,
-        price: Number.isFinite(priceNum) && priceNum >= 0 ? Math.round(priceNum) : 0,
-        image: typeof image === "string" ? (image.startsWith("/uploads/") || image.includes("supabase.co/storage") ? image : null) : null,
-        productType: typeof productType === "string" ? productType.trim().slice(0, 50) : null,
-        sizes: typeof sizes === "string" ? sizes.trim().slice(0, 200) : null,
-        flavours: typeof flavours === "string" ? flavours.trim().slice(0, 200) : null,
-        weight: typeof weight === "string" ? weight.trim().slice(0, 50) : null,
-        prepTime: typeof prepTime === "string" ? prepTime.trim().slice(0, 100) : null,
-        deliveryAvailable: typeof deliveryAvailable === "boolean" ? deliveryAvailable : false,
-        minGuests: minGuests != null && Number.isFinite(Number(minGuests)) ? Math.round(Number(minGuests)) : null,
-        pricePerHead: pricePerHead != null && Number.isFinite(Number(pricePerHead)) ? Math.round(Number(pricePerHead)) : null,
-        images: Array.isArray(images) ? JSON.stringify(images.filter((u: unknown) => typeof u === "string").slice(0, 8)) : null,
-        // enhanced fields
-        videoUrl: typeof videoUrl === "string" ? videoUrl.trim().slice(0, 500) : null,
-        pricingTiers: typeof pricingTiers === "string" ? pricingTiers.slice(0, 2000) : null,
-        servings: typeof servings === "string" ? servings.trim().slice(0, 100) : null,
-        shape: typeof shape === "string" ? shape.trim().slice(0, 50) : null,
-        eggless: typeof eggless === "boolean" ? eggless : false,
-        sameDay: typeof sameDay === "boolean" ? sameDay : false,
-        customOrder: typeof customOrder === "boolean" ? customOrder : false,
-        pickupAvailable: typeof pickupAvailable === "boolean" ? pickupAvailable : false,
-        featured: typeof featured === "boolean" ? featured : false,
-        metaTitle: typeof metaTitle === "string" ? metaTitle.trim().slice(0, 200) : null,
-        metaDescription: typeof metaDescription === "string" ? metaDescription.trim().slice(0, 500) : null,
-        availableCountries: typeof availableCountries === "string" ? availableCountries.trim().slice(0, 500) : null,
-        availableStates: typeof availableStates === "string" ? availableStates.trim().slice(0, 500) : null,
-        availableCities: typeof availableCities === "string" ? availableCities.trim().slice(0, 500) : null,
-        inStock: typeof inStock === "boolean" ? inStock : true,
-        stockCount: stockCount != null && Number.isFinite(Number(stockCount)) ? Math.round(Number(stockCount)) : null,
-        extraFields: typeof extraFields === "string" ? extraFields.slice(0, 5000) : null,
+        description: description?.trim() || null,
+        price: Number(price) || 0,
+        image: images?.[0] || null,
+        images: images ? JSON.stringify(images) : null,
+        productType: productType || packageType || null,
+        ecosystem: vendor.ecosystem,
+        category: vendor.category,
+        packageType: packageType || "standard",
+        comparePrice: comparePrice ? Number(comparePrice) : null,
+        currency: currency || vendor.currency || "USD",
+        duration: duration || null,
+        capacity: capacity ? Number(capacity) : null,
+        includes: includes ? JSON.stringify(includes) : null,
+        dietaryTags: dietaryTags ? JSON.stringify(dietaryTags) : null,
+        addOns: addOns ? JSON.stringify(addOns) : null,
+        leadTime: leadTime || null,
+        isAvailable: isAvailable !== false,
+        isFeatured: isFeatured === true,
+        sortOrder: 0,
       },
     });
 
     return NextResponse.json({ product: transformProduct(created) }, { status: 201 });
   } catch (err) {
     console.error("[api/products] POST failed:", err);
-    return NextResponse.json({ error: "Failed to create product" }, { status: 500 });
+    const errMsg = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: `Failed to create product: ${errMsg}` }, { status: 500 });
   }
 }

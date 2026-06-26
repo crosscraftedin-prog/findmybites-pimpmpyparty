@@ -2,102 +2,107 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-/**
- * DELETE /api/products/[id]
- * Delete a product. Only the vendor who owns it can delete.
- */
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// PUT /api/products/[id] — update product (auth required, owner only)
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const supabase = await createSupabaseServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    
+    let userId: string | null = null;
+    if (!userErr && user) {
+      userId = user.id;
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      userId = session?.user?.id ?? null;
+    }
+    
+    if (!userId) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    const product = await db.product.findUnique({
-      where: { id },
-      include: { vendor: { select: { owner_user_id: true } } },
-    });
+    // Verify ownership
+    const product = await db.product.findUnique({ where: { id }, select: { vendorId: true } });
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
-    if (product.vendor.owner_user_id !== session.user.id) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
-    }
-
-    await db.product.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error("[api/products/[id]] DELETE failed:", err);
-    return NextResponse.json({ error: "Failed to delete product" }, { status: 500 });
-  }
-}
-
-/**
- * PATCH /api/products/[id]
- * Update a product (name, description, price, image).
- */
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const supabase = await createSupabaseServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
-
-    const product = await db.product.findUnique({
-      where: { id },
-      include: { vendor: { select: { owner_user_id: true } } },
+    
+    const vendor = await db.vendor.findFirst({
+      where: { id: product.vendorId, owner_user_id: userId },
+      select: { id: true },
     });
-    if (!product) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
-    }
-    if (product.vendor.owner_user_id !== session.user.id) {
+    if (!vendor) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
     const body = await req.json();
-    const data: Record<string, unknown> = {};
-    if (typeof body.name === "string") data.name = body.name.trim().slice(0, 100);
-    if (typeof body.description === "string")
-      data.description = body.description.trim().slice(0, 500);
-    if (body.price !== undefined) {
-      const n = Number(body.price);
-      if (Number.isFinite(n) && n >= 0) data.price = Math.round(n);
-    }
-    if (typeof body.image === "string") data.image = body.image;
-    if (typeof body.videoUrl === "string") data.videoUrl = body.videoUrl.trim() || null;
-    if (typeof body.productType === "string") data.productType = body.productType;
-    if (typeof body.sizes === "string") data.sizes = body.sizes || null;
-    if (typeof body.flavours === "string") data.flavours = body.flavours || null;
-    if (typeof body.weight === "string") data.weight = body.weight || null;
-    if (typeof body.prepTime === "string") data.prepTime = body.prepTime || null;
-    if (typeof body.servings === "string") data.servings = body.servings || null;
-    if (typeof body.shape === "string") data.shape = body.shape || null;
-    if (typeof body.eggless === "boolean") data.eggless = body.eggless;
-    if (typeof body.sameDay === "boolean") data.sameDay = body.sameDay;
-    if (typeof body.customOrder === "boolean") data.customOrder = body.customOrder;
-    if (typeof body.pickupAvailable === "boolean") data.pickupAvailable = body.pickupAvailable;
-    if (typeof body.deliveryAvailable === "boolean") data.deliveryAvailable = body.deliveryAvailable;
-    if (typeof body.featured === "boolean") data.featured = body.featured;
-    if (typeof body.minGuests === "number") data.minGuests = body.minGuests;
-    if (typeof body.pricePerHead === "number") data.pricePerHead = body.pricePerHead;
-    if (Array.isArray(body.images)) {
-      data.images = JSON.stringify(body.images.filter((u: unknown) => typeof u === "string").slice(0, 8));
+    const data: any = {};
+    
+    if (body.name !== undefined) data.name = body.name.trim();
+    if (body.description !== undefined) data.description = body.description?.trim() || null;
+    if (body.price !== undefined) data.price = Number(body.price) || 0;
+    if (body.packageType !== undefined) data.packageType = body.packageType;
+    if (body.comparePrice !== undefined) data.comparePrice = body.comparePrice ? Number(body.comparePrice) : null;
+    if (body.currency !== undefined) data.currency = body.currency;
+    if (body.duration !== undefined) data.duration = body.duration || null;
+    if (body.capacity !== undefined) data.capacity = body.capacity ? Number(body.capacity) : null;
+    if (body.includes !== undefined) data.includes = body.includes ? JSON.stringify(body.includes) : null;
+    if (body.dietaryTags !== undefined) data.dietaryTags = body.dietaryTags ? JSON.stringify(body.dietaryTags) : null;
+    if (body.addOns !== undefined) data.addOns = body.addOns ? JSON.stringify(body.addOns) : null;
+    if (body.leadTime !== undefined) data.leadTime = body.leadTime || null;
+    if (body.isAvailable !== undefined) data.isAvailable = body.isAvailable;
+    if (body.isFeatured !== undefined) data.isFeatured = body.isFeatured;
+    if (body.sortOrder !== undefined) data.sortOrder = Number(body.sortOrder) || 0;
+    if (body.images !== undefined) {
+      data.images = body.images ? JSON.stringify(body.images) : null;
+      data.image = body.images?.[0] || null;
     }
 
     const updated = await db.product.update({ where: { id }, data });
     return NextResponse.json({ product: updated });
   } catch (err) {
-    console.error("[api/products/[id]] PATCH failed:", err);
-    return NextResponse.json({ error: "Failed to update product" }, { status: 500 });
+    console.error("[api/products/[id]] PUT failed:", err);
+    const errMsg = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: `Failed to update product: ${errMsg}` }, { status: 500 });
+  }
+}
+
+// DELETE /api/products/[id] — delete product (auth required, owner only)
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const supabase = await createSupabaseServerClient();
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    
+    let userId: string | null = null;
+    if (!userErr && user) {
+      userId = user.id;
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      userId = session?.user?.id ?? null;
+    }
+    
+    if (!userId) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
+    const product = await db.product.findUnique({ where: { id }, select: { vendorId: true } });
+    if (!product) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+    
+    const vendor = await db.vendor.findFirst({
+      where: { id: product.vendorId, owner_user_id: userId },
+      select: { id: true },
+    });
+    if (!vendor) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    }
+
+    await db.product.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("[api/products/[id]] DELETE failed:", err);
+    return NextResponse.json({ error: "Failed to delete product" }, { status: 500 });
   }
 }

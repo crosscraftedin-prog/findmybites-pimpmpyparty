@@ -15,6 +15,7 @@ import {
   Sparkles,
   ChevronDown,
   MoreHorizontal,
+  Package,
 } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { useClaimAuth } from "@/hooks/use-claim-auth";
@@ -32,6 +33,7 @@ import type { Vendor } from "@/lib/types";
 export type DashboardTab =
   | "overview"
   | "listing"
+  | "products"
   | "enquiries"
   | "availability"
   | "analytics"
@@ -47,6 +49,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: "overview", label: "Overview", icon: Home },
   { id: "listing", label: "My Listing", icon: ClipboardList },
+  { id: "products", label: "My Products", icon: Package },
   { id: "enquiries", label: "Enquiries", icon: MessageSquare },
   { id: "availability", label: "Availability", icon: Calendar },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
@@ -58,6 +61,7 @@ const NAV_ITEMS: NavItem[] = [
 const MOBILE_MAIN_TABS: DashboardTab[] = [
   "overview",
   "listing",
+  "products",
   "enquiries",
   "availability",
 ];

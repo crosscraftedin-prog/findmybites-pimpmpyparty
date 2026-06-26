@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BadgeCheck,
   Calendar,
+  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -337,32 +338,24 @@ export function VendorProfileClient({ vendor }: Props) {
                 </section>
               )}
 
-              {/* ── 5. MENU (food vendors only) ─────────────────────── */}
-              {isFoodVendor && products.length > 0 && (
+              {/* ── 5. PACKAGES & SERVICES (all vendors) ──────────── */}
+              {products.length > 0 && (
                 <section>
-                  <h2 className="mb-4 text-xl font-bold tracking-tight sm:text-2xl">Menu</h2>
-                  <div className="space-y-3">
-                    {products.map((p) => (
-                      <ProductMenuItem key={p.id} product={p} currency={vendor.currency} />
+                  <h2 className="mb-4 text-xl font-bold tracking-tight sm:text-2xl">
+                    {isFoodVendor ? "Menu & Packages" : "Packages & Services"}
+                  </h2>
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {products.slice(0, 6).map((p) => (
+                      <ProductCard key={p.id} product={p} currency={vendor.currency} />
                     ))}
                   </div>
-                </section>
-              )}
-
-              {/* ── 6. SERVICES (event vendors only) ────────────────── */}
-              {!isFoodVendor && products.length > 0 && (
-                <section>
-                  <h2 className="mb-4 text-xl font-bold tracking-tight sm:text-2xl">Services</h2>
-                  <div className="space-y-3">
-                    {products.map((p) => (
-                      <ServiceItem key={p.id} product={p} currency={vendor.currency} />
-                    ))}
-                  </div>
-                  {vendor.serviceRadiusKm && (
-                    <p className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Navigation className="size-4 text-brand" />
-                      Travels up to {vendor.serviceRadiusKm}km for events
-                    </p>
+                  {products.length > 6 && (
+                    <button
+                      onClick={() => document.getElementById("quote-form")?.scrollIntoView({ behavior: "smooth" })}
+                      className="mt-4 text-sm font-medium text-brand hover:underline"
+                    >
+                      See all {products.length} packages →
+                    </button>
                   )}
                 </section>
               )}
@@ -532,6 +525,75 @@ export function VendorProfileClient({ vendor }: Props) {
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Product card for public display ──────────────────────────────────────
+function ProductCard({ product, currency }: { product: Product; currency: string }) {
+  const symbol = CURRENCY_SYMBOLS[currency] ?? currency;
+  const includes: string[] = (product as any).includes
+    ? (typeof (product as any).includes === "string"
+      ? JSON.parse((product as any).includes as string)
+      : (product as any).includes)
+    : [];
+  const dietaryTags: string[] = (product as any).dietaryTags
+    ? (typeof (product as any).dietaryTags === "string"
+      ? JSON.parse((product as any).dietaryTags as string)
+      : (product as any).dietaryTags)
+    : [];
+  const images: string[] = product.images ?? (product.image ? [product.image] : []);
+  const packageType = (product as any).packageType || "standard";
+  const capacity = (product as any).capacity;
+  const duration = (product as any).duration;
+
+  return (
+    <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+      {images.length > 0 && (
+        <div className="relative aspect-video overflow-hidden bg-muted">
+          <img src={images[0]} alt={product.name} className="h-full w-full object-cover" />
+          <div className="absolute right-2 top-2">
+            <span className={cn(
+              "rounded-full px-2 py-0.5 text-[9px] font-bold capitalize",
+              packageType === "premium" ? "bg-amber-500 text-white" :
+              packageType === "standard" ? "bg-blue-500 text-white" :
+              "bg-muted text-muted-foreground"
+            )}>{packageType}</span>
+          </div>
+        </div>
+      )}
+      <div className="flex flex-1 flex-col p-3">
+        <h3 className="line-clamp-1 font-bold leading-tight">{product.name}</h3>
+        {product.description && (
+          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{product.description}</p>
+        )}
+        <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+          {capacity && <span>Up to {capacity} guests</span>}
+          {duration && <span>{duration}</span>}
+        </div>
+        {includes.length > 0 && (
+          <ul className="mt-2 space-y-0.5">
+            {includes.slice(0, 3).map((item, i) => (
+              <li key={i} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <Check className="size-3 text-brand" /> {item}
+              </li>
+            ))}
+          </ul>
+        )}
+        {dietaryTags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {dietaryTags.slice(0, 3).map((tag) => (
+              <span key={tag} className="rounded bg-brand-soft px-1.5 py-0.5 text-[9px] font-medium text-brand-soft-foreground">{tag}</span>
+            ))}
+          </div>
+        )}
+        <div className="mt-3 flex items-center justify-between border-t border-border pt-2">
+          <span className="text-sm font-bold text-brand">From {symbol}{product.price.toLocaleString()}</span>
+          <a href="#quote-form" className="rounded-lg bg-brand px-3 py-1 text-[11px] font-semibold text-brand-foreground">
+            Enquire
+          </a>
+        </div>
+      </div>
     </div>
   );
 }

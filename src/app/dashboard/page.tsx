@@ -10,6 +10,7 @@ import { LocationBanner } from "@/components/marketplace/location-banner";
 import { Sidebar, type DashboardTab } from "@/components/dashboard/Sidebar";
 import { Overview } from "@/components/dashboard/Overview";
 import { MyListing } from "@/components/dashboard/MyListing";
+import { Products } from "@/components/dashboard/Products";
 import { Enquiries } from "@/components/dashboard/Enquiries";
 import { Availability } from "@/components/dashboard/Availability";
 import { Analytics } from "@/components/dashboard/Analytics";
@@ -102,6 +103,7 @@ export default function DashboardPage() {
             <Overview vendor={vendor} bookings={bookings} onNavigate={setActiveTab} />
           )}
           {activeTab === "listing" && <MyListing vendor={vendor} />}
+          {activeTab === "products" && <Products vendor={vendor} />}
           {activeTab === "enquiries" && <Enquiries bookings={bookings} />}
           {activeTab === "availability" && <Availability vendor={vendor} />}
           {activeTab === "analytics" && <Analytics vendor={vendor} />}
