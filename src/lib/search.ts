@@ -36,7 +36,7 @@ export function ensureSearchSchema(): Promise<void> {
         // generated tsvector column (weighted: A=name, B=tagline+tags,
         // C=description, D=city+country) for relevance-ranked full-text search
         await db.$executeRawUnsafe(`
-          ALTER TABLE "Vendor"
+          ALTER TABLE "vendor_listings"
           ADD COLUMN IF NOT EXISTS "searchTsv" tsvector
           GENERATED ALWAYS AS (
             setweight(to_tsvector('simple', coalesce(name, '')),      'A') ||
@@ -50,16 +50,16 @@ export function ensureSearchSchema(): Promise<void> {
         // GIN index for fast full-text queries
         await db.$executeRawUnsafe(`
           CREATE INDEX IF NOT EXISTS "vendor_searchtsv_idx"
-          ON "Vendor" USING GIN ("searchTsv");
+          ON "vendor_listings" USING GIN ("searchTsv");
         `);
         // GIN trigram indexes for fuzzy city/country/name matching
         await db.$executeRawUnsafe(`
           CREATE INDEX IF NOT EXISTS "vendor_name_trgm_idx"
-          ON "Vendor" USING GIN (name gin_trgm_ops);
+          ON "vendor_listings" USING GIN (name gin_trgm_ops);
         `);
         await db.$executeRawUnsafe(`
           CREATE INDEX IF NOT EXISTS "vendor_city_trgm_idx"
-          ON "Vendor" USING GIN (city gin_trgm_ops);
+          ON "vendor_listings" USING GIN (city gin_trgm_ops);
         `);
       } catch (err) {
         // don't crash — search will fall back to LIKE
@@ -120,7 +120,7 @@ export async function searchVendors(
     const rows = ecosystem
       ? await db.$queryRawUnsafe<{ vendorId: string; rank: number }[]>(
           `SELECT id AS "vendorId", ts_rank("searchTsv", websearch_to_tsquery('simple', $1)) AS rank
-           FROM "Vendor"
+           FROM "vendor_listings"
            WHERE "searchTsv" @@ websearch_to_tsquery('simple', $1)
              AND ecosystem = $2
            ORDER BY rank DESC
@@ -131,7 +131,7 @@ export async function searchVendors(
         )
       : await db.$queryRawUnsafe<{ vendorId: string; rank: number }[]>(
           `SELECT id AS "vendorId", ts_rank("searchTsv", websearch_to_tsquery('simple', $1)) AS rank
-           FROM "Vendor"
+           FROM "vendor_listings"
            WHERE "searchTsv" @@ websearch_to_tsquery('simple', $1)
            ORDER BY rank DESC
            LIMIT $2`,
@@ -154,7 +154,7 @@ export async function searchIndexHasRows(): Promise<boolean> {
   if (!IS_POSTGRES) return false;
   try {
     const rows = await db.$queryRawUnsafe<{ c: number }[]>(
-      `SELECT COUNT(*) AS c FROM "Vendor" WHERE "searchTsv" IS NOT NULL`
+      `SELECT COUNT(*) AS c FROM "vendor_listings" WHERE "searchTsv" IS NOT NULL`
     );
     return (rows[0]?.c ?? 0) > 0;
   } catch {
@@ -198,7 +198,7 @@ export async function fuzzySearchVendors(
     const rows = ecosystem
       ? await db.$queryRawUnsafe<{ vendorId: string; rank: number }[]>(
           `SELECT id AS "vendorId", similarity(name, $1) AS rank
-           FROM "Vendor"
+           FROM "vendor_listings"
            WHERE name % $1 AND ecosystem = $2
            ORDER BY rank DESC LIMIT $3`,
           query,
@@ -207,7 +207,7 @@ export async function fuzzySearchVendors(
         )
       : await db.$queryRawUnsafe<{ vendorId: string; rank: number }[]>(
           `SELECT id AS "vendorId", similarity(name, $1) AS rank
-           FROM "Vendor"
+           FROM "vendor_listings"
            WHERE name % $1
            ORDER BY rank DESC LIMIT $2`,
           query,
