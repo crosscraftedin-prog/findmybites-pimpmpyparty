@@ -103,6 +103,8 @@ interface Vendor {
   rating: number;
   reviewCount: number;
   completedBookings: number;
+  ownership_status?: string | null;
+  owner_user_id?: string | null;
 }
 
 interface ActivityItem {
@@ -1009,6 +1011,7 @@ export function AdminPanel() {
   const handleAction = async (id: string, status: string) => {
     setActionLoading(id);
     const approved = status === "approved";
+    const newOwnershipStatus = approved ? "approved" : "rejected";
 
     // Find vendor BEFORE updating state (state is async)
     const vendor = allVendors.find((v) => v.id === id) || pendingVendors.find((v) => v.id === id);
@@ -1018,12 +1021,14 @@ export function AdminPanel() {
       return;
     }
 
-    // Optimistic UI update
+    // Optimistic UI update — update BOTH approved AND ownership_status
+    const updatedVendor = { ...vendor, approved, ownership_status: newOwnershipStatus, status };
     setAllVendors((prev) =>
-      prev.map((v) => (v.id === id ? { ...v, approved, status } : v))
+      prev.map((v) => (v.id === id ? updatedVendor : v))
     );
     setPendingVendors((prev) => prev.filter((v) => v.id !== id));
-    setReviewVendor(null);
+    // Keep the review panel OPEN so user sees the status change
+    setReviewVendor(updatedVendor);
 
     try {
       const res = await fetch(`/api/vendors/${vendor.slug}`, {
@@ -1037,7 +1042,7 @@ export function AdminPanel() {
         throw new Error(data.error || `API returned ${res.status}`);
       }
 
-      // Success
+      // Success — update the review vendor again with confirmed data
       if (approved) {
         toast.success(`${vendor.name} approved and is now live!`);
       } else if (status === "rejected") {
@@ -1051,12 +1056,12 @@ export function AdminPanel() {
       }
     } catch (err) {
       // Revert optimistic update
+      const revertedVendor = { ...vendor, approved: !approved, ownership_status: vendor.ownership_status, status: vendor.status };
       setAllVendors((prev) =>
-        prev.map((v) =>
-          v.id === id ? { ...v, approved: !approved, status: v.status } : v
-        )
+        prev.map((v) => (v.id === id ? revertedVendor : v))
       );
       setPendingVendors((prev) => [...prev, vendor]);
+      setReviewVendor(revertedVendor);
       toast.error(err instanceof Error ? err.message : "Action failed");
     } finally {
       setActionLoading(null);
