@@ -6,6 +6,7 @@ import { Search, Sparkles, ShieldCheck, Globe2, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { useMarketplace } from "@/lib/store";
 import { ECOSYSTEM_META } from "@/lib/constants";
+import { useStats } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 const HERO_CONTENT = {
@@ -39,6 +40,14 @@ export function Hero() {
   const setSearch = useMarketplace((s) => s.setSearch);
   const setSelectedCategory = useMarketplace((s) => s.setSelectedCategory);
   const content = HERO_CONTENT[ecosystem];
+  const { data: stats } = useStats();
+
+  // Real stats from API (fallback to 0 if loading)
+  const foodCount = stats?.findmybitesCount ?? 0;
+  const partyCount = stats?.pimpmpypartyCount ?? 0;
+  const totalCount = stats?.totalVendors ?? 0;
+  const countries = stats?.countries ?? 0;
+  const ecoCount = ecosystem === "FINDMYBITES" ? foodCount : partyCount;
 
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,20 +138,22 @@ export function Hero() {
             ))}
           </div>
 
-          {/* Stats */}
+          {/* Stats — real data from API */}
           <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-4">
             <div>
               <p className="text-2xl font-extrabold text-white sm:text-3xl">
-                {content.stat1.value}
+                {ecoCount.toLocaleString()}+
               </p>
-              <p className="text-xs text-white/70">{content.stat1.label}</p>
+              <p className="text-xs text-white/70">
+                {ecosystem === "FINDMYBITES" ? "Food vendors" : "Party pros"}
+              </p>
             </div>
             <div className="h-10 w-px bg-white/20" />
             <div>
               <p className="text-2xl font-extrabold text-white sm:text-3xl">
-                {content.stat2.value}
+                {countries}
               </p>
-              <p className="text-xs text-white/70">{content.stat2.label}</p>
+              <p className="text-xs text-white/70">Countries</p>
             </div>
             <div className="h-10 w-px bg-white/20" />
             <div>
