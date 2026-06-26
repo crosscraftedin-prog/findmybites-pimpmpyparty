@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     // Update the vendor — set approved=true so it shows on the public site
     await db.$executeRaw`
-      UPDATE public."Vendor" 
+      UPDATE vendor_listings 
       SET ownership_status = 'claimed', "owner_user_id" = ${c.user_id}::uuid, verified = true, approved = true
       WHERE id = ${c.vendor_id}
     `;

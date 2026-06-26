@@ -58,7 +58,7 @@ export default function ClaimTokenPage() {
     // Get vendor name for display
     try {
       const { data: vInfo } = await supabaseBrowser
-        .from("Vendor")
+        .from("vendor_listings")
         .select("name")
         .eq("id", vData)
         .maybeSingle();

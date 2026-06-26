@@ -33,7 +33,7 @@ export default function ClaimPage() {
     }
     async function load() {
       const { data } = await supabaseBrowser
-        .from("Vendor")
+        .from("vendor_listings")
         .select("*")
         .eq("id", vendorId)
         .maybeSingle();

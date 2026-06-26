@@ -36,7 +36,7 @@ export default function ClaimStatusPage() {
       const ids = [...new Set((cs || []).map((c) => c.vendor_id))];
       if (ids.length) {
         const { data: vs } = await supabaseBrowser
-          .from("Vendor")
+          .from("vendor_listings")
           .select("id,name,slug,ecosystem,category")
           .in("id", ids);
         const map: Record<string, any> = {};

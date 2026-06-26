@@ -74,7 +74,7 @@ export function AdminClaimsSection() {
       const [vendorRes, profileRes] = await Promise.all([
         vendorIds.length
           ? supabaseBrowser
-              .from("Vendor")
+              .from("vendor_listings")
               .select("id,name,slug,ecosystem,category")
               .in("id", vendorIds)
           : Promise.resolve({ data: [] }),
