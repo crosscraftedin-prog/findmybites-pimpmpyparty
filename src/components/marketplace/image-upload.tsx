@@ -22,7 +22,7 @@ interface ImageUploadProps {
 }
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
-const MAX_BYTES_DEFAULT = 4 * 1024 * 1024;
+const MAX_BYTES_DEFAULT = 5 * 1024 * 1024; // 5MB
 
 export function ImageUpload({
   value,

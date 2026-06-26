@@ -485,12 +485,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Set ownership_status = 'pending' via raw SQL (Prisma schema doesn't have
-    // this column — it was added by supabase_addon.sql). This ensures the
-    // admin panel and vendor dashboard can track the listing's lifecycle.
+    // Set ownership_status = 'pending' via raw SQL (the column was added by
+    // supabase_addon.sql and isn't in the Prisma schema). Must use the real
+    // table name "vendor_listings" (not "Vendor") because raw SQL bypasses
+    // Prisma's @@map mapping.
     try {
       await db.$executeRaw`
-        UPDATE "Vendor" SET ownership_status = 'pending'
+        UPDATE vendor_listings SET ownership_status = 'pending'
         WHERE id = ${created.id}
       `;
     } catch (statusErr) {

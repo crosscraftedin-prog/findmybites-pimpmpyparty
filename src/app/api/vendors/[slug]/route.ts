@@ -412,7 +412,7 @@ export async function PUT(
       try {
         const newStatus = body.approved ? "approved" : "rejected";
         await db.$executeRaw`
-          UPDATE "Vendor" SET ownership_status = ${newStatus}
+          UPDATE vendor_listings SET ownership_status = ${newStatus}
           WHERE id = ${existing.id}
         `;
 
