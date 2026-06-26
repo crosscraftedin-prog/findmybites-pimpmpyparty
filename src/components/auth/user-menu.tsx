@@ -29,7 +29,7 @@ export function UserMenu() {
     (user.user_metadata?.full_name as string) ||
     (user.user_metadata?.name as string) ||
     user.email?.split("@")[0] ||
-    "Vendor";
+    "vendor_listings";
   const email = user.email ?? "";
   const image = user.user_metadata?.avatar_url as string | undefined;
   const initials = name

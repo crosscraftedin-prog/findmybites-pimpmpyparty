@@ -18,7 +18,7 @@ export default async function VendorDashboardRoute() {
       userName={
         (session.user.user_metadata?.full_name as string) ||
         session.user.email?.split("@")[0] ||
-        "Vendor"
+        "vendor_listings"
       }
       userImage={session.user.user_metadata?.avatar_url as string | undefined}
     />
