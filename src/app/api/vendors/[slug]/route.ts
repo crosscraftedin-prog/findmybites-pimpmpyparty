@@ -411,11 +411,17 @@ export async function PUT(
       try {
         const newStatus = body.approved ? "approved" : "rejected";
 
-        // Use Prisma update (ownership_status is now in the schema)
-        await db.vendor.update({
-          where: { slug },
-          data: { ownership_status: newStatus },
-        });
+        // Use raw SQL to update ownership_status — more reliable than Prisma
+        // on Vercel where the generated client may not include this field.
+        console.log("[api/vendors/[slug]] Updating ownership_status to:", newStatus, "for vendor:", existing.id, existing.slug);
+
+        const result = await db.$executeRaw`
+          UPDATE vendor_listings
+          SET ownership_status = ${newStatus}
+          WHERE id = ${existing.id}
+        `;
+
+        console.log("[api/vendors/[slug]] Raw SQL update result (rows affected):", result);
 
         // Insert notification if vendor has an owner
         if (existing.owner_user_id) {
