@@ -119,6 +119,8 @@ model Vendor {
   // Added by supabase_addon.sql — links to auth.users(id) for claim system.
   // Nullable because legacy vendors created before the claim system don't have it.
   owner_user_id    String?
+  // Tracks the listing lifecycle: unclaimed → pending → approved/rejected
+  ownership_status String?   @default("unclaimed")
   createdAt        DateTime  @default(now())
   reviews          Review[]
   bookings         Booking[]

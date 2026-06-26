@@ -66,6 +66,7 @@ function transformVendor(v: DbVendorWithReviews): VendorWithRelations {
     serviceRadiusKm: v.serviceRadiusKm,
     userEmail: v.userEmail,
     owner_user_id: v.owner_user_id,
+    ownership_status: v.ownership_status,
     createdAt: v.createdAt.toISOString(),
     reviews: v.reviews.map<ApiReview>((r) => ({
       id: r.id,
@@ -406,36 +407,38 @@ export async function PUT(
     });
 
     // ── Update ownership_status + send notification on approve/reject ──
-    // ownership_status is a column added by supabase_addon.sql (not in Prisma
-    // schema), so we use raw SQL. Also insert a notification for the vendor.
-    if (typeof body.approved === "boolean" && existing.owner_user_id) {
+    if (typeof body.approved === "boolean") {
       try {
         const newStatus = body.approved ? "approved" : "rejected";
-        await db.$executeRaw`
-          UPDATE vendor_listings SET ownership_status = ${newStatus}
-          WHERE id = ${existing.id}
-        `;
 
-        // Insert notification (uses existing notifications table)
-        const notifTitle = body.approved
-          ? "Your listing is live! 🎉"
-          : "Listing update";
-        const notifMsg = body.approved
-          ? `Great news! Your listing "${existing.name}" has been approved and is now live. View your dashboard at /dashboard`
-          : `Thanks for submitting your listing. Unfortunately we couldn't approve it at this time. Please contact hello@findmybites.com for help.`;
-        const notifLink = body.approved ? "/dashboard" : "/";
+        // Use Prisma update (ownership_status is now in the schema)
+        await db.vendor.update({
+          where: { slug },
+          data: { ownership_status: newStatus },
+        });
 
-        await db.$executeRaw`
-          INSERT INTO public.notifications (user_id, title, message, link)
-          VALUES (
-            ${existing.owner_user_id}::uuid,
-            ${notifTitle},
-            ${notifMsg},
-            ${notifLink}
-          )
-        `;
+        // Insert notification if vendor has an owner
+        if (existing.owner_user_id) {
+          const notifTitle = body.approved
+            ? "Your listing is live! 🎉"
+            : "Listing update";
+          const notifMsg = body.approved
+            ? `Great news! Your listing "${existing.name}" has been approved and is now live. View your dashboard at /dashboard`
+            : `Thanks for submitting your listing. Unfortunately we couldn't approve it at this time. Please contact hello@findmybites.com for help.`;
+          const notifLink = body.approved ? "/dashboard" : "/";
+
+          await db.$executeRaw`
+            INSERT INTO public.notifications (user_id, title, message, link)
+            VALUES (
+              ${existing.owner_user_id}::uuid,
+              ${notifTitle},
+              ${notifMsg},
+              ${notifLink}
+            )
+          `;
+        }
       } catch (notifErr) {
-        console.error("[api/vendors/[slug]] notification insert failed (non-fatal):", notifErr);
+        console.error("[api/vendors/[slug]] ownership_status/notification failed (non-fatal):", notifErr);
       }
     }
 

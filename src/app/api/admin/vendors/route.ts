@@ -50,6 +50,7 @@ function transformVendor(v: DbVendor): ApiVendor {
     longitude: v.longitude,
     serviceRadiusKm: v.serviceRadiusKm,
     userEmail: v.userEmail,
+    ownership_status: v.ownership_status,
     createdAt: v.createdAt.toISOString(),
   };
 }

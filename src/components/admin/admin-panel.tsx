@@ -486,34 +486,52 @@ function ReviewPanel({
           className="sticky bottom-0 flex gap-2 border-t bg-white p-4"
           style={{ borderColor: "rgba(0,0,0,0.12)" }}
         >
-          <button
-            onClick={() => onAction(vendor.id, "approved")}
-            disabled={actionLoading === vendor.id}
-            className="flex-1 rounded-lg py-2 text-[12px] font-medium text-white disabled:opacity-50"
-            style={{ background: GREEN_TEXT }}
-          >
-            {actionLoading === vendor.id ? (
-              <Loader2 className="mx-auto size-3.5 animate-spin" />
-            ) : (
-              "Approve"
-            )}
-          </button>
-          <button
-            onClick={() => onAction(vendor.id, "flagged")}
-            disabled={actionLoading === vendor.id}
-            className="flex-1 rounded-lg border py-2 text-[12px] font-medium disabled:opacity-50"
-            style={{ borderColor: AMBER, color: AMBER }}
-          >
-            Flag
-          </button>
-          <button
-            onClick={() => onAction(vendor.id, "rejected")}
-            disabled={actionLoading === vendor.id}
-            className="flex-1 rounded-lg border py-2 text-[12px] font-medium disabled:opacity-50"
-            style={{ borderColor: FLAG_TEXT, color: FLAG_TEXT }}
-          >
-            Reject
-          </button>
+          {vendor.approved ? (
+            <>
+              <div className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-medium" style={{ background: GREEN_BG, color: GREEN_TEXT }}>
+                ✅ Active
+              </div>
+              <button
+                onClick={() => onAction(vendor.id, "rejected")}
+                disabled={actionLoading === vendor.id}
+                className="flex-1 rounded-lg border py-2 text-[12px] font-medium disabled:opacity-50"
+                style={{ borderColor: FLAG_TEXT, color: FLAG_TEXT }}
+              >
+                {actionLoading === vendor.id ? <Loader2 className="mx-auto size-3.5 animate-spin" /> : "Suspend"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => onAction(vendor.id, "approved")}
+                disabled={actionLoading === vendor.id}
+                className="flex-1 rounded-lg py-2 text-[12px] font-medium text-white disabled:opacity-50"
+                style={{ background: GREEN_TEXT }}
+              >
+                {actionLoading === vendor.id ? (
+                  <Loader2 className="mx-auto size-3.5 animate-spin" />
+                ) : (
+                  "Approve"
+                )}
+              </button>
+              <button
+                onClick={() => onAction(vendor.id, "flagged")}
+                disabled={actionLoading === vendor.id}
+                className="flex-1 rounded-lg border py-2 text-[12px] font-medium disabled:opacity-50"
+                style={{ borderColor: AMBER, color: AMBER }}
+              >
+                Flag
+              </button>
+              <button
+                onClick={() => onAction(vendor.id, "rejected")}
+                disabled={actionLoading === vendor.id}
+                className="flex-1 rounded-lg border py-2 text-[12px] font-medium disabled:opacity-50"
+                style={{ borderColor: FLAG_TEXT, color: FLAG_TEXT }}
+              >
+                Reject
+              </button>
+            </>
+          )}
         </div>
       </div>
     </>
