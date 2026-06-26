@@ -15,9 +15,25 @@ import { NextResponse } from "next/server";
 export async function requireAdmin(): Promise<NextResponse | null> {
   try {
     const supabase = await createSupabaseServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
 
-    if (!session?.user?.email) {
+    // Use getUser() instead of getSession() — it verifies the JWT with
+    // Supabase's auth server, which is more reliable on Vercel serverless
+    // functions where cookies may not propagate correctly.
+    let email: string | null = null;
+    try {
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      if (!userErr && user?.email) {
+        email = user.email;
+      }
+    } catch {}
+
+    // Fallback to getSession() if getUser() failed
+    if (!email) {
+      const { data: { session } } = await supabase.auth.getSession();
+      email = session?.user?.email ?? null;
+    }
+
+    if (!email) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -25,7 +41,7 @@ export async function requireAdmin(): Promise<NextResponse | null> {
     }
 
     const isAdmin = ADMIN_EMAILS.some(
-      (e) => e.toLowerCase() === session.user.email!.toLowerCase()
+      (e) => e.toLowerCase() === email!.toLowerCase()
     );
 
     if (!isAdmin) {

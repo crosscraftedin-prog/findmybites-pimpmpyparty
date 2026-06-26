@@ -991,6 +991,16 @@ export function AdminPanel() {
   const handleAction = async (id: string, status: string) => {
     setActionLoading(id);
     const approved = status === "approved";
+
+    // Find vendor BEFORE updating state (state is async)
+    const vendor = allVendors.find((v) => v.id === id) || pendingVendors.find((v) => v.id === id);
+    if (!vendor) {
+      toast.error("Vendor not found");
+      setActionLoading(null);
+      return;
+    }
+
+    // Optimistic UI update
     setAllVendors((prev) =>
       prev.map((v) => (v.id === id ? { ...v, approved, status } : v))
     );
@@ -998,20 +1008,22 @@ export function AdminPanel() {
     setReviewVendor(null);
 
     try {
-      const vendor = allVendors.find((v) => v.id === id);
-      if (!vendor) return;
-      if (status === "approved") {
-        await fetch(`/api/vendors/${vendor.slug}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ approved: true }),
-        });
+      const res = await fetch(`/api/vendors/${vendor.slug}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approved: status === "approved" }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `API returned ${res.status}`);
+      }
+
+      // Success
+      if (approved) {
+        toast.success(`${vendor.name} approved and is now live!`);
       } else if (status === "rejected") {
-        await fetch(`/api/vendors/${vendor.slug}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ approved: false }),
-        });
+        toast.success(`${vendor.name} rejected`);
       }
 
       if (approved || status === "rejected") {
@@ -1020,12 +1032,14 @@ export function AdminPanel() {
         else setPartyPending((p) => Math.max(0, p - 1));
       }
     } catch (err) {
+      // Revert optimistic update
       setAllVendors((prev) =>
         prev.map((v) =>
           v.id === id ? { ...v, approved: !approved, status: v.status } : v
         )
       );
-      console.error("Action failed:", err);
+      setPendingVendors((prev) => [...prev, vendor]);
+      toast.error(err instanceof Error ? err.message : "Action failed");
     } finally {
       setActionLoading(null);
     }
