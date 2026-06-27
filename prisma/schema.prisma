@@ -268,6 +268,18 @@ model Product {
   recipePublic        Boolean  @default(false)
   recipeText          String?
   recipePdf           String?
+  // ── Marketing & deals ──
+  discountPercent       Int?
+  offerType             String?  @default("none")
+  offerLabel            String?
+  offerExpiresAt        DateTime?
+  freeItemDescription   String?
+  bundleDescription     String?
+  bundleDiscount        Int?
+  isFlashDeal           Boolean  @default(false)
+  flashDealEndsAt       DateTime?
+  minOrderForOffer      Int?
+  exclusiveMemberOffer  Boolean  @default(false)
 
   @@index([vendorId])
   @@index([productType])

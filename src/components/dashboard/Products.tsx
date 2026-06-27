@@ -76,6 +76,10 @@ export function Products({ vendor }: ProductsProps) {
     allergens: [] as string[], customAllergen: "", cuisineType: "", customisationAvailable: true,
     customisationNotes: "", shelfLife: "", storageMethod: "", storageInstructions: "",
     recipePublic: false, recipeText: "", recipePdf: "",
+    // Marketing & deals
+    offerType: "none", offerLabel: "", offerExpiresAt: "", freeItemDescription: "",
+    bundleDescription: "", bundleDiscount: "", isFlashDeal: false, flashDealEndsAt: "",
+    minOrderForOffer: "", exclusiveMemberOffer: false,
   };
   const [form, setForm] = React.useState(emptyForm);
   const [includeInput, setIncludeInput] = React.useState("");
@@ -235,6 +239,80 @@ export function Products({ vendor }: ProductsProps) {
               <Label className="text-xs font-semibold">Description</Label>
               <Textarea value={form.description} onChange={e => set("description", e.target.value)} placeholder="Describe what's included..." rows={2} className="resize-none mt-1" maxLength={200} />
               <p className="mt-0.5 text-right text-[10px] text-muted-foreground">{form.description.length}/200</p>
+            </div>
+
+            {/* ── 💰 PRICING & SPECIAL OFFERS ── */}
+            <div className="rounded-lg border border-border p-3 space-y-3">
+              <div>
+                <Label className="text-xs font-semibold">💰 Pricing & Special Offers</Label>
+                <p className="text-[11px] text-muted-foreground">Attract more customers with deals and discounts</p>
+              </div>
+              {/* Compare Price */}
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Original / Compare Price (optional) — shows strikethrough</Label>
+                <Input type="number" value={form.comparePrice} onChange={e => set("comparePrice", e.target.value)} placeholder={`e.g. ${Number(form.price || 0) * 1.2 | 0} (was price)`} className="h-10 mt-1" />
+                {form.comparePrice && Number(form.comparePrice) > Number(form.price || 0) && (
+                  <div className="mt-1.5 flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground line-through">{symbol}{form.comparePrice}</span>
+                    <span className="font-bold text-brand">{symbol}{form.price}</span>
+                    <span className="font-semibold text-green-600">SAVE {Math.round(((Number(form.comparePrice) - Number(form.price)) / Number(form.comparePrice)) * 100)}%</span>
+                  </div>
+                )}
+              </div>
+              {/* Offer Type */}
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Special Offer Type</Label>
+                <Select value={form.offerType || "none"} onValueChange={v => set("offerType", v)}>
+                  <SelectTrigger className="h-10 mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No special offer</SelectItem>
+                    <SelectItem value="limited_time">🕐 Limited time offer</SelectItem>
+                    <SelectItem value="free_item">🎁 Free item with purchase</SelectItem>
+                    <SelectItem value="bundle">📦 Bundle deal</SelectItem>
+                    <SelectItem value="flash">⚡ Flash deal (24 hours)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Offer-specific fields */}
+              {form.offerType === "limited_time" && (
+                <div className="space-y-2">
+                  <Input value={form.offerLabel} onChange={e => set("offerLabel", e.target.value)} placeholder="Offer label e.g. Eid Special Offer" className="h-10" />
+                  <Input type="datetime-local" value={form.offerExpiresAt} onChange={e => set("offerExpiresAt", e.target.value)} className="h-10" />
+                  <p className="text-[10px] text-muted-foreground">Offer automatically ends at this time</p>
+                </div>
+              )}
+              {form.offerType === "free_item" && (
+                <div className="space-y-2">
+                  <Input value={form.freeItemDescription} onChange={e => { set("freeItemDescription", e.target.value); set("offerLabel", e.target.value ? `Free: ${e.target.value}` : ""); }} placeholder="What's free? e.g. Free delivery, Free tasting box" className="h-10" />
+                  <Input type="number" value={form.minOrderForOffer} onChange={e => set("minOrderForOffer", e.target.value)} placeholder="Min order to unlock (e.g. 2)" className="h-10" />
+                </div>
+              )}
+              {form.offerType === "bundle" && (
+                <div className="space-y-2">
+                  <Input value={form.bundleDescription} onChange={e => set("bundleDescription", e.target.value)} placeholder="e.g. Book wedding cake + 50 cupcakes" className="h-10" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input type="number" value={form.bundleDiscount} onChange={e => set("bundleDiscount", e.target.value)} placeholder="Discount % (e.g. 20)" className="h-10" />
+                    <Input type="number" value={form.minOrderForOffer} onChange={e => set("minOrderForOffer", e.target.value)} placeholder="Min order" className="h-10" />
+                  </div>
+                </div>
+              )}
+              {form.offerType === "flash" && (
+                <div className="space-y-2">
+                  <Input value={form.offerLabel} onChange={e => set("offerLabel", e.target.value)} placeholder="e.g. Flash Friday Deal!" className="h-10" />
+                  <Input type="datetime-local" value={form.flashDealEndsAt} onChange={e => set("flashDealEndsAt", e.target.value)} className="h-10" />
+                  <p className="text-[10px] text-muted-foreground">Flash deals show a red badge + countdown timer</p>
+                </div>
+              )}
+              {/* Members only */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">🔒 Exclusive member offer</Label>
+                  <p className="text-[10px] text-muted-foreground/60">Only logged-in customers see this price</p>
+                </div>
+                <button type="button" onClick={() => set("exclusiveMemberOffer", !form.exclusiveMemberOffer)} className={cn("relative h-6 w-11 rounded-full transition-colors", form.exclusiveMemberOffer ? "bg-amber-500" : "bg-muted-foreground/30")}>
+                  <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform", form.exclusiveMemberOffer ? "translate-x-5" : "translate-x-0.5")} />
+                </button>
+              </div>
             </div>
 
             {/* Section B: Details */}

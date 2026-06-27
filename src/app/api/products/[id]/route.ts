@@ -69,6 +69,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (body.recipePublic !== undefined) data.recipePublic = body.recipePublic;
     if (body.recipeText !== undefined) data.recipeText = body.recipeText || null;
     if (body.recipePdf !== undefined) data.recipePdf = body.recipePdf || null;
+    // Marketing & deals
+    if (body.offerType !== undefined) data.offerType = body.offerType || "none";
+    if (body.offerLabel !== undefined) data.offerLabel = body.offerLabel || null;
+    if (body.offerExpiresAt !== undefined) data.offerExpiresAt = body.offerExpiresAt ? new Date(body.offerExpiresAt) : null;
+    if (body.freeItemDescription !== undefined) data.freeItemDescription = body.freeItemDescription || null;
+    if (body.bundleDescription !== undefined) data.bundleDescription = body.bundleDescription || null;
+    if (body.bundleDiscount !== undefined) data.bundleDiscount = body.bundleDiscount ? Number(body.bundleDiscount) : null;
+    if (body.isFlashDeal !== undefined) data.isFlashDeal = body.isFlashDeal;
+    if (body.flashDealEndsAt !== undefined) data.flashDealEndsAt = body.flashDealEndsAt ? new Date(body.flashDealEndsAt) : null;
+    if (body.minOrderForOffer !== undefined) data.minOrderForOffer = body.minOrderForOffer ? Number(body.minOrderForOffer) : null;
+    if (body.exclusiveMemberOffer !== undefined) data.exclusiveMemberOffer = body.exclusiveMemberOffer;
+    if (body.discountPercent !== undefined) data.discountPercent = body.discountPercent ? Number(body.discountPercent) : null;
 
     const updated = await db.product.update({ where: { id }, data });
     return NextResponse.json({ product: updated });

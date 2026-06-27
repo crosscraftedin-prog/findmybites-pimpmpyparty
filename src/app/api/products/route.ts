@@ -111,6 +111,9 @@ export async function POST(req: NextRequest) {
       allergens, customAllergen, cuisineType, customisationAvailable,
       customisationNotes, shelfLife, storageMethod, storageInstructions,
       recipePublic, recipeText, recipePdf,
+      offerType, offerLabel, offerExpiresAt, freeItemDescription,
+      bundleDescription, bundleDiscount, isFlashDeal, flashDealEndsAt,
+      minOrderForOffer, exclusiveMemberOffer,
       isAvailable, isFeatured, images, productType,
     } = body;
 
@@ -156,6 +159,19 @@ export async function POST(req: NextRequest) {
         recipePublic: recipePublic === true,
         recipeText: recipeText || null,
         recipePdf: recipePdf || null,
+        offerType: offerType || "none",
+        offerLabel: offerLabel || null,
+        offerExpiresAt: offerExpiresAt ? new Date(offerExpiresAt) : null,
+        freeItemDescription: freeItemDescription || null,
+        bundleDescription: bundleDescription || null,
+        bundleDiscount: bundleDiscount ? Number(bundleDiscount) : null,
+        isFlashDeal: offerType === "flash",
+        flashDealEndsAt: flashDealEndsAt ? new Date(flashDealEndsAt) : null,
+        minOrderForOffer: minOrderForOffer ? Number(minOrderForOffer) : null,
+        exclusiveMemberOffer: exclusiveMemberOffer === true,
+        discountPercent: comparePrice && Number(comparePrice) > Number(price)
+          ? Math.round(((Number(comparePrice) - Number(price)) / Number(comparePrice)) * 100)
+          : null,
       },
     });
 

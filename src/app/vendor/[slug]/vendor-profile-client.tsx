@@ -50,6 +50,7 @@ import { CategoryIcon } from "@/components/marketplace/icon";
 import { VendorImage } from "@/components/marketplace/vendor-image";
 import { StarRating } from "@/components/marketplace/star-rating";
 import { VendorCard } from "@/components/marketplace/vendor-card";
+import { CountdownTimer } from "@/components/marketplace/countdown-timer";
 import { useProducts, useVendors, useCreateBooking } from "@/lib/queries";
 import { getCategoryMigrated, CURRENCY_SYMBOLS } from "@/lib/constants";
 import { formatPrice, countryCodeToFlag, timeAgo } from "@/lib/format";
@@ -546,20 +547,57 @@ function ProductCard({ product, currency }: { product: Product; currency: string
   const packageType = (product as any).packageType || "standard";
   const capacity = (product as any).capacity;
   const duration = (product as any).duration;
+  const comparePrice = (product as any).comparePrice;
+  const discountPercent = (product as any).discountPercent;
+  const offerType = (product as any).offerType || "none";
+  const offerLabel = (product as any).offerLabel;
+  const offerExpiresAt = (product as any).offerExpiresAt;
+  const freeItemDescription = (product as any).freeItemDescription;
+  const bundleDescription = (product as any).bundleDescription;
+  const bundleDiscount = (product as any).bundleDiscount;
+  const isFlashDeal = (product as any).isFlashDeal;
+  const flashDealEndsAt = (product as any).flashDealEndsAt;
+  const exclusiveMemberOffer = (product as any).exclusiveMemberOffer;
+  const countdownEnd = offerType === "flash" ? flashDealEndsAt : offerExpiresAt;
+  const hasDiscount = comparePrice && Number(comparePrice) > product.price;
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
       {images.length > 0 && (
         <div className="relative aspect-video overflow-hidden bg-muted">
           <img src={images[0]} alt={product.name} className="h-full w-full object-cover" />
-          <div className="absolute right-2 top-2">
+          <div className="absolute right-2 top-2 flex flex-col gap-1">
             <span className={cn(
               "rounded-full px-2 py-0.5 text-[9px] font-bold capitalize",
               packageType === "premium" ? "bg-amber-500 text-white" :
               packageType === "standard" ? "bg-blue-500 text-white" :
               "bg-muted text-muted-foreground"
             )}>{packageType}</span>
+            {hasDiscount && (
+              <span className="rounded-full bg-red-500 px-2 py-0.5 text-[9px] font-bold text-white">{discountPercent || Math.round(((Number(comparePrice) - product.price) / Number(comparePrice)) * 100)}% OFF</span>
+            )}
+            {isFlashDeal && (
+              <span className="animate-pulse rounded-full bg-red-600 px-2 py-0.5 text-[9px] font-bold text-white">⚡ FLASH</span>
+            )}
           </div>
+        </div>
+      )}
+      {/* Offer banner */}
+      {offerType !== "none" && offerLabel && (
+        <div className={cn(
+          "px-3 py-1 text-[10px] font-semibold text-white",
+          offerType === "flash" ? "bg-red-600" :
+          offerType === "limited_time" ? "bg-orange-500" :
+          offerType === "free_item" ? "bg-green-500" :
+          offerType === "bundle" ? "bg-purple-500" : "bg-muted"
+        )}>
+          {offerType === "flash" && "⚡ "}{offerType === "limited_time" && "⏰ "}{offerType === "free_item" && "🎁 "}{offerType === "bundle" && "📦 "}{offerLabel}
+        </div>
+      )}
+      {/* Countdown */}
+      {countdownEnd && (
+        <div className="border-b border-border px-3 py-1">
+          <CountdownTimer endsAt={countdownEnd} variant={offerType === "flash" ? "flash" : "default"} />
         </div>
       )}
       <div className="flex flex-1 flex-col p-3">
@@ -580,6 +618,12 @@ function ProductCard({ product, currency }: { product: Product; currency: string
             ))}
           </ul>
         )}
+        {freeItemDescription && (
+          <p className="mt-2 text-[11px] font-medium text-green-600">🎁 {freeItemDescription}</p>
+        )}
+        {bundleDescription && (
+          <p className="mt-1 text-[11px] font-medium text-purple-600">📦 {bundleDescription} — Save {bundleDiscount}%</p>
+        )}
         {dietaryTags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {dietaryTags.slice(0, 3).map((tag) => (
@@ -588,7 +632,18 @@ function ProductCard({ product, currency }: { product: Product; currency: string
           </div>
         )}
         <div className="mt-3 flex items-center justify-between border-t border-border pt-2">
-          <span className="text-sm font-bold text-brand">From {symbol}{product.price.toLocaleString()}</span>
+          <div className="flex items-center gap-1.5">
+            {hasDiscount && (
+              <span className="text-[11px] text-muted-foreground line-through">{symbol}{Number(comparePrice).toLocaleString()}</span>
+            )}
+            <span className="text-sm font-bold text-brand">{symbol}{product.price.toLocaleString()}</span>
+            {hasDiscount && (
+              <span className="text-[10px] font-semibold text-green-600">Save {discountPercent || Math.round(((Number(comparePrice) - product.price) / Number(comparePrice)) * 100)}%</span>
+            )}
+            {exclusiveMemberOffer && (
+              <span className="rounded bg-amber-100 px-1 py-0.5 text-[8px] font-bold text-amber-700">🔒 MEMBER</span>
+            )}
+          </div>
           <a href="#quote-form" className="rounded-lg bg-brand px-3 py-1 text-[11px] font-semibold text-brand-foreground">
             Enquire
           </a>
