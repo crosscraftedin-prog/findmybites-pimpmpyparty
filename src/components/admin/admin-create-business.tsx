@@ -21,21 +21,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Copy, Loader2, Store, MessageCircle } from "lucide-react";
+import { Plus, Copy, Loader2, Store, MessageCircle, Download, Image as ImageIcon } from "lucide-react";
 import { CATEGORIES } from "@/lib/constants";
 import type { Ecosystem } from "@/lib/types";
+import {
+  generateInviteCard,
+  downloadInviteCard,
+  getWhatsAppShareMessage,
+} from "@/lib/generate-invite-card";
 
 interface CreatedVendor {
   id: string;
   name: string;
   whatsapp: string;
   inviteUrl: string;
+  category?: string;
+  city?: string;
+  country?: string;
 }
 
 export function AdminCreateBusiness({ ecosystem }: { ecosystem: Ecosystem }) {
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [created, setCreated] = React.useState<CreatedVendor | null>(null);
+  const [inviteCardUrl, setInviteCardUrl] = React.useState<string | null>(null);
+  const [generatingCard, setGeneratingCard] = React.useState(false);
 
   // Form state
   const [name, setName] = React.useState("");
@@ -58,6 +68,8 @@ export function AdminCreateBusiness({ ecosystem }: { ecosystem: Ecosystem }) {
     setTagline("");
     setDescription("");
     setCreated(null);
+    setInviteCardUrl(null);
+    setGeneratingCard(false);
   };
 
   const createBusiness = async () => {
@@ -97,9 +109,28 @@ export function AdminCreateBusiness({ ecosystem }: { ecosystem: Ecosystem }) {
         name: data.vendor.name,
         whatsapp: data.vendor.whatsapp || whatsapp.trim(),
         inviteUrl: data.inviteUrl,
+        category: data.vendor.category || category,
+        city: data.vendor.city || city,
+        country: data.vendor.country || "Unknown",
       });
 
       toast.success(`Business "${data.vendor.name}" created! Invite link ready.`);
+
+      // Auto-generate invite card
+      setGeneratingCard(true);
+      try {
+        const cardUrl = await generateInviteCard({
+          businessName: data.vendor.name,
+          category: data.vendor.category || category,
+          city: data.vendor.city || city,
+          country: data.vendor.country || "Unknown",
+          claimUrl: data.inviteUrl,
+        });
+        setInviteCardUrl(cardUrl);
+      } catch (cardErr) {
+        console.error("Invite card generation failed:", cardErr);
+      }
+      setGeneratingCard(false);
     } catch (err) {
       toast.error("Something went wrong");
       console.error(err);
@@ -153,7 +184,7 @@ export function AdminCreateBusiness({ ecosystem }: { ecosystem: Ecosystem }) {
           </DialogHeader>
 
           {created ? (
-            /* Success state — show invite link */
+            /* Success state — show invite card + link */
             <div className="space-y-4">
               <div className="rounded-lg border border-green-500/30 bg-green-50 p-4">
                 <p className="font-medium text-green-700">✓ {created.name} created</p>
@@ -162,6 +193,25 @@ export function AdminCreateBusiness({ ecosystem }: { ecosystem: Ecosystem }) {
                 </p>
               </div>
 
+              {/* Invite Card Preview */}
+              {generatingCard && (
+                <div className="flex items-center justify-center rounded-lg border border-black/10 bg-muted/20 py-12">
+                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Generating invite card…</span>
+                </div>
+              )}
+              {inviteCardUrl && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    📸 Invitation Card
+                  </p>
+                  <div className="overflow-hidden rounded-lg border border-black/10">
+                    <img src={inviteCardUrl} alt="Invite card" className="w-full" />
+                  </div>
+                </div>
+              )}
+
+              {/* Invite Link */}
               <div className="rounded-lg border border-black/10 bg-muted/20 p-3">
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-black/40">
                   Invite Link (valid for 7 days)
@@ -169,29 +219,62 @@ export function AdminCreateBusiness({ ecosystem }: { ecosystem: Ecosystem }) {
                 <code className="block break-all text-xs">{created.inviteUrl}</code>
               </div>
 
-              <div className="flex gap-2">
-                <Button
-                  onClick={copyLink}
-                  className="flex-1 gap-1.5 rounded-lg bg-[#1A1A1A] text-white hover:bg-black"
-                >
-                  <Copy className="size-4" /> Copy Link
-                </Button>
-                <Button
-                  onClick={shareWhatsApp}
-                  className="flex-1 gap-1.5 rounded-lg bg-[#25D366] text-white hover:bg-[#1ebe57]"
-                >
-                  <MessageCircle className="size-4" /> Send on WhatsApp
-                </Button>
+              {/* Action buttons */}
+              <div className="grid gap-2">
+                {inviteCardUrl && (
+                  <Button
+                    onClick={() => downloadInviteCard(inviteCardUrl, created.name)}
+                    className="w-full gap-1.5 rounded-lg text-white"
+                    style={{ background: "#D85A30" }}
+                  >
+                    <Download className="size-4" /> Download Invite Card
+                  </Button>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => {
+                      if (!created) return;
+                      const msg = encodeURIComponent(getWhatsAppShareMessage({
+                        businessName: created.name,
+                        category: created.category || "",
+                        city: created.city || "",
+                        country: created.country || "",
+                        claimUrl: created.inviteUrl,
+                      }));
+                      const phone = created.whatsapp.replace(/\D/g, "");
+                      const url = phone
+                        ? `https://wa.me/${phone}?text=${msg}`
+                        : `https://wa.me/?text=${msg}`;
+                      window.open(url, "_blank");
+                    }}
+                    className="flex-1 gap-1.5 rounded-lg bg-[#25D366] text-white hover:bg-[#1ebe57]"
+                  >
+                    <MessageCircle className="size-4" /> Share on WhatsApp
+                  </Button>
+                  <Button
+                    onClick={copyLink}
+                    variant="outline"
+                    className="flex-1 gap-1.5 rounded-lg"
+                  >
+                    <Copy className="size-4" /> Copy Link
+                  </Button>
+                </div>
               </div>
+
+              {inviteCardUrl && (
+                <p className="text-[11px] text-muted-foreground">
+                  💡 Tip: Download the card first, then share it on WhatsApp along with the message for best results.
+                </p>
+              )}
 
               <div className="rounded-lg border border-blue-500/20 bg-blue-50 p-3 text-xs text-blue-700">
                 <p className="font-semibold">What happens next:</p>
                 <ol className="mt-1 list-decimal pl-4 space-y-0.5">
-                  <li>Vendor clicks the link</li>
+                  <li>Vendor clicks the link or scans QR</li>
                   <li>Signs in with Google</li>
-                  <li>Fills in business details</li>
-                  <li>You approve in the Claims tab</li>
-                  <li>Vendor goes live!</li>
+                  <li>Listing is auto-claimed & approved</li>
+                  <li>Vendor goes to their dashboard</li>
+                  <li>Listing goes live!</li>
                 </ol>
               </div>
 
