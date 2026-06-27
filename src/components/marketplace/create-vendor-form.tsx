@@ -165,7 +165,48 @@ export function CreateVendorForm({
 
   // Use the selected platform (or the editing vendor's ecosystem)
   const activeEcosystem: Ecosystem = selectedPlatform ?? ecosystem;
-  const cats = categoriesFor(activeEcosystem);
+
+  // ── Dynamic categories from API (synced with admin panel) ──
+  const [dbCategories, setDbCategories] = React.useState<any[]>([]);
+  const [dbSubcategories, setDbSubcategories] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    if (!activeEcosystem) return;
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch(`/api/categories?ecosystem=${activeEcosystem}&t=${Date.now()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.categories?.length > 0) {
+            setDbCategories(data.categories);
+          }
+        }
+      } catch {
+        // Fall back to hardcoded
+      }
+    };
+    fetchCategories();
+  }, [activeEcosystem]);
+
+  // Update subcategories when category changes
+  React.useEffect(() => {
+    if (form.category && dbCategories.length > 0) {
+      const cat = dbCategories.find((c) => c.id === form.category);
+      setDbSubcategories(cat?.subcategories ?? []);
+    } else {
+      setDbSubcategories([]);
+    }
+  }, [form.category, dbCategories]);
+
+  // Use DB categories if available, otherwise fall back to hardcoded
+  const cats = dbCategories.length > 0
+    ? dbCategories.map((c) => ({ id: c.id, label: c.label, ecosystem: c.ecosystem, icon: c.icon || "UtensilsCrossed", image: c.image || "", accent: c.accent || "from-amber-400 to-orange-500", description: c.description || "" }))
+    : categoriesFor(activeEcosystem);
+
+  // Get subcategories from DB or hardcoded
+  const currentSubcategories = dbSubcategories.length > 0
+    ? dbSubcategories.map((s) => s.label)
+    : subcategoriesFor(form.category);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -380,7 +421,7 @@ export function CreateVendorForm({
               />
             </SelectTrigger>
             <SelectContent>
-              {subcategoriesFor(form.category).map((s) => (
+              {currentSubcategories.map((s) => (
                 <SelectItem key={s} value={s}>
                   {s}
                 </SelectItem>
