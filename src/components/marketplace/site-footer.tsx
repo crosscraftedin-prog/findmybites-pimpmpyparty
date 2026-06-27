@@ -73,7 +73,12 @@ const REGIONS = [
   "Oceania",
 ];
 
-const SOCIAL = [Instagram, Twitter, Facebook, Youtube];
+const SOCIAL = [
+  { icon: Instagram, label: "Instagram", href: "https://www.instagram.com/findmybites.app/" },
+  { icon: Twitter, label: "X (Twitter)", href: "https://x.com/FindMyBites" },
+  { icon: Facebook, label: "Facebook", href: "https://www.facebook.com/findmybites/" },
+  { icon: Youtube, label: "YouTube", href: "https://www.youtube.com/@findmybites" },
+];
 
 export function SiteFooter() {
   const openListVendor = useMarketplace((s) => s.openListVendor);
@@ -138,16 +143,22 @@ export function SiteFooter() {
               the globe.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {SOCIAL.map((Icon, i) => (
-                <Link
-                  key={i}
-                  href="#top"
-                  aria-label="social link"
-                  className="grid size-9 place-items-center rounded-full border border-border text-muted-foreground transition-colors hover:border-brand hover:text-brand"
-                >
-                  <Icon className="size-4" />
-                </Link>
-              ))}
+              {SOCIAL.map((s) => {
+                const Icon = s.icon;
+                return (
+                  <Link
+                    key={s.label}
+                    href={s.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`FindMyBites on ${s.label}`}
+                    title={`Follow us on ${s.label}`}
+                    className="grid size-9 place-items-center rounded-full border border-border text-muted-foreground transition-colors hover:border-brand hover:text-brand"
+                  >
+                    <Icon className="size-4" />
+                  </Link>
+                );
+              })}
             </div>
           </div>
 
