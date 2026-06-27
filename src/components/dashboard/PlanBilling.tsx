@@ -1,128 +1,159 @@
 "use client";
 
 import * as React from "react";
-import { Check, Star, CreditCard, Download } from "lucide-react";
+import { CreditCard, Download, MapPin, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { SubscriptionModal } from "@/components/SubscriptionModal";
+import {
+  SubscriptionModal,
+  PRICING_BY_COUNTRY,
+  FALLBACK_PRICING,
+  getBrand,
+  buildPlans,
+  PlanCard,
+  type PlanKey,
+  type BillingCycle,
+} from "@/components/SubscriptionModal";
 import type { Vendor } from "@/lib/types";
-
-const PLANS = [
-  {
-    id: "free",
-    name: "Free",
-    price: "Free",
-    period: "Always",
-    features: ["Basic listing", "5 photos", "Standard placement"],
-    highlighted: false,
-  },
-  {
-    id: "featured",
-    name: "Featured",
-    price: "$29",
-    period: "/month",
-    features: ["Priority in search", "Josh AI suggestions", "Verified badge"],
-    highlighted: true,
-  },
-  {
-    id: "business",
-    name: "Business",
-    price: "$59",
-    period: "/month",
-    features: ["Top of results", "Homepage spotlight", "Account manager"],
-    highlighted: false,
-  },
-];
 
 export function PlanBilling({ vendor }: { vendor: Vendor }) {
   const [showUpgrade, setShowUpgrade] = React.useState(false);
-  const currentPlan = vendor.featured ? "featured" : "free";
+  const [billing, setBilling] = React.useState<BillingCycle>("monthly");
+
+  // New plan model: free | pro (Vendor Pro / Baker Pro) | business.
+  // The DB currently only tracks a `featured` boolean — treat featured as the
+  // mid "pro" tier (the primary upgrade target). When a dedicated plan column
+  // lands later, swap this single line.
+  const currentPlan: PlanKey = vendor.featured ? "pro" : "free";
+
+  const vendorBrand = vendor.ecosystem === "FINDMYBITES" ? "food" : "party";
+  const isFood = vendorBrand === "food";
+  const brand = getBrand(vendorBrand);
+  const pricing = PRICING_BY_COUNTRY[vendorCountrySafe(vendor.countryCode)] ?? FALLBACK_PRICING;
+
+  const plans = buildPlans({ brand, pricing, billing, isFood, currentPlan });
+
+  const currentPlanName =
+    currentPlan === "free"
+      ? "Free"
+      : currentPlan === "pro"
+        ? brand.proName
+        : "Business";
+
+  const currentPlanDescription =
+    currentPlan === "free"
+      ? "You're on the free plan. Upgrade for more visibility, leads, and AI-powered growth."
+      : "Your plan is active. Manage your billing or switch plans anytime.";
+
+  // Price strings for the billing-history row (uses current cycle).
+  const priceFor = (key: PlanKey) => {
+    if (key === "free") return `${pricing.symbol}0`;
+    if (key === "pro") return `${pricing.symbol}${pricing.pro[billing]}`;
+    return `${pricing.symbol}${pricing.business[billing]}`;
+  };
 
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
       <h1 className="mb-6 text-2xl font-extrabold tracking-tight">Your Plan</h1>
 
       {/* Current plan card */}
-      <div className="mb-6 rounded-xl border-2 border-brand bg-brand-soft p-5">
-        <div className="flex items-start justify-between">
+      <div
+        className="mb-6 rounded-xl border-2 p-5"
+        style={{ borderColor: brand.borderAccent, background: brand.tint }}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <Badge className="border-0 bg-brand text-brand-foreground">
+            <Badge style={{ background: brand.color, color: "#fff", border: 0 }}>
               Current Plan
             </Badge>
-            <h2 className="mt-2 text-2xl font-extrabold">
-              {currentPlan === "free" ? "Free" : currentPlan === "featured" ? "Featured" : "Business"}
+            <h2 className="mt-2 text-2xl font-extrabold" style={{ color: brand.darkText }}>
+              {currentPlanName}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {currentPlan === "free"
-                ? "You're on the free plan. Upgrade for more visibility."
-                : "Your plan is active."}
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">
+              {currentPlanDescription}
             </p>
+            {currentPlan !== "free" && (
+              <p className="mt-2 text-xs font-medium text-muted-foreground">
+                {priceFor(currentPlan)}
+                {billing === "monthly" ? "/month" : "/month, billed yearly"} ·{" "}
+                {pricing.label}
+              </p>
+            )}
           </div>
           <Button
             onClick={() => setShowUpgrade(true)}
-            className="bg-brand text-brand-foreground hover:bg-brand/90"
+            className="text-white hover:opacity-90"
+            style={{ background: brand.color }}
           >
             {currentPlan === "free" ? "Upgrade" : "Manage Billing"}
           </Button>
         </div>
       </div>
 
-      {/* All plans */}
-      <h2 className="mb-4 text-base font-bold">Available Plans</h2>
-      <div className="mb-6 grid gap-3 md:grid-cols-3">
-        {PLANS.map((plan) => {
-          const isCurrent = plan.id === currentPlan;
-          return (
-            <div
-              key={plan.id}
-              className={cn(
-                "relative rounded-xl border-2 p-4",
-                plan.highlighted ? "border-brand" : "border-border",
-                isCurrent && "bg-brand-soft"
-              )}
+      {/* Available Plans header + controls */}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-base font-bold">Available Plans</h2>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Billing cycle toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] text-muted-foreground">Monthly</span>
+            <button
+              onClick={() => setBilling(billing === "monthly" ? "yearly" : "monthly")}
+              className="relative h-5 w-10 rounded-full transition-colors"
+              style={{
+                background: billing === "yearly" ? brand.color : "rgba(0,0,0,0.12)",
+              }}
+              aria-label="Toggle billing cycle"
             >
-              {plan.highlighted && (
-                <span className="absolute -top-2 left-4 rounded-full bg-brand px-2 py-0.5 text-[9px] font-bold text-brand-foreground">
-                  POPULAR
-                </span>
-              )}
-              <p className="text-sm font-bold">{plan.name}</p>
-              <p className="mt-1 text-2xl font-extrabold">
-                {plan.price}
-                <span className="text-xs font-normal text-muted-foreground">
-                  {" "}
-                  {plan.period}
-                </span>
-              </p>
-              <div className="mt-3 space-y-1.5">
-                {plan.features.map((f) => (
-                  <div key={f} className="flex items-center gap-1.5 text-[11px]">
-                    <Check className="size-3 text-brand" />
-                    <span className="text-muted-foreground">{f}</span>
-                  </div>
-                ))}
-              </div>
-              {isCurrent ? (
-                <div className="mt-4 rounded-md bg-black/5 py-2 text-center text-[11px] font-medium text-muted-foreground">
-                  Current plan
-                </div>
-              ) : (
-                <Button
-                  size="sm"
-                  variant={plan.highlighted ? "default" : "outline"}
-                  className={cn(
-                    "mt-4 w-full",
-                    plan.highlighted && "bg-brand text-brand-foreground hover:bg-brand/90"
-                  )}
-                  onClick={() => setShowUpgrade(true)}
-                >
-                  {currentPlan === "free" ? "Upgrade" : "Switch"}
-                </Button>
-              )}
-            </div>
-          );
-        })}
+              <span
+                className="absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition-transform"
+                style={{
+                  transform: billing === "yearly" ? "translateX(20px)" : "translateX(2px)",
+                }}
+              />
+            </button>
+            <span className="text-[12px] text-muted-foreground">Yearly</span>
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium transition-opacity"
+              style={{
+                background: "#EAF3DE",
+                color: "#27500A",
+                opacity: billing === "yearly" ? 1 : 0.35,
+              }}
+            >
+              Save 20%
+            </span>
+          </div>
+
+          {/* Currency pill */}
+          <span className="inline-flex items-center gap-1 rounded-full bg-black/5 px-2.5 py-1 text-[10px] text-muted-foreground">
+            <MapPin className="size-3" />
+            {pricing.label} — prices in {pricing.symbol}
+          </span>
+        </div>
+      </div>
+
+      {/* Plans grid — shared PlanCard component, identical to the upgrade modal */}
+      <div className="mb-8 grid gap-3 md:grid-cols-3">
+        {plans.map((plan) => (
+          <PlanCard
+            key={plan.planKey}
+            planKey={plan.planKey}
+            name={plan.name}
+            description={plan.description}
+            price={plan.price}
+            priceNote={plan.priceNote}
+            ctaLabel={plan.ctaLabel}
+            ctaStyle={plan.ctaStyle}
+            featured={plan.featured}
+            popular={plan.popular}
+            isCurrent={plan.isCurrent}
+            features={plan.features}
+            brand={brand}
+            onSelect={() => setShowUpgrade(true)}
+          />
+        ))}
       </div>
 
       {/* Billing history */}
@@ -149,9 +180,14 @@ export function PlanBilling({ vendor }: { vendor: Vendor }) {
               </thead>
               <tbody>
                 <tr>
-                  <td className="py-2 pr-4">{new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}</td>
-                  <td className="py-2 pr-4 capitalize">{currentPlan}</td>
-                  <td className="py-2 pr-4">{currentPlan === "featured" ? "$29" : "$59"}</td>
+                  <td className="py-2 pr-4">
+                    {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                  </td>
+                  <td className="py-2 pr-4">{currentPlanName}</td>
+                  <td className="py-2 pr-4">
+                    {priceFor(currentPlan)}
+                    {billing === "monthly" ? "/mo" : "/mo, billed yearly"}
+                  </td>
                   <td className="py-2 pr-4">
                     <Badge className="border-0 bg-emerald-100 text-emerald-700">Paid</Badge>
                   </td>
@@ -168,14 +204,27 @@ export function PlanBilling({ vendor }: { vendor: Vendor }) {
         )}
       </div>
 
+      {/* Footnote */}
+      <p className="mt-4 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <HelpCircle className="size-3" />
+        {pricing.note || "All plans include WhatsApp direct booking. No transaction fees. Cancel anytime."}
+      </p>
+
       <SubscriptionModal
         isOpen={showUpgrade}
         onClose={() => setShowUpgrade(false)}
         vendorCountry={vendor.countryCode || "US"}
-        vendorBrand={vendor.ecosystem === "FINDMYBITES" ? "food" : "party"}
-        currentPlan={currentPlan as "free" | "pro" | "business"}
+        vendorBrand={vendorBrand}
+        currentPlan={currentPlan}
         onSelectPlan={() => setShowUpgrade(false)}
       />
     </div>
   );
+}
+
+/** Normalise whatever is stored in vendor.countryCode to a key in PRICING_BY_COUNTRY. */
+function vendorCountrySafe(code?: string | null): string {
+  if (!code) return "US";
+  const upper = code.toUpperCase().trim();
+  return upper in PRICING_BY_COUNTRY ? upper : "US";
 }

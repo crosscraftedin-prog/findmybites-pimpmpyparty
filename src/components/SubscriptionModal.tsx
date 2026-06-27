@@ -12,6 +12,9 @@ import {
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
+export type PlanKey = "free" | "pro" | "business";
+export type BillingCycle = "monthly" | "yearly";
+
 interface SubscriptionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -25,7 +28,7 @@ interface SubscriptionModalProps {
 }
 
 // ─── Pricing Config ─────────────────────────────────────────────────────────
-const PRICING_BY_COUNTRY: Record<
+export const PRICING_BY_COUNTRY: Record<
   string,
   {
     symbol: string;
@@ -46,10 +49,10 @@ const PRICING_BY_COUNTRY: Record<
   ZA: { symbol: "R", pro: { monthly: 90, yearly: 72 }, business: { monthly: 160, yearly: 128 }, label: "South Africa" },
 };
 
-const FALLBACK_PRICING = PRICING_BY_COUNTRY["US"];
+export const FALLBACK_PRICING = PRICING_BY_COUNTRY["US"];
 
 // ─── Brand System ───────────────────────────────────────────────────────────
-function getBrand(vendorBrand: "food" | "party") {
+export function getBrand(vendorBrand: "food" | "party") {
   return {
     food: {
       name: "FindMyBites",
@@ -71,7 +74,7 @@ function getBrand(vendorBrand: "food" | "party") {
 }
 
 // ─── Feature Row ────────────────────────────────────────────────────────────
-function FeatureRow({
+export function FeatureRow({
   label,
   unlocked,
   brand,
@@ -120,7 +123,7 @@ function FeatureRow({
 }
 
 // ─── Plan Card ──────────────────────────────────────────────────────────────
-function PlanCard({
+export function PlanCard({
   planKey,
   name,
   description,
@@ -221,6 +224,109 @@ function PlanCard({
   );
 }
 
+// ─── Plan Builder (shared by modal + dashboard) ────────────────────────────
+export interface BuiltPlan {
+  planKey: PlanKey;
+  name: string;
+  description: string;
+  price: string;
+  priceNote?: string;
+  ctaLabel: string;
+  ctaStyle: "outlined-gray" | "outlined-brand" | "solid-brand";
+  featured: boolean;
+  popular?: boolean;
+  isCurrent: boolean;
+  features: React.ReactNode[];
+}
+
+export function buildPlans({
+  brand,
+  pricing,
+  billing,
+  isFood,
+  currentPlan,
+}: {
+  brand: ReturnType<typeof getBrand>;
+  pricing: (typeof PRICING_BY_COUNTRY)[string];
+  billing: BillingCycle;
+  isFood: boolean;
+  currentPlan: PlanKey;
+}): BuiltPlan[] {
+  return [
+    {
+      planKey: "free",
+      name: "Free",
+      description: "Get started and be discovered",
+      price: "0",
+      priceNote: "forever",
+      ctaLabel: "Get started free",
+      ctaStyle: "outlined-gray",
+      featured: false,
+      isCurrent: currentPlan === "free",
+      features: [
+        <FeatureRow key="f1" label="Basic listing (name, city, category)" unlocked={true} brand={brand} />,
+        <FeatureRow key="f2" label="WhatsApp booking link" unlocked={true} brand={brand} />,
+        <FeatureRow key="f3" label="Up to 5 gallery photos" unlocked={true} brand={brand} />,
+        <FeatureRow key="f4" label="Verified badge" unlocked={false} brand={brand} />,
+        <FeatureRow key="f5" label="Analytics dashboard" unlocked={false} brand={brand} />,
+        isFood ? (
+          <FeatureRow key="f6" label="AI suggestions" unlocked={false} brand={brand} badge="ai" />
+        ) : (
+          <FeatureRow key="f6" label="Leads" unlocked={false} brand={brand} badge="leads" />
+        ),
+      ],
+    },
+    {
+      planKey: "pro",
+      name: brand.proName,
+      description: isFood
+        ? "For serious food vendors ready to grow"
+        : "Get leads and grow your events business",
+      price: `${pricing.symbol}${pricing.pro[billing]}`,
+      priceNote: billing === "monthly" ? "/month" : "/month, billed yearly",
+      ctaLabel: `Start ${brand.proName}`,
+      ctaStyle: "outlined-brand",
+      featured: true,
+      popular: true,
+      isCurrent: currentPlan === "pro",
+      features: [
+        <FeatureRow key="p1" label="Everything in Free" unlocked={true} brand={brand} />,
+        <FeatureRow key="p2" label="Verified badge on listing" unlocked={true} brand={brand} />,
+        <FeatureRow key="p3" label="Up to 20 gallery photos" unlocked={true} brand={brand} />,
+        <FeatureRow key="p4" label="Basic analytics dashboard" unlocked={true} brand={brand} />,
+        <FeatureRow key="p5" label="Customer reviews enabled" unlocked={true} brand={brand} />,
+        !isFood ? (
+          <FeatureRow key="p6" label="Curated leads delivered to you" unlocked={true} brand={brand} badge="leads" highlight />
+        ) : null,
+        <FeatureRow key="p7" label="Priority placement in search" unlocked={false} brand={brand} />,
+        isFood ? (
+          <FeatureRow key="p8" label="AI suggestions" unlocked={false} brand={brand} badge="ai" />
+        ) : null,
+      ].filter(Boolean),
+    },
+    {
+      planKey: "business",
+      name: "Business",
+      description: "Maximum visibility + AI-powered growth",
+      price: `${pricing.symbol}${pricing.business[billing]}`,
+      priceNote: billing === "monthly" ? "/month" : "/month, billed yearly",
+      ctaLabel: "Go Business",
+      ctaStyle: "solid-brand",
+      featured: false,
+      isCurrent: currentPlan === "business",
+      features: [
+        <FeatureRow key="b1" label={`Everything in ${brand.proName}`} unlocked={true} brand={brand} />,
+        <FeatureRow key="b2" label="Priority placement in search" unlocked={true} brand={brand} />,
+        <FeatureRow key="b3" label="Homepage spotlight feature" unlocked={true} brand={brand} />,
+        <FeatureRow key="b4" label="Ad banner slot access" unlocked={true} brand={brand} />,
+        <FeatureRow key="b5" label="Advanced analytics" unlocked={true} brand={brand} />,
+        <FeatureRow key="b6" label="Unlimited gallery photos" unlocked={true} brand={brand} />,
+        <FeatureRow key="b7" label="AI-powered suggestions" unlocked={true} brand={brand} badge="ai" highlight />,
+      ],
+    },
+  ];
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 export function SubscriptionModal({
   isOpen,
@@ -230,7 +336,7 @@ export function SubscriptionModal({
   currentPlan,
   onSelectPlan,
 }: SubscriptionModalProps) {
-  const [billing, setBilling] = React.useState<"monthly" | "yearly">("monthly");
+  const [billing, setBilling] = React.useState<BillingCycle>("monthly");
 
   const brand = getBrand(vendorBrand);
   const pricing = PRICING_BY_COUNTRY[vendorCountry] ?? FALLBACK_PRICING;
@@ -262,80 +368,8 @@ export function SubscriptionModal({
 
   const isFood = vendorBrand === "food";
 
-  // ── Build plan data ──────────────────────────────────────────────────────
-  const plans = [
-    {
-      planKey: "free" as const,
-      name: "Free",
-      description: "Get started and be discovered",
-      price: "0",
-      priceNote: "forever",
-      ctaLabel: "Get started free",
-      ctaStyle: "outlined-gray" as const,
-      featured: false,
-      isCurrent: currentPlan === "free",
-      features: [
-        <FeatureRow key="f1" label="Basic listing (name, city, category)" unlocked={true} brand={brand} />,
-        <FeatureRow key="f2" label="WhatsApp booking link" unlocked={true} brand={brand} />,
-        <FeatureRow key="f3" label="Up to 5 gallery photos" unlocked={true} brand={brand} />,
-        <FeatureRow key="f4" label="Verified badge" unlocked={false} brand={brand} />,
-        <FeatureRow key="f5" label="Analytics dashboard" unlocked={false} brand={brand} />,
-        isFood ? (
-          <FeatureRow key="f6" label="AI suggestions" unlocked={false} brand={brand} badge="ai" />
-        ) : (
-          <FeatureRow key="f6" label="Leads" unlocked={false} brand={brand} badge="leads" />
-        ),
-      ],
-    },
-    {
-      planKey: "pro" as const,
-      name: brand.proName,
-      description: isFood
-        ? "For serious food vendors ready to grow"
-        : "Get leads and grow your events business",
-      price: `${pricing.symbol}${pricing.pro[billing]}`,
-      priceNote: billing === "monthly" ? "/month" : "/month, billed yearly",
-      ctaLabel: `Start ${brand.proName}`,
-      ctaStyle: "outlined-brand" as const,
-      featured: true,
-      popular: true,
-      isCurrent: currentPlan === "pro",
-      features: [
-        <FeatureRow key="p1" label="Everything in Free" unlocked={true} brand={brand} />,
-        <FeatureRow key="p2" label="Verified badge on listing" unlocked={true} brand={brand} />,
-        <FeatureRow key="p3" label="Up to 20 gallery photos" unlocked={true} brand={brand} />,
-        <FeatureRow key="p4" label="Basic analytics dashboard" unlocked={true} brand={brand} />,
-        <FeatureRow key="p5" label="Customer reviews enabled" unlocked={true} brand={brand} />,
-        !isFood ? (
-          <FeatureRow key="p6" label="Curated leads delivered to you" unlocked={true} brand={brand} badge="leads" highlight />
-        ) : null,
-        <FeatureRow key="p7" label="Priority placement in search" unlocked={false} brand={brand} />,
-        isFood ? (
-          <FeatureRow key="p8" label="AI suggestions" unlocked={false} brand={brand} badge="ai" />
-        ) : null,
-      ].filter(Boolean),
-    },
-    {
-      planKey: "business" as const,
-      name: "Business",
-      description: "Maximum visibility + AI-powered growth",
-      price: `${pricing.symbol}${pricing.business[billing]}`,
-      priceNote: billing === "monthly" ? "/month" : "/month, billed yearly",
-      ctaLabel: "Go Business",
-      ctaStyle: "solid-brand" as const,
-      featured: false,
-      isCurrent: currentPlan === "business",
-      features: [
-        <FeatureRow key="b1" label={`Everything in ${brand.proName}`} unlocked={true} brand={brand} />,
-        <FeatureRow key="b2" label="Priority placement in search" unlocked={true} brand={brand} />,
-        <FeatureRow key="b3" label="Homepage spotlight feature" unlocked={true} brand={brand} />,
-        <FeatureRow key="b4" label="Ad banner slot access" unlocked={true} brand={brand} />,
-        <FeatureRow key="b5" label="Advanced analytics" unlocked={true} brand={brand} />,
-        <FeatureRow key="b6" label="Unlimited gallery photos" unlocked={true} brand={brand} />,
-        <FeatureRow key="b7" label="AI-powered suggestions" unlocked={true} brand={brand} badge="ai" highlight />,
-      ],
-    },
-  ];
+  // ── Build plan data (shared with dashboard) ─────────────────────────────
+  const plans = buildPlans({ brand, pricing, billing, isFood, currentPlan });
 
   return (
     <div
