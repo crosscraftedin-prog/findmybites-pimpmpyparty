@@ -256,6 +256,18 @@ model Product {
   isFeatured  Boolean  @default(false)
   sortOrder   Int      @default(0)
   updatedAt   DateTime @updatedAt
+  // ── Food vendor enhanced fields ──
+  allergens           String?
+  customAllergen      String?
+  cuisineType         String?
+  customisationAvailable Boolean @default(true)
+  customisationNotes  String?
+  shelfLife           String?
+  storageMethod       String?
+  storageInstructions String?
+  recipePublic        Boolean  @default(false)
+  recipeText          String?
+  recipePdf           String?
 
   @@index([vendorId])
   @@index([productType])

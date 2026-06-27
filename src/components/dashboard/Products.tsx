@@ -19,6 +19,10 @@ import { toast } from "sonner";
 import type { Vendor, Product } from "@/lib/types";
 
 const DIETARY_TAGS = ["Halal", "Vegan", "Vegetarian", "Gluten-free", "Nut-free", "Dairy-free"];
+const ALLERGENS = ["Nuts", "Peanuts", "Dairy", "Eggs", "Gluten", "Wheat", "Shellfish", "Fish", "Soy", "Sesame", "Sulphites", "Celery"];
+const CUISINE_OPTIONS = ["Arabic & Levantine","Indian & South Asian","West African","East African","Japanese","Korean","Chinese","Thai","Vietnamese","Mediterranean","Italian","French","Mexican & Latin American","Caribbean","Turkish & Ottoman","Persian & Iranian","Greek","British","American","Australian","Fusion","Middle Eastern","Pakistani","Sri Lankan","Nepali","Ethiopian","Nigerian","Ghanaian","Kenyan","Filipino","Indonesian","Malaysian","Other"];
+const SHELF_LIFE_OPTIONS = ["Same day (eat fresh)","1-2 days","3-5 days","Up to 1 week","Up to 2 weeks","Up to 1 month","Frozen (up to 3 months)","See storage instructions"];
+const STORAGE_OPTIONS = ["Room temperature","Refrigerate","Freeze","Cool dry place","See instructions below"];
 const DURATION_OPTIONS = ["1 hour", "2 hours", "3 hours", "4 hours", "Half day", "Full day", "Weekend", "Custom"];
 
 interface ProductsProps { vendor: Vendor; }
@@ -68,6 +72,10 @@ export function Products({ vendor }: ProductsProps) {
     name: "", description: "", packageType: "standard", price: "", comparePrice: "",
     currency: vendor.currency || "USD", capacity: "", duration: "", includes: [] as string[],
     dietaryTags: [] as string[], images: [] as string[], isAvailable: true, leadTime: "", addOns: [] as string[],
+    // Enhanced food fields
+    allergens: [] as string[], customAllergen: "", cuisineType: "", customisationAvailable: true,
+    customisationNotes: "", shelfLife: "", storageMethod: "", storageInstructions: "",
+    recipePublic: false, recipeText: "", recipePdf: "",
   };
   const [form, setForm] = React.useState(emptyForm);
   const [includeInput, setIncludeInput] = React.useState("");
@@ -80,6 +88,9 @@ export function Products({ vendor }: ProductsProps) {
   };
   const toggleDietary = (tag: string) => {
     set("dietaryTags", form.dietaryTags.includes(tag) ? form.dietaryTags.filter(t => t !== tag) : [...form.dietaryTags, tag]);
+  };
+  const toggleAllergen = (allergen: string) => {
+    set("allergens", (form.allergens || []).includes(allergen) ? (form.allergens || []).filter((a: string) => a !== allergen) : [...(form.allergens || []), allergen]);
   };
 
   const openAdd = () => { setEditingProduct(null); setForm(emptyForm); setShowModal(true); };
@@ -100,7 +111,7 @@ export function Products({ vendor }: ProductsProps) {
     if (!form.name.trim() || !form.price) { toast.error("Name and price are required"); return; }
     setSaving(true);
     try {
-      const payload = { ...form, price: Number(form.price), comparePrice: form.comparePrice ? Number(form.comparePrice) : null, capacity: form.capacity ? Number(form.capacity) : null, vendorId: vendor.id };
+      const payload = { ...form, price: Number(form.price), comparePrice: form.comparePrice ? Number(form.comparePrice) : null, capacity: form.capacity ? Number(form.capacity) : null, vendorId: vendor.id, allergens: JSON.stringify(form.allergens || []) };
       if (editingProduct) {
         const res = await fetch(`/api/products/${editingProduct.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         if (!res.ok) throw new Error("Update failed");
@@ -283,6 +294,113 @@ export function Products({ vendor }: ProductsProps) {
                 </div>
               )}
             </div>
+
+            {/* ── ALLERGEN INFORMATION (food only) ── */}
+            {isFood && (
+              <div>
+                <Label className="text-xs font-semibold">⚠️ Allergen Information</Label>
+                <p className="text-[11px] text-muted-foreground">Help customers with allergies make safe choices</p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {ALLERGENS.map(a => (
+                    <button key={a} type="button" onClick={() => toggleAllergen(a)} className={cn("rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors", (form.allergens || []).includes(a) ? "border-red-400 bg-red-50 text-red-700" : "border-border text-muted-foreground hover:bg-accent")}>
+                      ⚠️ {a}
+                    </button>
+                  ))}
+                </div>
+                <Input value={form.customAllergen} onChange={e => set("customAllergen", e.target.value)} placeholder="Any other allergens? e.g. Mustard, Lupin..." className="h-10 mt-2" />
+              </div>
+            )}
+
+            {/* ── CUISINE TYPE (food only) ── */}
+            {isFood && (
+              <div>
+                <Label className="text-xs font-semibold">Cuisine Type</Label>
+                <p className="text-[11px] text-muted-foreground">Help customers find your style of cooking</p>
+                <Select value={form.cuisineType} onValueChange={v => set("cuisineType", v)}>
+                  <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Select cuisine" /></SelectTrigger>
+                  <SelectContent>{CUISINE_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                </Select>
+                {form.cuisineType === "Other" && (
+                  <Input value={form.cuisineType === "Other" ? "" : form.cuisineType} onChange={e => set("cuisineType", e.target.value)} placeholder="Type your cuisine..." className="h-10 mt-2" />
+                )}
+              </div>
+            )}
+
+            {/* ── CUSTOMISATION (food only) ── */}
+            {isFood && (
+              <div className="rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs font-semibold">Customisation Available</Label>
+                    <p className="text-[11px] text-muted-foreground">Can customers customise this product?</p>
+                  </div>
+                  <button type="button" onClick={() => set("customisationAvailable", !form.customisationAvailable)} className={cn("relative h-6 w-11 rounded-full transition-colors", form.customisationAvailable ? "bg-brand" : "bg-muted-foreground/30")}>
+                    <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform", form.customisationAvailable ? "translate-x-5" : "translate-x-0.5")} />
+                  </button>
+                </div>
+                {form.customisationAvailable && (
+                  <div className="mt-3">
+                    <Label className="text-xs font-semibold">What can be customised?</Label>
+                    <Textarea value={form.customisationNotes} onChange={e => set("customisationNotes", e.target.value)} placeholder="e.g. Flavours, colours, text on cake, dietary requirements..." rows={2} className="resize-none mt-1" maxLength={200} />
+                    <p className="mt-0.5 text-right text-[10px] text-muted-foreground">{(form.customisationNotes || "").length}/200</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── SHELF LIFE & STORAGE (food only) ── */}
+            {isFood && (
+              <div>
+                <Label className="text-xs font-semibold">Shelf Life & Storage</Label>
+                <div className="mt-1 grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Shelf life</Label>
+                    <Select value={form.shelfLife} onValueChange={v => set("shelfLife", v)}>
+                      <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>{SHELF_LIFE_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Storage method</Label>
+                    <Select value={form.storageMethod} onValueChange={v => set("storageMethod", v)}>
+                      <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>{STORAGE_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Textarea value={form.storageInstructions} onChange={e => set("storageInstructions", e.target.value)} placeholder="Storage instructions (optional)" rows={2} className="resize-none mt-2" maxLength={300} />
+                <p className="mt-0.5 text-right text-[10px] text-muted-foreground">{(form.storageInstructions || "").length}/300</p>
+              </div>
+            )}
+
+            {/* ── RECIPE (food only, optional) ── */}
+            {isFood && (
+              <div className="rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs font-semibold">📖 Share Your Recipe (Optional)</Label>
+                    <p className="text-[11px] text-muted-foreground">Sharing builds trust. Keep it private anytime.</p>
+                  </div>
+                  <button type="button" onClick={() => set("recipePublic", !form.recipePublic)} className={cn("relative h-6 w-11 rounded-full transition-colors", form.recipePublic ? "bg-brand" : "bg-muted-foreground/30")}>
+                    <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform", form.recipePublic ? "translate-x-5" : "translate-x-0.5")} />
+                  </button>
+                </div>
+                {form.recipePublic ? (
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <Label className="text-xs font-semibold">Write your recipe</Label>
+                      <Textarea value={form.recipeText} onChange={e => set("recipeText", e.target.value)} placeholder={"Ingredients:\n- 250g flour\n- 2 eggs\n\nMethod:\n1. Mix..."} rows={4} className="resize-none mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">or upload a PDF recipe card</Label>
+                      <Input type="text" value={form.recipePdf} onChange={e => set("recipePdf", e.target.value)} placeholder="PDF URL (upload first, paste URL)" className="h-10 mt-1" />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[11px] text-muted-foreground/60">🔒 Your recipe stays private. Only you can see it.</p>
+                )}
+              </div>
+            )}
 
             {/* Section D: Photos */}
             <div>

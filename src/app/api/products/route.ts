@@ -108,6 +108,9 @@ export async function POST(req: NextRequest) {
     const {
       name, description, packageType, price, comparePrice, currency,
       duration, capacity, includes, dietaryTags, addOns, leadTime,
+      allergens, customAllergen, cuisineType, customisationAvailable,
+      customisationNotes, shelfLife, storageMethod, storageInstructions,
+      recipePublic, recipeText, recipePdf,
       isAvailable, isFeatured, images, productType,
     } = body;
 
@@ -142,6 +145,17 @@ export async function POST(req: NextRequest) {
         isAvailable: isAvailable !== false,
         isFeatured: isFeatured === true,
         sortOrder: 0,
+        allergens: allergens || null,
+        customAllergen: customAllergen || null,
+        cuisineType: cuisineType || null,
+        customisationAvailable: customisationAvailable !== false,
+        customisationNotes: customisationNotes || null,
+        shelfLife: shelfLife || null,
+        storageMethod: storageMethod || null,
+        storageInstructions: storageInstructions || null,
+        recipePublic: recipePublic === true,
+        recipeText: recipeText || null,
+        recipePdf: recipePdf || null,
       },
     });
 

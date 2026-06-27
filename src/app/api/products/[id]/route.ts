@@ -57,6 +57,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       data.images = body.images ? JSON.stringify(body.images) : null;
       data.image = body.images?.[0] || null;
     }
+    // Enhanced food fields
+    if (body.allergens !== undefined) data.allergens = body.allergens || null;
+    if (body.customAllergen !== undefined) data.customAllergen = body.customAllergen || null;
+    if (body.cuisineType !== undefined) data.cuisineType = body.cuisineType || null;
+    if (body.customisationAvailable !== undefined) data.customisationAvailable = body.customisationAvailable;
+    if (body.customisationNotes !== undefined) data.customisationNotes = body.customisationNotes || null;
+    if (body.shelfLife !== undefined) data.shelfLife = body.shelfLife || null;
+    if (body.storageMethod !== undefined) data.storageMethod = body.storageMethod || null;
+    if (body.storageInstructions !== undefined) data.storageInstructions = body.storageInstructions || null;
+    if (body.recipePublic !== undefined) data.recipePublic = body.recipePublic;
+    if (body.recipeText !== undefined) data.recipeText = body.recipeText || null;
+    if (body.recipePdf !== undefined) data.recipePdf = body.recipePdf || null;
 
     const updated = await db.product.update({ where: { id }, data });
     return NextResponse.json({ product: updated });
