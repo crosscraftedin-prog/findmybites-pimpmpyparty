@@ -499,6 +499,42 @@ export async function POST(req: NextRequest) {
       console.error("[api/vendors] ownership_status update failed (non-fatal):", statusErr);
     }
 
+    // ── Flag custom subcategories for admin review ──
+    if (subcategory && subcategory.trim()) {
+      try {
+        // Check if subcategory already exists in DB
+        const existingSub = await db.subcategory.findFirst({
+          where: {
+            label: { equals: subcategory.trim(), mode: "insensitive" },
+          },
+        });
+
+        if (!existingSub) {
+          // Custom subcategory — find the matching category and create as pending
+          const matchingCat = await db.category.findFirst({
+            where: { slug: migrateCategory(category), active: true },
+          });
+
+          if (matchingCat) {
+            const subSlug = subcategory.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+            await db.subcategory.create({
+              data: {
+                slug: `${subSlug}-${Date.now().toString(36)}`,
+                label: subcategory.trim(),
+                categoryId: matchingCat.id,
+                active: true,
+                isPending: true,
+                addedByVendorId: created.id,
+              },
+            });
+            console.log("[api/vendors] Custom subcategory flagged for review:", subcategory);
+          }
+        }
+      } catch (subErr) {
+        console.error("[api/vendors] Custom subcategory flag failed (non-fatal):", subErr);
+      }
+    }
+
     return NextResponse.json(
       { vendor: transformVendor(created) },
       { status: 201 }

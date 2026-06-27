@@ -168,7 +168,6 @@ export function CreateVendorForm({
 
   // ── Dynamic categories from API (synced with admin panel) ──
   const [dbCategories, setDbCategories] = React.useState<any[]>([]);
-  const [dbSubcategories, setDbSubcategories] = React.useState<any[]>([]);
 
   React.useEffect(() => {
     if (!activeEcosystem) return;
@@ -188,25 +187,47 @@ export function CreateVendorForm({
     fetchCategories();
   }, [activeEcosystem]);
 
-  // Update subcategories when category changes
+  // ── Hybrid subcategory system: dropdown + "Other" free text ──
+  const [showCustomSubcat, setShowCustomSubcat] = React.useState(false);
+  const [customSubcat, setCustomSubcat] = React.useState("");
+  const [apiSubcategories, setApiSubcategories] = React.useState<{ id: string; name: string }[]>([]);
+
+  // Fetch subcategories from API when category changes
   React.useEffect(() => {
-    if (form.category && dbCategories.length > 0) {
-      const cat = dbCategories.find((c) => c.id === form.category);
-      setDbSubcategories(cat?.subcategories ?? []);
-    } else {
-      setDbSubcategories([]);
+    if (!form.category) {
+      setApiSubcategories([]);
+      return;
     }
-  }, [form.category, dbCategories]);
+    const fetchSubs = async () => {
+      try {
+        const res = await fetch(`/api/categories/subcategories?category=${encodeURIComponent(form.category)}&t=${Date.now()}`);
+        if (res.ok) {
+          const data = await res.json();
+          setApiSubcategories(data);
+          // Check if current subcategory is custom (not in list)
+          if (form.subcategory) {
+            const isCustom = !data.find((s: any) => s.name.toLowerCase() === form.subcategory.toLowerCase());
+            if (isCustom) {
+              setShowCustomSubcat(true);
+              setCustomSubcat(form.subcategory);
+            }
+          }
+        }
+      } catch {}
+    };
+    fetchSubs();
+  }, [form.category]);
+
+  // Reset custom state when category changes
+  React.useEffect(() => {
+    setShowCustomSubcat(false);
+    setCustomSubcat("");
+  }, [form.category]);
 
   // Use DB categories if available, otherwise fall back to hardcoded
   const cats = dbCategories.length > 0
     ? dbCategories.map((c) => ({ id: c.id, label: c.label, ecosystem: c.ecosystem, icon: c.icon || "UtensilsCrossed", image: c.image || "", accent: c.accent || "from-amber-400 to-orange-500", description: c.description || "" }))
     : categoriesFor(activeEcosystem);
-
-  // Get subcategories from DB or hardcoded
-  const currentSubcategories = dbSubcategories.length > 0
-    ? dbSubcategories.map((s) => s.label)
-    : subcategoriesFor(form.category);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -408,26 +429,77 @@ export function CreateVendorForm({
           </Select>
         </Field>
         <Field label="Subcategory" hint="Optional — helps customers find you">
-          <Select
-            value={form.subcategory}
-            onValueChange={(v) => set("subcategory", v)}
-            disabled={!form.category}
-          >
-            <SelectTrigger className="h-10">
-              <SelectValue
-                placeholder={
-                  form.category ? "Choose a subcategory" : "Pick a category first"
+          {showCustomSubcat ? (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  value={customSubcat}
+                  onChange={(e) => {
+                    setCustomSubcat(e.target.value);
+                    set("subcategory", e.target.value);
+                  }}
+                  placeholder="e.g. Bento Cakes, Pull-apart Cakes..."
+                  className="h-10 flex-1"
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-10 shrink-0"
+                  onClick={() => {
+                    setShowCustomSubcat(false);
+                    set("subcategory", "");
+                    setCustomSubcat("");
+                  }}
+                >
+                  ← Back
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                💡 Don&apos;t see yours? Type it and we&apos;ll add it to our directory after review.
+              </p>
+            </div>
+          ) : (
+            <Select
+              value={form.subcategory}
+              onValueChange={(v) => {
+                if (v === "__other__") {
+                  setShowCustomSubcat(true);
+                  set("subcategory", "");
+                } else {
+                  set("subcategory", v);
                 }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {currentSubcategories.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
+              }}
+              disabled={!form.category}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue
+                  placeholder={
+                    form.category ? "Choose a subcategory" : "Pick a category first"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {apiSubcategories.length > 0 ? (
+                  apiSubcategories.map((s) => (
+                    <SelectItem key={s.id} value={s.name}>
+                      {s.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  subcategoriesFor(form.category).map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))
+                )}
+                <SelectItem value="__other__">
+                  ✏️ Other — type your own
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              </SelectContent>
+            </Select>
+          )}
         </Field>
       </div>
 

@@ -52,10 +52,12 @@ model Subcategory {
   description String?
   sortOrder   Int      @default(0)
   active      Boolean  @default(true)
+  isPending   Boolean  @default(false)
+  addedByVendorId String?
   createdAt   DateTime @default(now())
 
   @@index([categoryId])
-
+  @@map("Subcategory")
 }
 
 // A vendor / business listed on the marketplace.
