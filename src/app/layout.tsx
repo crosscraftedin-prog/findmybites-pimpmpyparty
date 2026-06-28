@@ -61,10 +61,27 @@ export const metadata: Metadata = {
     title: "FindMyBites",
   },
   openGraph: {
+    title: "FindMyBites × PimpMyParty — Global Food & Party Marketplace",
+    description:
+      "Discover and book the world's best food artisans and party service providers across 6 continents.",
+    type: "website",
+    url: "https://www.findmybites.com",
+    siteName: "FindMyBites × PimpMyParty",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1344,
+        height: 768,
+        alt: "FindMyBites × PimpMyParty — Global Food & Party Marketplace",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
     title: "FindMyBites × PimpMyParty",
     description:
       "Discover and book the world's best food artisans and party service providers.",
-    type: "website",
+    images: ["/og-image.png"],
   },
 };
 
