@@ -35,9 +35,9 @@ import { ECOSYSTEM_META } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "/#explore", label: "Explore", icon: Compass },
-  { href: "/#categories", label: "Categories", icon: LayoutGrid },
-  { href: "/#featured", label: "Featured", icon: Star },
+  { href: "#explore", label: "Explore", icon: Compass },
+  { href: "#categories", label: "Categories", icon: LayoutGrid },
+  { href: "#featured", label: "Featured", icon: Star },
 ];
 
 export function SiteHeader() {
