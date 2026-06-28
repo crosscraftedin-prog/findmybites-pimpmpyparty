@@ -163,9 +163,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const ecoSlug = cc.ecosystem === "FINDMYBITES" ? "findmybites" : "pimpmyparty";
       const countrySlug = slugify(cc.country);
       const citySlug = slugify(cc.city);
+      const catSlug = slugify(migrated);
 
       entries.push({
-        url: `${baseUrl}/${ecoSlug}/${countrySlug}/${citySlug}/${migrated}`,
+        url: `${baseUrl}/${ecoSlug}/${countrySlug}/${citySlug}/${catSlug}`,
         lastModified: new Date(),
         changeFrequency: "weekly",
         priority: 0.6,

@@ -94,7 +94,10 @@ export async function getAllSEOPages(): Promise<SEOPage[]> {
       if (!v.city || !v.category) continue;
       const migrated = migrateCategory(v.category);
       const catDef = getCategoryMigrated(v.category);
-      const categorySlug = migrated;
+      // ALWAYS slugify the category — migrateCategory() returns the raw
+      // category unchanged for custom/old categories like "Private Chef" or
+      // "DJ & Music", which would leave spaces/ampersands in the URL.
+      const categorySlug = slugify(migrated);
       const citySlug = slugify(v.city);
       if (!citySlug || !categorySlug) continue;
 
@@ -159,11 +162,12 @@ export async function getAllCategories(): Promise<SEOCategory[]> {
     for (const r of rows) {
       if (!r.category) continue;
       const migrated = migrateCategory(r.category);
-      if (seen.has(migrated)) continue;
-      seen.add(migrated);
+      const catSlug = slugify(migrated);
+      if (seen.has(catSlug)) continue;
+      seen.add(catSlug);
       const catDef = getCategoryMigrated(r.category);
       out.push({
-        categorySlug: migrated,
+        categorySlug: catSlug,
         categoryLabel: catDef?.label ?? titleCase(r.category),
         ecosystem: r.ecosystem,
       });
@@ -301,13 +305,14 @@ export async function getRelatedPages(
     for (const r of rows) {
       if (!r.category) continue;
       const migrated = migrateCategory(r.category);
-      if (migrated === currentCategorySlug) continue;
-      if (seen.has(migrated)) continue;
-      seen.add(migrated);
+      const catSlug = slugify(migrated);
+      if (catSlug === currentCategorySlug) continue;
+      if (seen.has(catSlug)) continue;
+      seen.add(catSlug);
       const catDef = getCategoryMigrated(r.category);
       out.push({
         label: catDef?.label ?? titleCase(r.category),
-        slug: `${migrated}-${citySlug}`,
+        slug: `${catSlug}-${citySlug}`,
       });
     }
 
@@ -333,11 +338,12 @@ export async function getCityCategories(city: string): Promise<SEOCategory[]> {
     for (const r of rows) {
       if (!r.category) continue;
       const migrated = migrateCategory(r.category);
-      if (seen.has(migrated)) continue;
-      seen.add(migrated);
+      const catSlug = slugify(migrated);
+      if (seen.has(catSlug)) continue;
+      seen.add(catSlug);
       const catDef = getCategoryMigrated(r.category);
       out.push({
-        categorySlug: migrated,
+        categorySlug: catSlug,
         categoryLabel: catDef?.label ?? titleCase(r.category),
         ecosystem: r.ecosystem,
       });
