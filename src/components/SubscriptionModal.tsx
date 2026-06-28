@@ -9,6 +9,9 @@ import {
   UserCheck,
   X,
   HelpCircle,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -337,6 +340,9 @@ export function SubscriptionModal({
   onSelectPlan,
 }: SubscriptionModalProps) {
   const [billing, setBilling] = React.useState<BillingCycle>("monthly");
+  const [paying, setPaying] = React.useState(false);
+  const [paymentSuccess, setPaymentSuccess] = React.useState<string | null>(null);
+  const [paymentError, setPaymentError] = React.useState<string | null>(null);
 
   const brand = getBrand(vendorBrand);
   const pricing = PRICING_BY_COUNTRY[vendorCountry] ?? FALLBACK_PRICING;
@@ -370,6 +376,115 @@ export function SubscriptionModal({
 
   // ── Build plan data (shared with dashboard) ─────────────────────────────
   const plans = buildPlans({ brand, pricing, billing, isFood, currentPlan });
+
+  // ── Load Razorpay checkout script ───────────────────────────────────────
+  const loadRazorpayScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined") return resolve(false);
+      if ((window as any).Razorpay) return resolve(true);
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  // ── Handle plan selection with Razorpay payment ─────────────────────────
+  const handlePlanSelect = async (planKey: PlanKey, billingCycle: BillingCycle) => {
+    // Free plan — no payment needed
+    if (planKey === "free") {
+      onSelectPlan(planKey, billingCycle);
+      return;
+    }
+
+    setPaying(true);
+    setPaymentError(null);
+    setPaymentSuccess(null);
+
+    try {
+      // 1. Load Razorpay checkout script
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        setPaymentError("Could not load payment gateway. Please check your internet and try again.");
+        setPaying(false);
+        return;
+      }
+
+      // 2. Create order on server
+      const orderRes = await fetch("/api/payments/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planKey, billingCycle }),
+      });
+      const orderData = await orderRes.json();
+
+      if (!orderRes.ok) {
+        setPaymentError(orderData.error || "Failed to create payment order.");
+        setPaying(false);
+        return;
+      }
+
+      // 3. Open Razorpay checkout
+      const rzp = new (window as any).Razorpay({
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "FindMyBites × PimpMyParty",
+        description: `${planKey === "pro" ? "Vendor Pro" : "Business"} — ${billingCycle === "monthly" ? "Monthly" : "Yearly"}`,
+        order_id: orderData.orderId,
+        prefill: {
+          name: orderData.vendorName || "",
+          email: orderData.vendorEmail || "",
+        },
+        theme: {
+          color: brand.color,
+        },
+        handler: async (response: any) => {
+          // 4. Verify payment on server
+          try {
+            const verifyRes = await fetch("/api/payments/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                planKey,
+                billingCycle,
+              }),
+            });
+            const verifyData = await verifyRes.json();
+
+            if (verifyRes.ok && verifyData.success) {
+              setPaymentSuccess(verifyData.message);
+              setPaying(false);
+              // Notify parent after a short delay so the success message is visible
+              setTimeout(() => {
+                onSelectPlan(planKey, billingCycle);
+              }, 2000);
+            } else {
+              setPaymentError(verifyData.error || "Payment verification failed.");
+              setPaying(false);
+            }
+          } catch {
+            setPaymentError("Payment verification failed. If money was deducted, it will be refunded.");
+            setPaying(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setPaying(false);
+          },
+        },
+      });
+
+      rzp.open();
+    } catch {
+      setPaymentError("Something went wrong. Please try again.");
+      setPaying(false);
+    }
+  };
 
   return (
     <div
@@ -466,7 +581,7 @@ export function SubscriptionModal({
               isCurrent={plan.isCurrent}
               features={plan.features}
               brand={brand}
-              onSelect={() => onSelectPlan(plan.planKey, billing)}
+              onSelect={() => handlePlanSelect(plan.planKey, billing)}
             />
           ))}
         </div>
@@ -484,6 +599,47 @@ export function SubscriptionModal({
             How it works
           </button>
         </div>
+
+        {/* Payment status overlays */}
+        {paying && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/90 backdrop-blur-sm">
+            <div className="text-center">
+              <Loader2 className="mx-auto size-8 animate-spin" style={{ color: brand.color }} />
+              <p className="mt-3 text-[13px] font-medium text-black/70">
+                Processing payment…
+              </p>
+            </div>
+          </div>
+        )}
+
+        {paymentSuccess && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/95 backdrop-blur-sm">
+            <div className="text-center">
+              <CheckCircle2 className="mx-auto size-12" style={{ color: "#16a34a" }} />
+              <p className="mt-3 px-8 text-[14px] font-medium text-black/80">
+                {paymentSuccess}
+              </p>
+              <p className="mt-1 text-[11px] text-black/40">Redirecting…</p>
+            </div>
+          </div>
+        )}
+
+        {paymentError && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/95 backdrop-blur-sm">
+            <div className="text-center">
+              <AlertCircle className="mx-auto size-10 text-red-500" />
+              <p className="mt-3 px-8 text-[13px] font-medium text-black/70">
+                {paymentError}
+              </p>
+              <button
+                onClick={() => setPaymentError(null)}
+                className="mt-4 rounded-lg border border-black/15 px-4 py-2 text-[12px] font-medium text-black/70 hover:bg-black/5"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
