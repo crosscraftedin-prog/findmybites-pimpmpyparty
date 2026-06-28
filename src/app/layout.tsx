@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import * as React from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -23,6 +23,12 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+export const viewport: Viewport = {
+  themeColor: "#D85A30",
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
   title: "FindMyBites × PimpMyParty — Global Food & Party Marketplace",
@@ -49,7 +55,6 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   manifest: "/site.webmanifest",
-  themeColor: "#D85A30",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
