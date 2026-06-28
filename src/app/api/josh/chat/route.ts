@@ -366,19 +366,36 @@ export async function POST(req: NextRequest) {
     console.log("[josh/chat] ZAI available:", !!zai);
 
     if (!zai) {
-      // AI unavailable — do a DIRECT DB vendor search so Josh still recommends
-      // real vendors instead of repeating a generic fallback message.
-      console.log("[josh/chat] AI unavailable — generating DB-based fallback with vendor suggestions");
-      const fallbackMsg = generateDBFallback(message, topVendors, userType);
-
+      // AI unavailable — return a vendor_suggestions JSON block so the
+      // widget fetches vendor cards from /api/chat/vendors (which has
+      // sample vendor fallback). Josh still recommends vendors.
+      console.log("[josh/chat] AI unavailable — returning vendor_suggestions fallback");
+      const { categories, city } = extractIntent(message);
+      if (categories.length > 0) {
+        const cityDisplay = city || "";
+        const summary = city
+          ? `Looking for vendors in ${city} — I've got some great picks for you! 🎉`
+          : "Here are some top vendors I found for you! 🎉";
+        const fallbackMsg = `{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${cityDisplay}","summary":"${summary}"}\n\nHere are my top picks for you 🎉`;
+        await saveConversation(conversation, [
+          ...newMessages,
+          { role: "assistant", content: fallbackMsg, timestamp: new Date().toISOString() },
+        ]);
+        return NextResponse.json({
+          conversationId: conversation?.id,
+          message: fallbackMsg,
+          fallback: true,
+        });
+      }
+      // No categories detected — return a helpful prompt
+      const noCatMsg = "I'd love to help! 🎉 Tell me what you need — like \"cake in Dubai\", \"DJ in Mumbai\", or \"photographer in London\" — and I'll find the best vendors for you.";
       await saveConversation(conversation, [
         ...newMessages,
-        { role: "assistant", content: fallbackMsg, timestamp: new Date().toISOString() },
+        { role: "assistant", content: noCatMsg, timestamp: new Date().toISOString() },
       ]);
-
       return NextResponse.json({
         conversationId: conversation?.id,
-        message: fallbackMsg,
+        message: noCatMsg,
         fallback: true,
       });
     }
@@ -445,10 +462,37 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[api/josh/chat] POST failed:", err);
-    return NextResponse.json(
-      { message: FALLBACK_RESPONSE, fallback: true },
-      { status: 200 } // 200 with fallback so the UI doesn't show an error
-    );
+    // When ZAI fails, extract intent from the message and return a
+    // vendor_suggestions JSON block so the WIDGET fetches vendor cards
+    // from /api/chat/vendors (which has sample vendor fallback). This way
+    // Josh still recommends vendors even when AI is completely down.
+    try {
+      const { categories, city } = extractIntent(message || "");
+      if (categories.length > 0) {
+        const cityDisplay = city || "";
+        const summary = city
+          ? `Looking for ${categories.length > 0 ? "vendors" : "options"} in ${city} — I've got some great picks for you! 🎉`
+          : "Here are some top vendors I found for you! 🎉";
+        const fallbackMsg = `{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${cityDisplay}","summary":"${summary}"}\n\nHere are my top picks for you 🎉`;
+        console.log("[josh/chat] Returning vendor_suggestions fallback (AI down):", fallbackMsg.slice(0, 80));
+        return NextResponse.json({
+          conversationId: conversation?.id,
+          message: fallbackMsg,
+          fallback: true,
+        });
+      }
+      // No categories detected — return a helpful message
+      return NextResponse.json({
+        conversationId: conversation?.id,
+        message: "I'd love to help! 🎉 Tell me what you need — like \"cake in Dubai\", \"DJ in Mumbai\", or \"photographer in London\" — and I'll find the best vendors for you.",
+        fallback: true,
+      });
+    } catch {
+      return NextResponse.json(
+        { message: FALLBACK_RESPONSE, fallback: true },
+        { status: 200 }
+      );
+    }
   }
 }
 
