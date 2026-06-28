@@ -27,15 +27,24 @@ export async function POST(req: NextRequest) {
 
     // ── Auth check ──────────────────────────────────────────────────────
     let session: any = null;
+    let user: any = null;
     try {
       const supabase = await createSupabaseServerClient();
-      const result = await supabase.auth.getSession();
-      session = result.data?.session;
+      // Use getUser() — it verifies the JWT server-side (more reliable on
+      // Vercel serverless where cookies may not propagate correctly).
+      const userResult = await supabase.auth.getUser();
+      user = userResult.data?.user;
+      if (!user) {
+        // Fallback to getSession()
+        const sessionResult = await supabase.auth.getSession();
+        session = sessionResult.data?.session;
+        user = session?.user;
+      }
     } catch (e) {
-      console.error("[api/payments/create-order] Supabase session error:", (e as Error)?.message?.slice(0, 100));
+      console.error("[api/payments/create-order] Supabase auth error:", (e as Error)?.message?.slice(0, 100));
     }
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json(
         { error: "Please sign in to upgrade your plan." },
         { status: 401 }
@@ -69,8 +78,8 @@ export async function POST(req: NextRequest) {
       vendor = await db.vendor.findFirst({
         where: {
           OR: [
-            { owner_user_id: session.user.id },
-            { userEmail: session.user.email ?? "" },
+            { owner_user_id: user.id },
+            { userEmail: user.email ?? "" },
           ],
         },
         select: {
@@ -88,12 +97,12 @@ export async function POST(req: NextRequest) {
     // If vendor not found in DB, use session data as fallback so payment
     // can still proceed (the vendor record may exist in Supabase but not
     // Prisma's view, or the DB might be temporarily unavailable).
-    const vendorName = vendor?.name || session.user.email?.split("@")[0] || "Vendor";
+    const vendorName = vendor?.name || user.email?.split("@")[0] || "Vendor";
     const vendorSlug = vendor?.slug || "unknown";
     const countryCode = vendor?.countryCode || "IN";
 
     if (!vendor) {
-      console.log("[api/payments/create-order] Vendor not found in DB — proceeding with session data. User:", session.user.email);
+      console.log("[api/payments/create-order] Vendor not found in DB — proceeding with session data. User:", user.email);
     }
 
     // ── Determine price ─────────────────────────────────────────────────
@@ -117,7 +126,7 @@ export async function POST(req: NextRequest) {
       billingCycle,
       vendorSlug,
       vendorName,
-      vendorEmail: session.user.email,
+      vendorEmail: user.email,
     });
 
     if (!order || !order.orderId) {
@@ -138,7 +147,7 @@ export async function POST(req: NextRequest) {
       planKey,
       billingCycle,
       vendorName,
-      vendorEmail: session.user.email,
+      vendorEmail: user.email,
       keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     });
   } catch (err) {
