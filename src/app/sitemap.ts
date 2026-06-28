@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { CATEGORIES, migrateCategory } from "@/lib/constants";
+import { CAKE_PAGES } from "@/lib/cake-pages";
 
 /**
  * /sitemap.xml — auto-generated sitemap for all SEO pages.
@@ -32,6 +33,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/pimpmyparty`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
     { url: `${baseUrl}/near-me`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
   );
+
+  // Dubai & UAE cake keyword landing pages
+  for (const page of CAKE_PAGES) {
+    entries.push({
+      url: `${baseUrl}/${page.slug}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.8,
+    });
+  }
 
   try {
     // Fetch all location + category data in parallel
