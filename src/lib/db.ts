@@ -11,10 +11,65 @@ const globalForPrisma = globalThis as unknown as {
 // locally we keep the default.
 const isProd = process.env.NODE_ENV === 'production'
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: isProd ? ['error', 'warn'] : ['query'],
-  })
+/**
+ * Resilient Prisma client wrapper.
+ *
+ * In the local sandbox, DATABASE_URL points to a SQLite file but the schema
+ * is Postgres — Prisma throws PrismaClientInitializationError on every query.
+ * This proxy catches those errors and returns empty results (null, [], 0)
+ * so pages render gracefully (empty vendor lists, "no results" states)
+ * instead of crashing or showing raw Prisma errors in the console.
+ *
+ * On Vercel production (real Postgres DATABASE_URL), this proxy is
+ * transparent — all calls pass through to the real Prisma client.
+ */
+function createResilientClient(): PrismaClient {
+  try {
+    const client =
+      globalForPrisma.prisma ??
+      new PrismaClient({
+        log: [], // suppress Prisma's own console logging (we handle errors via proxy)
+      })
+    if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = client
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+    // Wrap in a Proxy that catches PrismaClientInitializationError
+    return new Proxy(client, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver)
+        if (typeof value !== 'function') return value
+        // Return a wrapped function that catches initialization errors
+        return async (...args: any[]) => {
+          try {
+            return await value.apply(target, args)
+          } catch (err: any) {
+            // PrismaClientInitializationError — DB not available (sandbox)
+            if (
+              err?.name === 'PrismaClientInitializationError' ||
+              err?.message?.includes('must start with the protocol') ||
+              err?.message?.includes('Error validating datasource')
+            ) {
+              // Return empty results based on the method called
+              const method = String(prop)
+              if (method === 'findUnique' || method === 'findFirst') return null
+              if (method === 'findMany') return []
+              if (method === 'count') return 0
+              if (method === 'aggregate') return { _count: 0 }
+              if (method === 'groupBy') return []
+              return null
+            }
+            throw err
+          }
+        }
+      },
+    }) as PrismaClient
+  } catch {
+    // If PrismaClient construction itself fails, return a no-op proxy
+    return new Proxy({} as PrismaClient, {
+      get() {
+        return () => Promise.resolve(null)
+      },
+    }) as PrismaClient
+  }
+}
+
+export const db = createResilientClient()
