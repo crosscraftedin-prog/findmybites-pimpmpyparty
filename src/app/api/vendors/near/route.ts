@@ -74,31 +74,34 @@ function transformVendor(v: DbVendor): Vendor {
  * rating instead (so the page still shows great vendors worldwide).
  */
 export async function GET(req: NextRequest) {
+  // Parse params OUTSIDE the try block so the catch block can access them
+  // (const is block-scoped — variables declared inside try aren't visible
+  // in catch, which would cause a ReferenceError in the error handler itself).
+  const sp = req.nextUrl.searchParams;
+  const lat = Number(sp.get("lat"));
+  const lng = Number(sp.get("lng"));
+  const radiusParam = Number(sp.get("radius"));
+  const radius =
+    Number.isFinite(radiusParam) && radiusParam > 0 ? radiusParam : 0;
+  const ecosystem = sp.get("ecosystem") ?? undefined;
+  const category = sp.get("category") ?? undefined;
+  const minRating = Number(sp.get("minRating")) || 0;
+  const verifiedOnly = sp.get("verified") === "true";
+  const featuredOnly = sp.get("featured") === "true";
+  const limitParam = Number(sp.get("limit"));
+  const limit =
+    Number.isFinite(limitParam) && limitParam > 0
+      ? Math.min(100, Math.round(limitParam))
+      : 50;
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return NextResponse.json(
+      { error: "Valid lat and lng query parameters are required." },
+      { status: 400 }
+    );
+  }
+
   try {
-    const sp = req.nextUrl.searchParams;
-    const lat = Number(sp.get("lat"));
-    const lng = Number(sp.get("lng"));
-    const radiusParam = Number(sp.get("radius"));
-    const radius =
-      Number.isFinite(radiusParam) && radiusParam > 0 ? radiusParam : 0;
-    const ecosystem = sp.get("ecosystem") ?? undefined;
-    const category = sp.get("category") ?? undefined;
-    const minRating = Number(sp.get("minRating")) || 0;
-    const verifiedOnly = sp.get("verified") === "true";
-    const featuredOnly = sp.get("featured") === "true";
-    const limitParam = Number(sp.get("limit"));
-    const limit =
-      Number.isFinite(limitParam) && limitParam > 0
-        ? Math.min(100, Math.round(limitParam))
-        : 50;
-
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return NextResponse.json(
-        { error: "Valid lat and lng query parameters are required." },
-        { status: 400 }
-      );
-    }
-
     const where: Prisma.VendorWhereInput = {
       latitude: { not: null },
       longitude: { not: null },
