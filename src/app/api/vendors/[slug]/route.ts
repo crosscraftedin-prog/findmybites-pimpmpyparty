@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
+import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
 import { COUNTRIES, getCategory, getCategoryMigrated, ADMIN_EMAILS } from "@/lib/constants";
@@ -469,6 +470,30 @@ export async function PUT(
           console.log("[api/vendors/[slug]] Notification inserted for user:", existing.owner_user_id);
         }
       }
+    }
+
+    // ── Revalidate SEO pages so new city/category pages go live instantly ──
+    // When a vendor is approved in a (possibly new) city, regenerate the
+    // auto-generated SEO pages + sitemap.
+    try {
+      const citySlug = existing.city
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-]/g, "");
+      const migratedCat = getCategoryMigrated(existing.category)?.id ?? existing.category;
+      // Keyword page: /[category]-[city]
+      revalidatePath(`/${migratedCat}-${citySlug}`);
+      // City page: /[city]
+      revalidatePath(`/${citySlug}`);
+      // City/category page: /[city]/[category]
+      revalidatePath(`/${citySlug}/${migratedCat}`);
+      // Sitemap + homepage (so new links appear)
+      revalidatePath("/sitemap.xml");
+      revalidatePath("/");
+      console.log(`[api/vendors/[slug]] Revalidated SEO pages for ${migratedCat}-${citySlug}`);
+    } catch (e) {
+      console.error("[api/vendors/[slug]] revalidatePath failed:", e);
     }
 
     return NextResponse.json({ vendor: transformVendor(updated) });

@@ -2,19 +2,22 @@ import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { CATEGORIES, migrateCategory } from "@/lib/constants";
 import { CAKE_PAGES } from "@/lib/cake-pages";
+import { getAllSEOPages, getAllCities, getAllCategories } from "@/lib/seo-data";
 
 /**
- * /sitemap.xml — auto-generated sitemap for all SEO pages.
+ * /sitemap.xml — fully automatic sitemap.
  *
  * Includes:
- * - Homepage
+ * - Homepage + key static pages
  * - Ecosystem landing pages (/findmybites, /pimpmyparty)
- * - Country pages (/findmybites/india, etc.)
- * - City pages (/findmybites/india/hyderabad, etc.)
- * - Category pages (/findmybites/india/hyderabad/bakers-bakery, etc.)
+ * - Hand-crafted Dubai/UAE cake landing pages
+ * - AUTO keyword pages: /[category]-[city] for every approved vendor's city+category
+ * - AUTO city pages: /[city] for every city with approved vendors
+ * - AUTO near-me pages: /near-me/[category] for every category with vendors
+ * - Country/city/category pages under /[ecosystem]/...
  * - Vendor pages (/vendor/[slug])
  *
- * Updates automatically when data changes (ISR with 1hr revalidation).
+ * All auto-derived from the DB — new cities/categories appear automatically.
  */
 export const revalidate = 3600;
 
@@ -32,9 +35,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/findmybites`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
     { url: `${baseUrl}/pimpmyparty`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
     { url: `${baseUrl}/near-me`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
+    { url: `${baseUrl}/about`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.6 },
+    { url: `${baseUrl}/contact`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.6 },
   );
 
-  // Dubai & UAE cake keyword landing pages
+  // Hand-crafted Dubai/UAE cake landing pages
   for (const page of CAKE_PAGES) {
     entries.push({
       url: `${baseUrl}/${page.slug}`,
@@ -44,9 +49,53 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
+  // ── AUTO-GENERATED SEO PAGES (from DB) ────────────────────────────────
+  const [seoPages, cities, categories] = await Promise.all([
+    getAllSEOPages(),
+    getAllCities(),
+    getAllCategories(),
+  ]);
+
+  // Keyword pages: /[category]-[city]
+  for (const p of seoPages) {
+    entries.push({
+      url: `${baseUrl}/${p.keyword}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    });
+    // City/category page: /[city]/[category]
+    entries.push({
+      url: `${baseUrl}/${p.citySlug}/${p.categorySlug}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    });
+  }
+
+  // City pages: /[city]
+  for (const c of cities) {
+    entries.push({
+      url: `${baseUrl}/${c.citySlug}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    });
+  }
+
+  // Near-me pages: /near-me/[category]
+  for (const cat of categories) {
+    entries.push({
+      url: `${baseUrl}/near-me/${cat.categorySlug}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.6,
+    });
+  }
+
   try {
     // Fetch all location + category data in parallel
-    const [countries, cities, cityCategories, vendors] = await Promise.all([
+    const [countries, ecoCities, cityCategories, vendors] = await Promise.all([
       db.vendor.groupBy({
         by: ["country"],
         where: { approved: true },
@@ -87,8 +136,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     }
 
-    // City pages
-    for (const c of cities) {
+    // City pages (under /[ecosystem]/[country]/[city])
+    for (const c of ecoCities) {
       const countrySlug = slugify(c.country);
       const citySlug = slugify(c.city);
       entries.push({

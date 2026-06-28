@@ -15,10 +15,48 @@ import {
   type SEOContext,
 } from "@/lib/seo";
 import { SeoPageClient } from "./seo-page-client";
+import {
+  getAllSEOPages,
+  getAllCities,
+  getAllCategories,
+  resolveKeywordPage,
+  resolveCity,
+  resolveCityCategoryPage,
+  getVendorsForPage,
+  getVendorsForCity,
+  getRelatedPages,
+  getCityCategories,
+  type SEOPage,
+  type SEOCity,
+} from "@/lib/seo-data";
+import {
+  generateKeywordMetadata,
+  generateCityMetadata,
+  generateCityCategoryMetadata,
+  generateFAQs,
+  generatePriceGuide,
+  generateBreadcrumbJsonLd,
+  generateFAQJsonLd,
+  generateItemListJsonLd,
+  titleCase,
+} from "@/lib/seo-content";
+import { AutoSEOLanding } from "@/components/seo/AutoSEOLanding";
 
-// Force dynamic rendering so pages always reflect current vendor data
-export const dynamic = "force-dynamic";
-export const revalidate = 3600; // ISR: regenerate every hour
+/**
+ * Catch-all SEO route — handles FOUR URL patterns from a single dynamic
+ * route (avoids Next.js sibling-dynamic-segment conflicts):
+ *
+ *   /findmybites, /findmybites/india, /findmybites/india/hyderabad/bakers-bakery
+ *     → existing ecosystem landing pages (unchanged behavior)
+ *   /wedding-cakes-dubai           → keyword page (category-city)
+ *   /dubai                         → city page
+ *   /dubai/wedding-cakes           → city/category page
+ *
+ * ISR (1hr) + generateStaticParams so pages are pre-built AND new
+ * city/category combos auto-generate on first request after a vendor is
+ * approved. revalidatePath() on approval gives instant refresh.
+ */
+export const revalidate = 3600;
 
 interface PageProps {
   params: Promise<{
@@ -29,47 +67,151 @@ interface PageProps {
 
 const VALID_ECOSYSTEMS: Ecosystem[] = ["FINDMYBITES", "PIMPMYPARTY"];
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { ecosystem: ecoSlug, path } = await params;
+/**
+ * Pre-generate all known SEO pages at build time. Combined with ISR +
+ * dynamicParams=true (default), new pages auto-generate on first request.
+ */
+export async function generateStaticParams() {
+  const [ecoLandings, keywordPages, cities, cityCategoryCombos] = await Promise.all([
+    Promise.resolve([
+      { ecosystem: "findmybites", path: undefined },
+      { ecosystem: "pimpmyparty", path: undefined },
+    ]),
+    getAllSEOPages(),
+    getAllCities(),
+    (async () => {
+      // city/category combos: derived from keyword pages (each has a city+category)
+      const pages = await getAllSEOPages();
+      return pages.map((p) => ({ citySlug: p.citySlug, categorySlug: p.categorySlug }));
+    })(),
+  ]);
 
-  const ecosystem = ecoSlug === "findmybites" ? "FINDMYBITES" : ecoSlug === "pimpmyparty" ? "PIMPMYPARTY" : null;
-  if (!ecosystem) return { title: "Not Found" };
+  const params: { ecosystem: string; path?: string[] }[] = [];
 
-  const ctx = parsePath(ecosystem, path ?? []);
-  if (!ctx) return { title: "Not Found" };
+  // Ecosystem landings
+  for (const e of ecoLandings) params.push({ ecosystem: e.ecosystem, path: e.path });
 
-  return generateSEOMetadata(ctx);
+  // Keyword pages: ecosystem segment = keyword slug, path = undefined
+  for (const p of keywordPages) {
+    params.push({ ecosystem: p.keyword, path: undefined });
+  }
+
+  // City pages: ecosystem segment = city slug, path = undefined
+  for (const c of cities) {
+    params.push({ ecosystem: c.citySlug, path: undefined });
+  }
+
+  // City/category pages: ecosystem segment = city slug, path = [category slug]
+  for (const combo of cityCategoryCombos) {
+    params.push({ ecosystem: combo.citySlug, path: [combo.categorySlug] });
+  }
+
+  return params;
 }
 
-export default async function SeoPage({ params }: PageProps) {
-  const { ecosystem: ecoSlug, path } = await params;
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { ecosystem: firstSegment, path } = await params;
 
-  const ecosystem = ecoSlug === "findmybites" ? "FINDMYBITES" : ecoSlug === "pimpmyparty" ? "PIMPMYPARTY" : null;
-  if (!ecosystem) notFound();
+  // 1. Existing ecosystem landings (/findmybites, /pimpmyparty + sub-paths)
+  const ecosystem =
+    firstSegment === "findmybites"
+      ? "FINDMYBITES"
+      : firstSegment === "pimpmyparty"
+        ? "PIMPMYPARTY"
+        : null;
 
-  const ctx = parsePath(ecosystem, path ?? []);
+  if (ecosystem) {
+    const ctx = parseEcosystemPath(ecosystem, path ?? []);
+    if (!ctx) return { title: "Not Found" };
+    return generateSEOMetadata(ctx);
+  }
+
+  // 2. City/category page: /{city}/{category}
+  if (path && path.length === 1) {
+    const resolved = await resolveCityCategoryPage(firstSegment, path[0]);
+    if (resolved) {
+      return generateCityCategoryMetadata(resolved.page, resolved.city);
+    }
+    return { title: "Not Found" };
+  }
+
+  // 3. Keyword page (single segment) or city page (single segment)
+  if (!path || path.length === 0) {
+    const keywordPage = await resolveKeywordPage(firstSegment);
+    if (keywordPage) return generateKeywordMetadata(keywordPage);
+
+    const city = await resolveCity(firstSegment);
+    if (city) return generateCityMetadata(city);
+
+    return { title: "Not Found" };
+  }
+
+  return { title: "Not Found" };
+}
+
+export default async function SeoRoute({ params }: PageProps) {
+  const { ecosystem: firstSegment, path } = await params;
+
+  // ── 1. Existing ecosystem landing pages (unchanged) ────────────────────
+  const ecosystem =
+    firstSegment === "findmybites"
+      ? "FINDMYBITES"
+      : firstSegment === "pimpmyparty"
+        ? "PIMPMYPARTY"
+        : null;
+
+  if (ecosystem) {
+    return renderEcosystemPage(ecosystem, path ?? []);
+  }
+
+  // ── 2. City/category page: /{city}/{category} ──────────────────────────
+  if (path && path.length === 1) {
+    const resolved = await resolveCityCategoryPage(firstSegment, path[0]);
+    if (resolved) {
+      return renderCityCategoryPage(resolved.page, resolved.city);
+    }
+    notFound();
+  }
+
+  // ── 3. Keyword page (single segment): /{category}-{city} ───────────────
+  if (!path || path.length === 0) {
+    const keywordPage = await resolveKeywordPage(firstSegment);
+    if (keywordPage) {
+      return renderKeywordPage(keywordPage);
+    }
+
+    // ── 4. City page (single segment): /{city} ─────────────────────────
+    const city = await resolveCity(firstSegment);
+    if (city) {
+      return renderCityPage(city);
+    }
+
+    notFound();
+  }
+
+  notFound();
+}
+
+// ── Ecosystem page renderer (unchanged from original) ──────────────────────
+
+async function renderEcosystemPage(ecosystem: Ecosystem, path: string[]) {
+  const ctx = parseEcosystemPath(ecosystem, path);
   if (!ctx) notFound();
 
-  // Fetch vendors for this page
   const where: Record<string, unknown> = {
     ecosystem,
     approved: true,
   };
 
   if (ctx.country) {
-    // Match country by slug (case-insensitive)
     where.country = { contains: ctx.country.replace(/-/g, " "), mode: "insensitive" };
   }
   if (ctx.city) {
     where.city = { contains: ctx.city.replace(/-/g, " "), mode: "insensitive" };
   }
   if (ctx.category) {
-    // Match both new and old category slugs via migration
     const migrated = migrateCategory(ctx.category);
-    where.OR = [
-      { category: migrated },
-      { category: ctx.category },
-    ];
+    where.OR = [{ category: migrated }, { category: ctx.category }];
   }
 
   let vendors: any[] = [];
@@ -102,19 +244,13 @@ export default async function SeoPage({ params }: PageProps) {
     });
     vendorCount = await db.vendor.count({ where }).catch(() => vendors.length);
   } catch {
-    // DB unavailable — render page with empty vendors
+    // DB unavailable
   }
 
-  const seoCtx: SEOContext = {
-    ...ctx,
-    vendorCount,
-  };
-
+  const seoCtx: SEOContext = { ...ctx, vendorCount };
   const jsonLd = generateJsonLd(seoCtx, vendors);
   const breadcrumbs = generateBreadcrumbs(seoCtx);
   const introContent = generateIntroContent(seoCtx, vendorCount);
-
-  // Fetch related data for internal linking
   const relatedCategories = ctx.city
     ? CATEGORIES.filter((c) => c.ecosystem === ecosystem && c.id !== ctx.category).slice(0, 6)
     : [];
@@ -155,33 +291,124 @@ export default async function SeoPage({ params }: PageProps) {
   );
 }
 
-/** Parse the URL path array into an SEOContext. */
-function parsePath(ecosystem: Ecosystem, path: string[]): SEOContext | null {
-  // path is an array of segments after /findmybites or /pimpmyparty
-  // Possible patterns:
-  //   []                    → ecosystem home
-  //   [country]             → country page
-  //   [country, region]     → state OR city page (region can be either)
-  //   [country, city, cat]  → city + category page
+// ── Keyword page renderer: /{category}-{city} ──────────────────────────────
 
-  if (path.length === 0) {
-    return { ecosystem };
-  }
+async function renderKeywordPage(page: SEOPage) {
+  const { vendors, total } = await getVendorsForPage(page.city, page.categorySlug);
+  const related = await getRelatedPages(page.city, page.categorySlug);
 
-  if (path.length === 1) {
-    return { ecosystem, country: path[0] };
-  }
+  const cityDisplay = titleCase(page.city);
+  const ecoLabel = page.ecosystem === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty";
+  const ecoSlug = page.ecosystem === "FINDMYBITES" ? "findmybites" : "pimpmyparty";
 
-  if (path.length === 2) {
-    // Could be country/state or country/city
-    // We'll treat it as country/city (most common case for SEO)
-    return { ecosystem, country: path[0], city: path[1] };
-  }
+  const breadcrumbs = [
+    { label: "Home", url: "https://www.findmybites.com" },
+    { label: ecoLabel, url: `https://www.findmybites.com/${ecoSlug}` },
+    { label: cityDisplay, url: `https://www.findmybites.com/${page.citySlug}` },
+    { label: page.category, url: `https://www.findmybites.com/${page.keyword}` },
+  ];
 
-  if (path.length === 3) {
-    // country/city/category
-    return { ecosystem, country: path[0], city: path[1], category: path[2] };
-  }
+  const faqs = generateFAQs(page.category, page.categorySlug, page.city, page.country, vendors);
+  const jsonLd = [
+    generateBreadcrumbJsonLd(breadcrumbs),
+    generateFAQJsonLd(faqs),
+    generateItemListJsonLd(vendors, `${page.category} in ${cityDisplay}`),
+  ].filter(Boolean) as Record<string, any>[];
 
-  return null; // too many segments
+  return (
+    <AutoSEOLanding
+      variant="keyword"
+      page={page}
+      vendors={vendors}
+      total={total}
+      related={related}
+      jsonLd={jsonLd}
+      breadcrumbs={breadcrumbs}
+    />
+  );
+}
+
+// ── City page renderer: /{city} ────────────────────────────────────────────
+
+async function renderCityPage(city: SEOCity) {
+  const { vendors, total } = await getVendorsForCity(city.city);
+  const cityCategories = await getCityCategories(city.city);
+  const cityDisplay = titleCase(city.city);
+
+  // Related = top categories in this city (link to keyword pages)
+  const related = cityCategories.slice(0, 6).map((c) => ({
+    label: `${c.categoryLabel} in ${cityDisplay}`,
+    slug: `${c.categorySlug}-${city.citySlug}`,
+  }));
+
+  const breadcrumbs = [
+    { label: "Home", url: "https://www.findmybites.com" },
+    { label: "FindMyBites", url: "https://www.findmybites.com/findmybites" },
+    { label: city.country, url: `https://www.findmybites.com/findmybites/${city.country.toLowerCase().replace(/\s+/g, "-")}` },
+    { label: cityDisplay, url: `https://www.findmybites.com/${city.citySlug}` },
+  ];
+
+  const faqs = generateFAQs("Vendors", "", city.city, city.country, vendors);
+  const jsonLd = [
+    generateBreadcrumbJsonLd(breadcrumbs),
+    generateFAQJsonLd(faqs),
+    generateItemListJsonLd(vendors, `Vendors in ${cityDisplay}`),
+  ].filter(Boolean) as Record<string, any>[];
+
+  return (
+    <AutoSEOLanding
+      variant="city"
+      city={city}
+      vendors={vendors}
+      total={total}
+      related={related}
+      cityCategories={cityCategories}
+      jsonLd={jsonLd}
+      breadcrumbs={breadcrumbs}
+    />
+  );
+}
+
+// ── City/category page renderer: /{city}/{category} ────────────────────────
+
+async function renderCityCategoryPage(page: SEOPage, city: SEOCity) {
+  const { vendors, total } = await getVendorsForPage(page.city, page.categorySlug);
+  const related = await getRelatedPages(page.city, page.categorySlug);
+  const cityDisplay = titleCase(page.city);
+
+  const breadcrumbs = [
+    { label: "Home", url: "https://www.findmybites.com" },
+    { label: "FindMyBites", url: "https://www.findmybites.com/findmybites" },
+    { label: cityDisplay, url: `https://www.findmybites.com/${page.citySlug}` },
+    { label: page.category, url: `https://www.findmybites.com/${page.citySlug}/${page.categorySlug}` },
+  ];
+
+  const faqs = generateFAQs(page.category, page.categorySlug, page.city, page.country, vendors);
+  const jsonLd = [
+    generateBreadcrumbJsonLd(breadcrumbs),
+    generateFAQJsonLd(faqs),
+    generateItemListJsonLd(vendors, `${page.category} in ${cityDisplay}`),
+  ].filter(Boolean) as Record<string, any>[];
+
+  return (
+    <AutoSEOLanding
+      variant="cityCategory"
+      page={page}
+      city={city}
+      vendors={vendors}
+      total={total}
+      related={related}
+      jsonLd={jsonLd}
+      breadcrumbs={breadcrumbs}
+    />
+  );
+}
+
+/** Parse the URL path for EXISTING ecosystem landing pages. */
+function parseEcosystemPath(ecosystem: Ecosystem, path: string[]): SEOContext | null {
+  if (path.length === 0) return { ecosystem };
+  if (path.length === 1) return { ecosystem, country: path[0] };
+  if (path.length === 2) return { ecosystem, country: path[0], city: path[1] };
+  if (path.length === 3) return { ecosystem, country: path[0], city: path[1], category: path[2] };
+  return null;
 }

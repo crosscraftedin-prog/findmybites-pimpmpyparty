@@ -19,6 +19,7 @@ import {
   TrendingDown,
   Pencil,
   Loader2,
+  Globe2,
 } from "lucide-react";
 import {
   BarChart,
@@ -32,6 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AdminCategoriesSection } from "@/components/admin/admin-categories";
 import { AdminErrorBoundary } from "@/components/admin/admin-error-boundary";
+import { AdminSeoPages } from "@/components/admin/admin-seo-pages";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
 const CORAL = "#D85A30";
@@ -148,6 +150,7 @@ const NAV_SECTIONS: NavSection[] = [
     brand: null,
     items: [
       { id: "ad-banners", label: "Ad banners", icon: Megaphone },
+      { id: "seo-pages", label: "SEO pages", icon: Globe2 },
       { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
       { id: "messages", label: "Messages", icon: Mail },
       { id: "settings", label: "Settings", icon: Settings },
@@ -874,6 +877,8 @@ export function AdminPanelPage({
                 activeNav === "food-categories" ? "FINDMYBITES" : "PIMPMYPARTY"
               }
             />
+          ) : activeNav === "seo-pages" ? (
+            <AdminSeoPages />
           ) : (
           <>
           {/* ── KPI row ──────────────────────────────────────────────── */}
