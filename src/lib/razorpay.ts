@@ -64,12 +64,20 @@ export async function createSubscriptionOrder(params: {
   vendorName: string;
   vendorEmail?: string;
   vendorPhone?: string;
-}): Promise<{ orderId: string; amount: number; currency: string } | null> {
+}): Promise<{ orderId: string; amount: number; currency: string; error?: string } | null> {
   const rzp = getRazorpay();
-  if (!rzp) return null;
+  if (!rzp) {
+    return { orderId: "", amount: 0, currency: params.currency, error: "Razorpay not configured (missing env vars)" };
+  }
 
   try {
     const amountPaise = toSmallestUnit(params.amount);
+
+    // Validate minimum amount (Razorpay requires >= 100 paise = ₹1)
+    if (amountPaise < 100) {
+      return { orderId: "", amount: amountPaise, currency: params.currency, error: `Amount too small: ${amountPaise} (minimum is 100)` };
+    }
+
     const order = await rzp.orders.create({
       amount: amountPaise,
       currency: params.currency,
@@ -83,14 +91,19 @@ export async function createSubscriptionOrder(params: {
       },
     });
 
+    if (!order?.id) {
+      return { orderId: "", amount: amountPaise, currency: params.currency, error: "Razorpay returned no order ID" };
+    }
+
     return {
       orderId: order.id,
       amount: amountPaise,
       currency: params.currency,
     };
-  } catch (err) {
-    console.error("[razorpay] createSubscriptionOrder failed:", err);
-    return null;
+  } catch (err: any) {
+    const errMsg = err?.error?.description || err?.message || "Unknown Razorpay error";
+    console.error("[razorpay] createSubscriptionOrder failed:", err?.statusCode, errMsg);
+    return { orderId: "", amount: 0, currency: params.currency, error: `Razorpay: ${errMsg}` };
   }
 }
 

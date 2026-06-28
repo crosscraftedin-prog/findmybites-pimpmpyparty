@@ -116,10 +116,11 @@ export async function POST(req: NextRequest) {
       vendorEmail: session.user.email,
     });
 
-    if (!order) {
-      console.error("[api/payments/create-order] createSubscriptionOrder returned null");
+    if (!order || !order.orderId) {
+      const errMsg = order?.error || "Could not create payment order.";
+      console.error("[api/payments/create-order] Order creation failed:", errMsg);
       return NextResponse.json(
-        { error: "Could not create payment order. Please check your Razorpay configuration or try again." },
+        { error: errMsg },
         { status: 500 }
       );
     }
