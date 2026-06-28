@@ -16,21 +16,29 @@ import { PRICING_BY_COUNTRY, FALLBACK_PRICING } from "@/components/SubscriptionM
  */
 export async function POST(req: NextRequest) {
   try {
-    // ── Auth check ──────────────────────────────────────────────────────
-    const supabase = await createSupabaseServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) {
+    // ── Check Razorpay is configured FIRST (before auth) ────────────────
+    if (!isRazorpayConfigured()) {
+      console.error("[api/payments/create-order] Razorpay not configured — missing env vars");
       return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
+        { error: "Payments are not configured yet. Please contact support@findmybites.com to upgrade your plan." },
+        { status: 503 }
       );
     }
 
-    // ── Check Razorpay is configured ────────────────────────────────────
-    if (!isRazorpayConfigured()) {
+    // ── Auth check ──────────────────────────────────────────────────────
+    let session: any = null;
+    try {
+      const supabase = await createSupabaseServerClient();
+      const result = await supabase.auth.getSession();
+      session = result.data?.session;
+    } catch (e) {
+      console.error("[api/payments/create-order] Supabase session error:", (e as Error)?.message?.slice(0, 100));
+    }
+
+    if (!session?.user?.id) {
       return NextResponse.json(
-        { error: "Payments not configured. Contact support@findmybites.com to upgrade." },
-        { status: 503 }
+        { error: "Please sign in to upgrade your plan." },
+        { status: 401 }
       );
     }
 
@@ -54,35 +62,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Fetch vendor ────────────────────────────────────────────────────
-    const vendor = await db.vendor.findFirst({
-      where: {
-        OR: [
-          { owner_user_id: session.user.id },
-          { userEmail: session.user.email ?? "" },
-        ],
-        approved: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        countryCode: true,
-        currency: true,
-      },
-    }).catch(() => null);
+    // ── Fetch vendor (don't require approved — they might be upgrading
+    //    to get approved faster) ──────────────────────────────────────────
+    let vendor: { id: string; name: string; slug: string; countryCode: string; currency: string } | null = null;
+    try {
+      vendor = await db.vendor.findFirst({
+        where: {
+          OR: [
+            { owner_user_id: session.user.id },
+            { userEmail: session.user.email ?? "" },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          countryCode: true,
+          currency: true,
+        },
+      });
+    } catch (e) {
+      console.error("[api/payments/create-order] Vendor query failed:", (e as Error)?.message?.slice(0, 150));
+    }
+
+    // If vendor not found in DB, use session data as fallback so payment
+    // can still proceed (the vendor record may exist in Supabase but not
+    // Prisma's view, or the DB might be temporarily unavailable).
+    const vendorName = vendor?.name || session.user.email?.split("@")[0] || "Vendor";
+    const vendorSlug = vendor?.slug || "unknown";
+    const countryCode = vendor?.countryCode || "IN";
+    const currency = vendor?.currency || "INR";
 
     if (!vendor) {
-      return NextResponse.json(
-        { error: "No approved vendor listing found for your account." },
-        { status: 404 }
-      );
+      console.log("[api/payments/create-order] Vendor not found in DB — proceeding with session data. User:", session.user.email);
     }
 
     // ── Determine price ─────────────────────────────────────────────────
-    const pricing = PRICING_BY_COUNTRY[vendor.countryCode] ?? FALLBACK_PRICING;
+    const pricing = PRICING_BY_COUNTRY[countryCode] ?? FALLBACK_PRICING;
     const amount = pricing[planKey][billingCycle];
-    const currency = vendor.currency || "INR";
+
+    console.log("[api/payments/create-order] Creating order:", {
+      planKey, billingCycle, amount, currency, vendorSlug, vendorName
+    });
 
     // ── Create Razorpay order ───────────────────────────────────────────
     const order = await createSubscriptionOrder({
@@ -90,17 +111,20 @@ export async function POST(req: NextRequest) {
       currency,
       planKey,
       billingCycle,
-      vendorSlug: vendor.slug,
-      vendorName: vendor.name,
+      vendorSlug,
+      vendorName,
       vendorEmail: session.user.email,
     });
 
     if (!order) {
+      console.error("[api/payments/create-order] createSubscriptionOrder returned null");
       return NextResponse.json(
-        { error: "Failed to create payment order. Please try again." },
+        { error: "Could not create payment order. Please check your Razorpay configuration or try again." },
         { status: 500 }
       );
     }
+
+    console.log("[api/payments/create-order] Order created:", order.orderId);
 
     return NextResponse.json({
       orderId: order.orderId,
@@ -108,14 +132,14 @@ export async function POST(req: NextRequest) {
       currency: order.currency,
       planKey,
       billingCycle,
-      vendorName: vendor.name,
+      vendorName,
       vendorEmail: session.user.email,
       keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     });
   } catch (err) {
     console.error("[api/payments/create-order] POST failed:", err);
     return NextResponse.json(
-      { error: "Payment initialization failed." },
+      { error: "Payment initialization failed. Please try again or contact support@findmybites.com." },
       { status: 500 }
     );
   }
