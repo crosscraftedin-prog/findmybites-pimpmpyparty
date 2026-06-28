@@ -290,3 +290,22 @@ model Product {
   @@index([isAvailable])
 
 }
+
+// ── Josh AI conversation persistence ──────────────────────────────────────
+// Stores conversation history so Josh remembers context across sessions.
+model JoshConversation {
+  id                  String   @id @default(cuid())
+  userId              String
+  userEmail           String?
+  userType            String   @default("customer") // "customer" | "vendor"
+  vendorId            String?  // if userType = vendor, their vendor listing id
+  messages            Json     @default("[]") // [{role, content, timestamp}]
+  conversationSummary String?  // AI-generated summary after 10+ messages
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  lastMessageAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([vendorId])
+  @@map("josh_conversations")
+}

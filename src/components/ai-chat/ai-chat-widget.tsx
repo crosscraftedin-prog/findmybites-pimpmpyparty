@@ -115,8 +115,54 @@ function ChatWindow({ onClose }: { onClose: () => void }) {
   ]);
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [conversationId, setConversationId] = React.useState<string | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+
+  // Stable user ID (persists in localStorage so conversations are remembered)
+  const userId = React.useMemo(() => {
+    if (typeof window === "undefined") return "guest";
+    let id = localStorage.getItem("josh:userId");
+    if (!id) {
+      id = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem("josh:userId", id);
+    }
+    return id;
+  }, []);
+
+  // Restore conversation history on mount (so Josh remembers across sessions)
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/josh/chat?userId=${encodeURIComponent(userId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.conversationId) setConversationId(data.conversationId);
+          if (data.messages && data.messages.length > 0) {
+            // Restore messages (skip the welcome msg — replaced by history)
+            const restored: ChatMessage[] = data.messages.map(
+              (m: { role: string; content: string }, i: number) => ({
+                id: `restored-${i}`,
+                role: m.role as "user" | "assistant",
+                content: m.content,
+              })
+            );
+            setMessages([
+              {
+                id: "welcome",
+                role: "assistant",
+                content:
+                  "Welcome back! 👋 I remember our last conversation. How can I help you today?",
+              },
+              ...restored,
+            ]);
+          }
+        }
+      } catch {
+        // network error — skip restore
+      }
+    })();
+  }, [userId]);
 
   React.useEffect(() => {
     if (scrollRef.current) {
@@ -141,19 +187,24 @@ function ChatWindow({ onClose }: { onClose: () => void }) {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch("/api/josh/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: newMessages
-            .filter((m) => m.id !== "welcome")
-            .map((m) => ({ role: m.role, content: m.content })),
+          message: text.trim(),
+          conversationId: conversationId ?? undefined,
+          userId,
+          userType: "customer",
         }),
       });
       if (!res.ok) throw new Error("Chat request failed");
       const data = await res.json();
+      // Track conversation ID for persistence
+      if (data.conversationId && !conversationId) {
+        setConversationId(data.conversationId);
+      }
       const aiText: string =
-        data.response || "Hmm, I didn't catch that. Could you say more?";
+        data.message || data.response || "Hmm, I didn't catch that. Could you say more?";
 
       const parsed = parseAIResponse(aiText);
 
