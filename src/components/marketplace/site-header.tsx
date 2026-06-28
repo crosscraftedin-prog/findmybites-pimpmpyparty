@@ -105,9 +105,10 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-3 sm:gap-3 sm:px-6 lg:px-8">
-        {/* Logo */}
-        <Link
-          href="#top"
+        {/* Logo — plain <a> instead of <Link> to avoid Next.js Link prefetch
+            handler hydration mismatch (onClick/onMouseEnter/onTouchStart) */}
+        <a
+          href="/"
           className="flex shrink-0 items-center gap-2 font-bold tracking-tight"
         >
           <span className="relative flex items-center gap-1">
@@ -123,18 +124,18 @@ export function SiteHeader() {
             <span className="mx-1 text-muted-foreground">×</span>
             <span className="text-foreground">PimpMyParty</span>
           </span>
-        </Link>
+        </a>
 
-        {/* Desktop nav */}
+        {/* Desktop nav — plain <a> tags (hash links, no Link prefetch handlers) */}
         <nav suppressHydrationWarning className="ml-2 hidden items-center gap-1 lg:flex">
           {navMounted && NAV_LINKS.map((l) => (
-            <Link
+            <a
               key={l.href}
               href={l.href}
               className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               {l.label}
-            </Link>
+            </a>
           ))}
         </nav>
 
