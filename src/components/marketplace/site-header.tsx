@@ -90,6 +90,7 @@ export function SiteHeader() {
 
   return (
     <header
+      suppressHydrationWarning
       className={cn(
         "sticky top-0 z-50 w-full transition-all duration-300",
         scrolled
@@ -119,7 +120,7 @@ export function SiteHeader() {
         </Link>
 
         {/* Desktop nav */}
-        <nav className="ml-2 hidden items-center gap-1 lg:flex">
+        <nav suppressHydrationWarning className="ml-2 hidden items-center gap-1 lg:flex">
           {NAV_LINKS.map((l) => (
             <Link
               key={l.href}
