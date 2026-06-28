@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSubscriptionOrder, isRazorpayConfigured } from "@/lib/razorpay";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { PRICING_BY_COUNTRY, FALLBACK_PRICING } from "@/components/SubscriptionModal";
 
 /**
  * POST /api/payments/create-order
@@ -14,9 +13,18 @@ import { PRICING_BY_COUNTRY, FALLBACK_PRICING } from "@/components/SubscriptionM
  * Body:
  *   { planKey: "pro" | "business", billingCycle: "monthly" | "yearly" }
  */
+
+// ── Plan pricing (INR — always charged in INR for Razorpay) ────────────────
+// Defined inline here (not imported from the client component) to avoid
+// SSR/client import issues on Vercel serverless.
+const PLAN_PRICES: Record<string, { monthly: number; yearly: number; name: string }> = {
+  pro: { monthly: 299, yearly: 239, name: "Vendor Pro" },
+  business: { monthly: 499, yearly: 399, name: "Business" },
+};
+
 export async function POST(req: NextRequest) {
   try {
-    // ── Check Razorpay is configured FIRST (before auth) ────────────────
+    // ── Check Razorpay is configured FIRST ───────────────────────────────
     if (!isRazorpayConfigured()) {
       console.error("[api/payments/create-order] Razorpay not configured — missing env vars");
       return NextResponse.json(
@@ -26,19 +34,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Auth check ──────────────────────────────────────────────────────
-    let session: any = null;
     let user: any = null;
     try {
       const supabase = await createSupabaseServerClient();
-      // Use getUser() — it verifies the JWT server-side (more reliable on
-      // Vercel serverless where cookies may not propagate correctly).
       const userResult = await supabase.auth.getUser();
       user = userResult.data?.user;
       if (!user) {
-        // Fallback to getSession()
         const sessionResult = await supabase.auth.getSession();
-        session = sessionResult.data?.session;
-        user = session?.user;
+        user = sessionResult.data?.session?.user;
       }
     } catch (e) {
       console.error("[api/payments/create-order] Supabase auth error:", (e as Error)?.message?.slice(0, 100));
@@ -54,76 +57,67 @@ export async function POST(req: NextRequest) {
     // ── Parse body ──────────────────────────────────────────────────────
     const body = await req.json();
     const { planKey, billingCycle } = body as {
-      planKey: "pro" | "business";
-      billingCycle: "monthly" | "yearly";
+      planKey: string;
+      billingCycle: string;
     };
 
-    if (!planKey || !["pro", "business"].includes(planKey)) {
+    // ── Validate plan ───────────────────────────────────────────────────
+    if (!planKey || !PLAN_PRICES[planKey]) {
       return NextResponse.json(
-        { error: "Invalid plan. Choose 'pro' or 'business'." },
+        { error: `Invalid plan: '${planKey}'. Choose 'pro' or 'business'.` },
         { status: 400 }
       );
     }
     if (!billingCycle || !["monthly", "yearly"].includes(billingCycle)) {
       return NextResponse.json(
-        { error: "Invalid billing cycle." },
+        { error: `Invalid billing cycle: '${billingCycle}'. Choose 'monthly' or 'yearly'.` },
         { status: 400 }
       );
     }
 
-    // ── Fetch vendor (don't require approved — they might be upgrading
-    //    to get approved faster) ──────────────────────────────────────────
-    let vendor: { id: string; name: string; slug: string; countryCode: string; currency: string } | null = null;
+    // ── Get price (always INR) ──────────────────────────────────────────
+    const amount = PLAN_PRICES[planKey][billingCycle as "monthly" | "yearly"];
+
+    // Validate minimum amount (Razorpay requires >= 100 paise = ₹1)
+    const amountPaise = Math.round(amount * 100);
+    if (amountPaise < 100) {
+      return NextResponse.json(
+        { error: `Amount too small: ${amountPaise} paise (minimum is 100)` },
+        { status: 400 }
+      );
+    }
+
+    // ── Fetch vendor (optional — for metadata) ──────────────────────────
+    let vendorName = user.email?.split("@")[0] || "Vendor";
+    let vendorSlug = "unknown";
     try {
-      vendor = await db.vendor.findFirst({
+      const vendor = await db.vendor.findFirst({
         where: {
           OR: [
             { owner_user_id: user.id },
             { userEmail: user.email ?? "" },
           ],
         },
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          countryCode: true,
-          currency: true,
-        },
+        select: { name: true, slug: true },
       });
+      if (vendor) {
+        vendorName = vendor.name;
+        vendorSlug = vendor.slug;
+      }
     } catch (e) {
-      console.error("[api/payments/create-order] Vendor query failed:", (e as Error)?.message?.slice(0, 150));
+      console.error("[api/payments/create-order] Vendor query failed:", (e as Error)?.message?.slice(0, 100));
     }
-
-    // If vendor not found in DB, use session data as fallback so payment
-    // can still proceed (the vendor record may exist in Supabase but not
-    // Prisma's view, or the DB might be temporarily unavailable).
-    const vendorName = vendor?.name || user.email?.split("@")[0] || "Vendor";
-    const vendorSlug = vendor?.slug || "unknown";
-    const countryCode = vendor?.countryCode || "IN";
-
-    if (!vendor) {
-      console.log("[api/payments/create-order] Vendor not found in DB — proceeding with session data. User:", user.email);
-    }
-
-    // ── Determine price ─────────────────────────────────────────────────
-    const pricing = PRICING_BY_COUNTRY[countryCode] ?? FALLBACK_PRICING;
-    const amount = pricing[planKey][billingCycle];
-
-    // ALWAYS use INR for Razorpay — test mode only supports INR, and live
-    // mode supports INR globally. Pricing display shows local currency,
-    // but the actual charge is in INR (Razorpay handles FX conversion).
-    const currency = "INR";
 
     console.log("[api/payments/create-order] Creating order:", {
-      planKey, billingCycle, amount, currency, vendorSlug, vendorName
+      planKey, billingCycle, amount, amountPaise, vendorSlug, vendorName
     });
 
     // ── Create Razorpay order ───────────────────────────────────────────
     const order = await createSubscriptionOrder({
       amount,
-      currency,
-      planKey,
-      billingCycle,
+      currency: "INR",
+      planKey: planKey as "pro" | "business",
+      billingCycle: billingCycle as "monthly" | "yearly",
       vendorSlug,
       vendorName,
       vendorEmail: user.email,
@@ -152,8 +146,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[api/payments/create-order] POST failed:", err);
+    const errMsg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
-      { error: "Payment initialization failed. Please try again or contact support@findmybites.com." },
+      { error: `Payment initialization failed: ${errMsg}` },
       { status: 500 }
     );
   }
