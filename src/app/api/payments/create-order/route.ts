@@ -91,7 +91,6 @@ export async function POST(req: NextRequest) {
     const vendorName = vendor?.name || session.user.email?.split("@")[0] || "Vendor";
     const vendorSlug = vendor?.slug || "unknown";
     const countryCode = vendor?.countryCode || "IN";
-    const currency = vendor?.currency || "INR";
 
     if (!vendor) {
       console.log("[api/payments/create-order] Vendor not found in DB — proceeding with session data. User:", session.user.email);
@@ -100,6 +99,11 @@ export async function POST(req: NextRequest) {
     // ── Determine price ─────────────────────────────────────────────────
     const pricing = PRICING_BY_COUNTRY[countryCode] ?? FALLBACK_PRICING;
     const amount = pricing[planKey][billingCycle];
+
+    // ALWAYS use INR for Razorpay — test mode only supports INR, and live
+    // mode supports INR globally. Pricing display shows local currency,
+    // but the actual charge is in INR (Razorpay handles FX conversion).
+    const currency = "INR";
 
     console.log("[api/payments/create-order] Creating order:", {
       planKey, billingCycle, amount, currency, vendorSlug, vendorName
