@@ -431,7 +431,8 @@ function TypingIndicator() {
 
 function parseAIResponse(raw: string): ParsedAIResponse {
   const result: ParsedAIResponse = { text: raw };
-  const jsonRegex = /\{[^{}]*"type"\s*:\s*"[^"]*"[^{}]*\}/g;
+  // Match vendor_suggestions JSON blocks (may contain arrays, so allow nested)
+  const jsonRegex = /\{"type"\s*:\s*"vendor_suggestions"[^]*?\}/g;
   const matches = raw.match(jsonRegex);
 
   if (matches) {
@@ -444,14 +445,26 @@ function parseAIResponse(raw: string): ParsedAIResponse {
             city: typeof parsed.city === "string" ? parsed.city : "",
             summary: typeof parsed.summary === "string" ? parsed.summary : "",
           };
-          result.text = result.text.replace(match, parsed.summary || "").trim();
-        } else if (parsed.type === "request_all_quotes") {
-          result.requestAllQuotes = true;
-          result.text = result.text.replace(match, "").trim();
+          // Remove the JSON block but KEEP everything else (including vendor
+          // details the AI formatted after the JSON). If there's no other
+          // text, use the summary.
+          const withoutJson = result.text.replace(match, "").trim();
+          result.text = withoutJson || parsed.summary || "";
         }
       } catch {}
     }
   }
+
+  // Also handle request_all_quotes blocks
+  const quoteRegex = /\{"type"\s*:\s*"request_all_quotes"\s*\}/g;
+  const quoteMatches = raw.match(quoteRegex);
+  if (quoteMatches) {
+    result.requestAllQuotes = true;
+    for (const match of quoteMatches) {
+      result.text = result.text.replace(match, "").trim();
+    }
+  }
+
   result.text = result.text.replace(/\n{3,}/g, "\n\n").trim();
   return result;
 }
