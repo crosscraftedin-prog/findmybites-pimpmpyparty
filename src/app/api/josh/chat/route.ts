@@ -130,9 +130,115 @@ ${checks.join("\n")}
 Description: ${vendor.description?.slice(0, 300) ?? "(empty)"}`;
 }
 
+// ── DB-based fallback (when AI unavailable, still recommend real vendors) ──
+
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  "bakers-bakery": ["cake", "baker", "bakery", "cupcake", "dessert", "chocolate", "pastry", "wedding cake", "birthday cake", "smash cake"],
+  caterers: ["catering", "caterer", "buffet", "food", "meal", "dinner"],
+  "chef-staff": ["chef", "private chef", "bartender", "waiter", "staff"],
+  "food-trucks": ["food truck", "street food", "truck"],
+  "beverage-specialists": ["coffee", "tea", "mocktail", "juice", "bar", "drinks"],
+  "specialty-food": ["halal", "vegan", "gluten", "organic", "keto"],
+  "event-planners": ["planner", "planning", "coordination", "organise"],
+  decorators: ["decor", "decoration", "balloon", "floral", "flowers", "theme"],
+  photographers: ["photo", "photographer", "photography"],
+  videographers: ["video", "videographer", "film", "cinema"],
+  djs: ["dj", "music", "band", "sound"],
+  entertainers: ["entertainment", "magician", "clown", "mascot", "performer"],
+  venues: ["venue", "hall", "place", "location", "space"],
+  florists: ["florist", "flowers", "bouquet", "floral"],
+  "kids-party-services": ["kids", "children", "bouncy", "bounce house", "face paint"],
+  "makeup-artists": ["makeup", "make up", "beauty"],
+};
+
+/** Extract category + city keywords from a user message. */
+function extractIntent(message: string): { categories: string[]; city: string | null } {
+  const lower = message.toLowerCase();
+  const categories: string[] = [];
+  for (const [catId, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.some((k) => lower.includes(k))) {
+      categories.push(catId);
+    }
+  }
+  // Try to extract a city (common ones + any capitalized word)
+  const knownCities = ["dubai", "abu dhabi", "london", "mumbai", "delhi", "hyderabad", "bangalore", "riyadh", "jeddah", "lagos", "nairobi", "cape town", "johannesburg", "tokyo", "singapore", "sydney", "melbourne", "new york", "toronto", "paris", "berlin", "amsterdam"];
+  let city: string | null = null;
+  for (const c of knownCities) {
+    if (lower.includes(c)) {
+      city = c.charAt(0).toUpperCase() + c.slice(1);
+      break;
+    }
+  }
+  return { categories, city };
+}
+
+/**
+ * When AI is unavailable, generate a helpful response by querying the DB
+ * directly for vendors matching the user's message. Still recommends REAL
+ * vendors instead of repeating a generic message.
+ */
+function generateDBFallback(
+  message: string,
+  allVendors: any[],
+  userType: string
+): string {
+  if (userType === "vendor") {
+    return "I'd love to help you improve your listing! 🎉 Here are some quick tips:\n\n• Add professional photos (5+ gallery images)\n• Complete your price guide\n• Write a detailed description\n• Link your WhatsApp + social media\n• Add tags so customers find you\n\nFor detailed help, email hello@findmybites.party";
+  }
+
+  if (allVendors.length === 0) {
+    return FALLBACK_RESPONSE;
+  }
+
+  const { categories, city } = extractIntent(message);
+
+  // Filter vendors by extracted categories + city
+  let matched = allVendors;
+  if (categories.length > 0) {
+    matched = matched.filter((v) =>
+      categories.some((cat) => {
+        const migrated = migrateCategory(v.category);
+        return migrated === cat || v.category === cat;
+      })
+    );
+  }
+  if (city) {
+    const cityLower = city.toLowerCase();
+    matched = matched.filter((v) =>
+      v.city?.toLowerCase().includes(cityLower)
+    );
+  }
+
+  // If no exact matches, use top-rated vendors as general recommendations
+  if (matched.length === 0) {
+    matched = allVendors.slice(0, 3);
+    const intro = city
+      ? `I couldn't find exact matches in ${city}, but here are some of our top-rated vendors:`
+      : "Here are some of our top-rated vendors:";
+    return intro + "\n\n" + formatVendorsForChat(matched) + "\n\nTell me your city and what you need (cake, DJ, photographer, etc.) for more specific recommendations!";
+  }
+
+  const intro = city
+    ? `Here are my top ${matched.length} ${categories.length > 0 ? "matches" : "vendors"} in ${city}:`
+    : `Here are my top ${matched.length} picks for you:`;
+
+  return intro + "\n\n" + formatVendorsForChat(matched.slice(0, 3)) + "\n\nWould you like more options or help contacting any of these vendors?";
+}
+
+function formatVendorsForChat(vendors: any[]): string {
+  return vendors
+    .map((v) => {
+      const catDef = getCategoryMigrated(v.category);
+      const symbol = v.currency === "AED" ? "AED" : v.currency === "INR" ? "₹" : v.currency === "GBP" ? "£" : v.currency === "USD" ? "$" : v.currency + " ";
+      return `🎂 **${v.name}** — ⭐${v.rating} (${v.reviewCount} reviews)\n📍 ${v.city}, ${v.country}\n💰 From ${symbol}${v.basePrice}\n📝 "${v.tagline}"\n🔗 View profile: /vendor/${v.slug}`;
+    })
+    .join("\n\n");
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  console.log("[josh/chat] POST called");
   try {
     const body = (await req.json()) as RequestBody;
     const {
@@ -143,6 +249,8 @@ export async function POST(req: NextRequest) {
       userType = "customer",
       vendorId,
     } = body;
+
+    console.log("[josh/chat] message:", message?.slice(0, 80), "| userId:", userId, "| userType:", userType);
 
     if (!message || !userId) {
       return NextResponse.json(
@@ -169,9 +277,10 @@ export async function POST(req: NextRequest) {
             messages: [],
           },
         });
+        console.log("[josh/chat] Created conversation:", conversation.id);
       }
-    } catch {
-      // DB unavailable (e.g. table not created yet) — continue without persistence
+    } catch (e) {
+      console.log("[josh/chat] Conversation persistence skipped (DB unavailable):", (e as Error)?.message?.slice(0, 100));
     }
 
     // ── 2. Build message history ─────────────────────────────────────────
@@ -184,11 +293,12 @@ export async function POST(req: NextRequest) {
     ];
 
     // ── 3. Fetch real vendor data for context ────────────────────────────
+    console.log("[josh/chat] Fetching vendors from DB...");
     let vendorContext = "";
     let vendorProfileContext = "";
+    let topVendors: any[] = [];
     try {
-      // Top vendors for customer recommendations
-      const topVendors = await db.vendor.findMany({
+      topVendors = await db.vendor.findMany({
         where: { approved: true },
         select: {
           id: true,
@@ -216,6 +326,7 @@ export async function POST(req: NextRequest) {
         orderBy: [{ featured: "desc" }, { rating: "desc" }, { reviewCount: "desc" }],
         take: 50,
       });
+      console.log("[josh/chat] Vendors found:", topVendors.length);
       vendorContext = buildVendorContext(topVendors as VendorContextRow[]);
 
       // If vendor user, fetch their own vendor profile
@@ -227,21 +338,20 @@ export async function POST(req: NextRequest) {
           vendorProfileContext = buildVendorProfileContext(ownVendor);
         }
       }
-    } catch {
-      // DB unavailable — continue without vendor context
+    } catch (e) {
+      console.error("[josh/chat] Vendor query FAILED:", (e as Error)?.message?.slice(0, 200));
     }
 
     // ── 4. Call ZAI (GLM) with full context ──────────────────────────────
     const zai = await getZAI();
+    console.log("[josh/chat] ZAI available:", !!zai);
 
     if (!zai) {
-      // AI unavailable — return graceful fallback
-      const fallbackMsg =
-        userType === "vendor"
-          ? "I'd love to help you improve your listing! 🎉 Try adding more photos, completing your price guide, and linking your social media. For detailed help, email hello@findmybites.party."
-          : FALLBACK_RESPONSE;
+      // AI unavailable — do a DIRECT DB vendor search so Josh still recommends
+      // real vendors instead of repeating a generic fallback message.
+      console.log("[josh/chat] AI unavailable — generating DB-based fallback with vendor suggestions");
+      const fallbackMsg = generateDBFallback(message, topVendors, userType);
 
-      // Save fallback to conversation
       await saveConversation(conversation, [
         ...newMessages,
         { role: "assistant", content: fallbackMsg, timestamp: new Date().toISOString() },
@@ -256,6 +366,7 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt =
       JOSH_SYSTEM_PROMPT + vendorContext + vendorProfileContext;
+    console.log("[josh/chat] System prompt length:", systemPrompt.length, "| vendor context length:", vendorContext.length);
 
     const completion = await zai.chat.completions.create({
       messages: [
@@ -270,6 +381,7 @@ export async function POST(req: NextRequest) {
 
     const assistantMessage: string =
       completion.choices[0]?.message?.content || FALLBACK_RESPONSE;
+    console.log("[josh/chat] AI response:", assistantMessage.slice(0, 120));
 
     // ── 5. Save conversation to DB ───────────────────────────────────────
     const savedMessages: ChatMessage[] = [
