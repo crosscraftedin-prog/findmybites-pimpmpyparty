@@ -17,6 +17,7 @@ import { CATEGORIES, CONTINENTS, PRICE_RANGES, SORT_OPTIONS } from "@/lib/consta
 import { getPlaceholderVendors } from "@/lib/placeholder-vendors";
 import { CategoryIcon } from "./icon";
 import { VendorCard } from "./vendor-card";
+import { FilterSidebar } from "./filter-sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -83,6 +84,15 @@ export function BrowseSection() {
     ? getPlaceholderVendors(ecosystem)
     : vendors;
   const totalDisplay = isUsingPlaceholders ? displayVendors.length : total;
+
+  // ── Dynamic filter sidebar state ──────────────────────────────────────
+  const [filteredVendors, setFilteredVendors] = React.useState<any[]>([]);
+  const [filtersActive, setFiltersActive] = React.useState(false);
+  const [filterSidebarLoading, setFilterSidebarLoading] = React.useState(false);
+
+  // When filteredVendors exist, show them instead of default vendors
+  const finalVendors = filtersActive ? filteredVendors : displayVendors;
+  const finalTotal = filtersActive ? filteredVendors.length : totalDisplay;
 
   const ratingOptions = [
     { value: 4.5, label: "4.5 & up" },
@@ -238,6 +248,20 @@ export function BrowseSection() {
           Clear all filters ({activeFilterCount})
         </Button>
       )}
+
+      {/* Dynamic category-specific filters */}
+      {selectedCategory && (
+        <div className="border-t border-border pt-4">
+          <FilterSidebar
+            category={selectedCategory}
+            onResults={(results) => {
+              setFilteredVendors(results);
+              setFiltersActive(results.length > 0);
+            }}
+            onLoadingChange={setFilterSidebarLoading}
+          />
+        </div>
+      )}
     </div>
   );
 
@@ -367,8 +391,8 @@ export function BrowseSection() {
                   </span>
                 ) : (
                   <>
-                    <span className="font-semibold text-foreground">{totalDisplay}</span>{" "}
-                    {totalDisplay === 1 ? "vendor" : "vendors"} found
+                    <span className="font-semibold text-foreground">{finalTotal}</span>{" "}
+                    {finalTotal === 1 ? "vendor" : "vendors"} found
                     {isUsingPlaceholders && (
                       <span className="ml-2 text-xs text-muted-foreground">
                         · showing sample vendors
@@ -396,7 +420,7 @@ export function BrowseSection() {
                   </div>
                 ))}
               </div>
-            ) : displayVendors.length === 0 ? (
+            ) : finalVendors.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card py-20 text-center">
                 <div className="grid size-16 place-items-center rounded-full bg-muted">
                   <SearchX className="size-7 text-muted-foreground" />
@@ -414,7 +438,7 @@ export function BrowseSection() {
             ) : (
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 <AnimatePresence mode="popLayout">
-                  {displayVendors.map((v, i) => (
+                  {finalVendors.map((v, i) => (
                     <VendorCard key={v.id} vendor={v} index={i} />
                   ))}
                 </AnimatePresence>
