@@ -1,9 +1,9 @@
 // FindMyBites × PimpMyParty Service Worker
-// Basic cache-first strategy for static assets, network-first for pages
+// Network-first for JS/CSS (so new deploys take effect immediately)
+// Cache-first for images/fonts only
 
-const CACHE_NAME = "findmybites-v1";
+const CACHE_NAME = "findmybites-v3";
 const STATIC_ASSETS = [
-  "/",
   "/favicon.svg",
   "/favicon-96x96.png",
   "/apple-touch-icon.png",
@@ -14,7 +14,7 @@ const STATIC_ASSETS = [
   "/hero-pimpmpyparty.png",
 ];
 
-// Install — cache static assets
+// Install — cache static assets (NOT JS/CSS — those use network-first)
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
@@ -22,7 +22,7 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
-// Activate — clean up old caches
+// Activate — clean up ALL old caches (force fresh start)
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -34,7 +34,11 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Fetch — network-first for pages, cache-first for assets
+// Fetch strategy:
+// - JS/CSS: network-first (so new deploys take effect immediately)
+// - Images/fonts: cache-first (safe to cache, don't change between deploys)
+// - Pages: network-first with offline fallback
+// - API: always network (never cache)
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
@@ -44,10 +48,22 @@ self.addEventListener("fetch", (event) => {
   // Skip API requests
   if (request.url.includes("/api/")) return;
 
-  // Cache-first for static assets
-  if (
-    request.url.match(/\.(png|jpg|jpeg|svg|webp|ico|css|js|woff2?)$/i)
-  ) {
+  // JS and CSS: network-first (CRITICAL — prevents stale code from old deploys)
+  if (request.url.match(/\.(js|css)$/i) || request.url.includes("/_next/static/chunks/")) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || new Response("", { status: 503 })))
+    );
+    return;
+  }
+
+  // Images and fonts: cache-first (safe — they don't change between deploys)
+  if (request.url.match(/\.(png|jpg|jpeg|svg|webp|ico|woff2?)$/i)) {
     event.respondWith(
       caches.match(request).then(
         (cached) =>
@@ -62,7 +78,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network-first for pages (with offline fallback)
+  // Pages: network-first with offline fallback
   event.respondWith(
     fetch(request)
       .then((response) => {
