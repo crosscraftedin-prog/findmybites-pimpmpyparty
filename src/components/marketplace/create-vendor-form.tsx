@@ -38,6 +38,7 @@ import {
   RESPONSE_TIME_OPTIONS,
   categoriesFor,
   subcategoriesFor,
+  migrateCategory,
 } from "@/lib/constants";
 import { countryCodeToFlag } from "@/lib/format";
 import { ImageUpload } from "./image-upload";
@@ -555,7 +556,7 @@ export function CreateVendorForm({
 
       {/* Dynamic category-specific filters (edit mode only — needs vendor ID) */}
       {isEditing && editingVendor && form.category && (
-        <DynamicFilters vendorId={editingVendor.id} category={form.category} />
+        <DynamicFilters vendorId={editingVendor.id} category={migrateCategory(form.category)} />
       )}
 
       {/* Branding uploads — banner + logo */}
