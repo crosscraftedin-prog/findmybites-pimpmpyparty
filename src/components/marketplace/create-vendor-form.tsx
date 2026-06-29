@@ -221,25 +221,42 @@ export function CreateVendorForm({
         const res = await fetch(`/api/categories/subcategories?category=${encodeURIComponent(form.category)}&t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
-          setApiSubcategories(data);
+          // If the API returns subcategories with {id, label} format,
+          // normalize to {id, name} for the dropdown
+          const normalized = data.map((s: any) => ({
+            id: s.id || s.slug || s.name,
+            name: s.name || s.label || s.slug,
+          }));
+          setApiSubcategories(normalized);
+
           // Check if current subcategory is custom (not in list)
           if (form.subcategory) {
-            const isCustom = !data.find((s: any) => s.name.toLowerCase() === form.subcategory.toLowerCase());
+            const isCustom = !normalized.find((s: any) => s.name.toLowerCase() === form.subcategory.toLowerCase());
             if (isCustom) {
               setShowCustomSubcat(true);
               setCustomSubcat(form.subcategory);
             }
           }
+        } else {
+          // API failed — fall back to hardcoded subcategories
+          setApiSubcategories([]);
         }
-      } catch {}
+      } catch {
+        setApiSubcategories([]);
+      }
     };
     fetchSubs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.category]);
 
-  // Reset custom state when category changes
+  // Reset custom state ONLY when category actually changes (not on initial mount)
+  const prevCategoryRef = React.useRef(form.category);
   React.useEffect(() => {
-    setShowCustomSubcat(false);
-    setCustomSubcat("");
+    if (prevCategoryRef.current !== form.category) {
+      prevCategoryRef.current = form.category;
+      setShowCustomSubcat(false);
+      setCustomSubcat("");
+    }
   }, [form.category]);
 
   // Use DB categories if available, otherwise fall back to hardcoded
@@ -505,6 +522,14 @@ export function CreateVendorForm({
                 />
               </SelectTrigger>
               <SelectContent>
+                {/* If the saved subcategory isn't in the list, show it as the first option */}
+                {form.subcategory &&
+                  !apiSubcategories.some((s) => s.name === form.subcategory) &&
+                  !subcategoriesFor(form.category).includes(form.subcategory) && (
+                    <SelectItem key="__saved" value={form.subcategory}>
+                      {form.subcategory} ✓
+                    </SelectItem>
+                  )}
                 {apiSubcategories.length > 0 ? (
                   apiSubcategories.map((s) => (
                     <SelectItem key={s.id} value={s.name}>
