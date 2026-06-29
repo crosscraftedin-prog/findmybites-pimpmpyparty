@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "application/json", "Authorization": authHeader },
       body: JSON.stringify({
         amount, currency: "INR",
-        receipt: `vendor-${actualVendorId}-${Date.now()}`,
+        receipt: `V${Date.now().toString().slice(-8)}`,
         notes: { vendorId: actualVendorId, planName, userEmail: actualEmail, platform: "FindMyBites" },
       }),
     });
