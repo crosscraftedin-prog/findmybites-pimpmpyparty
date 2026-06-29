@@ -59,7 +59,21 @@ export function BrowseSection() {
   const { data, isLoading, isFetching } = useVendors();
   const { data: catData } = useCategories(ecosystem);
 
-  const cats = CATEGORIES.filter((c) => c.ecosystem === ecosystem);
+  // Use DB categories if available, otherwise fall back to hardcoded
+  const cats = React.useMemo(() => {
+    if (catData?.categories && catData.categories.length > 0) {
+      return catData.categories.map((c: any) => ({
+        id: c.id,
+        label: c.label,
+        ecosystem,
+        icon: c.icon || "UtensilsCrossed",
+        image: c.image || "",
+        accent: c.accent || "from-amber-400 to-orange-500",
+        description: c.description || "",
+      }));
+    }
+    return CATEGORIES.filter((c) => c.ecosystem === ecosystem);
+  }, [catData, ecosystem]);
   const catCountMap = React.useMemo(() => {
     const m = new Map<string, number>();
     catData?.categories.forEach((c) => m.set(c.id, c.count));
