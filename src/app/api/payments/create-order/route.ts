@@ -1,155 +1,85 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSubscriptionOrder, isRazorpayConfigured } from "@/lib/razorpay";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 
 /**
  * POST /api/payments/create-order
- *
- * Creates a Razorpay order for a subscription upgrade. Requires the vendor
- * to be authenticated. Returns the order ID which the client uses to open
- * the Razorpay checkout modal.
- *
- * Body:
- *   { planKey: "pro" | "business", billingCycle: "monthly" | "yearly" }
+ * Creates a Razorpay order using plain fetch (no SDK import issues).
+ * Body: { planName: "vendor-pro" | "business", vendorId?, userEmail? }
  */
-
-// ── Plan pricing (INR — always charged in INR for Razorpay) ────────────────
-// Defined inline here (not imported from the client component) to avoid
-// SSR/client import issues on Vercel serverless.
-const PLAN_PRICES: Record<string, { monthly: number; yearly: number; name: string }> = {
-  pro: { monthly: 299, yearly: 239, name: "Vendor Pro" },
-  business: { monthly: 499, yearly: 399, name: "Business" },
+const PLANS: Record<string, { amount: number; name: string }> = {
+  "vendor-pro": { amount: 99900, name: "Vendor Pro" },   // ₹999
+  "business": { amount: 299900, name: "Business" },      // ₹2999
 };
 
 export async function POST(req: NextRequest) {
   try {
-    // ── Check Razorpay is configured FIRST ───────────────────────────────
-    if (!isRazorpayConfigured()) {
-      console.error("[api/payments/create-order] Razorpay not configured — missing env vars");
-      return NextResponse.json(
-        { error: "Payments are not configured yet. Please contact support@findmybites.com to upgrade your plan." },
-        { status: 503 }
-      );
-    }
-
-    // ── Auth check ──────────────────────────────────────────────────────
-    let user: any = null;
-    try {
-      const supabase = await createSupabaseServerClient();
-      const userResult = await supabase.auth.getUser();
-      user = userResult.data?.user;
-      if (!user) {
-        const sessionResult = await supabase.auth.getSession();
-        user = sessionResult.data?.session?.user;
-      }
-    } catch (e) {
-      console.error("[api/payments/create-order] Supabase auth error:", (e as Error)?.message?.slice(0, 100));
-    }
-
-    if (!user?.id) {
-      return NextResponse.json(
-        { error: "Please sign in to upgrade your plan." },
-        { status: 401 }
-      );
-    }
-
-    // ── Parse body ──────────────────────────────────────────────────────
     const body = await req.json();
-    const { planKey, billingCycle } = body as {
-      planKey: string;
-      billingCycle: string;
+    const { planName, vendorId, userEmail } = body as {
+      planName: string; vendorId?: string; userEmail?: string;
     };
 
-    // ── Validate plan ───────────────────────────────────────────────────
-    if (!planKey || !PLAN_PRICES[planKey]) {
-      return NextResponse.json(
-        { error: `Invalid plan: '${planKey}'. Choose 'pro' or 'business'.` },
-        { status: 400 }
-      );
-    }
-    if (!billingCycle || !["monthly", "yearly"].includes(billingCycle)) {
-      return NextResponse.json(
-        { error: `Invalid billing cycle: '${billingCycle}'. Choose 'monthly' or 'yearly'.` },
-        { status: 400 }
-      );
+    if (!planName || !PLANS[planName]) {
+      return NextResponse.json({ error: `Invalid plan: '${planName}'. Choose 'vendor-pro' or 'business'.` }, { status: 400 });
     }
 
-    // ── Get price (always INR) ──────────────────────────────────────────
-    const amount = PLAN_PRICES[planKey][billingCycle as "monthly" | "yearly"];
+    const amount = PLANS[planName].amount;
+    if (amount < 100) return NextResponse.json({ error: "Amount too small" }, { status: 400 });
 
-    // Validate minimum amount (Razorpay requires >= 100 paise = ₹1)
-    const amountPaise = Math.round(amount * 100);
-    if (amountPaise < 100) {
-      return NextResponse.json(
-        { error: `Amount too small: ${amountPaise} paise (minimum is 100)` },
-        { status: 400 }
-      );
-    }
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!keyId || !keySecret) return NextResponse.json({ error: "Razorpay not configured" }, { status: 503 });
 
-    // ── Fetch vendor (optional — for metadata) ──────────────────────────
-    let vendorName = user.email?.split("@")[0] || "Vendor";
-    let vendorSlug = "unknown";
+    // Get vendor info from auth (optional — falls back to body params)
+    let vendorName = "Vendor";
+    let actualVendorId = vendorId || "unknown";
+    let actualEmail = userEmail || "";
     try {
-      const vendor = await db.vendor.findFirst({
-        where: {
-          OR: [
-            { owner_user_id: user.id },
-            { userEmail: user.email ?? "" },
-          ],
-        },
-        select: { name: true, slug: true },
-      });
-      if (vendor) {
-        vendorName = vendor.name;
-        vendorSlug = vendor.slug;
+      const supabase = await createSupabaseServerClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        actualEmail = actualEmail || user.email || "";
+        const vendor = await db.vendor.findFirst({
+          where: { OR: [{ owner_user_id: user.id }, { userEmail: user.email ?? "" }] },
+          select: { id: true, name: true, slug: true },
+        }).catch(() => null);
+        if (vendor) { vendorName = vendor.name; actualVendorId = vendor.id; }
       }
-    } catch (e) {
-      console.error("[api/payments/create-order] Vendor query failed:", (e as Error)?.message?.slice(0, 100));
+    } catch (e) { /* auth failed — proceed with body params */ }
+
+    if (!actualVendorId || actualVendorId === "unknown") {
+      return NextResponse.json({ error: "Vendor ID required. Sign in or provide vendorId." }, { status: 400 });
     }
 
-    console.log("[api/payments/create-order] Creating order:", {
-      planKey, billingCycle, amount, amountPaise, vendorSlug, vendorName
+    console.log("[create-order] Creating order:", { planName, amount, vendorId: actualVendorId });
+
+    const authHeader = "Basic " + Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+    const response = await fetch("https://api.razorpay.com/v1/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": authHeader },
+      body: JSON.stringify({
+        amount, currency: "INR",
+        receipt: `vendor-${actualVendorId}-${Date.now()}`,
+        notes: { vendorId: actualVendorId, planName, userEmail: actualEmail, platform: "FindMyBites" },
+      }),
     });
 
-    // ── Create Razorpay order ───────────────────────────────────────────
-    const order = await createSubscriptionOrder({
-      amount,
-      currency: "INR",
-      planKey: planKey as "pro" | "business",
-      billingCycle: billingCycle as "monthly" | "yearly",
-      vendorSlug,
-      vendorName,
-      vendorEmail: user.email,
-    });
-
-    if (!order || !order.orderId) {
-      const errMsg = order?.error || "Could not create payment order.";
-      console.error("[api/payments/create-order] Order creation failed:", errMsg);
-      return NextResponse.json(
-        { error: errMsg },
-        { status: 500 }
-      );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      console.error("[create-order] Razorpay API error:", response.status, error);
+      return NextResponse.json({ error: error?.error?.description || `Razorpay error: ${response.status}` }, { status: response.status });
     }
 
-    console.log("[api/payments/create-order] Order created:", order.orderId);
+    const order = await response.json();
+    console.log("[create-order] Order created:", order.id);
 
     return NextResponse.json({
-      orderId: order.orderId,
-      amount: order.amount,
-      currency: order.currency,
-      planKey,
-      billingCycle,
-      vendorName,
-      vendorEmail: user.email,
-      keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      orderId: order.id, amount: order.amount, currency: order.currency,
+      keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || keyId,
+      planName, vendorName,
     });
-  } catch (err) {
-    console.error("[api/payments/create-order] POST failed:", err);
-    const errMsg = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: `Payment initialization failed: ${errMsg}` },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error("[create-order] Error:", error.message);
+    return NextResponse.json({ error: `Internal server error: ${error.message}` }, { status: 500 });
   }
 }

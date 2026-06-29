@@ -24,6 +24,9 @@ interface SubscriptionModalProps {
   vendorCountry: string; // ISO 3166-1 alpha-2 e.g. 'IN', 'US', 'GB'
   vendorBrand: "food" | "party";
   currentPlan: "free" | "pro" | "business";
+  vendorId?: string;
+  vendorEmail?: string;
+  vendorName?: string;
   onSelectPlan: (
     plan: "free" | "pro" | "business",
     billing: "monthly" | "yearly"
@@ -337,6 +340,9 @@ export function SubscriptionModal({
   vendorCountry,
   vendorBrand,
   currentPlan,
+  vendorId,
+  vendorEmail,
+  vendorName,
   onSelectPlan,
 }: SubscriptionModalProps) {
   const [billing, setBilling] = React.useState<BillingCycle>("monthly");
@@ -392,77 +398,71 @@ export function SubscriptionModal({
 
   // ── Handle plan selection with Razorpay payment ─────────────────────────
   const handlePlanSelect = async (planKey: PlanKey, billingCycle: BillingCycle) => {
-    // Free plan — no payment needed
     if (planKey === "free") {
       onSelectPlan(planKey, billingCycle);
       return;
     }
+
+    // Map planKey to Razorpay planName
+    const planName = planKey === "pro" ? "vendor-pro" : "business";
 
     setPaying(true);
     setPaymentError(null);
     setPaymentSuccess(null);
 
     try {
-      // 1. Load Razorpay checkout script
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
-        setPaymentError("Could not load payment gateway. Please check your internet and try again.");
+        setPaymentError("Could not load payment gateway. Check your internet and try again.");
         setPaying(false);
         return;
       }
 
-      // 2. Create order on server
+      // Create order — pass vendorId + userEmail from props
       const orderRes = await fetch("/api/payments/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planKey, billingCycle }),
+        body: JSON.stringify({
+          planName,
+          vendorId: vendorId || undefined,
+          userEmail: vendorEmail || undefined,
+        }),
       });
       const orderData = await orderRes.json();
 
       if (!orderRes.ok) {
-        setPaymentError(orderData.error || "Failed to create payment order.");
+        setPaymentError(orderData.error || "Failed to create order.");
         setPaying(false);
         return;
       }
 
-      // 3. Open Razorpay checkout
       const rzp = new (window as any).Razorpay({
         key: orderData.keyId,
         amount: orderData.amount,
         currency: orderData.currency,
         name: "FindMyBites × PimpMyParty",
-        description: `${planKey === "pro" ? "Vendor Pro" : "Business"} — ${billingCycle === "monthly" ? "Monthly" : "Yearly"}`,
+        description: `Upgrade to ${planName === "vendor-pro" ? "Vendor Pro" : "Business"}`,
         order_id: orderData.orderId,
-        prefill: {
-          name: orderData.vendorName || "",
-          email: orderData.vendorEmail || "",
-        },
-        theme: {
-          color: brand.color,
-        },
+        prefill: { name: vendorName || orderData.vendorName || "", email: vendorEmail || "" },
+        theme: { color: brand.color },
         handler: async (response: any) => {
-          // 4. Verify payment on server
           try {
-            const verifyRes = await fetch("/api/payments/verify", {
+            const verifyRes = await fetch("/api/payments/verify-payment", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                planKey,
-                billingCycle,
+                vendorId: vendorId || orderData.vendorId,
+                planName,
               }),
             });
             const verifyData = await verifyRes.json();
-
             if (verifyRes.ok && verifyData.success) {
               setPaymentSuccess(verifyData.message);
               setPaying(false);
-              // Notify parent after a short delay so the success message is visible
-              setTimeout(() => {
-                onSelectPlan(planKey, billingCycle);
-              }, 2000);
+              setTimeout(() => { onSelectPlan(planKey, billingCycle); }, 2000);
             } else {
               setPaymentError(verifyData.error || "Payment verification failed.");
               setPaying(false);
@@ -472,16 +472,17 @@ export function SubscriptionModal({
             setPaying(false);
           }
         },
-        modal: {
-          ondismiss: () => {
-            setPaying(false);
-          },
-        },
+        modal: { ondismiss: () => { setPaying(false); } },
+      });
+
+      rzp.on("payment.failed", (response: any) => {
+        setPaymentError("❌ Payment failed: " + (response.error?.description || "Unknown error"));
+        setPaying(false);
       });
 
       rzp.open();
-    } catch {
-      setPaymentError("Something went wrong. Please try again.");
+    } catch (error: any) {
+      setPaymentError("Error: " + error.message);
       setPaying(false);
     }
   };

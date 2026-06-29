@@ -216,6 +216,9 @@ export function PlanBilling({ vendor }: { vendor: Vendor }) {
         vendorCountry={vendor.countryCode || "US"}
         vendorBrand={vendorBrand}
         currentPlan={currentPlan}
+        vendorId={vendor.id}
+        vendorEmail={vendor.userEmail || undefined}
+        vendorName={vendor.name}
         onSelectPlan={() => setShowUpgrade(false)}
       />
     </div>
