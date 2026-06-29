@@ -88,6 +88,17 @@ export function VendorProfileClient({ vendor }: Props) {
   }, [similarData, vendor.id, vendor.category]);
 
   const cat = getCategoryMigrated(vendor.category);
+  // Fallback: if the category doesn't match any known category ID,
+  // create a synthetic category def so the badge still shows.
+  const catDisplay = cat ?? {
+    id: vendor.category,
+    ecosystem: vendor.ecosystem,
+    label: vendor.category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+    description: "",
+    icon: "UtensilsCrossed",
+    image: "",
+    accent: "from-amber-400 to-orange-500",
+  };
   const isFoodVendor = vendor.ecosystem === "FINDMYBITES";
   const gallery = vendor.gallery.length > 0 ? vendor.gallery : [vendor.heroImage].filter(Boolean);
 
@@ -145,9 +156,9 @@ export function VendorProfileClient({ vendor }: Props) {
               <VendorImage
                 src={vendor.heroImage}
                 alt={vendor.name}
-                accent={cat?.accent ?? "from-amber-400 to-orange-500"}
+                accent={catDisplay.accent}
                 className="h-full w-full"
-                categoryIcon={<CategoryIcon name={cat?.icon ?? "UtensilsCrossed"} className="size-20" />}
+                categoryIcon={<CategoryIcon name={catDisplay.icon} className="size-20" />}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
@@ -180,7 +191,7 @@ export function VendorProfileClient({ vendor }: Props) {
                     <VendorImage
                       src={vendor.avatarImage}
                       alt={`${vendor.name} logo`}
-                      accent={cat?.accent ?? "from-amber-400 to-orange-500"}
+                      accent={catDisplay.accent}
                       className="h-full w-full"
                     />
                   </div>
@@ -204,10 +215,10 @@ export function VendorProfileClient({ vendor }: Props) {
                       )}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
-                      {cat && (
+                      {catDisplay && (
                         <Badge variant="secondary" className="border-0 bg-white/20 text-white backdrop-blur">
-                          <CategoryIcon name={cat.icon} className="size-3" />
-                          {cat.label}
+                          <CategoryIcon name={catDisplay.icon} className="size-3" />
+                          {catDisplay.label}
                         </Badge>
                       )}
                       {vendor.subcategory && (
@@ -532,7 +543,7 @@ export function VendorProfileClient({ vendor }: Props) {
                 You might also like
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Other {cat?.label ?? "vendors"} you may be interested in.
+                Other {catDisplay.label} you may be interested in.
               </p>
               <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {similarVendors.map((v, i) => (
