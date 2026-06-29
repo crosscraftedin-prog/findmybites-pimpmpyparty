@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
       bundleDescription, bundleDiscount, isFlashDeal, flashDealEndsAt,
       minOrderForOffer, exclusiveMemberOffer,
       isAvailable, isFeatured, images, productType,
+      extraFields,
     } = body;
 
     if (!name?.trim() || price === undefined) {
@@ -172,6 +173,7 @@ export async function POST(req: NextRequest) {
         discountPercent: comparePrice && Number(comparePrice) > Number(price)
           ? Math.round(((Number(comparePrice) - Number(price)) / Number(comparePrice)) * 100)
           : null,
+        extraFields: extraFields ? (typeof extraFields === "string" ? extraFields : JSON.stringify(extraFields)) : null,
       },
     });
 

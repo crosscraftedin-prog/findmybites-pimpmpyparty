@@ -404,3 +404,101 @@ model VendorFilterValue {
   @@index([vendorId])
   @@map("vendor_filter_values")
 }
+
+// ── Template Engine ───────────────────────────────────────────────────────
+// Database-driven, admin-managed listing templates.
+// Architecture: Business Type → Category → Subcategory → Template → Dynamic Fields
+//
+// A Template is a reusable collection of fields. Templates are assigned to
+// categories/subcategories via TemplateMapping. When a vendor opens their
+// product form, the system resolves which template to use based on their
+// category + subcategory, then renders fields dynamically.
+//
+// Field options can come from the Universal Filter Engine (filterGroupName)
+// or from static options (staticOptions JSON). This means when an admin
+// updates a filter value, every template using that filter auto-updates.
+
+model ListingTemplate {
+  id          String   @id @default(cuid())
+  slug        String   @unique // e.g. "cake-bakery", "decoration", "photography"
+  name        String   // display name e.g. "Cake & Bakery Template"
+  description String   @default("")
+  ecosystem   String   @default("BOTH") // "FINDMYBITES" | "PIMPMYPARTY" | "BOTH"
+  icon        String?  // lucide icon name
+  active      Boolean  @default(true)
+  // Sections JSON: [{ name, icon, defaultOpen, sortOrder }]
+  sections    String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  fields      TemplateField[]
+  mappings    TemplateMapping[]
+
+  @@map("listing_templates")
+}
+
+model TemplateField {
+  id          String   @id @default(cuid())
+  templateId  String
+  template    ListingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  // The form-state key (e.g. "cakeShape", "price", "productType")
+  key         String
+  label       String
+  // Field type controls which input component is rendered
+  // text | number | textarea | select | chips | chips_single | toggle |
+  // toggle_group | images | section_toggle
+  type        String   @default("text")
+  // Which section this field belongs to (matches a section name in template.sections)
+  section     String   @default("Basic Information")
+  sortOrder   Int      @default(0)
+  required    Boolean  @default(false)
+  enabled     Boolean  @default(true)
+  placeholder String?
+  helpText    String?
+  // Suffix label e.g. "(kg)", "(g)", "(portions)"
+  unit        String?
+  // Grid column span: 1 = half width, 2 = full width (default 1)
+  span        Int      @default(1)
+  // For select/chips/chips_single: load options from this FilterGroup name
+  // (Universal Filter Engine). When set, staticOptions is ignored.
+  filterGroupName String?
+  // For select/chips/chips_single/toggle_group: static options as JSON array
+  // Used as fallback when filterGroupName is not set or filter group is empty
+  staticOptions String?  // JSON: ["Option1", "Option2"]
+  // Condition: show this field only when another field's value matches
+  // JSON: { "field": "productType", "values": ["Cakes", ""] }
+  condition   String?
+  // For section_toggle: keys of sub-fields revealed when toggle is on
+  // JSON: ["nameOnCakeText", "nameOnCakeMaxChars"]
+  subFields   String?
+  // For toggle_group: the option labels (default ["Yes", "No"])
+  toggleOptions String?
+  // For images: max number of photos
+  maxImages   Int?
+  // Number input constraints
+  minValue    Int?
+  maxValue    Int?
+  step        Float?
+  createdAt   DateTime @default(now())
+
+  @@index([templateId])
+  @@index([section])
+  @@map("template_fields")
+}
+
+// Maps a category (and optionally subcategory) to a template.
+// Admins can change which template a category uses without touching code.
+// Resolution order: subcategory match → category match → ecosystem default.
+model TemplateMapping {
+  id            String   @id @default(cuid())
+  categoryId    String   // matches Vendor.category slug (e.g. "bakers-bakery")
+  subcategory   String?  // optional: matches Vendor.subcategory (e.g. "Wedding Cakes")
+  templateId    String
+  template      ListingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+
+  @@unique([categoryId, subcategory])
+  @@index([categoryId])
+  @@index([templateId])
+  @@map("template_mappings")
+}

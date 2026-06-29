@@ -42,6 +42,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (body.description !== undefined) data.description = body.description?.trim() || null;
     if (body.price !== undefined) data.price = Number(body.price) || 0;
     if (body.packageType !== undefined) data.packageType = body.packageType;
+    if (body.productType !== undefined) data.productType = body.productType || null;
     if (body.comparePrice !== undefined) data.comparePrice = body.comparePrice ? Number(body.comparePrice) : null;
     if (body.currency !== undefined) data.currency = body.currency;
     if (body.duration !== undefined) data.duration = body.duration || null;
@@ -81,6 +82,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (body.minOrderForOffer !== undefined) data.minOrderForOffer = body.minOrderForOffer ? Number(body.minOrderForOffer) : null;
     if (body.exclusiveMemberOffer !== undefined) data.exclusiveMemberOffer = body.exclusiveMemberOffer;
     if (body.discountPercent !== undefined) data.discountPercent = body.discountPercent ? Number(body.discountPercent) : null;
+    // Template Engine: persist extra fields JSON
+    if (body.extraFields !== undefined) {
+      data.extraFields = body.extraFields
+        ? (typeof body.extraFields === "string" ? body.extraFields : JSON.stringify(body.extraFields))
+        : null;
+    }
 
     const updated = await db.product.update({ where: { id }, data });
     return NextResponse.json({ product: updated });

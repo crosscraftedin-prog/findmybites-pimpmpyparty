@@ -21,6 +21,7 @@ import {
   Loader2,
   Globe2,
   Filter,
+  LayoutTemplate,
 } from "lucide-react";
 import {
   BarChart,
@@ -37,6 +38,7 @@ import { AdminErrorBoundary } from "@/components/admin/admin-error-boundary";
 import { AdminSeoPages } from "@/components/admin/admin-seo-pages";
 import { AdminPricing } from "@/components/admin/admin-pricing";
 import { AdminFilters } from "@/components/admin/admin-filters";
+import { AdminTemplates } from "@/components/admin/admin-templates";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
 const CORAL = "#D85A30";
@@ -156,6 +158,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: "seo-pages", label: "SEO pages", icon: Globe2 },
       { id: "pricing", label: "Pricing", icon: Tag },
       { id: "filters", label: "Filters", icon: Filter },
+      { id: "templates", label: "Templates", icon: LayoutTemplate },
       { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
       { id: "messages", label: "Messages", icon: Mail },
       { id: "settings", label: "Settings", icon: Settings },
@@ -888,6 +891,8 @@ export function AdminPanelPage({
             <AdminPricing />
           ) : activeNav === "filters" ? (
             <AdminFilters />
+          ) : activeNav === "templates" ? (
+            <AdminTemplates />
           ) : (
           <>
           {/* ── KPI row ──────────────────────────────────────────────── */}
