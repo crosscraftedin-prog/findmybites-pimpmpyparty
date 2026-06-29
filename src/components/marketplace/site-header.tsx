@@ -64,12 +64,6 @@ export function SiteHeader() {
   const isApprovedVendor = hasVendor && vendorApproved;
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
-  // Render nav links only after mount to avoid hydration mismatches caused
-  // by browser extensions (Grammarly, Honey, etc.) that inject <a> elements
-  // into the <nav> before React hydrates. Server renders empty nav; client
-  // populates it after mount — no mismatch possible.
-  const [navMounted, setNavMounted] = React.useState(false);
-  React.useEffect(() => setNavMounted(true), []);
 
   // gate an action behind auth: if signed in, run it; otherwise store the
   // intent (as a string in localStorage so it survives the Google OAuth
@@ -126,8 +120,8 @@ export function SiteHeader() {
         </a>
 
         {/* Desktop nav — plain <a> tags (hash links, no Link prefetch handlers) */}
-        <nav suppressHydrationWarning className="ml-2 hidden items-center gap-1 lg:flex">
-          {navMounted && NAV_LINKS.map((l) => (
+        <nav className="ml-2 hidden items-center gap-1 lg:flex">
+          {NAV_LINKS.map((l) => (
             <a
               key={l.href}
               href={l.href}
