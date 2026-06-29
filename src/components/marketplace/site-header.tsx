@@ -47,7 +47,6 @@ export function SiteHeader() {
   const search = useMarketplace((s) => s.search);
   const openListVendor = useMarketplace((s) => s.openListVendor);
   const openAdmin = useMarketplace((s) => s.openAdmin);
-  const openVendorDashboard = useMarketplace((s) => s.openVendorDashboard);
   const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
   const { user: session, loading: sessionLoading } = useSupabaseSession();
