@@ -50,6 +50,14 @@ function transformVendor(v: typeof db.vendor): Vendor {
     serviceRadiusKm: v.serviceRadiusKm,
     userEmail: v.userEmail,
     ownership_status: v.ownership_status,
+    planExpiresAt: (v as any).planExpiresAt?.toISOString() ?? null,
+    settingsLocked: (v as any).settingsLocked ?? false,
+    facebook: (v as any).facebook ?? null,
+    youtube: (v as any).youtube ?? null,
+    tiktok: (v as any).tiktok ?? null,
+    twitter: (v as any).twitter ?? null,
+    snapchat: (v as any).snapchat ?? null,
+    fssaiNumber: (v as any).fssaiNumber ?? null,
     createdAt: v.createdAt.toISOString(),
   };
 }

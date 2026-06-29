@@ -221,7 +221,7 @@ export function PlanBilling({ vendor }: { vendor: Vendor }) {
                   <td className="py-2 pr-4">{currentPlanName}</td>
                   <td className="py-2 pr-4">
                     {priceFor(currentPlan)}
-                    {billing === "monthly" ? "/mo" : "/mo, billed yearly"}
+                    {billing === "monthly" ? "/mo" : "/yr"}
                   </td>
                   <td className="py-2 pr-4">
                     <Badge className="border-0 bg-emerald-100 text-emerald-700">Paid</Badge>

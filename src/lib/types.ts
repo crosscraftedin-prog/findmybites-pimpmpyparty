@@ -58,6 +58,7 @@ export interface Vendor {
   userEmail?: string | null;
   owner_user_id?: string | null;
   ownership_status?: string | null;
+  planExpiresAt?: string | null;
   createdAt: string;
 }
 
