@@ -342,3 +342,65 @@ model Pricing {
   @@index([active])
   @@map("pricing")
 }
+
+// ── Universal Filter Engine ───────────────────────────────────────────────
+// Admin-managed dynamic filters for categories/subcategories.
+// Hierarchy: FilterGroup → FilterValues → assigned to Category via CategoryFilter
+// Vendors select values via VendorFilterValue.
+
+model FilterGroup {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g. "Cuisine", "Dietary", "Capacity"
+  type        String   @default("multi") // "multi" | "single" | "range"
+  unit        String?  // for range: "guests", "sq_ft", "km"
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  values      FilterValue[]
+  categories  CategoryFilter[]
+
+  @@map("filter_groups")
+}
+
+model FilterValue {
+  id          String   @id @default(cuid())
+  groupId     String
+  value       String   // e.g. "Italian", "Vegetarian", "200"
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  group       FilterGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  vendors     VendorFilterValue[]
+
+  @@index([groupId])
+  @@map("filter_values")
+}
+
+model CategoryFilter {
+  id           String   @id @default(cuid())
+  categoryId   String   // matches Vendor.category (e.g. "caterers", "venues")
+  filterGroupId String
+  required     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  filterGroup  FilterGroup @relation(fields: [filterGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, filterGroupId])
+  @@index([categoryId])
+  @@map("category_filters")
+}
+
+model VendorFilterValue {
+  id            String   @id @default(cuid())
+  vendorId      String
+  filterValueId String
+  createdAt     DateTime @default(now())
+
+  filterValue   FilterValue @relation(fields: [filterValueId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, filterValueId])
+  @@index([vendorId])
+  @@map("vendor_filter_values")
+}
