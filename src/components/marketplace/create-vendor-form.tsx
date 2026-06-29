@@ -556,7 +556,7 @@ export function CreateVendorForm({
 
       {/* Dynamic category-specific filters (edit mode only — needs vendor ID) */}
       {isEditing && editingVendor && form.category && (
-        <DynamicFilters vendorId={editingVendor.id} category={migrateCategory(form.category)} />
+        <DynamicFilters vendorId={editingVendor.id} category={form.category} />
       )}
 
       {/* Branding uploads — banner + logo */}
