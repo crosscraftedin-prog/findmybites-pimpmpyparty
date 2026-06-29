@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { AdminCategoriesSection } from "@/components/admin/admin-categories";
 import { AdminErrorBoundary } from "@/components/admin/admin-error-boundary";
 import { AdminSeoPages } from "@/components/admin/admin-seo-pages";
+import { AdminPricing } from "@/components/admin/admin-pricing";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
 const CORAL = "#D85A30";
@@ -151,6 +152,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: "ad-banners", label: "Ad banners", icon: Megaphone },
       { id: "seo-pages", label: "SEO pages", icon: Globe2 },
+      { id: "pricing", label: "Pricing", icon: Tag },
       { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
       { id: "messages", label: "Messages", icon: Mail },
       { id: "settings", label: "Settings", icon: Settings },
@@ -879,6 +881,8 @@ export function AdminPanelPage({
             />
           ) : activeNav === "seo-pages" ? (
             <AdminSeoPages />
+          ) : activeNav === "pricing" ? (
+            <AdminPricing />
           ) : (
           <>
           {/* ── KPI row ──────────────────────────────────────────────── */}

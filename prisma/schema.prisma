@@ -309,3 +309,23 @@ model JoshConversation {
   @@index([vendorId])
   @@map("josh_conversations")
 }
+
+// ── Dynamic pricing (admin-managed, multi-country) ────────────────────────
+model Pricing {
+  id              String   @id @default(cuid())
+  countryCode     String   @unique
+  countryLabel    String
+  symbol          String
+  proMonthly      Int
+  proYearly       Int
+  businessMonthly Int
+  businessYearly  Int
+  note            String   @default("")
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([countryCode])
+  @@index([active])
+  @@map("pricing")
+}

@@ -349,9 +349,33 @@ export function SubscriptionModal({
   const [paying, setPaying] = React.useState(false);
   const [paymentSuccess, setPaymentSuccess] = React.useState<string | null>(null);
   const [paymentError, setPaymentError] = React.useState<string | null>(null);
+  const [dynamicPricing, setDynamicPricing] = React.useState<typeof PRICING_BY_COUNTRY | null>(null);
 
   const brand = getBrand(vendorBrand);
-  const pricing = PRICING_BY_COUNTRY[vendorCountry] ?? FALLBACK_PRICING;
+  // Use dynamic pricing from DB if available, else fall back to hardcoded
+  const pricing = (dynamicPricing?.[vendorCountry] ?? PRICING_BY_COUNTRY[vendorCountry]) ?? FALLBACK_PRICING;
+
+  // Fetch dynamic pricing from /api/pricing (admin-managed)
+  React.useEffect(() => {
+    fetch("/api/pricing")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const map: Record<string, typeof PRICING_BY_COUNTRY[string]> = {};
+          for (const p of data) {
+            map[p.countryCode] = {
+              symbol: p.symbol,
+              pro: { monthly: p.proMonthly, yearly: p.proYearly },
+              business: { monthly: p.businessMonthly, yearly: p.businessYearly },
+              label: p.countryLabel,
+              note: p.note,
+            };
+          }
+          setDynamicPricing(map);
+        }
+      })
+      .catch(() => {/* fall back to hardcoded */});
+  }, []);
 
   // Reset billing when modal closes
   React.useEffect(() => {
