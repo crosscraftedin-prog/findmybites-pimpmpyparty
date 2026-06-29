@@ -66,6 +66,12 @@ interface FormState {
   instagram: string;
   website: string;
   whatsapp: string;
+  facebook: string;
+  youtube: string;
+  tiktok: string;
+  twitter: string;
+  snapchat: string;
+  fssaiNumber: string;
   serviceRadiusKm: string;
 }
 
@@ -91,6 +97,12 @@ const EMPTY: FormState = {
   instagram: "",
   website: "",
   whatsapp: "",
+  facebook: "",
+  youtube: "",
+  tiktok: "",
+  twitter: "",
+  snapchat: "",
+  fssaiNumber: "",
   serviceRadiusKm: "",
 };
 
@@ -124,6 +136,12 @@ function formStateFromVendor(v: Vendor): FormState {
     instagram: v.instagram ?? "",
     website: v.website ?? "",
     whatsapp: v.whatsapp ?? "",
+    facebook: (v as any).facebook ?? "",
+    youtube: (v as any).youtube ?? "",
+    tiktok: (v as any).tiktok ?? "",
+    twitter: (v as any).twitter ?? "",
+    snapchat: (v as any).snapchat ?? "",
+    fssaiNumber: (v as any).fssaiNumber ?? "",
     serviceRadiusKm: v.serviceRadiusKm ? String(v.serviceRadiusKm) : "",
   };
 }
@@ -285,6 +303,12 @@ export function CreateVendorForm({
       instagram: form.instagram.trim() || undefined,
       website: form.website.trim() || undefined,
       whatsapp: form.whatsapp.trim() || undefined,
+      facebook: form.facebook.trim() || undefined,
+      youtube: form.youtube.trim() || undefined,
+      tiktok: form.tiktok.trim() || undefined,
+      twitter: form.twitter.trim() || undefined,
+      snapchat: form.snapchat.trim() || undefined,
+      fssaiNumber: form.fssaiNumber.trim() || undefined,
       serviceRadiusKm: form.serviceRadiusKm
         ? Number(form.serviceRadiusKm)
         : undefined,
@@ -647,14 +671,19 @@ export function CreateVendorForm({
           </Select>
         </Field>
         <Field label="Starting price" required hint={`In ${form.currency || "your currency"}`}>
-          <Input
-            type="number"
-            min={0}
-            value={form.basePrice}
-            onChange={(e) => set("basePrice", e.target.value)}
-            placeholder="0"
-            className="h-10"
-          />
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold text-muted-foreground">
+              {CURRENCY_SYMBOLS[form.currency as string] ?? form.currency ?? ""}
+            </span>
+            <Input
+              type="number"
+              min={0}
+              value={form.basePrice}
+              onChange={(e) => set("basePrice", e.target.value)}
+              placeholder="0"
+              className="h-10"
+            />
+          </div>
         </Field>
       </div>
 
@@ -767,6 +796,115 @@ export function CreateVendorForm({
           }
         />
       </div>
+
+      {/* More social media + FSSAI */}
+      <div className="rounded-xl border border-border bg-muted/30 p-4">
+        <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <Sparkles className="size-3.5" />
+          More social media
+          <span className="ml-auto font-normal normal-case tracking-normal text-muted-foreground/70">
+            optional
+          </span>
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Facebook" hint="Page URL or @handle">
+            <Input value={form.facebook} onChange={(e) => set("facebook", e.target.value)} placeholder="facebook.com/yourpage" className="h-10" maxLength={200} />
+          </Field>
+          <Field label="YouTube" hint="Channel URL or @handle">
+            <Input value={form.youtube} onChange={(e) => set("youtube", e.target.value)} placeholder="youtube.com/@yourchannel" className="h-10" maxLength={200} />
+          </Field>
+          <Field label="TikTok" hint="@handle">
+            <Input value={form.tiktok} onChange={(e) => set("tiktok", e.target.value)} placeholder="@yourhandle" className="h-10" maxLength={60} />
+          </Field>
+          <Field label="X (Twitter)" hint="@handle">
+            <Input value={form.twitter} onChange={(e) => set("twitter", e.target.value)} placeholder="@yourhandle" className="h-10" maxLength={60} />
+          </Field>
+          <Field label="Snapchat" hint="@handle">
+            <Input value={form.snapchat} onChange={(e) => set("snapchat", e.target.value)} placeholder="@yourhandle" className="h-10" maxLength={60} />
+          </Field>
+          {form.countryCode === "IN" && (
+            <Field label="FSSAI License Number" hint="India food safety license">
+              <Input value={form.fssaiNumber} onChange={(e) => set("fssaiNumber", e.target.value)} placeholder="FSSAI number" className="h-10" maxLength={30} />
+            </Field>
+          )}
+        </div>
+      </div>
+
+      {/* AI description generator */}
+      {isEditing && (
+        <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-purple-700">
+            ✨ AI Description Generator
+          </p>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Let AI write a professional tagline and description for your listing.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={async () => {
+              try {
+                const res = await fetch("/api/ai/generate-description", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    vendorName: form.name,
+                    category: form.category,
+                    subcategory: form.subcategory,
+                    city: form.city,
+                  }),
+                });
+                const data = await res.json();
+                if (data.tagline) set("tagline", data.tagline);
+                if (data.description) set("description", data.description);
+                toast.success("AI description generated!");
+              } catch {
+                toast.error("Failed to generate description");
+              }
+            }}
+            className="gap-2 border-purple-300 text-purple-700 hover:bg-purple-100"
+          >
+            <Sparkles className="size-4" />
+            Generate with AI
+          </Button>
+        </div>
+      )}
+
+      {/* Settings lock */}
+      {isEditing && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-800">
+                🔒 Lock settings
+              </p>
+              <p className="text-xs text-amber-700">
+                Protect your listing from accidental changes.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  await fetch(`/api/vendors/${editingVendor?.slug}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ settingsLocked: !(editingVendor as any)?.settingsLocked }),
+                  });
+                  toast.success("Settings lock toggled");
+                } catch {
+                  toast.error("Failed to toggle lock");
+                }
+              }}
+              className="border-amber-300 text-amber-700 hover:bg-amber-100"
+            >
+              {(editingVendor as any)?.settingsLocked ? "🔓 Unlock" : "🔒 Lock"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Button
         type="submit"
