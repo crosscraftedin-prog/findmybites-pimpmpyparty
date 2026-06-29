@@ -317,7 +317,57 @@ export function VendorProfileClient({ vendor }: Props) {
                       Website
                     </a>
                   )}
+                  {(vendor as any).facebook && (
+                    <a
+                      href={(vendor as any).facebook.startsWith("http") ? (vendor as any).facebook : `https://facebook.com/${(vendor as any).facebook.replace("@","")}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+                    >
+                      <ExternalLink className="size-3.5" /> Facebook
+                    </a>
+                  )}
+                  {(vendor as any).youtube && (
+                    <a
+                      href={(vendor as any).youtube.startsWith("http") ? (vendor as any).youtube : `https://youtube.com/${(vendor as any).youtube.replace("@","")}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+                    >
+                      <ExternalLink className="size-3.5" /> YouTube
+                    </a>
+                  )}
+                  {(vendor as any).tiktok && (
+                    <a
+                      href={(vendor as any).tiktok.startsWith("http") ? (vendor as any).tiktok : `https://tiktok.com/${(vendor as any).tiktok.replace("@","")}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+                    >
+                      <ExternalLink className="size-3.5" /> TikTok
+                    </a>
+                  )}
+                  {(vendor as any).twitter && (
+                    <a
+                      href={(vendor as any).twitter.startsWith("http") ? (vendor as any).twitter : `https://x.com/${(vendor as any).twitter.replace("@","")}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+                    >
+                      <ExternalLink className="size-3.5" /> X
+                    </a>
+                  )}
+                  {(vendor as any).snapchat && (
+                    <a
+                      href={(vendor as any).snapchat.startsWith("http") ? (vendor as any).snapchat : `https://snapchat.com/add/${(vendor as any).snapchat.replace("@","")}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+                    >
+                      <ExternalLink className="size-3.5" /> Snapchat
+                    </a>
+                  )}
                 </div>
+                {(vendor as any).fssaiNumber && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    🇮🇳 FSSAI Licensed: {(vendor as any).fssaiNumber}
+                  </p>
+                )}
               </section>
 
               {/* ── 4. GALLERY ──────────────────────────────────────── */}
