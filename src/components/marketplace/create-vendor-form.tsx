@@ -42,6 +42,7 @@ import {
 import { countryCodeToFlag } from "@/lib/format";
 import { ImageUpload } from "./image-upload";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
+import { DynamicFilters } from "@/components/dashboard/DynamicFilters";
 import type { Ecosystem, Vendor } from "@/lib/types";
 
 interface FormState {
@@ -551,6 +552,11 @@ export function CreateVendorForm({
           )}
         </Field>
       </div>
+
+      {/* Dynamic category-specific filters (edit mode only — needs vendor ID) */}
+      {isEditing && editingVendor && form.category && (
+        <DynamicFilters vendorId={editingVendor.id} category={form.category} />
+      )}
 
       {/* Branding uploads — banner + logo */}
       <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
