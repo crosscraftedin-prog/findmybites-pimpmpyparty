@@ -75,7 +75,7 @@ export function PlanBilling({ vendor }: { vendor: Vendor }) {
             {currentPlan !== "free" && (
               <p className="mt-2 text-xs font-medium text-muted-foreground">
                 {priceFor(currentPlan)}
-                {billing === "monthly" ? "/month" : "/month, billed yearly"} ·{" "}
+                {billing === "monthly" ? "/month" : "/year"} ·{" "}
                 {pricing.label}
               </p>
             )}

@@ -33,26 +33,27 @@ interface SubscriptionModalProps {
   ) => void;
 }
 
-// ─── Pricing Config ─────────────────────────────────────────────────────────
+// ─── Pricing Config (hardcoded fallback — DB overrides via /api/pricing) ──
+// yearly = ANNUAL TOTAL (one-time payment, ~20% off 12×monthly)
 export const PRICING_BY_COUNTRY: Record<
   string,
   {
     symbol: string;
-    pro: { monthly: number; yearly: number };
-    business: { monthly: number; yearly: number };
+    pro: { monthly: number; yearly: number };       // yearly = annual total
+    business: { monthly: number; yearly: number };   // yearly = annual total
     label: string;
     note?: string;
   }
 > = {
-  IN: { symbol: "₹", pro: { monthly: 299, yearly: 239 }, business: { monthly: 499, yearly: 399 }, label: "India — prices in ₹", note: "Prices in Indian Rupees. No transaction fees. Cancel anytime." },
-  US: { symbol: "$", pro: { monthly: 5, yearly: 4 }, business: { monthly: 9, yearly: 7 }, label: "United States — prices in $", note: "Prices in USD. No transaction fees. Cancel anytime." },
-  GB: { symbol: "£", pro: { monthly: 4, yearly: 3 }, business: { monthly: 7, yearly: 6 }, label: "United Kingdom — prices in £", note: "Prices in GBP. No transaction fees. Cancel anytime." },
-  AU: { symbol: "A$", pro: { monthly: 8, yearly: 6 }, business: { monthly: 13, yearly: 10 }, label: "Australia — prices in A$", note: "Prices in AUD. No transaction fees. Cancel anytime." },
-  AE: { symbol: "AED", pro: { monthly: 18, yearly: 14 }, business: { monthly: 33, yearly: 26 }, label: "UAE — prices in AED", note: "Prices in AED. No transaction fees. Cancel anytime." },
-  SG: { symbol: "S$", pro: { monthly: 7, yearly: 6 }, business: { monthly: 12, yearly: 10 }, label: "Singapore — prices in S$", note: "Prices in SGD. No transaction fees. Cancel anytime." },
-  NG: { symbol: "₦", pro: { monthly: 2000, yearly: 1600 }, business: { monthly: 3500, yearly: 2800 }, label: "Nigeria — prices in ₦", note: "Prices in NGN. No transaction fees. Cancel anytime." },
-  CA: { symbol: "CA$", pro: { monthly: 7, yearly: 6 }, business: { monthly: 12, yearly: 10 }, label: "Canada" },
-  ZA: { symbol: "R", pro: { monthly: 90, yearly: 72 }, business: { monthly: 160, yearly: 128 }, label: "South Africa" },
+  IN: { symbol: "₹", pro: { monthly: 299, yearly: 2871 }, business: { monthly: 499, yearly: 4790 }, label: "India — prices in ₹", note: "Prices in Indian Rupees. No transaction fees. Cancel anytime." },
+  US: { symbol: "$", pro: { monthly: 5, yearly: 48 }, business: { monthly: 9, yearly: 86 }, label: "United States — prices in $", note: "Prices in USD. No transaction fees. Cancel anytime." },
+  GB: { symbol: "£", pro: { monthly: 4, yearly: 38 }, business: { monthly: 7, yearly: 67 }, label: "United Kingdom — prices in £", note: "Prices in GBP. No transaction fees. Cancel anytime." },
+  AU: { symbol: "A$", pro: { monthly: 8, yearly: 76 }, business: { monthly: 13, yearly: 124 }, label: "Australia — prices in A$", note: "Prices in AUD. No transaction fees. Cancel anytime." },
+  AE: { symbol: "AED", pro: { monthly: 18, yearly: 172 }, business: { monthly: 33, yearly: 316 }, label: "UAE — prices in AED", note: "Prices in AED. No transaction fees. Cancel anytime." },
+  SG: { symbol: "S$", pro: { monthly: 7, yearly: 67 }, business: { monthly: 12, yearly: 115 }, label: "Singapore — prices in S$", note: "Prices in SGD. No transaction fees. Cancel anytime." },
+  NG: { symbol: "₦", pro: { monthly: 2000, yearly: 19152 }, business: { monthly: 3500, yearly: 33516 }, label: "Nigeria — prices in ₦", note: "Prices in NGN. No transaction fees. Cancel anytime." },
+  CA: { symbol: "CA$", pro: { monthly: 7, yearly: 67 }, business: { monthly: 12, yearly: 115 }, label: "Canada" },
+  ZA: { symbol: "R", pro: { monthly: 90, yearly: 864 }, business: { monthly: 160, yearly: 1536 }, label: "South Africa" },
 };
 
 export const FALLBACK_PRICING = PRICING_BY_COUNTRY["US"];
@@ -289,7 +290,7 @@ export function buildPlans({
         ? "For serious food vendors ready to grow"
         : "Get leads and grow your events business",
       price: `${pricing.symbol}${pricing.pro[billing]}`,
-      priceNote: billing === "monthly" ? "/month" : "/month, billed yearly",
+      priceNote: billing === "monthly" ? "/month" : "/year",
       ctaLabel: `Start ${brand.proName}`,
       ctaStyle: "outlined-brand",
       featured: true,
@@ -315,7 +316,7 @@ export function buildPlans({
       name: "Business",
       description: "Maximum visibility + AI-powered growth",
       price: `${pricing.symbol}${pricing.business[billing]}`,
-      priceNote: billing === "monthly" ? "/month" : "/month, billed yearly",
+      priceNote: billing === "monthly" ? "/month" : "/year",
       ctaLabel: "Go Business",
       ctaStyle: "solid-brand",
       featured: false,
@@ -365,8 +366,8 @@ export function SubscriptionModal({
           for (const p of data) {
             map[p.countryCode] = {
               symbol: p.symbol,
-              pro: { monthly: p.proMonthly, yearly: p.proYearly },
-              business: { monthly: p.businessMonthly, yearly: p.businessYearly },
+              pro: { monthly: p.proMonthly, yearly: p.proYearlyTotal },
+              business: { monthly: p.businessMonthly, yearly: p.businessYearlyTotal },
               label: p.countryLabel,
               note: p.note,
             };

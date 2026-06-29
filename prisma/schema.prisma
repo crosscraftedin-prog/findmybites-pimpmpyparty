@@ -317,9 +317,9 @@ model Pricing {
   countryLabel    String
   symbol          String
   proMonthly      Int
-  proYearly       Int
-  businessMonthly Int
-  businessYearly  Int
+  proYearlyTotal      Int      // Annual total (one-time, ~20% off 12×monthly)
+  businessMonthly     Int
+  businessYearlyTotal Int      // Annual total (one-time)
   note            String   @default("")
   active          Boolean  @default(true)
   createdAt       DateTime @default(now())

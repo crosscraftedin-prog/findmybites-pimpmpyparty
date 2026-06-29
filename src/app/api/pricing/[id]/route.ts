@@ -22,9 +22,9 @@ export async function PUT(
       where: { id },
       data: {
         proMonthly: data.proMonthly !== undefined ? Number(data.proMonthly) : undefined,
-        proYearly: data.proYearly !== undefined ? Number(data.proYearly) : undefined,
+        proYearlyTotal: data.proYearlyTotal !== undefined ? Number(data.proYearlyTotal) : undefined,
         businessMonthly: data.businessMonthly !== undefined ? Number(data.businessMonthly) : undefined,
-        businessYearly: data.businessYearly !== undefined ? Number(data.businessYearly) : undefined,
+        businessYearlyTotal: data.businessYearlyTotal !== undefined ? Number(data.businessYearlyTotal) : undefined,
         note: data.note,
         countryLabel: data.countryLabel,
         symbol: data.symbol,

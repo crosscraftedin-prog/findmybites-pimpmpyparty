@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const data = await req.json();
-    const { countryCode, countryLabel, symbol, proMonthly, proYearly, businessMonthly, businessYearly, note } = data;
+    const { countryCode, countryLabel, symbol, proMonthly, proYearlyTotal, businessMonthly, businessYearlyTotal, note } = data;
 
     if (!countryCode || !countryLabel || !symbol) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -38,9 +38,9 @@ export async function POST(req: NextRequest) {
         countryLabel,
         symbol,
         proMonthly: Number(proMonthly) || 0,
-        proYearly: Number(proYearly) || 0,
+        proYearlyTotal: Number(proYearlyTotal) || 0,
         businessMonthly: Number(businessMonthly) || 0,
-        businessYearly: Number(businessYearly) || 0,
+        businessYearlyTotal: Number(businessYearlyTotal) || 0,
         note: note || "",
         active: true,
       },

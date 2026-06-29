@@ -9,9 +9,9 @@ interface PricingData {
   countryLabel: string;
   symbol: string;
   proMonthly: number;
-  proYearly: number;
+  proYearlyTotal: number;
   businessMonthly: number;
-  businessYearly: number;
+  businessYearlyTotal: number;
   note: string;
   active: boolean;
 }
@@ -27,7 +27,7 @@ export function AdminPricing() {
   const [showForm, setShowForm] = React.useState(false);
   const [newForm, setNewForm] = React.useState({
     countryCode: "", countryLabel: "", symbol: "",
-    proMonthly: 0, proYearly: 0, businessMonthly: 0, businessYearly: 0, note: "",
+    proMonthly: 0, proYearlyTotal: 0, businessMonthly: 0, businessYearlyTotal: 0, note: "",
   });
   const [saving, setSaving] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
@@ -103,7 +103,7 @@ export function AdminPricing() {
       if (res.ok) {
         setMsg("✅ Pricing added");
         setShowForm(false);
-        setNewForm({ countryCode: "", countryLabel: "", symbol: "", proMonthly: 0, proYearly: 0, businessMonthly: 0, businessYearly: 0, note: "" });
+        setNewForm({ countryCode: "", countryLabel: "", symbol: "", proMonthly: 0, proYearlyTotal: 0, businessMonthly: 0, businessYearlyTotal: 0, note: "" });
         fetchPricing();
         setTimeout(() => setMsg(null), 3000);
       } else {
@@ -185,9 +185,9 @@ export function AdminPricing() {
             />
             <input
               type="number"
-              placeholder="Pro Yearly"
-              value={newForm.proYearly || ""}
-              onChange={(e) => setNewForm({ ...newForm, proYearly: Number(e.target.value) })}
+              placeholder="Pro Yearly (Total)"
+              value={newForm.proYearlyTotal || ""}
+              onChange={(e) => setNewForm({ ...newForm, proYearlyTotal: Number(e.target.value) })}
               className="rounded-lg border border-black/15 px-3 py-2 text-[13px]"
             />
             <input
@@ -199,9 +199,9 @@ export function AdminPricing() {
             />
             <input
               type="number"
-              placeholder="Business Yearly"
-              value={newForm.businessYearly || ""}
-              onChange={(e) => setNewForm({ ...newForm, businessYearly: Number(e.target.value) })}
+              placeholder="Business Yearly (Total)"
+              value={newForm.businessYearlyTotal || ""}
+              onChange={(e) => setNewForm({ ...newForm, businessYearlyTotal: Number(e.target.value) })}
               className="rounded-lg border border-black/15 px-3 py-2 text-[13px]"
             />
             <input
@@ -294,7 +294,7 @@ export function AdminPricing() {
                           <input
                             type="number"
                             defaultValue={p.proYearly}
-                            onChange={(e) => setEditForm({ ...editForm, proYearly: Number(e.target.value) })}
+                            onChange={(e) => setEditForm({ ...editForm, proYearlyTotal: Number(e.target.value) })}
                             className="w-20 rounded border border-black/15 px-2 py-1 text-[13px]"
                           />
                         </div>
@@ -315,7 +315,7 @@ export function AdminPricing() {
                           <input
                             type="number"
                             defaultValue={p.businessYearly}
-                            onChange={(e) => setEditForm({ ...editForm, businessYearly: Number(e.target.value) })}
+                            onChange={(e) => setEditForm({ ...editForm, businessYearlyTotal: Number(e.target.value) })}
                             className="w-20 rounded border border-black/15 px-2 py-1 text-[13px]"
                           />
                         </div>
