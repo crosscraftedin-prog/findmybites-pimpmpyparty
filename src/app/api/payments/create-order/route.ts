@@ -8,22 +8,23 @@ import { db } from "@/lib/db";
  * Body: { planName: "vendor-pro" | "business", vendorId?, userEmail? }
  */
 const PLANS: Record<string, { amount: number; name: string }> = {
-  "vendor-pro": { amount: 99900, name: "Vendor Pro" },   // ₹999
-  "business": { amount: 299900, name: "Business" },      // ₹2999
+  "vendor-pro": { amount: 29900, name: "Vendor Pro" },   // ₹299
+  "business": { amount: 49900, name: "Business" },       // ₹499
 };
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { planName, vendorId, userEmail } = body as {
-      planName: string; vendorId?: string; userEmail?: string;
+    const { planName, vendorId, userEmail, amount: bodyAmount } = body as {
+      planName: string; vendorId?: string; userEmail?: string; amount?: number;
     };
 
     if (!planName || !PLANS[planName]) {
       return NextResponse.json({ error: `Invalid plan: '${planName}'. Choose 'vendor-pro' or 'business'.` }, { status: 400 });
     }
 
-    const amount = PLANS[planName].amount;
+    // Use amount from body if provided (dynamic pricing), else fall back to PLANS default
+    const amount = bodyAmount && bodyAmount >= 100 ? bodyAmount : PLANS[planName].amount;
     if (amount < 100) return NextResponse.json({ error: "Amount too small" }, { status: 400 });
 
     const keyId = process.env.RAZORPAY_KEY_ID;

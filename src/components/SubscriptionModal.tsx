@@ -406,6 +406,12 @@ export function SubscriptionModal({
     // Map planKey to Razorpay planName
     const planName = planKey === "pro" ? "vendor-pro" : "business";
 
+    // Calculate amount in paise from the pricing config (dynamic per country + billing cycle)
+    const displayPrice = planKey === "pro"
+      ? pricing.pro[billing]
+      : pricing.business[billing];
+    const amountInPaise = Math.round(displayPrice * 100);
+
     setPaying(true);
     setPaymentError(null);
     setPaymentSuccess(null);
@@ -418,7 +424,7 @@ export function SubscriptionModal({
         return;
       }
 
-      // Create order — pass vendorId + userEmail from props
+      // Create order — pass vendorId + userEmail + dynamic amount from props
       const orderRes = await fetch("/api/payments/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -426,6 +432,7 @@ export function SubscriptionModal({
           planName,
           vendorId: vendorId || undefined,
           userEmail: vendorEmail || undefined,
+          amount: amountInPaise,
         }),
       });
       const orderData = await orderRes.json();
