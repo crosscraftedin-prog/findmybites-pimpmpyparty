@@ -253,10 +253,17 @@ export function VendorProfileClient({ vendor }: Props) {
                 </span>
               )}
               {vendor.whatsapp && (
-                <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <MessageCircle className="size-4 text-[#25D366]" />
-                  WhatsApp available
-                </span>
+                <a
+                  href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(
+                    `Hi ${vendor.name}, I found you on FindMyBites × PimpMyParty and I'd like to enquire about your services.`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#1da851]"
+                >
+                  <MessageCircle className="size-4" />
+                  Chat on WhatsApp
+                </a>
               )}
             </div>
           </div>

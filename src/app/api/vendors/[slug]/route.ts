@@ -135,6 +135,13 @@ interface UpdateVendorBody {
   instagram?: unknown;
   website?: unknown;
   whatsapp?: unknown;
+  facebook?: unknown;
+  youtube?: unknown;
+  tiktok?: unknown;
+  twitter?: unknown;
+  snapchat?: unknown;
+  fssaiNumber?: unknown;
+  settingsLocked?: unknown;
   serviceRadiusKm?: unknown;
 }
 
@@ -261,6 +268,33 @@ export async function PATCH(
     }
     if (body.whatsapp !== undefined) {
       data.whatsapp = sanitizeWhatsApp(body.whatsapp) || null;
+    }
+    // ── Social media (additional platforms) ──
+    if (body.facebook !== undefined) {
+      data.facebook = sanitizeWebsite(body.facebook) || null;
+    }
+    if (body.youtube !== undefined) {
+      data.youtube = sanitizeWebsite(body.youtube) || null;
+    }
+    if (body.tiktok !== undefined) {
+      data.tiktok = sanitizeInstagram(body.tiktok) || null;
+    }
+    if (body.twitter !== undefined) {
+      data.twitter = sanitizeInstagram(body.twitter) || null;
+    }
+    if (body.snapchat !== undefined) {
+      data.snapchat = sanitizeInstagram(body.snapchat) || null;
+    }
+    // ── India-specific ──
+    if (body.fssaiNumber !== undefined) {
+      data.fssaiNumber =
+        typeof body.fssaiNumber === "string" && body.fssaiNumber.trim()
+          ? body.fssaiNumber.trim().slice(0, 30)
+          : null;
+    }
+    // ── Settings lock ──
+    if (typeof body.settingsLocked === "boolean") {
+      data.settingsLocked = body.settingsLocked;
     }
     if (body.serviceRadiusKm !== undefined) {
       const n = Number(body.serviceRadiusKm);

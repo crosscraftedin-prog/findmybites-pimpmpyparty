@@ -99,6 +99,16 @@ model Vendor {
   instagram        String?
   website          String?
   whatsapp         String?
+  // ── Social media (additional platforms) ──
+  facebook         String?
+  youtube          String?
+  tiktok           String?
+  twitter          String?
+  snapchat         String?
+  // ── India-specific ──
+  fssaiNumber      String?
+  // ── Listing settings ──
+  settingsLocked   Boolean  @default(false)
   // business settings
   openHours        String?
   deliveryAvailable Boolean  @default(false)

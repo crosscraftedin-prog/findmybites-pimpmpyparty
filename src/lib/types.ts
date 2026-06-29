@@ -34,6 +34,16 @@ export interface Vendor {
   instagram?: string | null;
   website?: string | null;
   whatsapp?: string | null;
+  // social media (additional)
+  facebook?: string | null;
+  youtube?: string | null;
+  tiktok?: string | null;
+  twitter?: string | null;
+  snapchat?: string | null;
+  // India-specific
+  fssaiNumber?: string | null;
+  // listing settings
+  settingsLocked?: boolean;
   // business settings
   openHours?: string | null;
   deliveryAvailable?: boolean;
