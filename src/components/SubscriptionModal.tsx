@@ -158,6 +158,8 @@ export function PlanCard({
   features: React.ReactNode[];
   brand: ReturnType<typeof getBrand>;
   onSelect: () => void;
+  disabled?: boolean;
+  disabledLabel?: string;
 }) {
   const ctaClasses: Record<string, string> = {
     "outlined-gray":
@@ -207,6 +209,10 @@ export function PlanCard({
         {isCurrent ? (
           <div className="rounded-md bg-black/5 py-2 text-center text-[11px] font-medium text-black/40">
             Current plan
+          </div>
+        ) : disabled ? (
+          <div className="rounded-md border border-black/10 bg-black/[0.02] py-2 text-center text-[11px] font-medium text-black/30">
+            {disabledLabel || "Coming soon"}
           </div>
         ) : (
           <button
@@ -421,10 +427,24 @@ export function SubscriptionModal({
     });
   };
 
+  // ── India-only payment check ──────────────────────────────────────────
+  // Razorpay is currently only available in India. International expansion
+  // pending approval. Non-India vendors see "Coming soon" on upgrade buttons.
+  const isPaymentAvailable = vendorCountry === "IN";
+  const paymentDisabledLabel = "Coming soon in your country";
+
   // ── Handle plan selection with Razorpay payment ─────────────────────────
   const handlePlanSelect = async (planKey: PlanKey, billingCycle: BillingCycle) => {
     if (planKey === "free") {
       onSelectPlan(planKey, billingCycle);
+      return;
+    }
+
+    // Block payment for non-India countries
+    if (!isPaymentAvailable) {
+      setPaymentError(
+        "💳 Payments are currently available in India only.\n\nWe're applying for international expansion with Razorpay. Check back soon!\n\nFor now, contact hello@findmybites.party to upgrade manually."
+      );
       return;
     }
 
@@ -595,6 +615,23 @@ export function SubscriptionModal({
               {pricing.label} — prices in {pricing.symbol}
             </span>
           </div>
+
+          {/* India-only payment notice */}
+          <div className="mt-3">
+            {isPaymentAvailable ? (
+              <div className="rounded-lg border-l-4 px-3 py-2" style={{ borderColor: "#16a34a", background: "#F0FDF4" }}>
+                <p className="text-[11px] font-medium text-green-800">
+                  ✅ Secure payments via Razorpay (UPI, cards, netbanking)
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg border-l-4 px-3 py-2" style={{ borderColor: "#3b82f6", background: "#EFF6FF" }}>
+                <p className="text-[11px] font-medium text-blue-900">
+                  💳 Online payments are currently available in India only. We're expanding soon! Contact hello@findmybites.party for payment options.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Plans grid */}
@@ -614,6 +651,8 @@ export function SubscriptionModal({
               isCurrent={plan.isCurrent}
               features={plan.features}
               brand={brand}
+              disabled={plan.planKey !== "free" && !isPaymentAvailable}
+              disabledLabel={paymentDisabledLabel}
               onSelect={() => handlePlanSelect(plan.planKey, billing)}
             />
           ))}
