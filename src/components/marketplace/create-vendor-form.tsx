@@ -945,8 +945,10 @@ export function CreateVendorSuccess({
         vendorCountry={vendor.countryCode || "US"}
         vendorBrand={brand as "food" | "party"}
         currentPlan={"free"}
+        vendorId={vendor.id}
+        vendorEmail={vendor.userEmail || undefined}
+        vendorName={vendor.name}
         onSelectPlan={(plan, billing) => {
-          toast.info(`Selected ${plan} (${billing}) — payment integration coming soon!`);
           setShowUpgrade(false);
         }}
       />

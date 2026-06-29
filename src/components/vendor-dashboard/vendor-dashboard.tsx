@@ -1099,8 +1099,10 @@ export function VendorDashboard() {
           vendorCountry={vendor?.countryCode || "US"}
           vendorBrand={vendor?.ecosystem === "FINDMYBITES" ? "food" : "party"}
           currentPlan={plan as "free" | "pro" | "business"}
+          vendorId={vendor?.id}
+          vendorEmail={vendor?.userEmail || undefined}
+          vendorName={vendor?.name}
           onSelectPlan={(selectedPlan, billing) => {
-            toast.info(`Selected ${selectedPlan} (${billing}) — payment integration coming soon!`);
             setShowSubModal(false);
           }}
         />

@@ -199,7 +199,10 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
         onClose={() => setShowUpgrade(false)}
         vendorCountry={vendor.countryCode || "US"}
         vendorBrand={vendor.ecosystem === "FINDMYBITES" ? "food" : "party"}
-        currentPlan={vendor.featured ? "featured" : "free"}
+        currentPlan={vendor.featured ? "pro" : "free"}
+        vendorId={vendor.id}
+        vendorEmail={vendor.userEmail || undefined}
+        vendorName={vendor.name}
         onSelectPlan={() => setShowUpgrade(false)}
       />
     </div>
