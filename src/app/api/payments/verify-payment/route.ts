@@ -32,12 +32,20 @@ export async function POST(req: NextRequest) {
 
     console.log("[verify-payment] Signature valid for vendor:", vendorId, "plan:", planName);
 
-    // Update vendor: pro → featured=true, business → featured=true + verified=true
+    // Update vendor: set plan, featured, verified, + planExpiresAt
+    // Monthly plan → 30 days, Yearly plan → 365 days
     try {
-      const updateData: Record<string, unknown> = { featured: true };
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + (planName === "vendor-pro" ? 30 : 365));
+
+      const updateData: Record<string, unknown> = {
+        featured: true,
+        planExpiresAt: expiryDate,
+      };
       if (planName === "business") updateData.verified = true;
+
       await db.vendor.update({ where: { id: vendorId }, data: updateData });
-      console.log("[verify-payment] Vendor updated:", vendorId);
+      console.log("[verify-payment] Vendor updated:", vendorId, "| plan:", planName, "| expires:", expiryDate.toISOString());
     } catch (e) {
       console.error("[verify-payment] DB update failed:", (e as Error)?.message?.slice(0, 100));
     }

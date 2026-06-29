@@ -33,6 +33,17 @@ export function PlanBilling({ vendor }: { vendor: Vendor }) {
 
   const plans = buildPlans({ brand, pricing, billing, isFood, currentPlan });
 
+  // ── Plan expiry calculation ──────────────────────────────────────────
+  // vendor.planExpiresAt is set when a payment is verified. Show a warning
+  // badge when the plan expires within 30 days, and a "Renew Now" button
+  // when within 7 days.
+  const daysUntilExpiry = (vendor as any)?.planExpiresAt
+    ? Math.ceil(
+        (new Date((vendor as any).planExpiresAt).getTime() - Date.now()) /
+          (1000 * 60 * 60 * 24)
+      )
+    : null;
+
   const currentPlanName =
     currentPlan === "free"
       ? "Free"
@@ -78,6 +89,30 @@ export function PlanBilling({ vendor }: { vendor: Vendor }) {
                 {billing === "monthly" ? "/month" : "/year"} ·{" "}
                 {pricing.label}
               </p>
+            )}
+
+            {/* Expiry notification */}
+            {currentPlan !== "free" && daysUntilExpiry !== null && daysUntilExpiry <= 30 && (
+              <div className="mt-3">
+                <div
+                  className={`inline-block rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                    daysUntilExpiry <= 7
+                      ? "bg-red-100 text-red-700"
+                      : "bg-yellow-100 text-yellow-700"
+                  }`}
+                >
+                  ⏰ Plan {daysUntilExpiry <= 0 ? "has expired" : `expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? "" : "s"}`}
+                </div>
+                {daysUntilExpiry <= 7 && (
+                  <Button
+                    onClick={() => setShowUpgrade(true)}
+                    className="mt-2 w-full sm:w-auto"
+                    style={{ background: brand.color }}
+                  >
+                    🔄 Renew Now
+                  </Button>
+                )}
+              </div>
             )}
           </div>
           <Button

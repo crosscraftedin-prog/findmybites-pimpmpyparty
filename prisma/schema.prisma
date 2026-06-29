@@ -123,6 +123,9 @@ model Vendor {
   owner_user_id    String?
   // Tracks the listing lifecycle: unclaimed → pending → approved/rejected
   ownership_status String?   @default("unclaimed")
+  // Plan expiry — set when a Razorpay payment is verified.
+  // Monthly → +30 days, Yearly → +365 days
+  planExpiresAt     DateTime?
   createdAt        DateTime  @default(now())
   reviews          Review[]
   bookings         Booking[]
