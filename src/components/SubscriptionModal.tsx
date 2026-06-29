@@ -144,6 +144,8 @@ export function PlanCard({
   features,
   brand,
   onSelect,
+  disabled = false,
+  disabledLabel,
 }: {
   planKey: "free" | "pro" | "business";
   name: string;
