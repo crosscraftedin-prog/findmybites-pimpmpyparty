@@ -58,11 +58,6 @@ interface MarketplaceState {
   userLocation: UserLocation | null;
   setUserLocation: (loc: UserLocation | null) => void;
 
-  // Admin panel overlay
-  adminOpen: boolean;
-  openAdmin: () => void;
-  closeAdmin: () => void;
-
   // Auth (vendor sign-in) dialog
   authDialogOpen: boolean;
   openAuthDialog: () => void;
@@ -130,10 +125,6 @@ export const useMarketplace = create<MarketplaceState>((set, get) => ({
   setNearRadius: (km) => set({ nearRadius: km }),
   userLocation: null,
   setUserLocation: (loc) => set({ userLocation: loc }),
-
-  adminOpen: false,
-  openAdmin: () => set({ adminOpen: true }),
-  closeAdmin: () => set({ adminOpen: false }),
 
   authDialogOpen: false,
   openAuthDialog: () => set({ authDialogOpen: true }),

@@ -46,7 +46,6 @@ export function SiteHeader() {
   const setSearch = useMarketplace((s) => s.setSearch);
   const search = useMarketplace((s) => s.search);
   const openListVendor = useMarketplace((s) => s.openListVendor);
-  const openAdmin = useMarketplace((s) => s.openAdmin);
   const openAuthDialog = useMarketplace((s) => s.openAuthDialog);
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
   const { user: session, loading: sessionLoading } = useSupabaseSession();
@@ -146,7 +145,7 @@ export function SiteHeader() {
             variant="ghost"
             size="icon"
             className="text-muted-foreground hover:text-foreground"
-            onClick={() => openAdmin()}
+            onClick={() => router.push("/admin")}
             aria-label="Admin panel"
             title="Admin panel"
           >
@@ -294,7 +293,7 @@ export function SiteHeader() {
                 )}
                 {isAdmin && (
                   <SheetClose asChild>
-                    <Button variant="outline" onClick={() => openAdmin()}>
+                    <Button variant="outline" onClick={() => router.push("/admin")}>
                       <ShieldCheck className="size-4" />
                       Admin panel
                     </Button>

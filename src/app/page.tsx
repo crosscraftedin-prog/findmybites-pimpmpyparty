@@ -17,17 +17,10 @@ import { VendorModal } from "@/components/marketplace/vendor-modal";
 import { ListVendorDialog } from "@/components/marketplace/list-vendor-dialog";
 import { SignInDialog } from "@/components/auth/sign-in-dialog";
 import { PendingVendorBanner } from "@/components/marketplace/pending-vendor-banner";
-import { useMarketplace } from "@/lib/store";
 
-// Lazy-load the admin panel (ships recharts + framer-motion ~500KB).
-// The vendor dashboard is now a full-page route at /dashboard — no modal.
-const AdminPanel = React.lazy(() =>
-  import("@/components/admin/admin-panel").then((m) => ({ default: m.AdminPanel }))
-);
+// Admin panel is now a full-page route at /admin — no modal overlay needed.
 
 export default function Home() {
-  const adminOpen = useMarketplace((s) => s.adminOpen);
-
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
@@ -48,12 +41,6 @@ export default function Home() {
       <VendorModal />
       <ListVendorDialog />
       <SignInDialog />
-      {/* Lazy-loaded: only rendered when opened */}
-      {adminOpen && (
-        <React.Suspense fallback={null}>
-          <AdminPanel />
-        </React.Suspense>
-      )}
     </div>
   );
 }
