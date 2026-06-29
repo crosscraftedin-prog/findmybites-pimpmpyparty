@@ -217,6 +217,15 @@ export const CATEGORIES: CategoryDef[] = [
     image: "/vendors/dj.png",
     accent: "from-slate-500 to-zinc-600",
   },
+  {
+    id: "party-supplies",
+    ecosystem: "PIMPMYPARTY",
+    label: "Party Supplies & Stores",
+    description: "Balloons, decorations, tableware, party props, and celebration accessories.",
+    icon: "PartyPopper",
+    image: "/vendors/decorator.png",
+    accent: "from-pink-400 to-rose-500",
+  },
 ];
 
 export function categoriesFor(ecosystem: Ecosystem): CategoryDef[] {
@@ -467,6 +476,12 @@ export const SUBCATEGORIES: Record<string, string[]> = {
   "audio-visual-services": [
     "Sound Systems", "Stage Lighting", "LED Walls", "AV Production",
     "Live Streaming Setup", "Other",
+  ],
+  // ── New categories ──
+  "party-supplies": [
+    "Balloons & Helium", "Cake Toppers", "Party Props", "Disposable Tableware",
+    "Banners & Confetti", "Goodie Bags & Gift Wrapping", "Party Hats & Accessories",
+    "Piñatas & Party Poppers", "Custom Party Supplies", "Other",
   ],
   // ── Backward compatibility aliases (old category IDs map to new subcats) ──
   // These ensure existing vendors with old category slugs still render.

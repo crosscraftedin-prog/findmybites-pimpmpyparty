@@ -30,6 +30,7 @@ const ALL_CATEGORIES = [
   "rental-services", "makeup-artists", "beauty-services",
   "transportation", "invitation-printing",
   "kids-party-services", "audio-visual-services",
+  "party-supplies",
 ];
 
 export function AdminFilters() {
