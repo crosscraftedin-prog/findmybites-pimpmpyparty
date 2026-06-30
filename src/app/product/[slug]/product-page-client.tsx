@@ -51,6 +51,7 @@ import {
   FollowButton,
   ProductBadge,
 } from "@/components/marketplace/vendor-highlights";
+import { SmartEnquiryForm } from "@/components/marketplace/smart-enquiry-form";
 import type { VendorWithRelations } from "@/lib/types";
 
 interface Props {
@@ -644,9 +645,20 @@ export function ProductPageClient({ slug }: Props) {
               )}
             </div>
 
-            {/* ── Right column: Sticky enquiry form ────────────────── */}
+            {/* ── Right column: Sticky smart enquiry form ────────────── */}
             <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-              <ProductEnquiryForm product={product} vendor={vendor} symbol={symbol} />
+              {vendor && (
+                <SmartEnquiryForm
+                  vendorId={vendor.id}
+                  vendorName={vendor.name}
+                  vendorCity={vendor.city}
+                  productId={product.id}
+                  productName={product.name}
+                  productPrice={product.price}
+                  currencySymbol={symbol}
+                  eventType={product.productType || product.packageType || undefined}
+                />
+              )}
             </aside>
           </div>
         </div>

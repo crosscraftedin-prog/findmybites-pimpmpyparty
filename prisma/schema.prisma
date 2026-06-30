@@ -185,22 +185,123 @@ model Review {
 }
 
 model Booking {
-  id        String   @id @default(cuid())
-  vendorId  String
-  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  name      String
-  email     String
-  eventType String
-  eventDate String
-  eventCity String
-  guests    Int
-  budget    String
-  message   String
-  status    String   @default("pending")
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  vendorId    String
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  name        String
+  email       String
+  eventType   String
+  eventDate   String
+  eventCity   String
+  guests      Int
+  budget      String
+  message     String
+  status      String   @default("new")
+  createdAt   DateTime @default(now())
+
+  // ── Phase 4: Smart Enquiry & Booking System ──
+  // Pipeline: new → viewed → contacted → quote_sent → negotiating → deposit_paid → confirmed → completed | cancelled
+  phone       String?
+  eventTime   String?
+  address     String?
+  notes       String?
+  // Reference image uploaded by customer (URL)
+  referenceImage String?
+  // Preferred contact method: "email" | "whatsapp" | "phone"
+  preferredContact String?
+  // Product this enquiry is about (if from a product page)
+  productId   String?
+  // AI-generated structured lead summary (e.g. "Wedding Cake · 150 guests · Chocolate · ₹15,000")
+  aiSummary   String?
+  // AI lead quality score (0-100)
+  leadScore   Int?
+  // AI-generated pre-qualification answers (JSON)
+  aiQualification String?
+  // Concierge: if this enquiry was converted to a managed event
+  conciergeEventId String?
+  conciergeEvent ConciergeEvent? @relation(fields: [conciergeEventId], references: [id], onDelete: SetNull)
+
+  // Quotes sent to the customer for this enquiry
+  quotes      Quote[]
 
   @@index([vendorId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([email])
+  @@index([conciergeEventId])
+}
 
+// ── Phase 4: Quotes ───────────────────────────────────────────────────────
+// Vendors send quotes to customers for a specific enquiry/booking.
+// A quote can include line items, deposit, and payment status.
+model Quote {
+  id          String   @id @default(cuid())
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  vendorId    String
+  // Quote line items JSON: [{ label, qty, price }]
+  lineItems   String   @default("[]")
+  // Total amount in minor units (paise/cents)
+  totalAmount Int
+  currency    String   @default("USD")
+  // Deposit required (percentage or fixed amount)
+  depositType String   @default("percentage") // "percentage" | "fixed"
+  depositValue Int     @default(50) // percentage (0-100) or fixed amount
+  // AI-generated quote notes/cover letter
+  aiNotes     String?
+  // Status: draft → sent → accepted → rejected → expired
+  status      String   @default("draft")
+  // Customer response
+  customerResponse String? // "accepted" | "rejected" | "changes_requested"
+  customerNotes String?
+  // Razorpay payment for deposit
+  razorpayOrderId String?
+  razorpayPaymentId String?
+  depositPaidAt DateTime?
+  // Validity
+  validUntil  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([vendorId])
+  @@index([status])
+  @@map("quotes")
+}
+
+// ── Phase 4: Concierge Events ─────────────────────────────────────────────
+// When a customer needs multiple vendors, Josh offers PimpMyParty Concierge
+// to manage the entire event. This tracks managed events with multiple vendors.
+model ConciergeEvent {
+  id          String   @id @default(cuid())
+  customerName String
+  customerEmail String
+  customerPhone String?
+  eventType   String
+  eventDate   String
+  eventCity   String
+  guests      Int
+  budget      String
+  notes       String?
+  // Assigned event manager (admin email)
+  eventManager String?
+  // Multiple vendors assigned to this event (JSON: [{ vendorId, role, quote }])
+  assignedVendors String @default("[]")
+  // Status: new → assigned → planning → confirmed → in_progress → completed
+  status      String   @default("new")
+  // Management fee (percentage or fixed)
+  managementFeeType String @default("percentage")
+  managementFeeValue Int    @default(10)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Bookings linked to this concierge event
+  bookings    Booking[]
+
+  @@index([status])
+  @@index([eventManager])
+  @@index([createdAt])
+  @@map("concierge_events")
 }
 
 // Products / services offered by a vendor within their single business listing.

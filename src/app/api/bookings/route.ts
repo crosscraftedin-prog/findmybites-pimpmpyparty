@@ -19,6 +19,18 @@ function transformBooking(b: DbBooking): ApiBooking {
     message: b.message,
     status: b.status as ApiBooking["status"],
     createdAt: b.createdAt.toISOString(),
+    // Phase 4 fields
+    phone: b.phone ?? null,
+    eventTime: b.eventTime ?? null,
+    address: b.address ?? null,
+    notes: b.notes ?? null,
+    referenceImage: b.referenceImage ?? null,
+    preferredContact: b.preferredContact ?? null,
+    productId: b.productId ?? null,
+    aiSummary: b.aiSummary ?? null,
+    leadScore: b.leadScore ?? null,
+    aiQualification: b.aiQualification ?? null,
+    conciergeEventId: b.conciergeEventId ?? null,
   };
 }
 

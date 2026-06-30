@@ -76,6 +76,18 @@ function transformBooking(b: typeof db.booking): Booking {
     message: b.message,
     status: b.status as Booking["status"],
     createdAt: b.createdAt.toISOString(),
+    // Phase 4 fields
+    phone: (b as any).phone ?? null,
+    eventTime: (b as any).eventTime ?? null,
+    address: (b as any).address ?? null,
+    notes: (b as any).notes ?? null,
+    referenceImage: (b as any).referenceImage ?? null,
+    preferredContact: (b as any).preferredContact ?? null,
+    productId: (b as any).productId ?? null,
+    aiSummary: (b as any).aiSummary ?? null,
+    leadScore: (b as any).leadScore ?? null,
+    aiQualification: (b as any).aiQualification ?? null,
+    conciergeEventId: (b as any).conciergeEventId ?? null,
   };
 }
 
@@ -136,7 +148,7 @@ export async function GET(_req: NextRequest) {
       db.booking.findMany({
         where: { vendorId: { in: vendorIds } },
         orderBy: { createdAt: "desc" },
-        take: 10,
+        take: 50,
       }),
       db.review.findMany({
         where: { vendorId: { in: vendorIds } },

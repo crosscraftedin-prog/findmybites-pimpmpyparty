@@ -118,6 +118,30 @@ export interface Review {
   createdAt: string;
 }
 
+/**
+ * Booking pipeline statuses (Phase 4):
+ *   new → viewed → contacted → quote_sent → negotiating → deposit_paid → confirmed → completed | cancelled
+ *
+ * Legacy statuses (`pending` | `confirmed` | `declined`) are still allowed for
+ * backward compatibility with older rows and admin tooling.
+ */
+export type BookingStatus =
+  | "new"
+  | "viewed"
+  | "contacted"
+  | "quote_sent"
+  | "negotiating"
+  | "deposit_paid"
+  | "confirmed"
+  | "completed"
+  | "cancelled"
+  // legacy
+  | "pending"
+  | "declined";
+
+/** Pre-qualification answers produced by AI from the customer's enquiry. */
+export type AiQualification = Record<string, string | number | boolean | null>;
+
 export interface Booking {
   id: string;
   vendorId: string;
@@ -129,8 +153,27 @@ export interface Booking {
   guests: number;
   budget: string;
   message: string;
-  status: "pending" | "confirmed" | "declined";
+  status: BookingStatus;
   createdAt: string;
+  // ── Phase 4: Smart Enquiry & Booking System ──
+  phone?: string | null;
+  eventTime?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  /** Reference image uploaded by the customer (URL). */
+  referenceImage?: string | null;
+  /** Preferred contact method: "email" | "whatsapp" | "phone". */
+  preferredContact?: string | null;
+  /** Product this enquiry is about (if from a product page). */
+  productId?: string | null;
+  /** AI-generated one-line lead summary. */
+  aiSummary?: string | null;
+  /** AI lead quality score (0-100). */
+  leadScore?: number | null;
+  /** AI-generated pre-qualification answers (JSON string). */
+  aiQualification?: string | null;
+  /** Concierge: linked managed event id (if any). */
+  conciergeEventId?: string | null;
 }
 
 export interface VendorWithRelations extends Vendor {

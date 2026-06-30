@@ -59,6 +59,7 @@ import { cn } from "@/lib/utils";
 import { VendorAIChat } from "@/components/marketplace/vendor-ai-chat";
 import { AIStoreSummary, AIFAQ, AIReviewSummary } from "@/components/marketplace/vendor-ai-sections";
 import { VendorHighlights, FollowButton, InstantQuoteEstimator, ProductBadge } from "@/components/marketplace/vendor-highlights";
+import { SmartEnquiryForm } from "@/components/marketplace/smart-enquiry-form";
 import type { VendorWithRelations, Product } from "@/lib/types";
 
 const EVENT_TYPES = [
@@ -732,14 +733,19 @@ export function VendorProfileClient({ vendor }: Props) {
               </section>
             </div>
 
-            {/* ── Right column: Sticky quote form + estimator ──────────── */}
+            {/* ── Right column: Sticky smart enquiry form + estimator ──── */}
             <aside id="quote-form" className="space-y-4 lg:sticky lg:top-6 lg:self-start">
               <InstantQuoteEstimator
                 vendorId={vendor.id}
                 currency={vendor.currency}
                 basePrice={vendor.basePrice}
               />
-              <QuoteForm vendor={vendor} />
+              <SmartEnquiryForm
+                vendorId={vendor.id}
+                vendorName={vendor.name}
+                vendorCity={vendor.city}
+                currencySymbol={CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency}
+              />
             </aside>
           </div>
         </div>
