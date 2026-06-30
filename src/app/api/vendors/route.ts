@@ -3,7 +3,7 @@ import { Prisma, type Vendor as DbVendor } from "@prisma/client";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
-import { COUNTRIES, getCategoryMigrated, migrateCategory, SUBCATEGORIES } from "@/lib/constants";
+import { COUNTRIES, getCategoryMigrated, migrateCategory } from "@/lib/constants";
 import {
   isValidEcosystem,
   isValidPriceRange,
