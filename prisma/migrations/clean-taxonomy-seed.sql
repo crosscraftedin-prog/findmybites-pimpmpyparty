@@ -410,10 +410,10 @@ SELECT '=== CATEGORIES ===' as section;
 SELECT slug, label, ecosystem FROM "Category" ORDER BY ecosystem, "sortOrder";
 
 SELECT '=== SUBCATEGORY COUNT ===' as section;
-SELECT c.slug as category, c.label, count(s.id) as subcategory_count
+SELECT c.slug as category, c.label, c.ecosystem, count(s.id) as subcategory_count
 FROM "Category" c
 LEFT JOIN "Subcategory" s ON s."categoryId" = c.id AND s.active = true
-GROUP BY c.slug, c.label
+GROUP BY c.slug, c.label, c.ecosystem, c."sortOrder"
 ORDER BY c.ecosystem, c."sortOrder";
 
 SELECT '=== PLACEHOLDER CHECK ===' as section;
