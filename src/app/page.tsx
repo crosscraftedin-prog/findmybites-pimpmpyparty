@@ -9,6 +9,12 @@ import { StatsBar } from "@/components/marketplace/stats-bar";
 import { NearMeSection } from "@/components/marketplace/near-me-section";
 import { CategoriesSection } from "@/components/marketplace/categories-section";
 import { FeaturedSection } from "@/components/marketplace/featured-section";
+import { TrendingProductsSection } from "@/components/marketplace/trending-products-section";
+import { PopularCitiesSection } from "@/components/marketplace/popular-cities-section";
+import { RecentVendorsSection } from "@/components/marketplace/recent-vendors-section";
+import { ReviewsCarousel } from "@/components/marketplace/reviews-carousel";
+import { EventTypeSection } from "@/components/marketplace/event-type-section";
+import { InspirationGallery } from "@/components/marketplace/inspiration-gallery";
 import { BrowseSection } from "@/components/marketplace/browse-section";
 import { WorldPresence } from "@/components/marketplace/world-presence";
 import { HowItWorks } from "@/components/marketplace/how-it-works";
@@ -31,7 +37,16 @@ export default function Home() {
         <StatsBar />
         <NearMeSection />
         <CategoriesSection />
+        {/* PimpMyParty: browse by event type */}
+        <EventTypeSection />
         <FeaturedSection />
+        {/* FindMyBites: trending products / PimpMyParty: trending services */}
+        <TrendingProductsSection />
+        {/* PimpMyParty: inspiration gallery (mosaic of vendor work) */}
+        <InspirationGallery />
+        <PopularCitiesSection />
+        <RecentVendorsSection />
+        <ReviewsCarousel />
         <BrowseSection />
         <WorldPresence />
         <HowItWorks />
