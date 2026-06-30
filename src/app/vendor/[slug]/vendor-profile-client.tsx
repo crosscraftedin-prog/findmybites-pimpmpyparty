@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -846,7 +847,7 @@ function ProductCard({ product, currency }: { product: Product; currency: string
   const hasDiscount = comparePrice && Number(comparePrice) > product.price;
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+    <Link href={`/product/${product.slug}`} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:-translate-y-0.5 hover:shadow-md">
       {images.length > 0 && (
         <div className="relative aspect-video overflow-hidden bg-muted">
           <img src={images[0]} alt={product.name} className="h-full w-full object-cover" />
@@ -934,7 +935,7 @@ function ProductCard({ product, currency }: { product: Product; currency: string
           </a>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
