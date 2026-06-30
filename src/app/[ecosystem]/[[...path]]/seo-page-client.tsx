@@ -6,7 +6,7 @@ import { Star, MapPin, ChevronRight, Search } from "lucide-react";
 import type { SEOContext } from "@/lib/seo";
 import type { Ecosystem } from "@/lib/types";
 import { countryCodeToFlag, formatPrice } from "@/lib/format";
-import { CURRENCY_SYMBOLS, CATEGORIES } from "@/lib/constants";
+import { CURRENCY_SYMBOLS } from "@/lib/constants";
 import { getPlaceholderVendors } from "@/lib/placeholder-vendors";
 
 interface Vendor {
@@ -83,8 +83,25 @@ export function SeoPageClient({
   }, [vendors, ctx.ecosystem]);
   const totalDisplay = isUsingPlaceholders ? displayVendors.length : vendorCount;
 
-  // Build H1
-  const h1 = buildH1(ctx, vendorCount);
+  // Fetch categories from API (single source of truth: DB)
+  const [dbCategories, setDbCategories] = React.useState<{id: string; label: string}[]>([]);
+  React.useEffect(() => {
+    const fetchCats = async () => {
+      try {
+        const res = await fetch(`/api/categories?ecosystem=${ctx.ecosystem}&t=${Date.now()}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDbCategories(data.categories ?? []);
+        }
+      } catch {
+        // empty state — H1 will use the raw slug
+      }
+    };
+    fetchCats();
+  }, [ctx.ecosystem]);
+
+  // Build H1 (uses DB categories for the label, falls back to slug if not loaded)
+  const h1 = React.useMemo(() => buildH1(ctx, vendorCount, dbCategories), [ctx, vendorCount, dbCategories]);
 
   return (
     <div className="min-h-screen bg-[#F7F6F2]">
@@ -269,9 +286,9 @@ function VendorCard({ vendor, ecoColor, ecoTint }: { vendor: Vendor; ecoColor: s
   );
 }
 
-function buildH1(ctx: SEOContext, vendorCount: number): string {
+function buildH1(ctx: SEOContext, vendorCount: number, dbCategories: {id: string; label: string}[]): string {
   const ecoLabel = ctx.ecosystem === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty";
-  const cat = ctx.category ? getCategoryLabel(ctx.category) : null;
+  const cat = ctx.category ? getCategoryLabel(ctx.category, dbCategories) : null;
   const location = [ctx.city, ctx.state, ctx.country].filter(Boolean).map(s => s.replace(/-/g, " ")).join(", ");
 
   if (cat && ctx.city) {
@@ -289,9 +306,12 @@ function buildH1(ctx: SEOContext, vendorCount: number): string {
   return `${ecoLabel} — Global Marketplace`;
 }
 
-function getCategoryLabel(slug: string): string | null {
-  const cat = CATEGORIES.find((c) => c.id === slug);
+function getCategoryLabel(slug: string, dbCategories: {id: string; label: string}[]): string | null {
+  // Look up from DB-driven categories (single source of truth).
+  // Falls back to title-cased slug — never uses hardcoded legacy categories.
+  const cat = dbCategories.find((c) => c.id === slug);
   if (cat) return cat.label;
-  // Try migrated
-  return null;
+  return slug
+    ? slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : null;
 }

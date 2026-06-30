@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useNearMe } from "@/hooks/use-near-me";
 import { useMarketplace } from "@/lib/store";
-import { CATEGORIES, CURRENCY_SYMBOLS } from "@/lib/constants";
+import { CURRENCY_SYMBOLS } from "@/lib/constants";
 import { countryCodeToFlag } from "@/lib/format";
 import { getPlaceholderVendors } from "@/lib/placeholder-vendors";
 import { cn } from "@/lib/utils";
@@ -139,7 +139,28 @@ export function NearMePageClient() {
     }
   }, [location, loading, error, requestLocation]);
 
-  const cats = CATEGORIES.filter((c) => c.ecosystem === ecosystem);
+  // Fetch categories from API (single source of truth: DB)
+  const [cats, setCats] = React.useState<any[]>([]);
+  const [catsLoading, setCatsLoading] = React.useState(true);
+  React.useEffect(() => {
+    const fetchCats = async () => {
+      setCatsLoading(true);
+      try {
+        const res = await fetch(`/api/categories?ecosystem=${ecosystem}&t=${Date.now()}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCats(data.categories ?? []);
+        } else {
+          setCats([]);
+        }
+      } catch {
+        setCats([]);
+      } finally {
+        setCatsLoading(false);
+      }
+    };
+    fetchCats();
+  }, [ecosystem]);
 
   return (
     <div className="min-h-screen bg-[#F7F6F2]">
@@ -265,7 +286,7 @@ export function NearMePageClient() {
                       onChange={(e) => setCategory(e.target.value)}
                       className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                     >
-                      <option value="all">All Categories</option>
+                      <option value="all">{catsLoading ? "Loading categories..." : "All Categories"}</option>
                       {cats.map((c) => (
                         <option key={c.id} value={c.id}>{c.label}</option>
                       ))}

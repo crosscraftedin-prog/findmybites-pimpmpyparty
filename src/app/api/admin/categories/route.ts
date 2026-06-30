@@ -29,39 +29,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ categories });
   } catch (err) {
     console.error("[api/admin/categories] GET failed:", err);
-    // Graceful fallback — return the hardcoded categories from constants
-    // so the admin UI still works even if the DB tables are empty.
-    try {
-      const { CATEGORIES, SUBCATEGORIES } = await import("@/lib/constants");
-      const sp = req.nextUrl.searchParams;
-      const ecosystem = sp.get("ecosystem");
-      const cats = ecosystem
-        ? CATEGORIES.filter((c) => c.ecosystem === ecosystem)
-        : CATEGORIES;
-      const categories = cats.map((c, idx) => ({
-        id: c.id,
-        slug: c.id,
-        label: c.label,
-        ecosystem: c.ecosystem,
-        description: c.description ?? null,
-        icon: c.icon ?? null,
-        image: c.image ?? null,
-        accent: c.accent ?? null,
-        sortOrder: idx,
-        active: true,
-        subcategories: (SUBCATEGORIES[c.id] ?? []).map((label, sIdx) => ({
-          id: `${c.id}-${sIdx}`,
-          slug: `${c.id}-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-          label,
-          categoryId: c.id,
-          sortOrder: sIdx,
-          active: true,
-        })),
-      }));
-      return NextResponse.json({ categories });
-    } catch {
-      return NextResponse.json({ categories: [] });
-    }
+    // Return empty array — admin should seed categories via the Admin Panel
+    // rather than seeing legacy hardcoded categories.
+    return NextResponse.json({ categories: [] });
   }
 }
 

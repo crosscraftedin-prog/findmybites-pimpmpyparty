@@ -30,13 +30,11 @@ import { useCreateVendor, useUpdateVendor, useGeocode } from "@/lib/queries";
 import { useMarketplace } from "@/lib/store";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import {
-  CATEGORIES,
   COUNTRIES,
   CURRENCY_OPTIONS,
   CURRENCY_SYMBOLS,
   PRICE_RANGES,
   RESPONSE_TIME_OPTIONS,
-  categoriesFor,
   subcategoriesFor,
   migrateCategory,
 } from "@/lib/constants";
@@ -186,22 +184,26 @@ export function CreateVendorForm({
   // Use the selected platform (or the editing vendor's ecosystem)
   const activeEcosystem: Ecosystem = selectedPlatform ?? ecosystem;
 
-  // ── Dynamic categories from API (synced with admin panel) ──
+  // ── Dynamic categories from API (single source of truth: DB) ──
   const [dbCategories, setDbCategories] = React.useState<any[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = React.useState(true);
 
   React.useEffect(() => {
     if (!activeEcosystem) return;
     const fetchCategories = async () => {
+      setCategoriesLoading(true);
       try {
         const res = await fetch(`/api/categories?ecosystem=${activeEcosystem}&t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.categories?.length > 0) {
-            setDbCategories(data.categories);
-          }
+          setDbCategories(data.categories ?? []);
+        } else {
+          setDbCategories([]);
         }
       } catch {
-        // Fall back to hardcoded
+        setDbCategories([]);
+      } finally {
+        setCategoriesLoading(false);
       }
     };
     fetchCategories();
@@ -261,10 +263,10 @@ export function CreateVendorForm({
     }
   }, [form.category]);
 
-  // Use DB categories if available, otherwise fall back to hardcoded
-  const cats = dbCategories.length > 0
-    ? dbCategories.map((c) => ({ id: c.id, label: c.label, ecosystem: c.ecosystem, icon: c.icon || "UtensilsCrossed", image: c.image || "", accent: c.accent || "from-amber-400 to-orange-500", description: c.description || "" }))
-    : categoriesFor(activeEcosystem);
+  // SINGLE SOURCE OF TRUTH: categories from DB (via API).
+  // While loading, cats is empty → the category selector shows a loading state.
+  // No hardcoded fallback.
+  const cats = dbCategories.map((c) => ({ id: c.id, label: c.label, ecosystem: c.ecosystem, icon: c.icon || "UtensilsCrossed", image: c.image || "", accent: c.accent || "from-amber-400 to-orange-500", description: c.description || "" }));
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -460,14 +462,22 @@ export function CreateVendorForm({
             }
           >
             <SelectTrigger className="h-10">
-              <SelectValue placeholder="Choose a category" />
+              <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "Choose a category"} />
             </SelectTrigger>
             <SelectContent>
-              {cats.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.label}
-                </SelectItem>
-              ))}
+              {categoriesLoading && cats.length === 0 ? (
+                <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="size-3 animate-spin" /> Loading categories...
+                </div>
+              ) : cats.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-muted-foreground">No categories available.</div>
+              ) : (
+                cats.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.label}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </Field>
@@ -959,7 +969,7 @@ export function CreateVendorSuccess({
           📍 {countryCodeToFlag(vendor.countryCode)} {vendor.continent}
         </span>
         <span className="rounded-md bg-background px-2 py-1 text-xs font-medium">
-          {CATEGORIES.find((c) => c.id === vendor.category)?.label ?? vendor.category}
+          {dbCategories.find((c) => c.id === vendor.category)?.label ?? vendor.category}
         </span>
         <span className="rounded-md bg-background px-2 py-1 text-xs font-medium">
           {vendor.priceRange} pricing

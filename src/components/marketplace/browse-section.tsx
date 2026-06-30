@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useMarketplace, type SortOption } from "@/lib/store";
 import { useVendors, useCategories } from "@/lib/queries";
-import { CATEGORIES, CONTINENTS, PRICE_RANGES, SORT_OPTIONS } from "@/lib/constants";
+import { CONTINENTS, PRICE_RANGES, SORT_OPTIONS } from "@/lib/constants";
 import { getPlaceholderVendors } from "@/lib/placeholder-vendors";
 import { CategoryIcon } from "./icon";
 import { VendorCard } from "./vendor-card";
@@ -57,9 +57,11 @@ export function BrowseSection() {
   const setFiltersOpen = useMarketplace((s) => s.setFiltersOpen);
 
   const { data, isLoading, isFetching } = useVendors();
-  const { data: catData } = useCategories(ecosystem);
+  const { data: catData, isLoading: catsLoading } = useCategories(ecosystem);
 
-  // Use DB categories if available, otherwise fall back to hardcoded
+  // SINGLE SOURCE OF TRUTH: categories come from the API (DB-driven).
+  // While loading, cats is empty → the UI shows a loading state, NOT legacy categories.
+  // No hardcoded fallback.
   const cats = React.useMemo(() => {
     if (catData?.categories && catData.categories.length > 0) {
       return catData.categories.map((c: any) => ({
@@ -72,11 +74,11 @@ export function BrowseSection() {
         description: c.description || "",
       }));
     }
-    return CATEGORIES.filter((c) => c.ecosystem === ecosystem);
+    return [];
   }, [catData, ecosystem]);
   const catCountMap = React.useMemo(() => {
     const m = new Map<string, number>();
-    catData?.categories.forEach((c) => m.set(c.id, c.count));
+    catData?.categories?.forEach((c) => m.set(c.id, c.count));
     return m;
   }, [catData]);
 
@@ -136,7 +138,14 @@ export function BrowseSection() {
               ({cats.reduce((acc, c) => acc + (catCountMap.get(c.id) ?? 0), 0)})
             </span>
           </button>
-          {cats.map((c) => (
+          {catsLoading && cats.length === 0 ? (
+            <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" /> Loading categories...
+            </div>
+          ) : cats.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground">No categories found.</p>
+          ) : (
+            cats.map((c) => (
             <button
               key={c.id}
               onClick={() => setSelectedCategory(c.id)}
@@ -155,7 +164,8 @@ export function BrowseSection() {
                 ({catCountMap.get(c.id) ?? 0})
               </span>
             </button>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
