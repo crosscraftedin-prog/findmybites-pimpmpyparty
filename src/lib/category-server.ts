@@ -7,19 +7,19 @@ import { db } from "@/lib/db";
  * can't use the client-side useCategoryLabels hook.
  */
 
-let cache: Map<string, { label: string; icon: string; accent: string; image: string }> | null = null;
-let fetchPromise: Promise<Map<string, { label: string; icon: string; accent: string; image: string }>> | null = null;
+let cache: Map<string, { label: string; icon: string; accent: string; image: string; description: string; seoTitle: string | null; seoDescription: string | null; featured: boolean }> | null = null;
+let fetchPromise: Promise<Map<string, { label: string; icon: string; accent: string; image: string; description: string; seoTitle: string | null; seoDescription: string | null; featured: boolean }>> | null = null;
 
-async function loadCategories(): Promise<Map<string, { label: string; icon: string; accent: string; image: string }>> {
+async function loadCategories(): Promise<Map<string, { label: string; icon: string; accent: string; image: string; description: string; seoTitle: string | null; seoDescription: string | null; featured: boolean }>> {
   if (cache) return cache;
   if (fetchPromise) return fetchPromise;
 
   fetchPromise = (async () => {
-    const map = new Map<string, { label: string; icon: string; accent: string; image: string }>();
+    const map = new Map<string, { label: string; icon: string; accent: string; image: string; description: string; seoTitle: string | null; seoDescription: string | null; featured: boolean }>();
     try {
       const cats = await db.category.findMany({
         where: { active: true },
-        select: { slug: true, label: true, icon: true, accent: true, image: true },
+        select: { slug: true, label: true, icon: true, accent: true, image: true, description: true, seoTitle: true, seoDescription: true, featured: true },
       });
       for (const c of cats) {
         map.set(c.slug, {
@@ -27,6 +27,10 @@ async function loadCategories(): Promise<Map<string, { label: string; icon: stri
           icon: c.icon || "UtensilsCrossed",
           accent: c.accent || "from-amber-400 to-orange-500",
           image: c.image || "",
+          description: c.description || "",
+          seoTitle: c.seoTitle,
+          seoDescription: c.seoDescription,
+          featured: c.featured || false,
         });
       }
       // Add backward-compat aliases
@@ -74,6 +78,10 @@ export async function getCategoryInfo(slug: string | null | undefined): Promise<
   icon: string;
   accent: string;
   image: string;
+  description: string;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  featured: boolean;
 } | undefined> {
   if (!slug) return undefined;
   const cats = await loadCategories();

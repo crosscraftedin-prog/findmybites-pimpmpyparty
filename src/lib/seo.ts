@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { CATEGORIES, getCategoryMigrated } from "./constants";
 
 export type Ecosystem = "FINDMYBITES" | "PIMPMYPARTY";
 
@@ -23,12 +22,11 @@ const ECOSYSTEM_DESC: Record<Ecosystem, string> = {
 };
 
 /** Generate SEO metadata for a location/category page. */
-export function generateSEOMetadata(ctx: SEOContext): Metadata {
+export function generateSEOMetadata(ctx: SEOContext, resolvedCatLabel?: string): Metadata {
   const { ecosystem, country, state, city, category, vendorCount = 0 } = ctx;
   const ecoLabel = ECOSYSTEM_LABEL[ecosystem];
-  const cat = category ? getCategoryMigrated(category) : undefined;
-  // Labels are now DB-driven; use title-cased slug as fallback for SEO
-  const catLabel = cat?.label ?? (category ? category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : undefined);
+  // Use resolved DB label (passed by caller), or title-cased slug as last resort
+  const catLabel = resolvedCatLabel ?? (category ? category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : undefined);
 
   // Build title
   const parts: string[] = [];
@@ -103,11 +101,10 @@ export function buildPath(ctx: SEOContext): string {
 }
 
 /** Generate JSON-LD structured data for a page. */
-export function generateJsonLd(ctx: SEOContext, vendors: any[] = []) {
+export function generateJsonLd(ctx: SEOContext, vendors: any[] = [], resolvedCatLabel?: string) {
   const { ecosystem, country, state, city, category } = ctx;
   const ecoLabel = ECOSYSTEM_LABEL[ecosystem];
-  const cat = category ? getCategoryMigrated(category) : undefined;
-  const catLabel = cat?.label ?? (category ? category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : undefined);
+  const catLabel = resolvedCatLabel ?? (category ? category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : undefined);
   const path = buildPath(ctx);
   const url = `https://findmybites.com${path}`;
 
@@ -212,8 +209,7 @@ export function generateBreadcrumbs(ctx: SEOContext) {
     if (city) {
       crumbs.push({ label: city, path: `/${ecoSlug}/${slugify(country)}/${slugify(city)}` });
       if (category) {
-        const cat = getCategoryMigrated(category);
-        crumbs.push({ label: cat?.label ?? category, path: `/${ecoSlug}/${slugify(country)}/${slugify(city)}/${category}` });
+        crumbs.push({ label: catLabel ?? category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), path: `/${ecoSlug}/${slugify(country)}/${slugify(city)}/${category}` });
       }
     } else if (state) {
       crumbs.push({ label: state, path: `/${ecoSlug}/${slugify(country)}/${slugify(state)}` });
@@ -224,12 +220,12 @@ export function generateBreadcrumbs(ctx: SEOContext) {
 }
 
 /** Generate intro content for a page. */
-export function generateIntroContent(ctx: SEOContext, vendorCount: number): string {
+export function generateIntroContent(ctx: SEOContext, vendorCount: number, resolvedCatLabel?: string): string {
   const { ecosystem, country, state, city, category } = ctx;
   const ecoLabel = ECOSYSTEM_LABEL[ecosystem];
-  const cat = category ? getCategoryMigrated(category) : undefined;
+  const catLabel = resolvedCatLabel ?? (category ? category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : undefined);
 
-  if (cat && city) {
+  if (catLabel && city) {
     return `Looking for the best ${catLabel.toLowerCase()} in ${city}? ${ecoLabel} connects you with ${vendorCount} verified ${catLabel.toLowerCase()}${vendorCount !== 1 ? "s" : ""} in ${city}. Browse galleries, compare pricing, read reviews, and contact vendors directly — all in one place.`;
   }
 

@@ -115,8 +115,10 @@ function buildVendorContext(vendors: VendorContextRow[]): string {
   if (vendors.length === 0) return "";
   const lines = vendors.map((v) => {
     const catDef = getCategoryMigrated(v.category);
+    // Never expose raw slugs to the AI — use human-readable title from slug
+    const catLabel = catDef?.label ?? v.category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     const tags = parseJsonArray<string>(v.tags);
-    return `- ${v.name} (slug: ${v.slug}) | ${catDef?.label ?? v.category} | ${v.city}, ${v.country} | ⭐${v.rating} (${v.reviewCount} reviews) | from ${v.currency}${v.basePrice} | ${v.featured ? "Featured " : ""}${v.verified ? "Verified" : ""} | ${v.tagline}${tags.length > 0 ? ` | tags: ${tags.join(", ")}` : ""}`;
+    return `- ${v.name} (slug: ${v.slug}) | ${catLabel} | ${v.city}, ${v.country} | ⭐${v.rating} (${v.reviewCount} reviews) | from ${v.currency}${v.basePrice} | ${v.featured ? "Featured " : ""}${v.verified ? "Verified" : ""} | ${v.tagline}${tags.length > 0 ? ` | tags: ${tags.join(", ")}` : ""}`;
   });
   return `\n\n## AVAILABLE VENDORS (real data from database — use these when recommending):\n${lines.join("\n")}`;
 }

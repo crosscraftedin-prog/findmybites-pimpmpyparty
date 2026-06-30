@@ -122,7 +122,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (ecosystem) {
     const ctx = parseEcosystemPath(ecosystem, path ?? []);
     if (!ctx) return { title: "Not Found" };
-    return generateSEOMetadata(ctx);
+    // Resolve category label from DB
+    const catInfo = ctx.category ? await getCategoryInfo(ctx.category) : null;
+    return generateSEOMetadata(ctx, catInfo?.label);
   }
 
   // 2. City/category page: /{city}/{category}
@@ -246,10 +248,14 @@ async function renderEcosystemPage(ecosystem: Ecosystem, path: string[]) {
     // DB unavailable
   }
 
+  // Resolve category label from DB for SEO
+  const catInfo = ctx.category ? await getCategoryInfo(ctx.category) : null;
+  const catLabel = catInfo?.label;
+
   const seoCtx: SEOContext = { ...ctx, vendorCount };
-  const jsonLd = generateJsonLd(seoCtx, vendors);
+  const jsonLd = generateJsonLd(seoCtx, vendors, catLabel);
   const breadcrumbs = generateBreadcrumbs(seoCtx);
-  const introContent = generateIntroContent(seoCtx, vendorCount);
+  const introContent = generateIntroContent(seoCtx, vendorCount, catLabel);
   // Fetch related categories from DB (not hardcoded constants)
   let relatedCategories: { id: string; label: string; ecosystem: string }[] = [];
   if (ctx.city) {
