@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
+import { HomeHashLink } from "./home-hash-link";
 import {
   UtensilsCrossed,
   PartyPopper,
@@ -166,22 +167,42 @@ export function SiteFooter() {
             <div key={col.title}>
               <h4 className="text-sm font-semibold">{col.title}</h4>
               <ul className="mt-3 space-y-2">
-                {col.links.map((l) => (
-                  <li key={l.label}>
-                    <Link
-                      href={l.href}
-                      title={l.active ? undefined : "Coming soon"}
-                      className={cn(
-                        "text-sm transition-colors",
-                        l.active
-                          ? "text-muted-foreground hover:text-brand"
-                          : "pointer-events-none cursor-default opacity-45"
+                {col.links.map((l) => {
+                  // Use HomeHashLink for hash links (#explore, #how-it-works)
+                  // so they navigate to the homepage first when on /dashboard etc.
+                  const isHashLink = l.href.startsWith("#");
+                  return (
+                    <li key={l.label}>
+                      {isHashLink ? (
+                        <HomeHashLink
+                          href={l.href}
+                          title={l.active ? undefined : "Coming soon"}
+                          className={cn(
+                            "text-sm transition-colors",
+                            l.active
+                              ? "text-muted-foreground hover:text-brand"
+                              : "pointer-events-none cursor-default opacity-45"
+                          )}
+                        >
+                          {l.label}
+                        </HomeHashLink>
+                      ) : (
+                        <Link
+                          href={l.href}
+                          title={l.active ? undefined : "Coming soon"}
+                          className={cn(
+                            "text-sm transition-colors",
+                            l.active
+                              ? "text-muted-foreground hover:text-brand"
+                              : "pointer-events-none cursor-default opacity-45"
+                          )}
+                        >
+                          {l.label}
+                        </Link>
                       )}
-                    >
-                      {l.label}
-                    </Link>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -33,6 +32,7 @@ import { UserMenu } from "@/components/auth/user-menu";
 import { useMarketplace } from "@/lib/store";
 import { ECOSYSTEM_META } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { HomeHashLink } from "./home-hash-link";
 
 const NAV_LINKS = [
   { href: "#explore", label: "Explore", icon: Compass },
@@ -118,16 +118,16 @@ export function SiteHeader() {
           </span>
         </a>
 
-        {/* Desktop nav — plain <a> tags (hash links, no Link prefetch handlers) */}
+        {/* Desktop nav — HomeHashLink handles hash navigation from any route */}
         <nav className="ml-2 hidden items-center gap-1 lg:flex">
           {NAV_LINKS.map((l) => (
-            <a
+            <HomeHashLink
               key={l.href}
               href={l.href}
               className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               {l.label}
-            </a>
+            </HomeHashLink>
           ))}
         </nav>
 
@@ -232,13 +232,13 @@ export function SiteHeader() {
                     const Icon = l.icon;
                     return (
                       <SheetClose asChild key={l.href}>
-                        <Link
+                        <HomeHashLink
                           href={l.href}
                           className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-accent"
                         >
                           <Icon className="size-4 text-muted-foreground" />
                           {l.label}
-                        </Link>
+                        </HomeHashLink>
                       </SheetClose>
                     );
                   })}

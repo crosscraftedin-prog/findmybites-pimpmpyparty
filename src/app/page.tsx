@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useScrollToHash } from "@/hooks/use-scroll-to-hash";
 import { SiteHeader } from "@/components/marketplace/site-header";
 import { SiteFooter } from "@/components/marketplace/site-footer";
 import { LocationBanner } from "@/components/marketplace/location-banner";
@@ -27,6 +28,9 @@ import { PendingVendorBanner } from "@/components/marketplace/pending-vendor-ban
 // Admin panel is now a full-page route at /admin — no modal overlay needed.
 
 export default function Home() {
+  // Scroll to the hash section when arriving from another route (e.g. /dashboard → /#explore)
+  useScrollToHash();
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
