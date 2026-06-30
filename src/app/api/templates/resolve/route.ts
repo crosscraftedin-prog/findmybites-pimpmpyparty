@@ -4,6 +4,7 @@ import {
   ALL_TEMPLATES,
   resolveTemplateSlug,
   getTemplateBySlug,
+  getGlobalFieldsTemplate,
   type TemplateDef,
   type TemplateFieldDef,
   type TemplateSectionDef,
@@ -43,9 +44,26 @@ interface DBField {
   subFields: string | null;
   toggleOptions: string | null;
   maxImages: number | null;
+  maxFileSize: number | null;
   minValue: number | null;
   maxValue: number | null;
   step: number | null;
+  // v2 validation
+  minLength: number | null;
+  maxLength: number | null;
+  pattern: string | null;
+  patternHint: string | null;
+  // v2 repeater
+  repeatable: boolean;
+  minRepeats: number | null;
+  maxRepeats: number | null;
+  repeatLabel: string | null;
+  repeatFields: string | null;
+  // v2 flags
+  searchable: boolean;
+  seoIndexed: boolean;
+  aiEnabled: boolean;
+  globalRef: string | null;
 }
 
 function parseJSON<T>(value: string | null, fallback: T): T {
@@ -79,6 +97,21 @@ function dbFieldToDef(f: DBField): TemplateFieldDef {
     minValue: f.minValue || undefined,
     maxValue: f.maxValue || undefined,
     step: f.step || undefined,
+    // v2
+    maxFileSize: f.maxFileSize || undefined,
+    minLength: f.minLength || undefined,
+    maxLength: f.maxLength || undefined,
+    pattern: f.pattern || undefined,
+    patternHint: f.patternHint || undefined,
+    repeatable: f.repeatable || undefined,
+    minRepeats: f.minRepeats || undefined,
+    maxRepeats: f.maxRepeats || undefined,
+    repeatLabel: f.repeatLabel || undefined,
+    repeatFields: f.repeatFields || undefined,
+    searchable: f.searchable || undefined,
+    seoIndexed: f.seoIndexed || undefined,
+    aiEnabled: f.aiEnabled || undefined,
+    globalRef: f.globalRef || undefined,
   };
 }
 
@@ -136,6 +169,7 @@ export async function GET(req: NextRequest) {
 
     let templateDef: TemplateDef | null = null;
     let source: "db" | "code" = "code";
+    let dbVersion: number | undefined;
 
     // ── 1. Try DB resolution (admin-managed mappings + template fields) ──
     try {
@@ -158,10 +192,41 @@ export async function GET(req: NextRequest) {
       if (mapping && mapping.template && mapping.template.active) {
         const tpl = mapping.template;
         const sections = parseJSON<TemplateSectionDef[]>(tpl.sections, []);
-        const fields = tpl.fields
+        let fields = tpl.fields
           .filter((f) => f.enabled)
           .sort((a, b) => a.sortOrder - b.sortOrder)
           .map(dbFieldToDef);
+
+        // ── Inheritance: merge parent template fields ──
+        if (tpl.parentTemplateId) {
+          try {
+            const parent = await db.listingTemplate.findUnique({
+              where: { id: tpl.parentTemplateId },
+              include: { fields: true },
+            });
+            if (parent) {
+              const parentFields = parent.fields
+                .filter((f) => f.enabled)
+                .map(dbFieldToDef);
+              // Merge: parent fields first, child fields override by key
+              const childKeys = new Set(fields.map((f) => f.key));
+              fields = [
+                ...parentFields.filter((f) => !childKeys.has(f.key)),
+                ...fields,
+              ];
+              // Merge sections
+              const parentSections = parseJSON<TemplateSectionDef[]>(parent.sections, []);
+              const existingSectionNames = new Set(sections.map((s) => s.name));
+              for (const ps of parentSections) {
+                if (!existingSectionNames.has(ps.name)) {
+                  sections.push(ps);
+                }
+              }
+            }
+          } catch {
+            // parent lookup failed — continue with own fields
+          }
+        }
 
         templateDef = {
           slug: tpl.slug,
@@ -175,7 +240,11 @@ export async function GET(req: NextRequest) {
             { name: "Preparation & Delivery", icon: "Package", defaultOpen: false, sortOrder: 2 },
           ],
           fields,
+          version: tpl.version,
+          isGlobal: tpl.isGlobal,
+          aiEnabled: tpl.aiEnabled,
         };
+        dbVersion = tpl.version;
         source = "db";
       }
     } catch {
@@ -187,6 +256,9 @@ export async function GET(req: NextRequest) {
       const slug = resolveTemplateSlug(category, subcategory);
       if (slug) {
         templateDef = getTemplateBySlug(slug) ?? null;
+        if (templateDef) {
+          dbVersion = templateDef.version;
+        }
       }
     }
 
@@ -197,7 +269,31 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // ── 3. Fetch filter options from Universal Filter Engine ──
+    // ── 3. Merge global shared fields ──
+    // Global fields (Price, Gallery, Delivery, Contact) are prepended to every
+    // template so admins edit them once and they propagate everywhere.
+    // If the template already defines a field with the same key, skip the global one.
+    if (!templateDef.isGlobal) {
+      const globalTemplate = getGlobalFieldsTemplate();
+      const existingKeys = new Set(templateDef.fields.map((f) => f.key));
+      const globalFieldsToAdd = globalTemplate.fields.filter(
+        (f) => !existingKeys.has(f.key)
+      );
+      if (globalFieldsToAdd.length > 0) {
+        // Prepend global sections that don't already exist
+        const existingSectionNames = new Set(templateDef.sections.map((s) => s.name));
+        const globalSectionsToAdd = globalTemplate.sections.filter(
+          (s) => !existingSectionNames.has(s.name)
+        );
+        templateDef = {
+          ...templateDef,
+          sections: [...globalSectionsToAdd, ...templateDef.sections],
+          fields: [...globalFieldsToAdd, ...templateDef.fields],
+        };
+      }
+    }
+
+    // ── 4. Fetch filter options from Universal Filter Engine ──
     const filterGroupNames = [
       ...new Set(
         templateDef.fields
@@ -211,6 +307,7 @@ export async function GET(req: NextRequest) {
       template: templateDef,
       filterOptions,
       source,
+      version: dbVersion ?? 1,
     });
   } catch (err) {
     console.error("[api/templates/resolve] failed:", err);

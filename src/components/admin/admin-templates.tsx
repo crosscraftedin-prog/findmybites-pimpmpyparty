@@ -49,6 +49,20 @@ import {
   Save,
   Eye,
   EyeOff,
+  Copy,
+  Download,
+  Upload,
+  History,
+  GitBranch,
+  AlertTriangle,
+  Globe,
+  Search,
+  TrendingUp,
+  Clock,
+  ChevronDown,
+  ChevronRight,
+  ShieldCheck,
+  Tag,
 } from "lucide-react";
 
 import {
@@ -80,6 +94,13 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+import {
+  FIELD_TYPE_CATALOG,
+  type FieldType,
+  type TemplateDef,
+} from "@/lib/template-definitions";
+import { TemplateForm } from "@/components/dashboard/TemplateForm";
+
 // ─── Brand colors (matching the rest of the admin panel) ──────────────────
 const CORAL = "#D85A30";
 const CORAL_TINT = "#FAECE7";
@@ -95,18 +116,19 @@ const MUTED = "rgba(0,0,0,0.5)";
 const MUTED_LIGHT = "rgba(0,0,0,0.4)";
 
 // ─── Field-type metadata ──────────────────────────────────────────────────
-const FIELD_TYPES = [
-  "text",
-  "number",
-  "textarea",
-  "select",
-  "chips",
-  "chips_single",
-  "toggle",
-  "toggle_group",
-  "images",
-  "section_toggle",
-] as const;
+// FIELD_TYPE_CATALOG is imported from @/lib/template-definitions so the
+// admin UI stays in sync with the canonical field-type registry (which now
+// includes the v2 catalog of 30+ types grouped by category).
+
+// Field types grouped by category for the Field Editor dropdown.
+const FIELD_TYPE_GROUPS = (() => {
+  const groups = new Map<string, { type: FieldType; label: string }[]>();
+  for (const entry of FIELD_TYPE_CATALOG) {
+    if (!groups.has(entry.group)) groups.set(entry.group, []);
+    groups.get(entry.group)!.push({ type: entry.type, label: entry.label });
+  }
+  return Array.from(groups.entries()); // [group, entries][]
+})();
 
 const ECOSYSTEMS = ["FINDMYBITES", "PIMPMYPARTY", "BOTH"] as const;
 
@@ -135,7 +157,6 @@ const ICON_SUGGESTIONS = [
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────
-type FieldType = (typeof FIELD_TYPES)[number];
 type Ecosystem = (typeof ECOSYSTEMS)[number];
 
 interface TemplateSection {
@@ -167,6 +188,24 @@ interface TemplateField {
   minValue?: number | null;
   maxValue?: number | null;
   step?: number | null;
+  // ── v2: Validation ──
+  minLength?: number | null;
+  maxLength?: number | null;
+  pattern?: string | null;
+  patternHint?: string | null;
+  maxFileSize?: number | null; // KB
+  // ── v2: Repeatable ──
+  repeatable?: boolean | null;
+  minRepeats?: number | null;
+  maxRepeats?: number | null;
+  repeatLabel?: string | null;
+  repeatFields?: string | null;
+  // ── v2: Search / SEO / AI flags ──
+  searchable?: boolean | null;
+  seoIndexed?: boolean | null;
+  aiEnabled?: boolean | null;
+  // ── v2: Global field provenance ──
+  globalRef?: string | null;
 }
 
 interface Template {
@@ -181,6 +220,12 @@ interface Template {
   fields: TemplateField[];
   _count?: { mappings?: number };
   mappings?: TemplateMapping[];
+  // ── v2 ──
+  version?: number;
+  isLatest?: boolean;
+  parentTemplateId?: string | null;
+  isGlobal?: boolean;
+  aiEnabled?: boolean;
 }
 
 interface TemplateMapping {
@@ -189,6 +234,39 @@ interface TemplateMapping {
   subcategory?: string | null;
   templateId: string;
   template?: { id: string; name: string; slug: string };
+}
+
+interface TemplateVersionSnapshot {
+  id: string;
+  version: number;
+  changeNote?: string | null;
+  snapshot?: string | null; // JSON-stringified template at that version
+  createdAt: string;
+  adminEmail?: string | null;
+}
+
+interface TemplateAuditLog {
+  id: string;
+  action: string;
+  changeSummary?: string | null;
+  adminEmail?: string | null;
+  createdAt: string;
+  metadata?: string | null;
+}
+
+interface TemplateUsage {
+  mappings?: TemplateMapping[] | { categoryId: string; subcategory?: string | null }[];
+  categoryCount?: number;
+  productCount?: number;
+  vendorCount?: number;
+}
+
+interface SafeDeleteCheck {
+  canDelete: boolean;
+  productCount?: number;
+  mappingCount?: number;
+  warning?: string | null;
+  blockReasons?: string[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -234,6 +312,28 @@ function fieldTypeBadge(type: FieldType) {
     toggle_group: { bg: "#D1FAE5", text: "#065F46" },
     images: { bg: "#FCE7F3", text: "#9D174D" },
     section_toggle: { bg: "#E0E7FF", text: "#3730A3" },
+    // v2 types
+    date: { bg: "#DBEAFE", text: "#1E40AF" },
+    time: { bg: "#DBEAFE", text: "#1E40AF" },
+    datetime: { bg: "#DBEAFE", text: "#1E40AF" },
+    daterange: { bg: "#DBEAFE", text: "#1E40AF" },
+    currency: { bg: "#FEF9C3", text: "#854D0E" },
+    price: { bg: "#FEF9C3", text: "#854D0E" },
+    address: { bg: "#ECFCCB", text: "#3F6212" },
+    phone: { bg: "#FCE7F3", text: "#9D174D" },
+    email: { bg: "#FCE7F3", text: "#9D174D" },
+    url: { bg: "#FCE7F3", text: "#9D174D" },
+    color: { bg: "#F3E8FF", text: "#6B21A8" },
+    richtext: { bg: "#F1F5F9", text: "#334155" },
+    tags: { bg: "#FEF3C7", text: "#92400E" },
+    gallery: { bg: "#FCE7F3", text: "#9D174D" },
+    videourl: { bg: "#FCE7F3", text: "#9D174D" },
+    fileupload: { bg: "#FCE7F3", text: "#9D174D" },
+    pdfupload: { bg: "#FCE7F3", text: "#9D174D" },
+    repeater: { bg: "#E0E7FF", text: "#3730A3" },
+    availability: { bg: "#DBEAFE", text: "#1E40AF" },
+    bookingduration: { bg: "#DBEAFE", text: "#1E40AF" },
+    radius: { bg: "#ECFCCB", text: "#3F6212" },
   };
   const c = colors[type] ?? { bg: "#F1EFE8", text: "#444" };
   return (
@@ -246,17 +346,40 @@ function fieldTypeBadge(type: FieldType) {
   );
 }
 
+/**
+ * Time-ago formatter for audit logs / snapshots.
+ * Returns strings like "just now", "5m ago", "3h ago", "2d ago", or a date.
+ */
+function timeAgo(input?: string | null): string {
+  if (!input) return "—";
+  const d = new Date(input);
+  if (isNaN(d.getTime())) return "—";
+  const diffMs = Date.now() - d.getTime();
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 30) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day}d ago`;
+  return d.toLocaleDateString();
+}
+
 // ─── Sortable field row ───────────────────────────────────────────────────
 
 function SortableFieldRow({
   field,
   onEdit,
   onDelete,
+  onDuplicate,
   onToggleEnabled,
 }: {
   field: TemplateField;
   onEdit: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
   onToggleEnabled: (next: boolean) => void;
 }) {
   const {
@@ -351,6 +474,14 @@ function SortableFieldRow({
           </button>
           <button
             type="button"
+            onClick={onDuplicate}
+            className="rounded-md border border-black/10 p-1.5 text-black/60 hover:bg-black/5"
+            title="Duplicate field"
+          >
+            <Copy className="size-3.5" />
+          </button>
+          <button
+            type="button"
             onClick={onDelete}
             className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
             title="Delete field"
@@ -384,6 +515,20 @@ interface FieldFormState {
   subFields: string;
   toggleOptions: string;
   maxImages: number;
+  // ── v2 ──
+  minLength: number;
+  maxLength: number;
+  pattern: string;
+  patternHint: string;
+  maxFileSize: number;
+  repeatable: boolean;
+  minRepeats: number;
+  maxRepeats: number;
+  repeatLabel: string;
+  repeatFields: string;
+  searchable: boolean;
+  seoIndexed: boolean;
+  aiEnabled: boolean;
 }
 
 function emptyFieldForm(section: string, sortOrder: number): FieldFormState {
@@ -406,6 +551,20 @@ function emptyFieldForm(section: string, sortOrder: number): FieldFormState {
     subFields: "",
     toggleOptions: "",
     maxImages: 10,
+    // ── v2 ──
+    minLength: 0,
+    maxLength: 0,
+    pattern: "",
+    patternHint: "",
+    maxFileSize: 0,
+    repeatable: false,
+    minRepeats: 0,
+    maxRepeats: 0,
+    repeatLabel: "",
+    repeatFields: "",
+    searchable: false,
+    seoIndexed: false,
+    aiEnabled: false,
   };
 }
 
@@ -429,6 +588,20 @@ function fieldToForm(field: TemplateField): FieldFormState {
     subFields: joinLines(field.subFields),
     toggleOptions: joinLines(field.toggleOptions),
     maxImages: field.maxImages ?? 10,
+    // ── v2 ──
+    minLength: field.minLength ?? 0,
+    maxLength: field.maxLength ?? 0,
+    pattern: field.pattern ?? "",
+    patternHint: field.patternHint ?? "",
+    maxFileSize: field.maxFileSize ?? 0,
+    repeatable: !!field.repeatable,
+    minRepeats: field.minRepeats ?? 0,
+    maxRepeats: field.maxRepeats ?? 0,
+    repeatLabel: field.repeatLabel ?? "",
+    repeatFields: field.repeatFields ?? "",
+    searchable: !!field.searchable,
+    seoIndexed: !!field.seoIndexed,
+    aiEnabled: !!field.aiEnabled,
   };
 }
 
@@ -460,7 +633,39 @@ function formToPayload(form: FieldFormState): Record<string, unknown> {
   if (subFields.length) payload.subFields = subFields;
   const toggleOptions = splitLines(form.toggleOptions);
   if (toggleOptions.length) payload.toggleOptions = toggleOptions;
-  if (form.type === "images") payload.maxImages = Number(form.maxImages) || 10;
+  if (form.type === "images" || form.type === "gallery")
+    payload.maxImages = Number(form.maxImages) || 10;
+
+  // ── v2: validation ──
+  if (form.minLength && form.minLength > 0)
+    payload.minLength = Number(form.minLength);
+  if (form.maxLength && form.maxLength > 0)
+    payload.maxLength = Number(form.maxLength);
+  if (form.pattern.trim()) payload.pattern = form.pattern.trim();
+  if (form.patternHint.trim()) payload.patternHint = form.patternHint.trim();
+  if (
+    (form.type === "fileupload" || form.type === "pdfupload") &&
+    form.maxFileSize > 0
+  ) {
+    payload.maxFileSize = Number(form.maxFileSize);
+  }
+
+  // ── v2: repeatable ──
+  if (form.repeatable) {
+    payload.repeatable = true;
+    if (form.minRepeats > 0) payload.minRepeats = Number(form.minRepeats);
+    if (form.maxRepeats > 0) payload.maxRepeats = Number(form.maxRepeats);
+    if (form.repeatLabel.trim())
+      payload.repeatLabel = form.repeatLabel.trim();
+    if (form.repeatFields.trim())
+      payload.repeatFields = form.repeatFields.trim();
+  }
+
+  // ── v2: search / seo / ai flags ──
+  if (form.searchable) payload.searchable = true;
+  if (form.seoIndexed) payload.seoIndexed = true;
+  if (form.aiEnabled) payload.aiEnabled = true;
+
   return payload;
 }
 
@@ -470,6 +675,7 @@ function FieldEditorDialog({
   mode,
   initial,
   sections,
+  allFields,
   onSave,
   saving,
 }: {
@@ -478,13 +684,28 @@ function FieldEditorDialog({
   mode: "create" | "edit";
   initial: FieldFormState;
   sections: string[];
+  allFields: TemplateField[];
   onSave: (form: FieldFormState) => void;
   saving: boolean;
 }) {
   const [form, setForm] = React.useState<FieldFormState>(initial);
+  const [showValidation, setShowValidation] = React.useState(false);
+  const [showRepeatable, setShowRepeatable] = React.useState(false);
 
   React.useEffect(() => {
-    if (open) setForm(initial);
+    if (open) {
+      setForm(initial);
+      // auto-expand sections that already have v2 data
+      setShowValidation(
+        !!(
+          initial.minLength ||
+          initial.maxLength ||
+          initial.pattern ||
+          initial.maxFileSize
+        )
+      );
+      setShowRepeatable(!!initial.repeatable);
+    }
   }, [open, initial]);
 
   const set = <K extends keyof FieldFormState>(
@@ -498,8 +719,45 @@ function FieldEditorDialog({
     form.type === "chips_single";
   const isToggleGroup = form.type === "toggle_group";
   const isSectionToggle = form.type === "section_toggle";
-  const isImages = form.type === "images";
+  const isImages = form.type === "images" || form.type === "gallery";
   const isNumber = form.type === "number";
+  const isFileUpload =
+    form.type === "fileupload" || form.type === "pdfupload";
+  const isTextual =
+    form.type === "text" ||
+    form.type === "textarea" ||
+    form.type === "richtext" ||
+    form.type === "email" ||
+    form.type === "url" ||
+    form.type === "phone";
+
+  // ── Visual Conditional Logic Builder ──
+  // Available target fields = every other field key (excluding self).
+  const conditionTargets = React.useMemo(() => {
+    return allFields
+      .filter((f) => f.key && f.key !== form.key)
+      .map((f) => ({
+        key: f.key,
+        label: f.label || f.key,
+        options: f.staticOptions ?? null,
+        filterGroupName: f.filterGroupName ?? null,
+      }));
+  }, [allFields, form.key]);
+
+  const conditionTarget = conditionTargets.find(
+    (t) => t.key === form.conditionField
+  );
+  // Available value chips: from static options, or filter group (display only,
+  // since the actual filter values come from the API at form-render time).
+  const conditionValueOptions = conditionTarget?.options ?? null;
+  const conditionValuesList = splitLines(form.conditionValues);
+
+  const toggleConditionValue = (value: string) => {
+    const set2 = new Set(conditionValuesList);
+    if (set2.has(value)) set2.delete(value);
+    else set2.add(value);
+    set("conditionValues", Array.from(set2).join(", "));
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -551,10 +809,14 @@ function FieldEditorDialog({
               onChange={(e) => set("type", e.target.value as FieldType)}
               className="w-full rounded-lg border border-black/15 px-3 py-2 text-[13px]"
             >
-              {FIELD_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
+              {FIELD_TYPE_GROUPS.map(([group, entries]) => (
+                <optgroup key={group} label={group}>
+                  {entries.map((entry) => (
+                    <option key={entry.type} value={entry.type}>
+                      {entry.label} ({entry.type})
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
@@ -731,31 +993,141 @@ function FieldEditorDialog({
             </div>
           )}
 
-          {/* condition */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-black/50">
-              Condition — show when field
-            </label>
-            <input
-              value={form.conditionField}
-              onChange={(e) => set("conditionField", e.target.value)}
-              placeholder="e.g. productType"
-              className="w-full rounded-lg border border-black/15 px-3 py-2 text-[13px]"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-black/50">
-              …matches value(s)
-            </label>
-            <input
-              value={form.conditionValues}
-              onChange={(e) => set("conditionValues", e.target.value)}
-              placeholder="Cakes, Cupcakes (or empty)"
-              className="w-full rounded-lg border border-black/15 px-3 py-2 text-[13px]"
-            />
-            <p className="text-[10px] text-black/40">
-              Empty string means &quot;shown by default&quot;.
+          {/* ── Visual Conditional Logic Builder ── */}
+          <div className="space-y-2 sm:col-span-2 rounded-lg border border-black/10 bg-[#FBFAF6] p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <GitBranch className="size-3.5" style={{ color: PURPLE }} />
+                <p className="text-[12px] font-semibold">
+                  Conditional Visibility
+                </p>
+              </div>
+              {form.conditionField && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    set("conditionField", "");
+                    set("conditionValues", "");
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-black/10 px-2 py-0.5 text-[10px] font-medium text-black/60 hover:bg-black/5"
+                >
+                  <X className="size-3" /> Clear condition
+                </button>
+              )}
+            </div>
+            <p className="text-[10px] text-black/45">
+              Show this field only when another field&apos;s value matches.
             </p>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                  Show when field
+                </label>
+                <select
+                  value={form.conditionField}
+                  onChange={(e) => {
+                    set("conditionField", e.target.value);
+                    set("conditionValues", "");
+                  }}
+                  className="w-full rounded-lg border border-black/15 px-3 py-2 text-[12px]"
+                >
+                  <option value="">— No condition (always shown) —</option>
+                  {conditionTargets.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.label} ({t.key})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                  Match mode
+                </label>
+                <div className="flex h-[34px] items-center gap-1 rounded-lg border border-black/15 bg-white px-2 text-[11px] font-medium">
+                  <span className="rounded bg-black/[0.04] px-2 py-0.5">
+                    is one of
+                  </span>
+                  <span className="text-black/40">
+                    (multi-select; empty string = shown by default)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {form.conditionField && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                  Match values
+                </label>
+                {conditionValueOptions && conditionValueOptions.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {conditionValueOptions.map((opt) => {
+                      const selected = conditionValuesList.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleConditionValue(opt)}
+                          className="rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
+                          style={
+                            selected
+                              ? {
+                                  background: CORAL,
+                                  color: "#fff",
+                                  borderColor: CORAL,
+                                }
+                              : {
+                                  background: "#fff",
+                                  color: "#444",
+                                  borderColor: BORDER_COLOR,
+                                }
+                          }
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : conditionTarget?.filterGroupName ? (
+                  <div className="rounded-md border border-dashed border-black/15 bg-white p-2">
+                    <p className="text-[10px] text-black/50">
+                      This field pulls options from the filter group{" "}
+                      <code className="font-mono">
+                        {conditionTarget.filterGroupName}
+                      </code>{" "}
+                      at runtime. Type the values that should show this field:
+                    </p>
+                    <input
+                      value={form.conditionValues}
+                      onChange={(e) => set("conditionValues", e.target.value)}
+                      placeholder="Cakes, Cupcakes"
+                      className="mt-1.5 w-full rounded-lg border border-black/15 px-3 py-2 text-[12px]"
+                    />
+                  </div>
+                ) : (
+                  <input
+                    value={form.conditionValues}
+                    onChange={(e) => set("conditionValues", e.target.value)}
+                    placeholder="Comma-separated values, e.g. Cakes, Cupcakes"
+                    className="w-full rounded-lg border border-black/15 px-3 py-2 text-[12px]"
+                  />
+                )}
+                {conditionValuesList.length > 0 && (
+                  <p className="text-[10px] text-black/45">
+                    Selected:{" "}
+                    {conditionValuesList.map((v) => (
+                      <span
+                        key={v}
+                        className="ml-1 inline-block rounded bg-black/[0.04] px-1.5 py-0.5 font-mono"
+                      >
+                        {v || "(empty = default)"}
+                      </span>
+                    ))}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* toggles */}
@@ -782,6 +1154,226 @@ function FieldEditorDialog({
               checked={form.enabled}
               onCheckedChange={(v) => set("enabled", v)}
             />
+          </div>
+
+          {/* ── v2: Validation section (collapsible) ── */}
+          {(isTextual || isNumber || isFileUpload) && (
+            <div className="sm:col-span-2 rounded-lg border border-black/10 bg-[#FBFAF6]">
+              <button
+                type="button"
+                onClick={() => setShowValidation((v) => !v)}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+              >
+                <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold">
+                  <ShieldCheck className="size-3.5" style={{ color: CORAL }} />
+                  Validation
+                </span>
+                {showValidation ? (
+                  <ChevronDown className="size-3.5 text-black/40" />
+                ) : (
+                  <ChevronRight className="size-3.5 text-black/40" />
+                )}
+              </button>
+              {showValidation && (
+                <div className="grid grid-cols-1 gap-3 border-t border-black/5 p-3 sm:grid-cols-2">
+                  {(isTextual || isNumber) && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                          Min length / min value
+                        </label>
+                        <input
+                          type="number"
+                          value={form.minLength}
+                          onChange={(e) =>
+                            set("minLength", Number(e.target.value))
+                          }
+                          className="w-full rounded-lg border border-black/15 px-3 py-2 text-[13px]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                          Max length / max value
+                        </label>
+                        <input
+                          type="number"
+                          value={form.maxLength}
+                          onChange={(e) =>
+                            set("maxLength", Number(e.target.value))
+                          }
+                          className="w-full rounded-lg border border-black/15 px-3 py-2 text-[13px]"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {isTextual && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                          Pattern (regex)
+                        </label>
+                        <input
+                          value={form.pattern}
+                          onChange={(e) => set("pattern", e.target.value)}
+                          placeholder="^[a-zA-Z0-9 ]+$"
+                          className="w-full rounded-lg border border-black/15 px-3 py-2 font-mono text-[12px]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                          Pattern hint (shown to vendor)
+                        </label>
+                        <input
+                          value={form.patternHint}
+                          onChange={(e) => set("patternHint", e.target.value)}
+                          placeholder="Letters and numbers only"
+                          className="w-full rounded-lg border border-black/15 px-3 py-2 text-[12px]"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {isFileUpload && (
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                        Max file size (KB)
+                      </label>
+                      <input
+                        type="number"
+                        value={form.maxFileSize}
+                        onChange={(e) =>
+                          set("maxFileSize", Number(e.target.value))
+                        }
+                        placeholder="e.g. 5120 (5 MB)"
+                        className="w-full rounded-lg border border-black/15 px-3 py-2 text-[13px]"
+                      />
+                      <p className="text-[10px] text-black/40">
+                        Leave 0 for no limit.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── v2: Repeatable section (collapsible, non-media types) ── */}
+          {!isImages && !isFileUpload && form.type !== "section_toggle" && (
+            <div className="sm:col-span-2 rounded-lg border border-black/10 bg-[#FBFAF6]">
+              <button
+                type="button"
+                onClick={() => setShowRepeatable((v) => !v)}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+              >
+                <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold">
+                  <Copy className="size-3.5" style={{ color: PURPLE }} />
+                  Repeatable
+                </span>
+                <Switch
+                  checked={form.repeatable}
+                  onCheckedChange={(v) => {
+                    set("repeatable", v);
+                    setShowRepeatable(v);
+                  }}
+                />
+              </button>
+              {showRepeatable && form.repeatable && (
+                <div className="grid grid-cols-1 gap-3 border-t border-black/5 p-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                      Min repeats
+                    </label>
+                    <input
+                      type="number"
+                      value={form.minRepeats}
+                      onChange={(e) =>
+                        set("minRepeats", Number(e.target.value))
+                      }
+                      className="w-full rounded-lg border border-black/15 px-3 py-2 text-[13px]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                      Max repeats
+                    </label>
+                    <input
+                      type="number"
+                      value={form.maxRepeats}
+                      onChange={(e) =>
+                        set("maxRepeats", Number(e.target.value))
+                      }
+                      className="w-full rounded-lg border border-black/15 px-3 py-2 text-[13px]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                      Repeat label (e.g. &quot;Add another&quot;)
+                    </label>
+                    <input
+                      value={form.repeatLabel}
+                      onChange={(e) => set("repeatLabel", e.target.value)}
+                      className="w-full rounded-lg border border-black/15 px-3 py-2 text-[13px]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                      Repeat fields (comma-separated keys)
+                    </label>
+                    <input
+                      value={form.repeatFields}
+                      onChange={(e) => set("repeatFields", e.target.value)}
+                      placeholder="name, price, quantity"
+                      className="w-full rounded-lg border border-black/15 px-3 py-2 font-mono text-[12px]"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── v2: Flags section ── */}
+          <div className="sm:col-span-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="flex items-start justify-between gap-2 rounded-lg border border-black/10 px-3 py-2">
+              <div>
+                <p className="inline-flex items-center gap-1 text-[12px] font-semibold">
+                  <Search className="size-3" /> Searchable
+                </p>
+                <p className="text-[10px] text-black/40">
+                  Include this field in marketplace search.
+                </p>
+              </div>
+              <Switch
+                checked={form.searchable}
+                onCheckedChange={(v) => set("searchable", v)}
+              />
+            </div>
+            <div className="flex items-start justify-between gap-2 rounded-lg border border-black/10 px-3 py-2">
+              <div>
+                <p className="inline-flex items-center gap-1 text-[12px] font-semibold">
+                  <Tag className="size-3" /> SEO indexed
+                </p>
+                <p className="text-[10px] text-black/40">
+                  Surface value on SEO listing pages.
+                </p>
+              </div>
+              <Switch
+                checked={form.seoIndexed}
+                onCheckedChange={(v) => set("seoIndexed", v)}
+              />
+            </div>
+            <div className="flex items-start justify-between gap-2 rounded-lg border border-black/10 px-3 py-2">
+              <div>
+                <p className="inline-flex items-center gap-1 text-[12px] font-semibold">
+                  <Sparkles className="size-3" /> AI enabled
+                </p>
+                <p className="text-[10px] text-black/40">
+                  Available for AI-generated suggestions.
+                </p>
+              </div>
+              <Switch
+                checked={form.aiEnabled}
+                onCheckedChange={(v) => set("aiEnabled", v)}
+              />
+            </div>
           </div>
         </div>
 
@@ -819,10 +1411,12 @@ function TemplateEditorPanel({
   template,
   onClose,
   onMutated,
+  onOpenDuplicate,
 }: {
   template: Template;
   onClose: () => void;
   onMutated: () => void;
+  onOpenDuplicate?: (id: string) => void;
 }) {
   const [meta, setMeta] = React.useState({
     name: template.name,
@@ -849,6 +1443,25 @@ function TemplateEditorPanel({
   const [savingMeta, setSavingMeta] = React.useState(false);
   const [savingField, setSavingField] = React.useState(false);
   const [reordering, setReordering] = React.useState(false);
+
+  // ── v2: enterprise state ──
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [previewData, setPreviewData] = React.useState<{
+    template: TemplateDef | null;
+    filterOptions: Record<string, string[]>;
+  } | null>(null);
+  const [previewLoading, setPreviewLoading] = React.useState(false);
+  const [duplicating, setDuplicating] = React.useState(false);
+  const [versionInfo, setVersionInfo] = React.useState<{
+    currentVersion: number;
+    snapshots: TemplateVersionSnapshot[];
+  } | null>(null);
+  const [showSnapshots, setShowSnapshots] = React.useState(false);
+  const [bumpingVersion, setBumpingVersion] = React.useState(false);
+  const [auditLogs, setAuditLogs] = React.useState<TemplateAuditLog[] | null>(
+    null
+  );
+  const [usage, setUsage] = React.useState<TemplateUsage | null>(null);
 
   // keep local state in sync when the parent swaps templates
   React.useEffect(() => {
@@ -1090,6 +1703,154 @@ function TemplateEditorPanel({
     }
   };
 
+  // ── v2: fetch version + audit log + usage when template changes ─────────
+  React.useEffect(() => {
+    let cancelled = false;
+    const id = template.id;
+    const fetchVersion = async () => {
+      try {
+        const res = await fetch(`/api/admin/templates/${id}/version`);
+        if (!res.ok) return;
+        const d = await res.json();
+        if (cancelled) return;
+        setVersionInfo({
+          currentVersion: d.currentVersion ?? d.version ?? template.version ?? 1,
+          snapshots: Array.isArray(d.snapshots) ? d.snapshots : [],
+        });
+      } catch {
+        /* non-fatal */
+      }
+    };
+    const fetchAudit = async () => {
+      try {
+        const res = await fetch(`/api/admin/templates/${id}/audit-log`);
+        if (!res.ok) return;
+        const d = await res.json();
+        if (cancelled) return;
+        setAuditLogs(Array.isArray(d.logs) ? d.logs : []);
+      } catch {
+        /* non-fatal */
+      }
+    };
+    const fetchUsage = async () => {
+      try {
+        const res = await fetch(`/api/admin/templates/${id}/usage`);
+        if (!res.ok) return;
+        const d = await res.json();
+        if (cancelled) return;
+        setUsage(d);
+      } catch {
+        /* non-fatal */
+      }
+    };
+    fetchVersion();
+    fetchAudit();
+    fetchUsage();
+    return () => {
+      cancelled = true;
+    };
+  }, [template.id, template.version, template]);
+
+  // ── v2: Preview ─────────────────────────────────────────────────────────
+  const handleOpenPreview = async () => {
+    setPreviewOpen(true);
+    setPreviewLoading(true);
+    setPreviewData(null);
+    try {
+      const res = await fetch(`/api/admin/templates/${template.id}/preview`);
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Preview failed (${res.status})`);
+      }
+      const d = await res.json();
+      setPreviewData({
+        template: (d.template as TemplateDef) ?? null,
+        filterOptions: (d.filterOptions as Record<string, string[]>) ?? {},
+      });
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Failed to load preview"
+      );
+      setPreviewOpen(false);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  // ── v2: Duplicate template ─────────────────────────────────────────────
+  const handleDuplicateTemplate = async () => {
+    setDuplicating(true);
+    try {
+      const res = await fetch(
+        `/api/admin/templates/${template.id}/duplicate`,
+        { method: "POST", headers: { "Content-Type": "application/json" } }
+      );
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Duplicate failed (${res.status})`);
+      }
+      const d = await res.json();
+      toast.success("Template duplicated");
+      onMutated();
+      if (d?.template?.id && onOpenDuplicate) {
+        onOpenDuplicate(d.template.id);
+      }
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Failed to duplicate template"
+      );
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
+  // ── v2: Duplicate field ────────────────────────────────────────────────
+  const handleDuplicateField = async (field: TemplateField) => {
+    try {
+      const res = await fetch(
+        `/api/admin/templates/${template.id}/fields/${field.id}/duplicate`,
+        { method: "POST", headers: { "Content-Type": "application/json" } }
+      );
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Duplicate failed (${res.status})`);
+      }
+      toast.success(`Field "${field.label}" duplicated`);
+      onMutated();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Failed to duplicate field"
+      );
+    }
+  };
+
+  // ── v2: Bump version ───────────────────────────────────────────────────
+  const handleBumpVersion = async () => {
+    const changeNote =
+      prompt("Bump version — add a change note (optional):") ?? "";
+    setBumpingVersion(true);
+    try {
+      const res = await fetch(`/api/admin/templates/${template.id}/version`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changeNote: changeNote.trim() || undefined }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Bump failed (${res.status})`);
+      }
+      const d = await res.json();
+      toast.success(`Version bumped to v${d.version ?? "?"}`);
+      onMutated();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Failed to bump version"
+      );
+    } finally {
+      setBumpingVersion(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-black/30">
       <div className="flex h-full flex-col bg-[#FAFAF7]">
@@ -1125,6 +1886,30 @@ function TemplateEditorPanel({
               <Loader2 className="size-3 animate-spin" /> Saving order…
             </span>
           )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleOpenPreview}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 bg-white px-3 py-1.5 text-[12px] font-semibold hover:bg-black/5"
+              title="Preview how this template renders for vendors"
+            >
+              <Eye className="size-3.5" /> Preview
+            </button>
+            <button
+              type="button"
+              onClick={handleDuplicateTemplate}
+              disabled={duplicating}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 bg-white px-3 py-1.5 text-[12px] font-semibold hover:bg-black/5 disabled:opacity-50"
+              title="Duplicate this template"
+            >
+              {duplicating ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Copy className="size-3.5" />
+              )}
+              Duplicate
+            </button>
+          </div>
         </div>
 
         {/* Scrollable body */}
@@ -1331,6 +2116,9 @@ function TemplateEditorPanel({
                                     field={field}
                                     onEdit={() => openEditField(field)}
                                     onDelete={() => handleDeleteField(field)}
+                                    onDuplicate={() =>
+                                      handleDuplicateField(field)
+                                    }
                                     onToggleEnabled={(v) =>
                                       handleToggleEnabled(field, v)
                                     }
@@ -1360,6 +2148,220 @@ function TemplateEditorPanel({
                 </button>
               </div>
             </section>
+
+            {/* ── C. Version & Audit (v2) ────────────────────────────────── */}
+            <section className="rounded-xl border border-black/10 bg-white p-4 sm:p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <GitBranch className="size-4" style={{ color: PURPLE }} />
+                <h3 className="text-[15px] font-bold">Versioning</h3>
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                  style={{ background: PURPLE_TINT, color: PURPLE }}
+                >
+                  v{versionInfo?.currentVersion ?? template.version ?? 1}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleBumpVersion}
+                  disabled={bumpingVersion}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 px-3 py-1.5 text-[12px] font-semibold hover:bg-black/5 disabled:opacity-50"
+                >
+                  {bumpingVersion ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <GitBranch className="size-3.5" />
+                  )}
+                  Bump Version
+                </button>
+                {versionInfo && versionInfo.snapshots.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSnapshots((v) => !v)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-black/15 px-3 py-1.5 text-[12px] font-medium hover:bg-black/5"
+                  >
+                    {showSnapshots ? (
+                      <ChevronDown className="size-3.5" />
+                    ) : (
+                      <ChevronRight className="size-3.5" />
+                    )}
+                    {versionInfo.snapshots.length} snapshot
+                    {versionInfo.snapshots.length === 1 ? "" : "s"}
+                  </button>
+                )}
+              </div>
+
+              {showSnapshots && versionInfo && (
+                <div className="mt-3 space-y-2">
+                  {versionInfo.snapshots.length === 0 ? (
+                    <p className="text-[12px] text-black/40">
+                      No version snapshots yet.
+                    </p>
+                  ) : (
+                    versionInfo.snapshots.map((s) => (
+                      <div
+                        key={s.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-black/10 bg-[#FBFAF6] px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-semibold">
+                            v{s.version}
+                            {s.changeNote ? (
+                              <span className="ml-1.5 text-black/55">
+                                — {s.changeNote}
+                              </span>
+                            ) : null}
+                          </p>
+                          {s.adminEmail && (
+                            <p className="text-[10px] text-black/45">
+                              by {s.adminEmail}
+                            </p>
+                          )}
+                        </div>
+                        <span className="inline-flex items-center gap-1 text-[10px] text-black/45">
+                          <Clock className="size-3" /> {timeAgo(s.createdAt)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* ── D. Usage Statistics (v2) ───────────────────────────────── */}
+            <section className="rounded-xl border border-black/10 bg-white p-4 sm:p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <TrendingUp className="size-4" style={{ color: CORAL }} />
+                <h3 className="text-[15px] font-bold">Usage</h3>
+              </div>
+
+              {!usage ? (
+                <p className="text-[12px] text-black/40">
+                  Loading usage statistics…
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {[
+                      {
+                        label: "Categories",
+                        value: usage.categoryCount ?? 0,
+                      },
+                      {
+                        label: "Products",
+                        value: usage.productCount ?? 0,
+                      },
+                      {
+                        label: "Vendors",
+                        value: usage.vendorCount ?? 0,
+                      },
+                      {
+                        label: "Mappings",
+                        value:
+                          (usage.mappings && Array.isArray(usage.mappings)
+                            ? usage.mappings.length
+                            : 0) ||
+                          template._count?.mappings ||
+                          0,
+                      },
+                    ].map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="rounded-lg border border-black/10 bg-[#FBFAF6] px-3 py-2 text-center"
+                      >
+                        <p
+                          className="text-[20px] font-bold"
+                          style={{ color: CORAL }}
+                        >
+                          {stat.value}
+                        </p>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-black/50">
+                          {stat.label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {usage.mappings && Array.isArray(usage.mappings) && (
+                    usage.mappings.length > 0 ? (
+                      <div className="mt-3">
+                        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-black/50">
+                          Mapped categories
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {usage.mappings.map((m, idx) => {
+                            const cat = m.categoryId;
+                            const sub = m.subcategory;
+                            return (
+                              <span
+                                key={`${cat}-${sub ?? ""}-${idx}`}
+                                className="inline-flex items-center gap-1 rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-medium text-black/70"
+                              >
+                                <code className="font-mono">{cat}</code>
+                                {sub && (
+                                  <span className="text-black/40">/{sub}</span>
+                                )}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-[11px] text-black/40">
+                        Not assigned to any categories yet.
+                      </p>
+                    )
+                  )}
+                </>
+              )}
+            </section>
+
+            {/* ── E. Audit Log (v2) ──────────────────────────────────────── */}
+            <section className="rounded-xl border border-black/10 bg-white p-4 sm:p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <History className="size-4" style={{ color: PURPLE }} />
+                <h3 className="text-[15px] font-bold">Audit Log</h3>
+              </div>
+
+              {!auditLogs ? (
+                <p className="text-[12px] text-black/40">Loading audit log…</p>
+              ) : auditLogs.length === 0 ? (
+                <p className="text-[12px] text-black/40">
+                  No changes recorded yet.
+                </p>
+              ) : (
+                <ol className="relative space-y-3 border-l border-black/10 pl-4">
+                  {auditLogs.map((log) => (
+                    <li key={log.id} className="relative">
+                      <span
+                        className="absolute -left-[1.18rem] top-1.5 size-2.5 rounded-full"
+                        style={{ background: CORAL }}
+                      />
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <p className="text-[12px] font-semibold">
+                          {log.action}
+                        </p>
+                        <span className="inline-flex items-center gap-1 text-[10px] text-black/45">
+                          <Clock className="size-3" /> {timeAgo(log.createdAt)}
+                        </span>
+                      </div>
+                      {log.changeSummary && (
+                        <p className="mt-0.5 text-[12px] text-black/60">
+                          {log.changeSummary}
+                        </p>
+                      )}
+                      {log.adminEmail && (
+                        <p className="mt-0.5 text-[10px] text-black/45">
+                          by {log.adminEmail}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
           </div>
         </div>
       </div>
@@ -1374,10 +2376,81 @@ function TemplateEditorPanel({
           mode={fieldDialog.mode}
           initial={fieldDialog.initial}
           sections={sectionNames}
+          allFields={fields}
           onSave={handleSaveField}
           saving={savingField}
         />
       )}
+
+      {/* Preview dialog */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              <Eye className="mr-1.5 inline size-4" style={{ color: CORAL }} />
+              Vendor Form Preview
+            </DialogTitle>
+            <DialogDescription>
+              This is exactly what vendors will see when filling out a listing
+              with the &quot;{template.name}&quot; template.
+            </DialogDescription>
+          </DialogHeader>
+
+          {previewLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="size-6 animate-spin" style={{ color: CORAL }} />
+            </div>
+          ) : previewData?.template ? (
+            <PreviewForm template={previewData.template} filterOptions={previewData.filterOptions} />
+          ) : (
+            <p className="py-8 text-center text-[13px] text-black/40">
+              No preview data available.
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Preview Form (wraps TemplateForm with sample/empty state) ────────────
+
+function PreviewForm({
+  template,
+  filterOptions,
+}: {
+  template: TemplateDef;
+  filterOptions: Record<string, string[]>;
+}) {
+  const [form, setForm] = React.useState<Record<string, unknown>>({});
+
+  const set = React.useCallback((key: string, value: unknown) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const toggleArray = React.useCallback((key: string, value: string) => {
+    setForm((prev) => {
+      const arr = Array.isArray(prev[key]) ? (prev[key] as string[]) : [];
+      const next = arr.includes(value)
+        ? arr.filter((v) => v !== value)
+        : [...arr, value];
+      return { ...prev, [key]: next };
+    });
+  }, []);
+
+  return (
+    <div className="rounded-lg border border-black/10 bg-[#FBFAF6] p-3">
+      <TemplateForm
+        template={template}
+        filterOptions={filterOptions}
+        form={form}
+        set={set}
+        toggleArray={toggleArray}
+        currencySymbol="$"
+      />
+      <p className="mt-3 border-t border-black/10 pt-2 text-[10px] text-black/40">
+        Preview only — values entered above are not saved.
+      </p>
     </div>
   );
 }
@@ -1681,15 +2754,41 @@ function TemplateCard({
   template,
   onOpen,
   onDelete,
+  onDuplicate,
 }: {
   template: Template;
   onOpen: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
 }) {
   const fieldCount = template.fields?.length ?? 0;
   const mappingCount =
     template._count?.mappings ?? template.mappings?.length ?? 0;
   const active = template.active !== false;
+
+  // Lazy-fetch product usage count for the badge.
+  const [productCount, setProductCount] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    const fetchUsage = async () => {
+      try {
+        const res = await fetch(`/api/admin/templates/${template.id}/usage`);
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!cancelled) {
+          setProductCount(
+            typeof d.productCount === "number" ? d.productCount : null
+          );
+        }
+      } catch {
+        /* non-fatal */
+      }
+    };
+    fetchUsage();
+    return () => {
+      cancelled = true;
+    };
+  }, [template.id]);
 
   return (
     <div
@@ -1715,14 +2814,24 @@ function TemplateCard({
             </p>
           </div>
         </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="rounded-md border border-red-200 p-1.5 text-red-600 opacity-0 transition-opacity hover:bg-red-50 group-hover:opacity-100"
-          title="Delete template"
-        >
-          <Trash2 className="size-3.5" />
-        </button>
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={onDuplicate}
+            className="rounded-md border border-black/15 p-1.5 text-black/60 hover:bg-black/5"
+            title="Duplicate template"
+          >
+            <Copy className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+            title="Delete template"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        </div>
       </div>
 
       <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-[12px] text-black/55">
@@ -1733,6 +2842,14 @@ function TemplateCard({
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {ecosystemBadge(template.ecosystem)}
+        {template.isGlobal && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+            style={{ background: PURPLE_TINT, color: PURPLE }}
+          >
+            <Globe className="size-2.5" /> Global
+          </span>
+        )}
         {active ? (
           <span
             className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
@@ -1748,6 +2865,14 @@ function TemplateCard({
             <EyeOff className="size-2.5" /> Inactive
           </span>
         )}
+        {typeof template.version === "number" && template.version > 1 && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+            style={{ background: "#EEEDFE", color: "#5B21B6" }}
+          >
+            <GitBranch className="size-2.5" /> v{template.version}
+          </span>
+        )}
         <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-black/55">
           <LayoutTemplate className="size-2.5" /> {fieldCount} fields
         </span>
@@ -1755,6 +2880,16 @@ function TemplateCard({
           <Link2 className="size-2.5" /> {mappingCount} mapping
           {mappingCount === 1 ? "" : "s"}
         </span>
+        {productCount !== null && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+            style={{ background: CORAL_TINT, color: CORAL }}
+            title="Products using this template"
+          >
+            <TrendingUp className="size-2.5" /> {productCount} product
+            {productCount === 1 ? "" : "s"}
+          </span>
+        )}
       </div>
 
       <button
@@ -1784,6 +2919,15 @@ export function AdminTemplates() {
   const [creatingTemplate, setCreatingTemplate] = React.useState(false);
   const [creatingMapping, setCreatingMapping] = React.useState(false);
   const [seeding, setSeeding] = React.useState(false);
+
+  // v2: import/export + safe-delete state
+  const [exporting, setExporting] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [safeDelete, setSafeDelete] = React.useState<{
+    template: Template;
+    check: SafeDeleteCheck;
+  } | null>(null);
 
   // ── Fetch templates ───────────────────────────────────────────────────
   const fetchTemplates = React.useCallback(async () => {
@@ -1920,8 +3064,26 @@ export function AdminTemplates() {
     }
   };
 
-  // ── Delete template ───────────────────────────────────────────────────
+  // ── Delete template (v2: safe-delete check first) ─────────────────────
   const handleDeleteTemplate = async (template: Template) => {
+    // First, call the safe-delete-check endpoint.
+    try {
+      const res = await fetch(
+        `/api/admin/templates/${template.id}/safe-delete-check`
+      );
+      if (res.ok) {
+        const check: SafeDeleteCheck = await res.json();
+        if (check && check.canDelete === false) {
+          // Block deletion — show the safe-delete dialog with reasons.
+          setSafeDelete({ template, check });
+          return;
+        }
+      }
+      // If check passed (or endpoint missing), fall through to confirm flow.
+    } catch {
+      /* non-fatal — fall through to standard confirm */
+    }
+
     if (
       !confirm(
         `Delete template "${template.name}"?\n\nThis also removes its fields. Mappings to this template may break.`
@@ -1940,6 +3102,131 @@ export function AdminTemplates() {
       toast.error(e instanceof Error ? e.message : "Failed to delete template");
     }
   };
+
+  // ── v2: Confirm safe-delete (force through dialog) ───────────────────
+  const handleConfirmSafeDelete = async () => {
+    if (!safeDelete) return;
+    const { template } = safeDelete;
+    try {
+      const res = await fetch(`/api/admin/templates/${template.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      toast.success("Template deleted");
+      setSafeDelete(null);
+      fetchTemplates();
+      fetchMappings();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete template");
+    }
+  };
+
+  // ── v2: Duplicate template ───────────────────────────────────────────
+  const handleDuplicateTemplate = async (template: Template) => {
+    try {
+      const res = await fetch(
+        `/api/admin/templates/${template.id}/duplicate`,
+        { method: "POST", headers: { "Content-Type": "application/json" } }
+      );
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Duplicate failed (${res.status})`);
+      }
+      toast.success("Template duplicated");
+      await fetchTemplates();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Failed to duplicate template"
+      );
+    }
+  };
+
+  // ── v2: Export all templates as JSON download ────────────────────────
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch("/api/admin/templates/export");
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Export failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const date = new Date().toISOString().slice(0, 10);
+      a.download = `templates-export-${date}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Templates exported");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to export templates");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // ── v2: Import templates from JSON file ──────────────────────────────
+  const handleImportFile = async (file: File) => {
+    setImporting(true);
+    try {
+      const text = await file.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new Error("Invalid JSON file");
+      }
+      const body =
+        parsed && typeof parsed === "object" && "templates" in parsed
+          ? parsed
+          : { templates: parsed };
+      const res = await fetch("/api/admin/templates/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Import failed (${res.status})`);
+      }
+      const d = await res.json();
+      const imported = d.imported ?? d.templates?.length ?? 0;
+      const updated = d.updated ?? 0;
+      const mapCount = d.mappings ?? 0;
+      toast.success(
+        `Import complete — ${imported} imported, ${updated} updated, ${mapCount} mappings`
+      );
+      fetchTemplates();
+      fetchMappings();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to import templates");
+    } finally {
+      setImporting(false);
+      // reset input so the same file can be re-picked
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // ── v2: Open the editor on a template by id (after duplicate) ────────
+  const handleOpenDuplicate = React.useCallback(
+    (id: string) => {
+      const t = templates.find((x) => x.id === id);
+      if (t) setSelectedTemplate(t);
+    },
+    [templates]
+  );
+
+  // Global-shared template (created by /seed).
+  const globalTemplate = React.useMemo(
+    () =>
+      templates.find(
+        (t) => t.isGlobal === true || t.slug === "global-shared"
+      ) ?? null,
+    [templates]
+  );
 
   // ── Create mapping ────────────────────────────────────────────────────
   const handleCreateMapping = async (form: NewMappingForm) => {
@@ -2017,6 +3304,7 @@ export function AdminTemplates() {
         onMutated={() => {
           fetchTemplates();
         }}
+        onOpenDuplicate={handleOpenDuplicate}
       />
     );
   }
@@ -2050,6 +3338,44 @@ export function AdminTemplates() {
           </button>
           <button
             type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="inline-flex items-center gap-2 rounded-lg border border-black/15 bg-white px-3 py-2 text-[13px] font-semibold hover:bg-black/5 disabled:opacity-50"
+            title="Export all templates as JSON"
+          >
+            {exporting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Download className="size-4" />
+            )}
+            Export
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="inline-flex items-center gap-2 rounded-lg border border-black/15 bg-white px-3 py-2 text-[13px] font-semibold hover:bg-black/5 disabled:opacity-50"
+            title="Import templates from JSON"
+          >
+            {importing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Upload className="size-4" />
+            )}
+            Import
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleImportFile(file);
+            }}
+          />
+          <button
+            type="button"
             onClick={() => setShowNewTemplate(true)}
             className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white"
             style={{ background: CORAL }}
@@ -2066,6 +3392,9 @@ export function AdminTemplates() {
           </TabsTrigger>
           <TabsTrigger value="mappings">
             <Link2 className="size-3.5" /> Mappings
+          </TabsTrigger>
+          <TabsTrigger value="global">
+            <Globe className="size-3.5" /> Global Fields
           </TabsTrigger>
         </TabsList>
 
@@ -2095,8 +3424,70 @@ export function AdminTemplates() {
                   template={t}
                   onOpen={() => setSelectedTemplate(t)}
                   onDelete={() => handleDeleteTemplate(t)}
+                  onDuplicate={() => handleDuplicateTemplate(t)}
                 />
               ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Global Fields Tab (v2) ─────────────────────────────────── */}
+        <TabsContent value="global">
+          <div
+            className="mb-4 flex items-start gap-3 rounded-xl border px-4 py-3"
+            style={{
+              background: PURPLE_TINT,
+              borderColor: PURPLE,
+              color: "#3B2A6B",
+            }}
+          >
+            <Globe className="mt-0.5 size-5 shrink-0" style={{ color: PURPLE }} />
+            <div>
+              <p className="text-[13px] font-semibold">
+                Global Fields are inherited by ALL templates automatically.
+              </p>
+              <p className="mt-0.5 text-[12px]" style={{ color: "#5B4A8B" }}>
+                Edit once here and the changes propagate to every listing
+                template in the marketplace. Use this for shared fields like
+                tags, SEO metadata, or vendor contact info.
+              </p>
+            </div>
+          </div>
+
+          {globalTemplate ? (
+            <TemplateCard
+              template={globalTemplate}
+              onOpen={() => setSelectedTemplate(globalTemplate)}
+              onDelete={() => handleDeleteTemplate(globalTemplate)}
+              onDuplicate={() => handleDuplicateTemplate(globalTemplate)}
+            />
+          ) : (
+            <div className="rounded-xl border border-dashed border-black/15 bg-white py-16 text-center">
+              <Globe
+                className="mx-auto size-10"
+                style={{ color: MUTED_LIGHT }}
+              />
+              <p className="mt-3 text-[15px] font-medium">
+                No global template yet
+              </p>
+              <p className="mt-1 text-[13px]" style={{ color: MUTED_LIGHT }}>
+                Click <strong>Seed Templates</strong> above to create the
+                &quot;global-shared&quot; template.
+              </p>
+              <button
+                type="button"
+                onClick={handleSeed}
+                disabled={seeding}
+                className="mt-4 inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
+                style={{ background: CORAL }}
+              >
+                {seeding ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Database className="size-4" />
+                )}
+                Seed Global Fields
+              </button>
             </div>
           )}
         </TabsContent>
@@ -2223,6 +3614,97 @@ export function AdminTemplates() {
         onCreate={handleCreateMapping}
         creating={creatingMapping}
       />
+
+      {/* Safe-delete dialog (v2) */}
+      <Dialog
+        open={!!safeDelete}
+        onOpenChange={(v) => {
+          if (!v) setSafeDelete(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-1.5">
+              <AlertTriangle
+                className="size-4"
+                style={{ color: RED_TEXT }}
+              />
+              Cannot delete template
+            </DialogTitle>
+            <DialogDescription>
+              &quot;{safeDelete?.template.name}&quot; is in use and cannot be
+              deleted safely.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {safeDelete?.check.warning && (
+              <div
+                className="rounded-lg border p-3 text-[12px]"
+                style={{
+                  background: RED_BG,
+                  borderColor: "#F5C6CB",
+                  color: RED_TEXT,
+                }}
+              >
+                {safeDelete.check.warning}
+              </div>
+            )}
+            {safeDelete?.check.blockReasons &&
+              safeDelete.check.blockReasons.length > 0 && (
+                <ul className="list-disc space-y-1 pl-5 text-[12px] text-black/70">
+                  {safeDelete.check.blockReasons.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+              )}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg border border-black/10 bg-[#FBFAF6] px-3 py-2 text-center">
+                <p
+                  className="text-[18px] font-bold"
+                  style={{ color: CORAL }}
+                >
+                  {safeDelete?.check.productCount ?? 0}
+                </p>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-black/50">
+                  Products
+                </p>
+              </div>
+              <div className="rounded-lg border border-black/10 bg-[#FBFAF6] px-3 py-2 text-center">
+                <p
+                  className="text-[18px] font-bold"
+                  style={{ color: CORAL }}
+                >
+                  {safeDelete?.check.mappingCount ?? 0}
+                </p>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-black/50">
+                  Mappings
+                </p>
+              </div>
+            </div>
+            <p className="text-[11px] text-black/45">
+              Reassign or remove the dependent items first, or use the force
+              option below to delete anyway (may break listings).
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              onClick={() => setSafeDelete(null)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 px-4 py-2 text-[13px] font-medium hover:bg-black/5"
+            >
+              <X className="size-4" /> Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmSafeDelete}
+              className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-semibold text-white"
+              style={{ background: "#B91C1C" }}
+            >
+              <Trash2 className="size-4" /> Force delete
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

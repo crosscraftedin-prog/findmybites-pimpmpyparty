@@ -116,6 +116,7 @@ export async function POST(req: NextRequest) {
       minOrderForOffer, exclusiveMemberOffer,
       isAvailable, isFeatured, images, productType,
       extraFields,
+      templateSlug, templateVersion,
     } = body;
 
     if (!name?.trim() || price === undefined) {
@@ -174,6 +175,8 @@ export async function POST(req: NextRequest) {
           ? Math.round(((Number(comparePrice) - Number(price)) / Number(comparePrice)) * 100)
           : null,
         extraFields: extraFields ? (typeof extraFields === "string" ? extraFields : JSON.stringify(extraFields)) : null,
+        templateSlug: templateSlug || null,
+        templateVersion: templateVersion ? Number(templateVersion) : null,
       },
     });
 

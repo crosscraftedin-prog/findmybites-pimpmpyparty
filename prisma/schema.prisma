@@ -293,6 +293,12 @@ model Product {
   flashDealEndsAt       DateTime?
   minOrderForOffer      Int?
   exclusiveMemberOffer  Boolean  @default(false)
+  // ── Template Engine v2: versioning ──
+  // Stores which template version this product was created/last edited with.
+  // Enables backward compatibility when templates evolve — old products
+  // can still render with their original field structure.
+  templateSlug          String?
+  templateVersion       Int?
 
   @@index([vendorId])
   @@index([productType])
@@ -405,18 +411,22 @@ model VendorFilterValue {
   @@map("vendor_filter_values")
 }
 
-// ── Template Engine ───────────────────────────────────────────────────────
+// ── Template Engine (Enterprise v2) ───────────────────────────────────────
 // Database-driven, admin-managed listing templates.
 // Architecture: Business Type → Category → Subcategory → Template → Dynamic Fields
 //
-// A Template is a reusable collection of fields. Templates are assigned to
-// categories/subcategories via TemplateMapping. When a vendor opens their
-// product form, the system resolves which template to use based on their
-// category + subcategory, then renders fields dynamically.
-//
-// Field options can come from the Universal Filter Engine (filterGroupName)
-// or from static options (staticOptions JSON). This means when an admin
-// updates a filter value, every template using that filter auto-updates.
+// Enterprise features:
+//   - Versioning: templates have versions; old products stay compatible
+//   - Inheritance: templates can inherit fields from a parent template
+//   - Global Fields: shared fields inherited by all templates
+//   - Repeatable Fields: vendors can add unlimited entries (e.g. multiple flavours)
+//   - Multi-step: sections can be ordered as wizard steps
+//   - Advanced Validation: min/max, regex, char limits, file size limits
+//   - Searchable / SEO / AI flags per field
+//   - Audit Log: tracks all template changes
+//   - Import/Export: JSON backup & restore
+//   - Safe Delete: prevents deleting in-use templates
+//   - Usage Statistics: counts products + vendors per template
 
 model ListingTemplate {
   id          String   @id @default(cuid())
@@ -426,15 +436,66 @@ model ListingTemplate {
   ecosystem   String   @default("BOTH") // "FINDMYBITES" | "PIMPMYPARTY" | "BOTH"
   icon        String?  // lucide icon name
   active      Boolean  @default(true)
-  // Sections JSON: [{ name, icon, defaultOpen, sortOrder }]
+  // Sections JSON: [{ name, icon, defaultOpen, sortOrder, step? }]
+  // step: optional step number for multi-step wizard forms
   sections    String   @default("[]")
+
+  // ── Versioning ──
+  // Current version number. When fields change structurally, bump version.
+  // Existing products store the version they were created with in
+  // Product.templateVersion, so old data never breaks.
+  version     Int      @default(1)
+  // Previous versions are stored as snapshots in TemplateVersionSnapshot
+  isLatest    Boolean  @default(true)
+
+  // ── Inheritance ──
+  // If set, this template inherits all fields from the parent template
+  // and can add/override its own. Resolution merges parent + child fields.
+  parentTemplateId String?
+  parent      ListingTemplate? @relation("TemplateInheritance", fields: [parentTemplateId], references: [id], onDelete: SetNull)
+
+  // ── Global fields flag ──
+  // Global templates are shared across all templates (Price, Gallery, etc.)
+  // They're automatically merged into every resolved template.
+  isGlobal    Boolean  @default(false)
+
+  // ── Multi-step wizard config ──
+  // JSON: [{ step, title, description, sections: ["Basic Information", ...] }]
+  // When set, the form renders as a wizard with Next/Back buttons.
+  wizard      String   @default("[]")
+
+  // ── AI Readiness flags ──
+  // Enable AI features for this template (description gen, SEO, tags)
+  aiEnabled   Boolean  @default(false)
+  aiConfig    String   @default("{}") // JSON: { descriptionPrompt, seoPrompt, tagPrompt }
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   fields      TemplateField[]
   mappings    TemplateMapping[]
+  children    ListingTemplate[] @relation("TemplateInheritance")
+  versions    TemplateVersionSnapshot[]
+  auditLogs   TemplateAuditLog[]
 
   @@map("listing_templates")
+}
+
+// Snapshot of a template at a specific version — for versioning & rollback.
+model TemplateVersionSnapshot {
+  id          String   @id @default(cuid())
+  templateId  String
+  template    ListingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version     Int
+  // Full JSON snapshot of the template + fields at this version
+  snapshot    String   @default("{}")
+  createdBy   String?  // admin email
+  changeNote  String?  // what changed in this version
+  createdAt   DateTime @default(now())
+
+  @@unique([templateId, version])
+  @@index([templateId])
+  @@map("template_version_snapshots")
 }
 
 model TemplateField {
@@ -444,9 +505,13 @@ model TemplateField {
   // The form-state key (e.g. "cakeShape", "price", "productType")
   key         String
   label       String
-  // Field type controls which input component is rendered
-  // text | number | textarea | select | chips | chips_single | toggle |
-  // toggle_group | images | section_toggle
+  // Field type controls which input component is rendered.
+  // v1 types: text | number | textarea | select | chips | chips_single |
+  //           toggle | toggle_group | images | section_toggle
+  // v2 types: date | time | datetime | daterange | currency | price |
+  //           address | phone | email | url | color | richtext | tags |
+  //           gallery | videourl | fileupload | pdfupload | repeater |
+  //           availability | bookingduration | radius
   type        String   @default("text")
   // Which section this field belongs to (matches a section name in template.sections)
   section     String   @default("Basic Information")
@@ -459,30 +524,76 @@ model TemplateField {
   unit        String?
   // Grid column span: 1 = half width, 2 = full width (default 1)
   span        Int      @default(1)
+
+  // ── Options ──
   // For select/chips/chips_single: load options from this FilterGroup name
   // (Universal Filter Engine). When set, staticOptions is ignored.
   filterGroupName String?
   // For select/chips/chips_single/toggle_group: static options as JSON array
   // Used as fallback when filterGroupName is not set or filter group is empty
   staticOptions String?  // JSON: ["Option1", "Option2"]
-  // Condition: show this field only when another field's value matches
+
+  // ── Conditional visibility ──
   // JSON: { "field": "productType", "values": ["Cakes", ""] }
+  // Field is visible only when form[condition.field] is in condition.values.
+  // Built visually in the Admin Panel (Visual Conditional Logic Builder).
   condition   String?
+
+  // ── Section toggle ──
   // For section_toggle: keys of sub-fields revealed when toggle is on
   // JSON: ["nameOnCakeText", "nameOnCakeMaxChars"]
   subFields   String?
+
+  // ── Toggle group ──
   // For toggle_group: the option labels (default ["Yes", "No"])
   toggleOptions String?
-  // For images: max number of photos
-  maxImages   Int?
-  // Number input constraints
+
+  // ── Media limits ──
+  maxImages   Int?     // for images/gallery: max number of photos
+  maxFileSize Int?     // for fileupload/pdfupload: max size in KB
+
+  // ── Number validation ──
   minValue    Int?
   maxValue    Int?
   step        Float?
+
+  // ── Text validation (v2) ──
+  minLength   Int?     // min characters
+  maxLength   Int?     // max characters
+  pattern     String?  // regex pattern for validation
+  patternHint String?  // human-readable validation hint
+
+  // ── Repeatable fields (v2) ──
+  // If true, vendors can add unlimited entries of this field.
+  // The form state stores an array. minRepeats/maxRepeats control limits.
+  repeatable  Boolean  @default(false)
+  minRepeats  Int?
+  maxRepeats  Int?
+  // For repeater: the label for each entry (e.g. "Flavour", "Size")
+  repeatLabel String?
+  // For repeater with sub-fields: JSON array of field definitions
+  // (enables grouped repeaters like multiple menu items with name+price+desc)
+  repeatFields String?
+
+  // ── Search / SEO / AI flags (v2) ──
+  // searchable: field value is indexed for marketplace search & filtering
+  searchable  Boolean  @default(false)
+  // seoIndexed: field value is included in auto-generated SEO pages
+  seoIndexed  Boolean  @default(false)
+  // aiEnabled: field is available for AI features (description gen, tag suggestions)
+  aiEnabled   Boolean  @default(false)
+
+  // ── Global field reference ──
+  // If this field was inherited from a global template, this stores the
+  // original global template slug so we can track provenance.
+  globalRef   String?
+
   createdAt   DateTime @default(now())
 
   @@index([templateId])
   @@index([section])
+  @@index([searchable])
+  @@index([seoIndexed])
   @@map("template_fields")
 }
 
@@ -501,4 +612,26 @@ model TemplateMapping {
   @@index([categoryId])
   @@index([templateId])
   @@map("template_mappings")
+}
+
+// ── Template Audit Log ────────────────────────────────────────────────────
+// Tracks all template changes for troubleshooting and change management.
+model TemplateAuditLog {
+  id          String   @id @default(cuid())
+  templateId  String
+  template    ListingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  action      String   // "create" | "update" | "delete" | "duplicate" | "version_bump" | "field_add" | "field_update" | "field_delete" | "mapping_add" | "mapping_delete" | "seed" | "import" | "export"
+  entity      String   @default("template") // "template" | "field" | "mapping"
+  entityId    String?
+  fieldName   String?  // which field was changed (for field actions)
+  changeSummary String? // human-readable summary
+  // JSON diff: { before: {...}, after: {...} }
+  changeData  String   @default("{}")
+  adminEmail  String?
+  createdAt   DateTime @default(now())
+
+  @@index([templateId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("template_audit_logs")
 }

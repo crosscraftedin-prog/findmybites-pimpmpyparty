@@ -37,6 +37,36 @@
  *   Empty string "" means "shown by default / when nothing is selected".
  */
 
+/**
+ * Enterprise Field Types (v2)
+ *
+ * v1 types (fully implemented):
+ *   text | number | textarea | select | chips | chips_single | toggle |
+ *   toggle_group | images | section_toggle
+ *
+ * v2 types (architecture-ready, rendered as appropriate input):
+ *   date        — date picker (YYYY-MM-DD)
+ *   time        — time picker (HH:MM)
+ *   datetime    — date + time picker
+ *   daterange   — two date inputs (start + end)
+ *   currency    — number with currency symbol prefix
+ *   price       — like currency, stored as Int cents (compatible with Product.price)
+ *   address     — multi-line address (street, city, state, zip, country)
+ *   phone       — tel input with validation
+ *   email       — email input with validation
+ *   url         — URL input with validation
+ *   color       — color picker (#hex)
+ *   richtext    — multi-line with basic formatting
+ *   tags        — free-text tag input (comma-separated, stored as array)
+ *   gallery     — like images but larger grid (for portfolios)
+ *   videourl    — URL input with video preview
+ *   fileupload  — generic file upload (PDF, DOC, etc.)
+ *   pdfupload   — PDF-only upload
+ *   repeater    — repeatable field group (vendor adds unlimited entries)
+ *   availability— availability calendar (stored as JSON)
+ *   bookingduration — duration picker (hours/minutes)
+ *   radius      — number with km/mile unit (service radius)
+ */
 export type FieldType =
   | "text"
   | "number"
@@ -47,7 +77,64 @@ export type FieldType =
   | "toggle"
   | "toggle_group"
   | "images"
-  | "section_toggle";
+  | "section_toggle"
+  // v2 types
+  | "date"
+  | "time"
+  | "datetime"
+  | "daterange"
+  | "currency"
+  | "price"
+  | "address"
+  | "phone"
+  | "email"
+  | "url"
+  | "color"
+  | "richtext"
+  | "tags"
+  | "gallery"
+  | "videourl"
+  | "fileupload"
+  | "pdfupload"
+  | "repeater"
+  | "availability"
+  | "bookingduration"
+  | "radius";
+
+/** All available field types with metadata for the admin UI */
+export const FIELD_TYPE_CATALOG: { type: FieldType; label: string; group: string }[] = [
+  { type: "text", label: "Text Input", group: "Basic" },
+  { type: "number", label: "Number", group: "Basic" },
+  { type: "textarea", label: "Text Area", group: "Basic" },
+  { type: "richtext", label: "Rich Text", group: "Basic" },
+  { type: "tags", label: "Tags (free input)", group: "Basic" },
+  { type: "select", label: "Dropdown", group: "Choice" },
+  { type: "chips", label: "Multi-Select Chips", group: "Choice" },
+  { type: "chips_single", label: "Single-Select Chips", group: "Choice" },
+  { type: "toggle", label: "Toggle (checkbox)", group: "Choice" },
+  { type: "toggle_group", label: "Toggle Group (Yes/No)", group: "Choice" },
+  { type: "section_toggle", label: "Section Toggle (reveals sub-fields)", group: "Choice" },
+  { type: "date", label: "Date Picker", group: "Date & Time" },
+  { type: "time", label: "Time Picker", group: "Date & Time" },
+  { type: "datetime", label: "Date & Time", group: "Date & Time" },
+  { type: "daterange", label: "Date Range", group: "Date & Time" },
+  { type: "bookingduration", label: "Booking Duration", group: "Date & Time" },
+  { type: "availability", label: "Availability Calendar", group: "Date & Time" },
+  { type: "currency", label: "Currency", group: "Pricing" },
+  { type: "price", label: "Price (cents)", group: "Pricing" },
+  { type: "images", label: "Image Upload", group: "Media" },
+  { type: "gallery", label: "Gallery (large grid)", group: "Media" },
+  { type: "videourl", label: "Video URL", group: "Media" },
+  { type: "fileupload", label: "File Upload", group: "Media" },
+  { type: "pdfupload", label: "PDF Upload", group: "Media" },
+  { type: "address", label: "Address", group: "Location" },
+  { type: "radius", label: "Service Radius", group: "Location" },
+  { type: "phone", label: "Phone", group: "Contact" },
+  { type: "email", label: "Email", group: "Contact" },
+  { type: "url", label: "Website URL", group: "Contact" },
+  { type: "color", label: "Color Picker", group: "Advanced" },
+  { type: "repeater", label: "Repeatable Group", group: "Advanced" },
+];
 
 export interface TemplateFieldDef {
   key: string;
@@ -70,6 +157,24 @@ export interface TemplateFieldDef {
   minValue?: number;
   maxValue?: number;
   step?: number;
+  // ── v2: Validation ──
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  patternHint?: string;
+  maxFileSize?: number; // KB
+  // ── v2: Repeatable ──
+  repeatable?: boolean;
+  minRepeats?: number;
+  maxRepeats?: number;
+  repeatLabel?: string;
+  repeatFields?: string;
+  // ── v2: Search / SEO / AI flags ──
+  searchable?: boolean;
+  seoIndexed?: boolean;
+  aiEnabled?: boolean;
+  // ── v2: Global field provenance ──
+  globalRef?: string;
 }
 
 export interface TemplateSectionDef {
@@ -77,6 +182,8 @@ export interface TemplateSectionDef {
   icon?: string;
   defaultOpen?: boolean;
   sortOrder: number;
+  // v2: optional step number for multi-step wizard
+  step?: number;
 }
 
 export interface TemplateDef {
@@ -87,6 +194,11 @@ export interface TemplateDef {
   icon?: string;
   sections: TemplateSectionDef[];
   fields: TemplateFieldDef[];
+  // ── v2 ──
+  version?: number;
+  parentTemplateSlug?: string; // inheritance
+  isGlobal?: boolean;
+  aiEnabled?: boolean;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -142,6 +254,8 @@ const CAKE_BAKERY_TEMPLATE: TemplateDef = {
   ecosystem: "FINDMYBITES",
   icon: "Cake",
   sections: [BASIC_SECTION, DETAILS_SECTION, DIETARY_SECTION, NUTRITION_SECTION, PREP_SECTION],
+  version: 1,
+  aiEnabled: true,
   fields: [
     // ── Basic Information ──
     {
@@ -247,6 +361,9 @@ const CAKE_BAKERY_TEMPLATE: TemplateDef = {
       condition: { field: "productType", values: ["Cakes", "Cupcakes", "Brownies", "Cookies", ""] },
       filterGroupName: "Flavour",
       placeholder: "Select flavour",
+      searchable: true,
+      seoIndexed: true,
+      aiEnabled: true,
     },
     {
       key: "filling",
@@ -275,6 +392,9 @@ const CAKE_BAKERY_TEMPLATE: TemplateDef = {
       condition: { field: "productType", values: ["Cakes", ""] },
       filterGroupName: "Cake Type",
       span: 2,
+      searchable: true,
+      seoIndexed: true,
+      aiEnabled: true,
     },
     {
       key: "nameOnCake",
@@ -577,6 +697,9 @@ const CAKE_BAKERY_TEMPLATE: TemplateDef = {
       sortOrder: 100,
       filterGroupName: "Occasion",
       span: 2,
+      searchable: true,
+      seoIndexed: true,
+      aiEnabled: true,
     },
 
     // ── Dietary & Allergens ──
@@ -589,6 +712,9 @@ const CAKE_BAKERY_TEMPLATE: TemplateDef = {
       filterGroupName: "Dietary Options",
       staticOptions: ["Eggless", "Vegan", "Vegetarian", "Gluten-free", "Nut-free", "Dairy-free", "Halal", "Jain"],
       span: 2,
+      searchable: true,
+      seoIndexed: true,
+      aiEnabled: true,
     },
     {
       key: "allergens",
@@ -1142,10 +1268,54 @@ const TRANSPORT_TEMPLATE: TemplateDef = {
 };
 
 // ────────────────────────────────────────────────────────────────────────────
+// GLOBAL FIELDS TEMPLATE
+// These fields are inherited by ALL templates automatically. Admins can edit
+// them from the "Global Fields" section and changes propagate everywhere.
+// Examples: Price, Gallery, Delivery, Availability, Contact.
+// ────────────────────────────────────────────────────────────────────────────
+
+const GLOBAL_FIELDS_TEMPLATE: TemplateDef = {
+  slug: "global-shared",
+  name: "Global Shared Fields",
+  description:
+    "Fields inherited by all templates automatically. Edit once, propagates everywhere. Includes price, gallery, delivery, availability, and contact.",
+  ecosystem: "BOTH",
+  icon: "Globe2",
+  isGlobal: true,
+  version: 1,
+  sections: [
+    { name: "Pricing", icon: "Package", defaultOpen: true, sortOrder: 0 },
+    { name: "Media", icon: "Sparkles", defaultOpen: true, sortOrder: 1 },
+    { name: "Delivery & Availability", icon: "Package", defaultOpen: false, sortOrder: 2 },
+    { name: "Contact", icon: "Package", defaultOpen: false, sortOrder: 3 },
+  ],
+  fields: [
+    // Pricing
+    { key: "price", label: "Price", type: "price", section: "Pricing", sortOrder: 1, required: true, placeholder: "0", globalRef: "global-shared", searchable: true, aiEnabled: true },
+    { key: "comparePrice", label: "Compare-at Price", type: "price", section: "Pricing", sortOrder: 2, placeholder: "0", globalRef: "global-shared" },
+    { key: "currency", label: "Currency", type: "select", section: "Pricing", sortOrder: 3, staticOptions: ["USD", "EUR", "GBP", "INR", "AED", "AUD", "CAD", "JPY", "SGD", "BRL", "ZAR", "NGN"], globalRef: "global-shared" },
+    { key: "packageType", label: "Package Type", type: "select", section: "Pricing", sortOrder: 4, staticOptions: ["basic", "standard", "premium", "custom"], globalRef: "global-shared" },
+    // Media
+    { key: "images", label: "Product Photos (up to 10)", type: "images", section: "Media", sortOrder: 1, maxImages: 10, span: 2, globalRef: "global-shared", seoIndexed: true },
+    { key: "videoUrl", label: "Video URL", type: "videourl", section: "Media", sortOrder: 2, span: 2, placeholder: "https://youtube.com/...", globalRef: "global-shared" },
+    // Delivery & Availability
+    { key: "leadTime", label: "Lead Time", type: "number", section: "Delivery & Availability", sortOrder: 1, unit: "days", placeholder: "3", globalRef: "global-shared" },
+    { key: "deliveryAvailable", label: "Delivery Available", type: "toggle", section: "Delivery & Availability", sortOrder: 2, globalRef: "global-shared", searchable: true },
+    { key: "pickupAvailable", label: "Pickup Available", type: "toggle", section: "Delivery & Availability", sortOrder: 3, globalRef: "global-shared", searchable: true },
+    { key: "isAvailable", label: "Currently Available", type: "toggle", section: "Delivery & Availability", sortOrder: 4, globalRef: "global-shared", searchable: true },
+    // Contact
+    { key: "phone", label: "Phone", type: "phone", section: "Contact", sortOrder: 1, placeholder: "+1 234 567 890", globalRef: "global-shared" },
+    { key: "email", label: "Email", type: "email", section: "Contact", sortOrder: 2, placeholder: "contact@business.com", globalRef: "global-shared" },
+    { key: "website", label: "Website", type: "url", section: "Contact", sortOrder: 3, placeholder: "https://...", globalRef: "global-shared" },
+  ],
+};
+
+// ────────────────────────────────────────────────────────────────────────────
 // ALL TEMPLATES REGISTRY
 // ────────────────────────────────────────────────────────────────────────────
 
 export const ALL_TEMPLATES: TemplateDef[] = [
+  GLOBAL_FIELDS_TEMPLATE,
   CAKE_BAKERY_TEMPLATE,
   DECORATION_TEMPLATE,
   PHOTOGRAPHY_TEMPLATE,
@@ -1164,6 +1334,11 @@ export const ALL_TEMPLATES: TemplateDef[] = [
 
 export function getTemplateBySlug(slug: string): TemplateDef | undefined {
   return ALL_TEMPLATES.find((t) => t.slug === slug);
+}
+
+/** Returns the global fields template (shared across all templates). */
+export function getGlobalFieldsTemplate(): TemplateDef {
+  return GLOBAL_FIELDS_TEMPLATE;
 }
 
 // ────────────────────────────────────────────────────────────────────────────

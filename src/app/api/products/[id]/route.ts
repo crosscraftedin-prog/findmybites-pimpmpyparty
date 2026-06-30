@@ -88,6 +88,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ? (typeof body.extraFields === "string" ? body.extraFields : JSON.stringify(body.extraFields))
         : null;
     }
+    // Template Engine v2: versioning
+    if (body.templateSlug !== undefined) data.templateSlug = body.templateSlug || null;
+    if (body.templateVersion !== undefined) data.templateVersion = body.templateVersion ? Number(body.templateVersion) : null;
 
     const updated = await db.product.update({ where: { id }, data });
     return NextResponse.json({ product: updated });

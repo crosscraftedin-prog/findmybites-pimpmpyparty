@@ -328,6 +328,9 @@ export function Products({ vendor }: ProductsProps) {
         allergens: form.allergens || [],
         // Template-specific fields → JSON
         extraFields: extraFieldsObj,
+        // Template Engine v2: versioning
+        templateSlug: template?.slug,
+        templateVersion: template?.version ?? 1,
       };
 
       if (editingProduct) {
