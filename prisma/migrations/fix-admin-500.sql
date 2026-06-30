@@ -248,3 +248,97 @@ SELECT 'Booking has leadScore column' as check, CASE WHEN EXISTS (
 SELECT 'reviews has verified column' as check, CASE WHEN EXISTS (
   SELECT 1 FROM information_schema.columns WHERE table_name = 'reviews' AND column_name = 'verified' AND table_schema = 'public'
 ) THEN 'YES' ELSE 'NO' END as result;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 7. VERIFY FK CONSTRAINTS ON TEMPLATE ENGINE TABLES
+-- These are needed for Prisma's include: { fields: true, mappings: true }
+-- ═══════════════════════════════════════════════════════════════════════════
+
+DO $$
+BEGIN
+  -- template_fields → listing_templates
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'template_fields_templateId_fkey' AND table_name = 'template_fields') THEN
+    ALTER TABLE "template_fields" ADD CONSTRAINT "template_fields_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "listing_templates"("id") ON DELETE CASCADE;
+  END IF;
+
+  -- template_mappings → listing_templates
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'template_mappings_templateId_fkey' AND table_name = 'template_mappings') THEN
+    ALTER TABLE "template_mappings" ADD CONSTRAINT "template_mappings_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "listing_templates"("id") ON DELETE CASCADE;
+  END IF;
+
+  -- template_version_snapshots → listing_templates
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'template_version_snapshots_templateId_fkey' AND table_name = 'template_version_snapshots') THEN
+    ALTER TABLE "template_version_snapshots" ADD CONSTRAINT "template_version_snapshots_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "listing_templates"("id") ON DELETE CASCADE;
+  END IF;
+
+  -- template_audit_logs → listing_templates
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'template_audit_logs_templateId_fkey' AND table_name = 'template_audit_logs') THEN
+    ALTER TABLE "template_audit_logs" ADD CONSTRAINT "template_audit_logs_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "listing_templates"("id") ON DELETE CASCADE;
+  END IF;
+
+  -- listing_templates self-reference (parentTemplateId)
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'listing_templates_parentTemplateId_fkey' AND table_name = 'listing_templates') THEN
+    ALTER TABLE "listing_templates" ADD CONSTRAINT "listing_templates_parentTemplateId_fkey" FOREIGN KEY ("parentTemplateId") REFERENCES "listing_templates"("id") ON DELETE SET NULL;
+  END IF;
+
+  RAISE NOTICE 'Template FK constraints verified/created';
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Skipping Template FK: %', SQLERRM;
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 8. VERIFY FILTER ENGINE FK CONSTRAINTS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'filter_values_groupId_fkey' AND table_name = 'filter_values') THEN
+    ALTER TABLE "filter_values" ADD CONSTRAINT "filter_values_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "filter_groups"("id") ON DELETE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'category_filters_filterGroupId_fkey' AND table_name = 'category_filters') THEN
+    ALTER TABLE "category_filters" ADD CONSTRAINT "category_filters_filterGroupId_fkey" FOREIGN KEY ("filterGroupId") REFERENCES "filter_groups"("id") ON DELETE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'vendor_filter_values_filterValueId_fkey' AND table_name = 'vendor_filter_values') THEN
+    ALTER TABLE "vendor_filter_values" ADD CONSTRAINT "vendor_filter_values_filterValueId_fkey" FOREIGN KEY ("filterValueId") REFERENCES "filter_values"("id") ON DELETE CASCADE;
+  END IF;
+
+  RAISE NOTICE 'Filter FK constraints verified/created';
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Skipping Filter FK: %', SQLERRM;
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 9. VERIFY MESSAGING + AVAILABILITY FK CONSTRAINTS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'messages_conversationId_fkey' AND table_name = 'messages') THEN
+    ALTER TABLE "messages" ADD CONSTRAINT "messages_conversationId_fkey" FOREIGN KEY ("conversationId") REFERENCES "conversations"("id") ON DELETE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'quotes_bookingId_fkey' AND table_name = 'quotes') THEN
+    ALTER TABLE "quotes" ADD CONSTRAINT "quotes_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "Booking"("id") ON DELETE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'vendor_availability_vendorId_fkey' AND table_name = 'vendor_availability') THEN
+    ALTER TABLE "vendor_availability" ADD CONSTRAINT "vendor_availability_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "vendor_listings"("id") ON DELETE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'review_votes_reviewId_fkey' AND table_name = 'review_votes') THEN
+    ALTER TABLE "review_votes" ADD CONSTRAINT "review_votes_reviewId_fkey" FOREIGN KEY ("reviewId") REFERENCES "reviews"("id") ON DELETE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'Subcategory_categoryId_fkey' AND table_name = 'Subcategory') THEN
+    ALTER TABLE "Subcategory" ADD CONSTRAINT "Subcategory_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE CASCADE;
+  END IF;
+
+  RAISE NOTICE 'Messaging/Availability FK constraints verified/created';
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Skipping Messaging FK: %', SQLERRM;
+END $$;
+
+-- Final verification
+SELECT 'ALL FK CONSTRAINTS CHECKED' as status;
