@@ -32,6 +32,12 @@ interface RequestBody {
   userEmail?: string;
   userType?: "customer" | "vendor";
   vendorId?: string;
+  vendorContext?: {
+    vendorId: string;
+    vendorName: string;
+    vendorCategory: string;
+    vendorCity: string;
+  };
 }
 
 const FALLBACK_RESPONSE =
@@ -315,6 +321,7 @@ export async function POST(req: NextRequest) {
     console.log("[josh/chat] Fetching vendors from DB...");
     let vendorContext = "";
     let vendorProfileContext = "";
+    let storefrontContext = "";
     let topVendors: any[] = [];
     try {
       topVendors = await db.vendor.findMany({
@@ -355,6 +362,29 @@ export async function POST(req: NextRequest) {
         });
         if (ownVendor) {
           vendorProfileContext = buildVendorProfileContext(ownVendor);
+        }
+      }
+
+      // If customer is on a specific vendor storefront, fetch that vendor's
+      // details + products so Josh can answer storefront-specific questions
+      // like "What products does this vendor offer?" or "Which cake serves 20?"
+      if (userType === "customer" && body.vendorContext?.vendorId) {
+        const storeVendor = await db.vendor.findUnique({
+          where: { id: body.vendorContext.vendorId },
+          include: {
+            products: {
+              where: { isAvailable: true },
+              take: 20,
+              orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
+            },
+          },
+        });
+        if (storeVendor) {
+          const symbol = storeVendor.currency === "INR" ? "₹" : storeVendor.currency === "USD" ? "$" : storeVendor.currency === "GBP" ? "£" : storeVendor.currency === "AED" ? "AED" : storeVendor.currency + " ";
+          const productList = storeVendor.products
+            .map((p) => `  • ${p.name} — ${symbol}${p.price}${p.description ? ` (${p.description.slice(0, 80)})` : ""}`)
+            .join("\n");
+          storefrontContext = `\n\n## CURRENT VENDOR STOREFRONT CONTEXT\nThe customer is currently viewing **${storeVendor.name}** (${storeVendor.city}, ${storeVendor.country}).\nCategory: ${storeVendor.category}\nRating: ${storeVendor.rating}/5 (${storeVendor.reviewCount} reviews)\nDelivery: ${storeVendor.deliveryAvailable ? "Yes" : "No"} | Pickup: ${storeVendor.pickupAvailable ? "Yes" : "No"}\nResponse time: ${storeVendor.responseTime}\n\nProducts/Services offered:\n${productList || "  (no products listed yet)"}\n\nAnswer the customer's questions about THIS specific vendor. Be helpful and specific to their offerings.`;
         }
       }
     } catch (e) {
@@ -401,8 +431,8 @@ export async function POST(req: NextRequest) {
     }
 
     const systemPrompt =
-      JOSH_SYSTEM_PROMPT + vendorContext + vendorProfileContext;
-    console.log("[josh/chat] System prompt length:", systemPrompt.length, "| vendor context length:", vendorContext.length);
+      JOSH_SYSTEM_PROMPT + vendorContext + vendorProfileContext + storefrontContext;
+    console.log("[josh/chat] System prompt length:", systemPrompt.length, "| vendor context length:", vendorContext.length, "| storefront context length:", storefrontContext.length);
 
     const completion = await zai.chat.completions.create({
       messages: [

@@ -141,5 +141,84 @@ export default async function VendorProfilePage({ params }: PageProps) {
   if (!vendor) {
     notFound();
   }
-  return <VendorProfileClient vendor={vendor} />;
+
+  // JSON-LD structured data for SEO
+  const cat = getCategoryMigrated(vendor.category);
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": vendor.ecosystem === "FINDMYBITES" ? "Bakery" : "LocalBusiness",
+    "@id": `https://findmybites.com/vendor/${vendor.slug}`,
+    name: vendor.name,
+    description: vendor.metaDescription || vendor.tagline || vendor.description,
+    image: vendor.heroImage || vendor.avatarImage,
+    url: `https://findmybites.com/vendor/${vendor.slug}`,
+    telephone: vendor.whatsapp || undefined,
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: vendor.city,
+      addressRegion: vendor.state || undefined,
+      addressCountry: vendor.countryCode,
+      postalCode: vendor.zipCode || undefined,
+      streetAddress: vendor.address || undefined,
+    },
+    geo:
+      vendor.latitude && vendor.longitude
+        ? {
+            "@type": "GeoCoordinates",
+            latitude: vendor.latitude,
+            longitude: vendor.longitude,
+          }
+        : undefined,
+    aggregateRating:
+      vendor.reviewCount > 0
+        ? {
+            "@type": "AggregateRating",
+            ratingValue: vendor.rating,
+            reviewCount: vendor.reviewCount,
+            bestRating: 5,
+          }
+        : undefined,
+    priceRange: vendor.priceRange,
+    servesCuisine: vendor.ecosystem === "FINDMYBITES" ? cat?.label : undefined,
+  };
+
+  // Breadcrumbs structured data
+  const breadcrumbsJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: vendor.ecosystem === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty",
+        item: `https://findmybites.com/#${vendor.ecosystem === "FINDMYBITES" ? "food" : "party"}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: cat?.label || "Vendors",
+        item: `https://findmybites.com/?category=${vendor.category}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: vendor.name,
+        item: `https://findmybites.com/vendor/${vendor.slug}`,
+      },
+    ],
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbsJsonLd) }}
+      />
+      <VendorProfileClient vendor={vendor} />
+    </>
+  );
 }

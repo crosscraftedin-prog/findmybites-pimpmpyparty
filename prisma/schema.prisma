@@ -639,3 +639,28 @@ model TemplateAuditLog {
   @@index([templateId, createdAt])
   @@map("template_audit_logs")
 }
+
+// ── Vendor Analytics ──────────────────────────────────────────────────────
+// Tracks customer interactions with vendor storefronts for the vendor dashboard.
+// Events: page_view, product_view, service_view, contact_click, whatsapp_click,
+//         phone_click, website_click, share_click, gallery_view
+model VendorAnalytics {
+  id          String   @id @default(cuid())
+  vendorId    String
+  // Event type: page_view | product_view | service_view | contact_click |
+  //             whatsapp_click | phone_click | website_click | share_click
+  eventType   String
+  // Optional: which product/service was viewed/clicked
+  productId   String?
+  // Optional: visitor metadata (for deduplication, not for tracking individuals)
+  visitorHash String?  // hashed IP + user agent for unique visitor counting
+  // Optional: referrer (where the visitor came from)
+  referrer    String?
+  createdAt   DateTime @default(now())
+
+  @@index([vendorId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@index([vendorId, eventType, createdAt])
+  @@map("vendor_analytics")
+}

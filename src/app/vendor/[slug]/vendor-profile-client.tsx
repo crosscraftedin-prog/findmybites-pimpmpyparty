@@ -55,6 +55,7 @@ import { useProducts, useVendors, useCreateBooking } from "@/lib/queries";
 import { getCategoryMigrated, CURRENCY_SYMBOLS } from "@/lib/constants";
 import { formatPrice, countryCodeToFlag, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { VendorAIChat } from "@/components/marketplace/vendor-ai-chat";
 import type { VendorWithRelations, Product } from "@/lib/types";
 
 const EVENT_TYPES = [
@@ -74,18 +75,53 @@ export function VendorProfileClient({ vendor }: Props) {
   const router = useRouter();
   const [liked, setLiked] = React.useState(false);
   const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null);
+  const [visibleReviews, setVisibleReviews] = React.useState(3);
+  const [productFilter, setProductFilter] = React.useState<string>("all");
 
   // Products (menu / services)
   const { data: productsData } = useProducts(vendor.id);
   const products = productsData?.products ?? [];
 
-  // Similar vendors
-  const { data: similarData } = useVendors();
-  const similarVendors = React.useMemo(() => {
-    return (similarData?.vendors ?? [])
-      .filter((v) => v.id !== vendor.id && v.category === vendor.category)
-      .slice(0, 3);
-  }, [similarData, vendor.id, vendor.category]);
+  // ── Analytics: track page view on mount ──
+  React.useEffect(() => {
+    fetch("/api/analytics/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        vendorId: vendor.id,
+        eventType: "page_view",
+        referrer: document.referrer || null,
+      }),
+    }).catch(() => {}); // analytics should never break the page
+  }, [vendor.id]);
+
+  // ── Analytics: track click events ──
+  const trackClick = (eventType: string) => {
+    fetch("/api/analytics/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vendorId: vendor.id, eventType }),
+    }).catch(() => {});
+  };
+
+  // Similar vendors — fetched from dedicated API
+  const [similarVendors, setSimilarVendors] = React.useState<any[]>([]);
+  React.useEffect(() => {
+    fetch(`/api/vendors/similar?vendorId=${vendor.id}&limit=4&t=${Date.now()}`)
+      .then((r) => r.json())
+      .then((d) => setSimilarVendors(d.vendors ?? []))
+      .catch(() => setSimilarVendors([]));
+  }, [vendor.id]);
+
+  // Filtered products (in-storefront filter)
+  const filteredProducts = React.useMemo(() => {
+    if (productFilter === "all") return products;
+    return products.filter((p) => (p as any).packageType === productFilter);
+  }, [products, productFilter]);
+  const productTypes = React.useMemo(() => {
+    const types = new Set(products.map((p) => (p as any).packageType).filter(Boolean));
+    return ["all", ...Array.from(types)];
+  }, [products]);
 
   const cat = getCategoryMigrated(vendor.category);
   // Fallback: if the category doesn't match any known category ID,
@@ -121,6 +157,7 @@ export function VendorProfileClient({ vendor }: Props) {
   }, [lightboxIndex]);
 
   const share = async () => {
+    trackClick("share_click");
     const url = window.location.href;
     if (navigator.share) {
       try {
@@ -410,21 +447,38 @@ export function VendorProfileClient({ vendor }: Props) {
               {/* ── 5. PACKAGES & SERVICES (all vendors) ──────────── */}
               {products.length > 0 && (
                 <section>
-                  <h2 className="mb-4 text-xl font-bold tracking-tight sm:text-2xl">
-                    {isFoodVendor ? "Menu & Packages" : "Packages & Services"}
-                  </h2>
+                  <div className="mb-4 flex items-center justify-between gap-4">
+                    <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+                      {isFoodVendor ? "Menu & Packages" : "Packages & Services"}
+                    </h2>
+                    {productTypes.length > 2 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {productTypes.map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => setProductFilter(t)}
+                            className={cn(
+                              "rounded-full px-3 py-1 text-[11px] font-semibold capitalize transition-colors",
+                              productFilter === t
+                                ? "bg-brand text-brand-foreground"
+                                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            )}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {products.slice(0, 6).map((p) => (
+                    {filteredProducts.slice(0, 9).map((p) => (
                       <ProductCard key={p.id} product={p} currency={vendor.currency} />
                     ))}
                   </div>
-                  {products.length > 6 && (
-                    <button
-                      onClick={() => document.getElementById("quote-form")?.scrollIntoView({ behavior: "smooth" })}
-                      className="mt-4 text-sm font-medium text-brand hover:underline"
-                    >
-                      See all {products.length} packages →
-                    </button>
+                  {filteredProducts.length === 0 && (
+                    <p className="py-6 text-center text-sm text-muted-foreground">
+                      No packages match this filter.
+                    </p>
                   )}
                 </section>
               )}
@@ -484,7 +538,7 @@ export function VendorProfileClient({ vendor }: Props) {
                       </div>
                     </div>
                     <div className="space-y-4">
-                      {vendor.reviews.slice(0, 5).map((r) => (
+                      {vendor.reviews.slice(0, visibleReviews).map((r) => (
                         <div key={r.id} className="rounded-xl border border-border bg-card p-4">
                           <div className="flex items-start gap-3">
                             <div className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-bold text-brand">
@@ -511,9 +565,13 @@ export function VendorProfileClient({ vendor }: Props) {
                         </div>
                       ))}
                     </div>
-                    {vendor.reviews.length > 5 && (
-                      <Button variant="outline" className="mt-4 w-full">
-                        Load more reviews
+                    {vendor.reviews.length > visibleReviews && (
+                      <Button
+                        variant="outline"
+                        className="mt-4 w-full"
+                        onClick={() => setVisibleReviews((v) => v + 5)}
+                      >
+                        Load more reviews ({vendor.reviews.length - visibleReviews} remaining)
                       </Button>
                     )}
                   </>
@@ -525,6 +583,115 @@ export function VendorProfileClient({ vendor }: Props) {
                     </p>
                   </div>
                 )}
+              </section>
+
+              {/* ── 8b. SERVICE AREA & BUSINESS INFO ──────────────── */}
+              <section>
+                <h2 className="mb-4 text-xl font-bold tracking-tight sm:text-2xl">
+                  Service Area & Business Info
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {/* Service Area */}
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <h3 className="flex items-center gap-1.5 text-sm font-bold">
+                      <MapPin className="size-4 text-brand" /> Service Area
+                    </h3>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <p className="flex items-center gap-2">
+                        <span className="text-muted-foreground">Based in:</span>
+                        <span className="font-medium">{vendor.city}, {vendor.country}</span>
+                      </p>
+                      {vendor.serviceRadiusKm && (
+                        <p className="flex items-center gap-2">
+                          <span className="text-muted-foreground">Travel radius:</span>
+                          <span className="font-medium">{vendor.serviceRadiusKm} km</span>
+                        </p>
+                      )}
+                      {vendor.serviceAreas && (
+                        <p className="flex items-start gap-2">
+                          <span className="text-muted-foreground shrink-0">Serves:</span>
+                          <span className="font-medium">{vendor.serviceAreas}</span>
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {vendor.deliveryAvailable && (
+                          <Badge className="border-0 bg-emerald-100 text-emerald-700">
+                            <Check className="size-3" /> Delivery
+                          </Badge>
+                        )}
+                        {vendor.pickupAvailable && (
+                          <Badge className="border-0 bg-emerald-100 text-emerald-700">
+                            <Check className="size-3" /> Pickup
+                          </Badge>
+                        )}
+                        {!vendor.deliveryAvailable && !vendor.pickupAvailable && (
+                          <span className="text-xs text-muted-foreground">Contact for delivery options</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Business Info */}
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <h3 className="flex items-center gap-1.5 text-sm font-bold">
+                      <Clock className="size-4 text-brand" /> Business Info
+                    </h3>
+                    <div className="mt-3 space-y-2 text-sm">
+                      {vendor.openHours && (
+                        <p className="flex items-center gap-2">
+                          <Clock className="size-3.5 text-muted-foreground" />
+                          <span className="font-medium">{vendor.openHours}</span>
+                        </p>
+                      )}
+                      <p className="flex items-center gap-2">
+                        <Calendar className="size-3.5 text-muted-foreground" />
+                        <span className="font-medium">{vendor.yearsActive} year{vendor.yearsActive !== 1 ? "s" : ""} in business</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <Zap className="size-3.5 text-muted-foreground" />
+                        <span className="font-medium">Responds {vendor.responseTime}</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <CheckCircle2 className="size-3.5 text-muted-foreground" />
+                        <span className="font-medium">{vendor.completedBookings} completed bookings</span>
+                      </p>
+                    </div>
+                    {/* Contact actions */}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {vendor.whatsapp && (
+                        <a
+                          href={`https://wa.me/${vendor.whatsapp}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => trackClick("whatsapp_click")}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#1da851]"
+                        >
+                          <MessageCircle className="size-3.5" /> WhatsApp
+                        </a>
+                      )}
+                      {vendor.website && (
+                        <a
+                          href={vendor.website.startsWith("http") ? vendor.website : `https://${vendor.website}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => trackClick("website_click")}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-muted/80"
+                        >
+                          <Globe className="size-3.5" /> Website
+                        </a>
+                      )}
+                      <button
+                        onClick={() => {
+                          trackClick("contact_click");
+                          document.getElementById("quote-form")?.scrollIntoView({ behavior: "smooth" });
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-brand-foreground transition-colors hover:bg-brand/90"
+                      >
+                        <Send className="size-3.5" /> Contact
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </section>
             </div>
 
@@ -555,6 +722,14 @@ export function VendorProfileClient({ vendor }: Props) {
         )}
       </main>
       <SiteFooter />
+
+      {/* ── Josh AI — vendor-scoped assistant ───────────────────── */}
+      <VendorAIChat
+        vendorId={vendor.id}
+        vendorName={vendor.name}
+        vendorCategory={vendor.category}
+        vendorCity={vendor.city}
+      />
 
       {/* ── Lightbox ────────────────────────────────────────────── */}
       {lightboxIndex !== null && (
