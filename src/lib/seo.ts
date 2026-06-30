@@ -166,7 +166,7 @@ export function generateJsonLd(ctx: SEOContext, vendors: any[] = [], resolvedCat
   }
 
   // FAQPage for category+city pages
-  if (cat && city) {
+  if (catLabel && city) {
     jsonLd.push({
       "@context": "https://schema.org",
       "@type": "FAQPage",
