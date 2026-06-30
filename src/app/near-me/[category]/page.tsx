@@ -24,7 +24,6 @@ import {
   generateBreadcrumbJsonLd,
   generateFAQJsonLd,
 } from "@/lib/seo-content";
-import { CATEGORIES, getCategoryMigrated } from "@/lib/constants";
 import { getCategoryInfo } from "@/lib/category-server";
 
 /**
@@ -84,12 +83,17 @@ export default async function NearMeCategoryPage({ params }: PageProps) {
     generateFAQJsonLd(faqs),
   ];
 
-  // Related categories in the same ecosystem
-  const related = CATEGORIES.filter(
-    (c) => c.ecosystem === eco && c.id !== categorySlug
-  )
-    .slice(0, 6)
-    .map((c) => ({ label: `${c.label} near me`, slug: c.id }));
+  // Related categories from DB
+  let related: { label: string; slug: string }[] = [];
+  try {
+    const dbRelated = await db.category.findMany({
+      where: { ecosystem: eco, active: true, slug: { not: categorySlug } },
+      orderBy: { sortOrder: "asc" },
+      take: 6,
+      select: { slug: true, label: true },
+    });
+    related = dbRelated.map((c) => ({ label: `${c.label} near me`, slug: c.slug }));
+  } catch {}
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F7F6F2]">

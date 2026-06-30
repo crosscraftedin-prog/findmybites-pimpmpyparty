@@ -2,10 +2,9 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import {
-  CATEGORIES,
-  getCategoryMigrated,
   migrateCategory,
 } from "@/lib/constants";
+import { getCategoryInfo } from "@/lib/category-server";
 import {
   generateSEOMetadata,
   generateJsonLd,
@@ -251,9 +250,19 @@ async function renderEcosystemPage(ecosystem: Ecosystem, path: string[]) {
   const jsonLd = generateJsonLd(seoCtx, vendors);
   const breadcrumbs = generateBreadcrumbs(seoCtx);
   const introContent = generateIntroContent(seoCtx, vendorCount);
-  const relatedCategories = ctx.city
-    ? CATEGORIES.filter((c) => c.ecosystem === ecosystem && c.id !== ctx.category).slice(0, 6)
-    : [];
+  // Fetch related categories from DB (not hardcoded constants)
+  let relatedCategories: { id: string; label: string; ecosystem: string }[] = [];
+  if (ctx.city) {
+    try {
+      const dbCats = await db.category.findMany({
+        where: { ecosystem, active: true, slug: { not: ctx.category } },
+        orderBy: { sortOrder: "asc" },
+        take: 6,
+        select: { slug: true, label: true, ecosystem: true },
+      });
+      relatedCategories = dbCats.map((c) => ({ id: c.slug, label: c.label, ecosystem: c.ecosystem }));
+    } catch {}
+  }
 
   let relatedCities: { city: string; slug: string; count: number }[] = [];
   if (ctx.country && !ctx.city) {
