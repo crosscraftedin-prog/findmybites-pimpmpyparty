@@ -27,7 +27,8 @@ export function generateSEOMetadata(ctx: SEOContext): Metadata {
   const { ecosystem, country, state, city, category, vendorCount = 0 } = ctx;
   const ecoLabel = ECOSYSTEM_LABEL[ecosystem];
   const cat = category ? getCategoryMigrated(category) : undefined;
-  const catLabel = cat?.label;
+  // Labels are now DB-driven; use title-cased slug as fallback for SEO
+  const catLabel = cat?.label ?? (category ? category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : undefined);
 
   // Build title
   const parts: string[] = [];
@@ -106,6 +107,7 @@ export function generateJsonLd(ctx: SEOContext, vendors: any[] = []) {
   const { ecosystem, country, state, city, category } = ctx;
   const ecoLabel = ECOSYSTEM_LABEL[ecosystem];
   const cat = category ? getCategoryMigrated(category) : undefined;
+  const catLabel = cat?.label ?? (category ? category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : undefined);
   const path = buildPath(ctx);
   const url = `https://findmybites.com${path}`;
 
@@ -174,18 +176,18 @@ export function generateJsonLd(ctx: SEOContext, vendors: any[] = []) {
       mainEntity: [
         {
           "@type": "Question",
-          name: `How do I find the best ${cat.label} in ${city}?`,
+          name: `How do I find the best ${catLabel} in ${city}?`,
           acceptedAnswer: {
             "@type": "Answer",
-            text: `Browse our verified listings of ${cat.label.toLowerCase()} in ${city} on ${ecoLabel}. Compare reviews, galleries, and pricing, then contact vendors directly via WhatsApp.`,
+            text: `Browse our verified listings of ${catLabel.toLowerCase()} in ${city} on ${ecoLabel}. Compare reviews, galleries, and pricing, then contact vendors directly via WhatsApp.`,
           },
         },
         {
           "@type": "Question",
-          name: `How many ${cat.label} are listed in ${city}?`,
+          name: `How many ${catLabel} are listed in ${city}?`,
           acceptedAnswer: {
             "@type": "Answer",
-            text: `We currently have ${vendors.length} ${cat.label.toLowerCase()} listed in ${city}. New vendors are added regularly.`,
+            text: `We currently have ${vendors.length} ${catLabel.toLowerCase()} listed in ${city}. New vendors are added regularly.`,
           },
         },
       ],
@@ -228,7 +230,7 @@ export function generateIntroContent(ctx: SEOContext, vendorCount: number): stri
   const cat = category ? getCategoryMigrated(category) : undefined;
 
   if (cat && city) {
-    return `Looking for the best ${cat.label.toLowerCase()} in ${city}? ${ecoLabel} connects you with ${vendorCount} verified ${cat.label.toLowerCase()}${vendorCount !== 1 ? "s" : ""} in ${city}. Browse galleries, compare pricing, read reviews, and contact vendors directly — all in one place.`;
+    return `Looking for the best ${catLabel.toLowerCase()} in ${city}? ${ecoLabel} connects you with ${vendorCount} verified ${catLabel.toLowerCase()}${vendorCount !== 1 ? "s" : ""} in ${city}. Browse galleries, compare pricing, read reviews, and contact vendors directly — all in one place.`;
   }
 
   if (city) {

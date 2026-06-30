@@ -60,10 +60,12 @@ export default async function NearMeCategoryPage({ params }: PageProps) {
   const { category: categorySlug } = await params;
   const catInfo = await getCategoryInfo(categorySlug);
   if (!catInfo) notFound();
+  // Determine ecosystem from the slug (first check if it's a FindMyBites slug)
+  const foodSlugs = new Set(["bakers-bakery", "caterers", "chef-staff", "food-trucks", "beverage-specialists", "specialty-food"]);
+  const eco = foodSlugs.has(categorySlug) ? "FINDMYBITES" : "PIMPMYPARTY";
   // Build a catDef-like object for compatibility with existing code
-  const catDef = { ...catInfo, id: categorySlug, ecosystem: "", description: "" };
+  const catDef = { ...catInfo, id: categorySlug, ecosystem: eco, description: "" };
 
-  const eco = catDef.ecosystem;
   const ecoColor = eco === "PIMPMYPARTY" ? ECO_COLOR_PARTY : ECO_COLOR_FOOD;
   const ecoTint = eco === "PIMPMYPARTY" ? ECO_TINT_PARTY : ECO_TINT_FOOD;
   const ecoLabel = eco === "PIMPMYPARTY" ? "PimpMyParty" : "FindMyBites";

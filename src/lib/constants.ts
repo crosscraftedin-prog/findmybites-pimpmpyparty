@@ -18,20 +18,24 @@ export function isAdminEmail(email: string | null | undefined): boolean {
 export interface CategoryDef {
   id: string;
   ecosystem: Ecosystem;
-  label: string;
-  description: string;
+  // Labels and descriptions now live in the database (Category table).
+  // These are kept only for backward compatibility with backend code that
+  // hasn't been migrated yet. They should NEVER be displayed to users —
+  // use useCategoryLabels() (client) or getCategoryInfo() (server) instead.
+  label?: string;
+  description?: string;
   icon: string; // lucide icon name
   image: string;
   accent: string; // tailwind gradient classes
 }
 
 export const CATEGORIES: CategoryDef[] = [
-  // ---- FindMyBites (Food) — 6 categories (NEW ARCHITECTURE) ----
+  // ---- FindMyBites (Food) — 6 categories ----
+  // NO LABELS — labels come from the DB Category table.
+  // This array is only for: slug, ecosystem, icon, image, accent.
   {
     id: "bakers-bakery",
     ecosystem: "FINDMYBITES",
-    label: "Bakers & Bakery",
-    description: "Cakes, cupcakes, chocolates, desserts — all baked goods in one place.",
     icon: "Cake",
     image: "/vendors/cake-artist.png",
     accent: "from-orange-400 to-rose-500",
@@ -39,8 +43,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "caterers",
     ecosystem: "FINDMYBITES",
-    label: "Caterers",
-    description: "Full-service catering for weddings, corporate events, and gatherings.",
     icon: "UtensilsCrossed",
     image: "/vendors/catering.png",
     accent: "from-rose-400 to-red-500",
@@ -48,8 +50,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "chef-staff",
     ecosystem: "FINDMYBITES",
-    label: "Chef & Staff",
-    description: "Private chefs, pastry chefs, bartenders, waiters, and event crew.",
     icon: "ChefHat",
     image: "/vendors/private-chef.png",
     accent: "from-lime-400 to-emerald-500",
@@ -57,8 +57,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "food-trucks",
     ecosystem: "FINDMYBITES",
-    label: "Food Trucks",
-    description: "Mobile kitchens serving street food, BBQ, pizza, and global bites.",
     icon: "Truck",
     image: "/vendors/food-truck.png",
     accent: "from-yellow-400 to-amber-500",
@@ -66,8 +64,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "beverage-specialists",
     ecosystem: "FINDMYBITES",
-    label: "Beverage Specialists",
-    description: "Coffee, tea, mocktail, juice, smoothie, and bubble tea catering.",
     icon: "Coffee",
     image: "/vendors/catering.png",
     accent: "from-teal-400 to-cyan-500",
@@ -75,18 +71,14 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "specialty-food",
     ecosystem: "FINDMYBITES",
-    label: "Specialty Food",
-    description: "Organic, keto, vegan, gluten-free, halal, kosher, sugar-free, dairy-free.",
     icon: "UtensilsCrossed",
     image: "/vendors/catering.png",
     accent: "from-green-400 to-teal-500",
   },
-  // ---- PimpMyParty (Events) — 15 categories ----
+  // ---- PimpMyParty (Events) — 16 categories ----
   {
     id: "event-planners",
     ecosystem: "PIMPMYPARTY",
-    label: "Event Planners",
-    description: "End-to-end planning for weddings, milestones, and brand activations.",
     icon: "ClipboardList",
     image: "/vendors/event-planner.png",
     accent: "from-fuchsia-400 to-purple-500",
@@ -94,8 +86,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "decorators",
     ecosystem: "PIMPMYPARTY",
-    label: "Decorators",
-    description: "Balloon art, florals, tablescapes, and immersive themed decor.",
     icon: "Flower2",
     image: "/vendors/decorator.png",
     accent: "from-purple-400 to-pink-500",
@@ -103,8 +93,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "photographers",
     ecosystem: "PIMPMYPARTY",
-    label: "Photographers",
-    description: "Wedding, event, and corporate photography services.",
     icon: "Camera",
     image: "/vendors/photographer.png",
     accent: "from-pink-400 to-purple-500",
@@ -112,8 +100,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "videographers",
     ecosystem: "PIMPMYPARTY",
-    label: "Videographers",
-    description: "Cinematic video, films, and drone videography for events.",
     icon: "Video",
     image: "/vendors/photographer.png",
     accent: "from-indigo-400 to-purple-500",
@@ -121,8 +107,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "djs",
     ecosystem: "PIMPMYPARTY",
-    label: "DJs",
-    description: "DJs, live bands, and sound engineers to keep your party moving.",
     icon: "Music",
     image: "/vendors/dj.png",
     accent: "from-fuchsia-500 to-rose-500",
@@ -130,8 +114,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "entertainers",
     ecosystem: "PIMPMYPARTY",
-    label: "Entertainers",
-    description: "Magicians, clowns, mascots, performers, and live acts for all ages.",
     icon: "Drama",
     image: "/vendors/entertainer.png",
     accent: "from-violet-400 to-fuchsia-500",
@@ -139,8 +121,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "venues",
     ecosystem: "PIMPMYPARTY",
-    label: "Venues",
-    description: "Banquet halls, rooftops, gardens, and unique event spaces worldwide.",
     icon: "Building2",
     image: "/vendors/venue.png",
     accent: "from-purple-500 to-indigo-500",
@@ -148,8 +128,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "florists",
     ecosystem: "PIMPMYPARTY",
-    label: "Florists",
-    description: "Wedding flowers, bouquets, centerpieces, and floral installations.",
     icon: "Flower2",
     image: "/vendors/decorator.png",
     accent: "from-rose-400 to-pink-500",
@@ -157,8 +135,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "rental-services",
     ecosystem: "PIMPMYPARTY",
-    label: "Rental Services",
-    description: "Tents, furniture, tableware, and equipment rentals for events.",
     icon: "Package",
     image: "/vendors/venue.png",
     accent: "from-slate-400 to-gray-500",
@@ -166,8 +142,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "makeup-artists",
     ecosystem: "PIMPMYPARTY",
-    label: "Makeup Artists",
-    description: "Bridal, party, and editorial makeup services.",
     icon: "Sparkles",
     image: "/vendors/entertainer.png",
     accent: "from-pink-500 to-rose-500",
@@ -175,8 +149,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "beauty-services",
     ecosystem: "PIMPMYPARTY",
-    label: "Beauty Services",
-    description: "Hair styling, mehndi, spa, and grooming services for events.",
     icon: "Sparkles",
     image: "/vendors/entertainer.png",
     accent: "from-rose-400 to-fuchsia-500",
@@ -184,8 +156,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "transportation",
     ecosystem: "PIMPMYPARTY",
-    label: "Transportation",
-    description: "Limousines, party buses, and guest transport for events.",
     icon: "Car",
     image: "/vendors/venue.png",
     accent: "from-blue-400 to-slate-500",
@@ -193,8 +163,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "invitation-printing",
     ecosystem: "PIMPMYPARTY",
-    label: "Invitation & Printing",
-    description: "Custom invitations, cards, and printing for all occasions.",
     icon: "Mail",
     image: "/vendors/event-planner.png",
     accent: "from-amber-400 to-yellow-500",
@@ -202,8 +170,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "kids-party-services",
     ecosystem: "PIMPMYPARTY",
-    label: "Kids Party Services",
-    description: "Bounce houses, mascots, games, and themed kids entertainment.",
     icon: "PartyPopper",
     image: "/vendors/entertainer.png",
     accent: "from-cyan-400 to-blue-500",
@@ -211,8 +177,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "audio-visual-services",
     ecosystem: "PIMPMYPARTY",
-    label: "Audio Visual Services",
-    description: "Sound systems, lighting, LED walls, and AV production.",
     icon: "Speaker",
     image: "/vendors/dj.png",
     accent: "from-slate-500 to-zinc-600",
@@ -220,8 +184,6 @@ export const CATEGORIES: CategoryDef[] = [
   {
     id: "party-supplies",
     ecosystem: "PIMPMYPARTY",
-    label: "Party Supplies & Stores",
-    description: "Balloons, decorations, tableware, party props, and celebration accessories.",
     icon: "PartyPopper",
     image: "/vendors/decorator.png",
     accent: "from-pink-400 to-rose-500",
