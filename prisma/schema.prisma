@@ -140,6 +140,7 @@ model Vendor {
   reviews          Review[]
   bookings         Booking[]
   products         Product[]
+  availability     VendorAvailability[]
 
   @@index([ecosystem])
   @@index([category])
@@ -170,18 +171,41 @@ model Vendor {
 }
 
 model Review {
-  id        String   @id @default(cuid())
-  vendorId  String
-  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  author    String
-  avatar    String
-  rating    Int
-  comment   String
-  eventDate String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  vendorId    String
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  author      String
+  avatar      String
+  rating      Int
+  comment     String
+  eventDate   String?
+  createdAt   DateTime @default(now())
+
+  // ── Phase 5: Enhanced Reviews ──
+  // Customer email (for verified purchase check)
+  reviewerEmail String?
+  // Photos uploaded with the review (JSON array of URLs)
+  photos      String?
+  // Video URL (optional)
+  videoUrl    String?
+  // Verified purchase indicator (true if reviewer has a booking with this vendor)
+  verified    Boolean  @default(false)
+  // Vendor reply (optional)
+  vendorReply String?
+  vendorRepliedAt DateTime?
+  // Helpful votes count
+  helpfulCount Int     @default(0)
+  // Report flags count
+  reportCount  Int     @default(0)
+  // Product this review is about (if applicable)
+  productId   String?
+
+  votes       ReviewVote[]
 
   @@index([vendorId])
-
+  @@index([reviewerEmail])
+  @@index([verified])
+  @@map("reviews")
 }
 
 model Booking {
@@ -804,4 +828,135 @@ model Wishlist {
   @@index([entityType])
   @@index([vendorId])
   @@map("customer_wishlist")
+}
+
+// ── Phase 5: Messaging System ─────────────────────────────────────────────
+// Supports: Customer↔Vendor, Admin↔Vendor, Admin↔Customer, Josh AI↔Customer
+// Conversations are threaded between two participants.
+model Conversation {
+  id          String   @id @default(cuid())
+  // Participants: identified by type + id
+  participant1Type String  // "customer" | "vendor" | "admin" | "josh_ai"
+  participant1Id   String  // user ID or vendor ID
+  participant2Type String
+  participant2Id   String
+  // Optional context: which vendor/product is this conversation about?
+  vendorId    String?
+  productId   String?
+  bookingId   String?
+  // Last message preview (for inbox display)
+  lastMessage String?
+  lastMessageAt DateTime?
+  // Unread counts per participant
+  unreadCount1 Int    @default(0)
+  unreadCount2 Int    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages    Message[]
+
+  @@unique([participant1Type, participant1Id, participant2Type, participant2Id])
+  @@index([participant1Type, participant1Id])
+  @@index([participant2Type, participant2Id])
+  @@index([vendorId])
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model Message {
+  id            String   @id @default(cuid())
+  conversationId String
+  conversation  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  // Sender info
+  senderType    String   // "customer" | "vendor" | "admin" | "josh_ai"
+  senderId      String
+  senderName    String
+  senderAvatar  String?
+  // Message content
+  content       String
+  // Attachments (JSON array of URLs for images/files)
+  attachments   String?  // JSON: [{ type: "image"|"file"|"quote", url, name }]
+  // Quote attachment (if this message includes a quote)
+  quoteId       String?
+  // Read receipt
+  readAt        DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([senderType, senderId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+// ── Phase 5: Notifications ────────────────────────────────────────────────
+// Central notification system for all user types.
+// One table serves customers, vendors, and admins.
+model Notification {
+  id          String   @id @default(cuid())
+  // Recipient: identified by type + id
+  recipientType String  // "customer" | "vendor" | "admin"
+  recipientId   String  // user ID, vendor ID, or "admin" for all admins
+  // Notification content
+  type        String   // "new_quote" | "vendor_replied" | "booking_confirmed" | "payment_received" |
+                       // "new_enquiry" | "new_message" | "quote_accepted" | "deposit_received" |
+                       // "concierge_assigned" | "new_signup" | "pending_approval" | "ai_flagged"
+  title       String
+  message     String
+  // Optional context links
+  vendorId    String?
+  productId   String?
+  bookingId   String?
+  quoteId     String?
+  conversationId String?
+  // Action URL (where clicking the notification should go)
+  actionUrl   String?
+  // Read status
+  read        Boolean  @default(false)
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([recipientType, recipientId, read])
+  @@index([recipientType, recipientId, createdAt])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ── Phase 5: Vendor Calendar & Availability ───────────────────────────────
+// Vendors mark dates as available, busy, booked, or holiday.
+// Josh AI uses this when recommending vendors.
+model VendorAvailability {
+  id          String   @id @default(cuid())
+  vendorId    String
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  date        DateTime
+  // Status: "available" | "busy" | "booked" | "holiday" | "partial"
+  status      String   @default("available")
+  // For partial availability: time slots JSON [{ start, end, status }]
+  timeSlots   String?
+  // Optional note (e.g. "Morning only", "Wedding booked")
+  note        String?
+  // If booked, link to the booking
+  bookingId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([vendorId, date])
+  @@index([vendorId, date])
+  @@index([status])
+  @@map("vendor_availability")
+}
+
+// ── Phase 5: Review Helpful Votes ─────────────────────────────────────────
+// Tracks who voted a review as helpful (to prevent duplicate votes)
+model ReviewVote {
+  id          String   @id @default(cuid())
+  reviewId    String
+  review      Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  userId      String   // customer ID or visitor hash
+  helpful     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@unique([reviewId, userId])
+  @@index([reviewId])
+  @@map("review_votes")
 }

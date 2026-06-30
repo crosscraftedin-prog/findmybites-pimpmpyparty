@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import type { Booking } from "@/lib/types";
 
-function transformBooking(b: typeof db.booking): Booking {
+function transformBooking(b: any): Booking {
   return {
     id: b.id,
     vendorId: b.vendorId,
@@ -16,19 +16,19 @@ function transformBooking(b: typeof db.booking): Booking {
     budget: b.budget,
     message: b.message,
     status: b.status as Booking["status"],
-    createdAt: b.createdAt.toISOString(),
+    createdAt: b.createdAt instanceof Date ? b.createdAt.toISOString() : b.createdAt,
     // Phase 4 fields
-    phone: (b as any).phone ?? null,
-    eventTime: (b as any).eventTime ?? null,
-    address: (b as any).address ?? null,
-    notes: (b as any).notes ?? null,
-    referenceImage: (b as any).referenceImage ?? null,
-    preferredContact: (b as any).preferredContact ?? null,
-    productId: (b as any).productId ?? null,
-    aiSummary: (b as any).aiSummary ?? null,
-    leadScore: (b as any).leadScore ?? null,
-    aiQualification: (b as any).aiQualification ?? null,
-    conciergeEventId: (b as any).conciergeEventId ?? null,
+    phone: b.phone ?? null,
+    eventTime: b.eventTime ?? null,
+    address: b.address ?? null,
+    notes: b.notes ?? null,
+    referenceImage: b.referenceImage ?? null,
+    preferredContact: b.preferredContact ?? null,
+    productId: b.productId ?? null,
+    aiSummary: b.aiSummary ?? null,
+    leadScore: b.leadScore ?? null,
+    aiQualification: b.aiQualification ?? null,
+    conciergeEventId: b.conciergeEventId ?? null,
   } as Booking;
 }
 
@@ -59,7 +59,18 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { vendor: { select: { name: true, city: true } } },
+        include: {
+          vendor: {
+            select: {
+              name: true,
+              city: true,
+              slug: true,
+              category: true,
+              rating: true,
+              reviewCount: true,
+            },
+          },
+        },
       }),
     ]);
 
@@ -67,6 +78,10 @@ export async function GET(req: NextRequest) {
       ...transformBooking(b),
       vendorName: b.vendor?.name ?? "—",
       vendorCity: b.vendor?.city ?? "",
+      vendorSlug: b.vendor?.slug ?? null,
+      vendorCategory: b.vendor?.category ?? null,
+      vendorRating: b.vendor?.rating ?? null,
+      vendorReviewCount: b.vendor?.reviewCount ?? null,
     }));
 
     return NextResponse.json({

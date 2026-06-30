@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useScrollToHash } from "@/hooks/use-scroll-to-hash";
+import { RecentlyViewedSection, CompareBar } from "@/components/marketplace/recently-viewed-compare";
+import { VendorComparison } from "@/components/marketplace/vendor-comparison";
 import { SiteHeader } from "@/components/marketplace/site-header";
 import { SiteFooter } from "@/components/marketplace/site-footer";
 import { LocationBanner } from "@/components/marketplace/location-banner";
@@ -30,6 +32,7 @@ import { PendingVendorBanner } from "@/components/marketplace/pending-vendor-ban
 export default function Home() {
   // Scroll to the hash section when arriving from another route (e.g. /dashboard → /#explore)
   useScrollToHash();
+  const [compareIds, setCompareIds] = React.useState<string[] | null>(null);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -50,6 +53,7 @@ export default function Home() {
         <InspirationGallery />
         <PopularCitiesSection />
         <RecentVendorsSection />
+        <RecentlyViewedSection />
         <ReviewsCarousel />
         <BrowseSection />
         <WorldPresence />
@@ -60,6 +64,11 @@ export default function Home() {
       <VendorModal />
       <ListVendorDialog />
       <SignInDialog />
+      {/* Comparison bar (sticky bottom) + modal */}
+      <CompareBar onCompare={(ids) => setCompareIds(ids)} />
+      {compareIds && (
+        <VendorComparison vendorIds={compareIds} onClose={() => setCompareIds(null)} />
+      )}
     </div>
   );
 }

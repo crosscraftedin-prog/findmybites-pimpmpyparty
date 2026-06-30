@@ -16,6 +16,7 @@ import {
   ChevronDown,
   MoreHorizontal,
   Package,
+  Mail,
 } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { useClaimAuth } from "@/hooks/use-claim-auth";
@@ -35,6 +36,7 @@ export type DashboardTab =
   | "listing"
   | "products"
   | "enquiries"
+  | "messages"
   | "availability"
   | "analytics"
   | "billing"
@@ -51,6 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "listing", label: "My Listing", icon: ClipboardList },
   { id: "products", label: "My Products", icon: Package },
   { id: "enquiries", label: "Enquiries", icon: MessageSquare },
+  { id: "messages", label: "Messages", icon: Mail },
   { id: "availability", label: "Availability", icon: Calendar },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "billing", label: "Plan & Billing", icon: Star },

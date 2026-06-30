@@ -16,6 +16,8 @@ import { Availability } from "@/components/dashboard/Availability";
 import { Analytics } from "@/components/dashboard/Analytics";
 import { PlanBilling } from "@/components/dashboard/PlanBilling";
 import { Settings } from "@/components/dashboard/Settings";
+import { Messages } from "@/components/dashboard/Messages";
+import { Notifications } from "@/components/dashboard/Notifications";
 
 /**
  * /dashboard — Protected vendor dashboard.
@@ -105,7 +107,8 @@ export default function DashboardPage() {
           {activeTab === "listing" && <MyListing vendor={vendor} />}
           {activeTab === "products" && <Products vendor={vendor} />}
           {activeTab === "enquiries" && <Enquiries bookings={bookings} />}
-          {activeTab === "availability" && <Availability vendor={vendor} />}
+          {activeTab === "messages" && <Messages vendorId={vendor.id} />}
+          {activeTab === "availability" && <Availability vendorId={vendor.id} />}
           {activeTab === "analytics" && <Analytics vendor={vendor} />}
           {activeTab === "billing" && <PlanBilling vendor={vendor} />}
           {activeTab === "settings" && <Settings vendor={vendor} userEmail={user.email ?? ""} />}

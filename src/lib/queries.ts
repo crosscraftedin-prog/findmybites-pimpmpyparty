@@ -434,6 +434,10 @@ export function useToggleVendorFlag(): UseMutationResult<
 export interface AdminBooking extends Booking {
   vendorName: string;
   vendorCity: string;
+  vendorSlug?: string | null;
+  vendorCategory?: string | null;
+  vendorRating?: number | null;
+  vendorReviewCount?: number | null;
 }
 export interface AdminBookingsResponse {
   bookings: AdminBooking[];

@@ -22,6 +22,7 @@ import {
   Globe2,
   Filter,
   LayoutTemplate,
+  ClipboardList,
 } from "lucide-react";
 import {
   BarChart,
@@ -39,6 +40,7 @@ import { AdminSeoPages } from "@/components/admin/admin-seo-pages";
 import { AdminPricing } from "@/components/admin/admin-pricing";
 import { AdminFilters } from "@/components/admin/admin-filters";
 import { AdminTemplates } from "@/components/admin/admin-templates";
+import { AdminLeadCenter } from "@/components/admin/admin-lead-center";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
 const CORAL = "#D85A30";
@@ -129,6 +131,7 @@ const NAV_SECTIONS: NavSection[] = [
     brand: null,
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { id: "lead-center", label: "Lead Center", icon: ClipboardList },
       { id: "analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
@@ -885,6 +888,8 @@ export function AdminPanelPage({
                 activeNav === "food-categories" ? "FINDMYBITES" : "PIMPMYPARTY"
               }
             />
+          ) : activeNav === "lead-center" ? (
+            <AdminLeadCenter />
           ) : activeNav === "seo-pages" ? (
             <AdminSeoPages />
           ) : activeNav === "pricing" ? (

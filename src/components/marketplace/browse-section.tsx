@@ -144,30 +144,29 @@ export function BrowseSection() {
             </div>
           ) : cats.length === 0 ? (
             <p className="px-3 py-2 text-xs text-muted-foreground">No categories found.</p>
-          ) : (
-            cats.map((c) => {
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setSelectedCategory(c.id)}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors",
-                    selectedCategory === c.id
-                      ? "bg-brand-soft font-semibold text-brand-soft-foreground"
-                      : "text-foreground hover:bg-accent"
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <CategoryIcon name={c.icon} className="size-4 text-muted-foreground" />
-                    {c.label}
-                  </span>
-                  <span className={cn("text-xs", (catCountMap.get(c.id) ?? 0) === 0 ? "text-muted-foreground/40" : "text-muted-foreground")}>
-                    ({catCountMap.get(c.id) ?? 0})
-                  </span>
-                </button>
-              );
-            })
-          )}
+          ) : null}
+          {cats.map((c) => {
+            return (
+              <button
+                key={c.id}
+                onClick={() => setSelectedCategory(c.id)}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors",
+                  selectedCategory === c.id
+                    ? "bg-brand-soft font-semibold text-brand-soft-foreground"
+                    : "text-foreground hover:bg-accent"
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <CategoryIcon name={c.icon} className="size-4 text-muted-foreground" />
+                  {c.label}
+                </span>
+                <span className={cn("text-xs", (catCountMap.get(c.id) ?? 0) === 0 ? "text-muted-foreground/40" : "text-muted-foreground")}>
+                  ({catCountMap.get(c.id) ?? 0})
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
