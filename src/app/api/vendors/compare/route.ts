@@ -35,13 +35,20 @@ export async function GET(req: NextRequest) {
     // Sort to match the requested order
     const sorted = ids.map((id) => vendors.find((v) => v.id === id)).filter(Boolean);
 
+    // Resolve category labels from DB (can't use await inside .map)
+    const labelMap = new Map<string, string>();
+    const uniqueSlugs = [...new Set(sorted.map((v: any) => v.category))];
+    for (const slug of uniqueSlugs) {
+      labelMap.set(slug, await getCategoryLabel(slug));
+    }
+
     const result = sorted.map((v: any) => ({
       id: v.id,
       name: v.name,
       slug: v.slug,
       ecosystem: v.ecosystem,
       category: v.category,
-      categoryLabel: await getCategoryLabel(v.category),
+      categoryLabel: labelMap.get(v.category) || v.category,
       tagline: v.tagline,
       city: v.city,
       country: v.country,
