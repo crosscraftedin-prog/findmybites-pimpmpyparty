@@ -11,6 +11,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const guard = await requireAdmin();
+  if (guard) return guard;
   try {
     const { id: categoryId } = await params;
     const body = await req.json();

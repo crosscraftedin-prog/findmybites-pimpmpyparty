@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
-import { getCategoryMigrated } from "@/lib/constants";
 import type { Vendor, Booking } from "@/lib/types";
 import type { DashboardTab } from "./Sidebar";
 
@@ -30,7 +29,6 @@ interface OverviewProps {
 export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
   const router = useRouter();
   const [showUpgrade, setShowUpgrade] = React.useState(false);
-  const cat = getCategoryMigrated(vendor.category);
 
   // Profile completion checklist
   const checklist = [

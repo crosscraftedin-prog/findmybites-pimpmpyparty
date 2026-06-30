@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
       latitude: v.latitude,
       longitude: v.longitude,
       serviceRadiusKm: v.serviceRadiusKm,
-      userEmail: v.userEmail,
+      // SECURITY: do NOT expose userEmail to the public search API (PII leak)
       ownership_status: v.ownership_status,
       createdAt: v.createdAt.toISOString(),
     }));

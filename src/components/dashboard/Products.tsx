@@ -1,13 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
   Plus,
   Pencil,
   Trash2,
   Package,
-  X,
   Check,
   Loader2,
   Star,
@@ -23,7 +21,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useProducts, useCreateProduct, useDeleteProduct } from "@/lib/queries";
-import { getCategoryMigrated, CURRENCY_SYMBOLS } from "@/lib/constants";
+import { CURRENCY_SYMBOLS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Vendor, Product } from "@/lib/types";
@@ -154,7 +152,6 @@ const BOOLEAN_FIELDS = new Set([
 ]);
 
 export function Products({ vendor }: ProductsProps) {
-  const router = useRouter();
   const { data: productsData, isLoading } = useProducts(vendor.id);
   const products = productsData?.products ?? [];
   const createProduct = useCreateProduct();
@@ -163,7 +160,6 @@ export function Products({ vendor }: ProductsProps) {
   const [editingProduct, setEditingProduct] = React.useState<Product | null>(null);
   const [saving, setSaving] = React.useState(false);
 
-  const cat = getCategoryMigrated(vendor.category);
   const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
 
   // ── Fetch resolved template for this vendor's category + subcategory ──

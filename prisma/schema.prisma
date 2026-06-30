@@ -307,6 +307,7 @@ model Product {
   @@index([ecosystem])
   @@index([category])
   @@index([isAvailable])
+  @@index([templateSlug])
 
 }
 
@@ -380,6 +381,7 @@ model FilterValue {
   group       FilterGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   vendors     VendorFilterValue[]
 
+  @@unique([groupId, value])
   @@index([groupId])
   @@map("filter_values")
 }
@@ -594,6 +596,7 @@ model TemplateField {
   @@index([section])
   @@index([searchable])
   @@index([seoIndexed])
+  @@index([templateId, section, sortOrder])
   @@map("template_fields")
 }
 
@@ -633,5 +636,6 @@ model TemplateAuditLog {
   @@index([templateId])
   @@index([action])
   @@index([createdAt])
+  @@index([templateId, createdAt])
   @@map("template_audit_logs")
 }

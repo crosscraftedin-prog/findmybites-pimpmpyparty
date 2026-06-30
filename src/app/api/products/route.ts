@@ -148,7 +148,9 @@ export async function POST(req: NextRequest) {
         addOns: addOns ? JSON.stringify(addOns) : null,
         leadTime: leadTime || null,
         isAvailable: isAvailable !== false,
-        isFeatured: isFeatured === true,
+        // SECURITY: isFeatured is admin-only — vendors cannot self-promote.
+        // Featured status is set by admins via the admin panel, not by vendors.
+        isFeatured: false,
         sortOrder: 0,
         allergens: allergens || null,
         customAllergen: customAllergen || null,

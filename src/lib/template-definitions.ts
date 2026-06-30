@@ -1356,13 +1356,9 @@ export interface TemplateMappingSeed {
 export const TEMPLATE_MAPPINGS: TemplateMappingSeed[] = [
   // ── FINDMYBITES ──
   // All bakery categories → CakeBakeryTemplate
+  // (category-level mapping covers all subcategories — no per-subcategory entries needed
+  //  since every bakers-bakery subcategory uses the same cake-bakery template)
   { categoryId: "bakers-bakery", templateSlug: "cake-bakery" },
-  { categoryId: "bakers-bakery", subcategory: "Wedding Cakes", templateSlug: "cake-bakery" },
-  { categoryId: "bakers-bakery", subcategory: "Birthday Cakes", templateSlug: "cake-bakery" },
-  { categoryId: "bakers-bakery", subcategory: "Custom Cakes", templateSlug: "cake-bakery" },
-  { categoryId: "bakers-bakery", subcategory: "Cupcakes", templateSlug: "cake-bakery" },
-  { categoryId: "bakers-bakery", subcategory: "Chocolates", templateSlug: "cake-bakery" },
-  { categoryId: "bakers-bakery", subcategory: "Desserts", templateSlug: "cake-bakery" },
   // Backward compat: old category slugs
   { categoryId: "cake-artists", templateSlug: "cake-bakery" },
   { categoryId: "bakers", templateSlug: "cake-bakery" },

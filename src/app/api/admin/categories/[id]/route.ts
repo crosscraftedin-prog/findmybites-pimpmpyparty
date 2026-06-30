@@ -10,6 +10,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const guard = await requireAdmin();
+  if (guard) return guard;
   try {
     const { id } = await params;
     const body = await req.json();
@@ -53,6 +55,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const guard = await requireAdmin();
+  if (guard) return guard;
   try {
     const { id } = await params;
     await db.category.delete({ where: { id } });
