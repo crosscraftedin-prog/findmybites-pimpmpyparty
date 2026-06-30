@@ -25,6 +25,7 @@ import {
   generateFAQJsonLd,
 } from "@/lib/seo-content";
 import { CATEGORIES, getCategoryMigrated } from "@/lib/constants";
+import { getCategoryInfo } from "@/lib/category-server";
 
 /**
  * /near-me/[category] — "category near me" landing pages.
@@ -51,15 +52,17 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { category } = await params;
-  const catDef = getCategoryMigrated(category);
-  if (!catDef) return { title: "Not Found" };
-  return generateNearMeMetadata(catDef.label, category);
+  const catInfo = await getCategoryInfo(category);
+  if (!catInfo) return { title: "Not Found" };
+  return generateNearMeMetadata(catInfo.label, category);
 }
 
 export default async function NearMeCategoryPage({ params }: PageProps) {
   const { category: categorySlug } = await params;
-  const catDef = getCategoryMigrated(categorySlug);
-  if (!catDef) notFound();
+  const catInfo = await getCategoryInfo(categorySlug);
+  if (!catInfo) notFound();
+  // Build a catDef-like object for compatibility with existing code
+  const catDef = { ...catInfo, id: categorySlug, ecosystem: "", description: "" };
 
   const eco = catDef.ecosystem;
   const ecoColor = eco === "PIMPMYPARTY" ? ECO_COLOR_PARTY : ECO_COLOR_FOOD;

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
-import { getCategoryMigrated } from "@/lib/constants";
+import { getCategoryInfo } from "@/lib/category-server";
 import { ProductPageClient } from "./product-page-client";
 
 /**
@@ -61,7 +61,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: "Product not found — FindMyBites × PimpMyParty" };
   }
 
-  const cat = product.vendor ? getCategoryMigrated(product.vendor.category) : null;
+  const cat = product.vendor ? await getCategoryInfo(product.vendor.category) : null;
   const isFood = product.vendor?.ecosystem === "FINDMYBITES";
   const currencySymbol =
     product.vendor?.currency === "INR" ? "₹" :
@@ -108,7 +108,7 @@ export default async function ProductPage({ params }: PageProps) {
     notFound();
   }
 
-  const cat = product.vendor ? getCategoryMigrated(product.vendor.category) : null;
+  const cat = product.vendor ? await getCategoryInfo(product.vendor.category) : null;
   const isFood = product.vendor?.ecosystem === "FINDMYBITES";
 
   // JSON-LD Product structured data

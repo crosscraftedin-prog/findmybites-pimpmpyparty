@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
-import { CURRENCY_SYMBOLS, getCategoryMigrated } from "@/lib/constants";
+import { CURRENCY_SYMBOLS } from "@/lib/constants";
+import { getCategoryLabel } from "@/lib/category-server";
 import type { Vendor as ApiVendor } from "@/lib/types";
 
 /**
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
       slug: v.slug,
       ecosystem: v.ecosystem,
       category: v.category,
-      categoryLabel: getCategoryMigrated(v.category)?.label || v.category,
+      categoryLabel: await getCategoryLabel(v.category),
       tagline: v.tagline,
       city: v.city,
       country: v.country,
