@@ -117,6 +117,7 @@ export async function POST(req: NextRequest) {
       isAvailable, isFeatured, images, productType,
       extraFields,
       templateSlug, templateVersion,
+      badge,
     } = body;
 
     if (!name?.trim() || price === undefined) {
@@ -179,6 +180,7 @@ export async function POST(req: NextRequest) {
         extraFields: extraFields ? (typeof extraFields === "string" ? extraFields : JSON.stringify(extraFields)) : null,
         templateSlug: templateSlug || null,
         templateVersion: templateVersion ? Number(templateVersion) : null,
+        badge: badge || null,
       },
     });
 

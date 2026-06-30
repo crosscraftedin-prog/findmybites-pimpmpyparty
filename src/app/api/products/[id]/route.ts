@@ -91,6 +91,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // Template Engine v2: versioning
     if (body.templateSlug !== undefined) data.templateSlug = body.templateSlug || null;
     if (body.templateVersion !== undefined) data.templateVersion = body.templateVersion ? Number(body.templateVersion) : null;
+    // Phase 2.5: product badge
+    if (body.badge !== undefined) data.badge = body.badge || null;
 
     const updated = await db.product.update({ where: { id }, data });
     return NextResponse.json({ product: updated });

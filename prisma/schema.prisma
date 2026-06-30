@@ -293,6 +293,9 @@ model Product {
   flashDealEndsAt       DateTime?
   minOrderForOffer      Int?
   exclusiveMemberOffer  Boolean  @default(false)
+  // ── Phase 2.5: Product badges ──
+  // badge: "featured" | "bestseller" | "new" | "seasonal" | "limited" | null
+  badge                 String?
   // ── Template Engine v2: versioning ──
   // Stores which template version this product was created/last edited with.
   // Enables backward compatibility when templates evolve — old products
@@ -663,4 +666,41 @@ model VendorAnalytics {
   @@index([createdAt])
   @@index([vendorId, eventType, createdAt])
   @@map("vendor_analytics")
+}
+
+// ── Phase 2.5: Customer Follow (follow vendors) ───────────────────────────
+// Customers can follow vendors to receive updates on new products, seasonal
+// offers, festival collections, and promotions.
+model VendorFollow {
+  id          String   @id @default(cuid())
+  vendorId    String
+  // Customer identifier — supabase auth user ID (for logged-in customers)
+  // or a visitor hash (for anonymous followers, stored in localStorage)
+  userId      String
+  userEmail   String?
+  createdAt   DateTime @default(now())
+
+  @@unique([vendorId, userId])
+  @@index([vendorId])
+  @@index([userId])
+  @@map("vendor_follows")
+}
+
+// ── Phase 2.5: Customer Wishlist ──────────────────────────────────────────
+// Customers can save products, services, and vendors to their wishlist.
+// entityType: "product" | "service" | "vendor"
+model Wishlist {
+  id          String   @id @default(cuid())
+  userId      String
+  userEmail   String?
+  entityType  String   // "product" | "service" | "vendor"
+  entityId    String   // product ID or vendor ID
+  vendorId    String?  // for product/service wishlist items, the parent vendor
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, entityType, entityId])
+  @@index([userId])
+  @@index([entityType])
+  @@index([vendorId])
+  @@map("customer_wishlist")
 }

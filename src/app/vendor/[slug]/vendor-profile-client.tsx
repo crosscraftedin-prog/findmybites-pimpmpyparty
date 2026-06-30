@@ -56,6 +56,8 @@ import { getCategoryMigrated, CURRENCY_SYMBOLS } from "@/lib/constants";
 import { formatPrice, countryCodeToFlag, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { VendorAIChat } from "@/components/marketplace/vendor-ai-chat";
+import { AIStoreSummary, AIFAQ, AIReviewSummary } from "@/components/marketplace/vendor-ai-sections";
+import { VendorHighlights, FollowButton, InstantQuoteEstimator, ProductBadge } from "@/components/marketplace/vendor-highlights";
 import type { VendorWithRelations, Product } from "@/lib/types";
 
 const EVENT_TYPES = [
@@ -113,10 +115,23 @@ export function VendorProfileClient({ vendor }: Props) {
       .catch(() => setSimilarVendors([]));
   }, [vendor.id]);
 
-  // Filtered products (in-storefront filter)
+  // Filtered products (in-storefront filter) — featured/badged products first
   const filteredProducts = React.useMemo(() => {
-    if (productFilter === "all") return products;
-    return products.filter((p) => (p as any).packageType === productFilter);
+    const filtered = productFilter === "all"
+      ? products
+      : products.filter((p) => (p as any).packageType === productFilter);
+    // Sort: badge (featured > bestseller > new > seasonal > limited) > isFeatured > rest
+    const badgeOrder: Record<string, number> = { featured: 0, bestseller: 1, new: 2, seasonal: 3, limited: 4 };
+    return [...filtered].sort((a, b) => {
+      const aBadge = (a as any).badge;
+      const bBadge = (b as any).badge;
+      const aOrder = aBadge ? (badgeOrder[aBadge] ?? 5) : 99;
+      const bOrder = bBadge ? (badgeOrder[bBadge] ?? 5) : 99;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      if ((a as any).isFeatured && !(b as any).isFeatured) return -1;
+      if (!(a as any).isFeatured && (b as any).isFeatured) return 1;
+      return 0;
+    });
   }, [products, productFilter]);
   const productTypes = React.useMemo(() => {
     const types = new Set(products.map((p) => (p as any).packageType).filter(Boolean));
@@ -201,6 +216,7 @@ export function VendorProfileClient({ vendor }: Props) {
 
               {/* Top right actions */}
               <div className="absolute right-3 top-3 flex gap-2">
+                <FollowButton vendorId={vendor.id} />
                 <button
                   onClick={() => setLiked((v) => !v)}
                   aria-label="Save"
@@ -316,6 +332,14 @@ export function VendorProfileClient({ vendor }: Props) {
             </div>
           </div>
         </section>
+
+        {/* ── 2b. AI Store Summary + Vendor Highlights ─────────────── */}
+        <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+          <div className="space-y-3">
+            <AIStoreSummary vendorId={vendor.id} />
+            <VendorHighlights vendor={vendor} />
+          </div>
+        </div>
 
         {/* ── Body: two-column layout ─────────────────────────────── */}
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -537,6 +561,10 @@ export function VendorProfileClient({ vendor }: Props) {
                         <p className="mt-1 text-xs text-muted-foreground">{vendor.reviewCount} reviews</p>
                       </div>
                     </div>
+                    {/* AI Review Summary */}
+                    <div className="mb-4">
+                      <AIReviewSummary vendorId={vendor.id} />
+                    </div>
                     <div className="space-y-4">
                       {vendor.reviews.slice(0, visibleReviews).map((r) => (
                         <div key={r.id} className="rounded-xl border border-border bg-card p-4">
@@ -693,10 +721,23 @@ export function VendorProfileClient({ vendor }: Props) {
                   </div>
                 </div>
               </section>
+
+              {/* ── 8c. AI FAQ ──────────────────────────────────────── */}
+              <section>
+                <h2 className="mb-4 text-xl font-bold tracking-tight sm:text-2xl">
+                  Frequently Asked Questions
+                </h2>
+                <AIFAQ vendorId={vendor.id} />
+              </section>
             </div>
 
-            {/* ── Right column: Sticky quote form ──────────────────── */}
-            <aside id="quote-form" className="lg:sticky lg:top-6 lg:self-start">
+            {/* ── Right column: Sticky quote form + estimator ──────────── */}
+            <aside id="quote-form" className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+              <InstantQuoteEstimator
+                vendorId={vendor.id}
+                currency={vendor.currency}
+                basePrice={vendor.basePrice}
+              />
               <QuoteForm vendor={vendor} />
             </aside>
           </div>
@@ -810,6 +851,7 @@ function ProductCard({ product, currency }: { product: Product; currency: string
         <div className="relative aspect-video overflow-hidden bg-muted">
           <img src={images[0]} alt={product.name} className="h-full w-full object-cover" />
           <div className="absolute right-2 top-2 flex flex-col gap-1">
+            <ProductBadge badge={(product as any).badge} />
             <span className={cn(
               "rounded-full px-2 py-0.5 text-[9px] font-bold capitalize",
               packageType === "premium" ? "bg-amber-500 text-white" :
