@@ -323,44 +323,37 @@ CREATE UNIQUE INDEX "review_votes_reviewId_userId_key" ON "review_votes"("review
 CREATE INDEX "review_votes_reviewId_idx" ON "review_votes"("reviewId");
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PHASE 2: ADD FOREIGN KEY CONSTRAINTS (using DO blocks for safety)
--- References renamed tables: "reviews" and "vendor_listings"
+-- PHASE 2: ADD FOREIGN KEY CONSTRAINTS (using DO blocks with EXCEPTION)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 DO $$
 BEGIN
-  -- Template Engine FKs (no external dependencies)
   ALTER TABLE "listing_templates" ADD CONSTRAINT "listing_templates_parentTemplateId_fkey" FOREIGN KEY ("parentTemplateId") REFERENCES "listing_templates"("id") ON DELETE SET NULL;
   ALTER TABLE "template_version_snapshots" ADD CONSTRAINT "template_version_snapshots_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "listing_templates"("id") ON DELETE CASCADE;
   ALTER TABLE "template_fields" ADD CONSTRAINT "template_fields_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "listing_templates"("id") ON DELETE CASCADE;
   ALTER TABLE "template_mappings" ADD CONSTRAINT "template_mappings_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "listing_templates"("id") ON DELETE CASCADE;
   ALTER TABLE "template_audit_logs" ADD CONSTRAINT "template_audit_logs_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "listing_templates"("id") ON DELETE CASCADE;
-
-  -- Filter Engine FKs
   ALTER TABLE "filter_values" ADD CONSTRAINT "filter_values_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "filter_groups"("id") ON DELETE CASCADE;
   ALTER TABLE "category_filters" ADD CONSTRAINT "category_filters_filterGroupId_fkey" FOREIGN KEY ("filterGroupId") REFERENCES "filter_groups"("id") ON DELETE CASCADE;
   ALTER TABLE "vendor_filter_values" ADD CONSTRAINT "vendor_filter_values_filterValueId_fkey" FOREIGN KEY ("filterValueId") REFERENCES "filter_values"("id") ON DELETE CASCADE;
-
-  -- Subcategory FK
   ALTER TABLE "Subcategory" ADD CONSTRAINT "Subcategory_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE CASCADE;
-
-  -- Messages FK
   ALTER TABLE "messages" ADD CONSTRAINT "messages_conversationId_fkey" FOREIGN KEY ("conversationId") REFERENCES "conversations"("id") ON DELETE CASCADE;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Skipping some FK constraints: %', SQLERRM;
+END $$;
 
-  -- Phase 4+5 FKs — reference renamed tables
+DO $$
+BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'Booking' AND table_schema = 'public') THEN
     ALTER TABLE "quotes" ADD CONSTRAINT "quotes_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "Booking"("id") ON DELETE CASCADE;
   END IF;
-
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'vendor_listings' AND table_schema = 'public') THEN
     ALTER TABLE "vendor_availability" ADD CONSTRAINT "vendor_availability_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "vendor_listings"("id") ON DELETE CASCADE;
   END IF;
-
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'reviews' AND table_schema = 'public') THEN
     ALTER TABLE "review_votes" ADD CONSTRAINT "review_votes_reviewId_fkey" FOREIGN KEY ("reviewId") REFERENCES "reviews"("id") ON DELETE CASCADE;
   END IF;
 EXCEPTION WHEN OTHERS THEN
-  -- If FK fails (e.g. table doesn't exist), skip it — app works without DB-level FKs
   RAISE NOTICE 'Skipping some FK constraints: %', SQLERRM;
 END $$;
 
@@ -370,7 +363,6 @@ END $$;
 
 DO $$
 BEGIN
-  -- Booking columns
   ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "phone" TEXT;
   ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "eventTime" TEXT;
   ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "address" TEXT;
@@ -382,21 +374,16 @@ BEGIN
   ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "leadScore" INTEGER;
   ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "aiQualification" TEXT;
   ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "conciergeEventId" TEXT;
-END $$;
-
-DO $$
-BEGIN
   CREATE INDEX IF NOT EXISTS "Booking_status_idx" ON "Booking"("status");
   CREATE INDEX IF NOT EXISTS "Booking_createdAt_idx" ON "Booking"("createdAt");
   CREATE INDEX IF NOT EXISTS "Booking_email_idx" ON "Booking"("email");
   CREATE INDEX IF NOT EXISTS "Booking_conciergeEventId_idx" ON "Booking"("conciergeEventId");
 EXCEPTION WHEN OTHERS THEN
-  RAISE NOTICE 'Skipping Booking indexes: %', SQLERRM;
+  RAISE NOTICE 'Skipping Booking columns: %', SQLERRM;
 END $$;
 
 DO $$
 BEGIN
-  -- reviews columns (table was renamed from "Review" to "reviews")
   ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "reviewerEmail" TEXT;
   ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "photos" TEXT;
   ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "videoUrl" TEXT;
@@ -414,7 +401,6 @@ END $$;
 
 DO $$
 BEGIN
-  -- Product columns
   ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "badge" TEXT;
   ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "templateSlug" TEXT;
   ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "templateVersion" INTEGER;
@@ -425,7 +411,6 @@ END $$;
 
 DO $$
 BEGIN
-  -- vendor_listings columns (table was renamed from "Vendor" to "vendor_listings")
   ALTER TABLE "vendor_listings" ADD COLUMN IF NOT EXISTS "facebook" TEXT;
   ALTER TABLE "vendor_listings" ADD COLUMN IF NOT EXISTS "youtube" TEXT;
   ALTER TABLE "vendor_listings" ADD COLUMN IF NOT EXISTS "tiktok" TEXT;
@@ -441,5 +426,5 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- DONE — All 23 tables created, existing tables renamed + enhanced
+-- DONE
 -- ═══════════════════════════════════════════════════════════════════════════
