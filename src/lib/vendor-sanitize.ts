@@ -1,4 +1,4 @@
-import { SUBCATEGORIES } from "./constants";
+import { migrateCategory } from "./constants";
 
 const VALID_ECOSYSTEMS = new Set(["FINDMYBITES", "PIMPMYPARTY"]);
 const VALID_PRICE_RANGES = new Set(["$", "$$", "$$$", "$$$$"]);
@@ -54,14 +54,17 @@ export function sanitizeWhatsApp(input: unknown): string {
   return digits;
 }
 
-/** Validate subcategory belongs to the chosen category. Returns null if invalid/empty. */
+/** Validate subcategory. Returns null if empty.
+ *  Subcategories are now DB-driven + custom entries allowed via "Other" option.
+ *  We accept any non-empty string — validation happens in the DB.
+ */
 export function resolveSubcategory(
   raw: unknown,
   category: string
 ): string | null {
   if (typeof raw !== "string") return null;
   const s = raw.trim();
-  return s && SUBCATEGORIES[category]?.includes(s) ? s : null;
+  return s || null;
 }
 
 /** Accept either local /uploads/ paths or Supabase Storage public URLs.

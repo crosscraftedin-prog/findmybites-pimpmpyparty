@@ -35,7 +35,6 @@ import {
   CURRENCY_SYMBOLS,
   PRICE_RANGES,
   RESPONSE_TIME_OPTIONS,
-  subcategoriesFor,
   migrateCategory,
 } from "@/lib/constants";
 import { countryCodeToFlag } from "@/lib/format";
@@ -536,8 +535,7 @@ export function CreateVendorForm({
               <SelectContent>
                 {/* If the saved subcategory isn't in the list, show it as the first option */}
                 {form.subcategory &&
-                  !apiSubcategories.some((s) => s.name === form.subcategory) &&
-                  !subcategoriesFor(form.category).includes(form.subcategory) && (
+                  !apiSubcategories.some((s) => s.name === form.subcategory) && (
                     <SelectItem key="__saved" value={form.subcategory}>
                       {form.subcategory} ✓
                     </SelectItem>
@@ -549,11 +547,9 @@ export function CreateVendorForm({
                     </SelectItem>
                   ))
                 ) : (
-                  subcategoriesFor(form.category).map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    No subcategories available for this category.
+                  </div>
                 )}
                 <SelectItem value="__other__">
                   ✏️ Other — type your own
