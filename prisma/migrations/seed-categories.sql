@@ -1,6 +1,6 @@
 -- ============================================================
--- Categories + Subcategories Seed Data
--- Run this in Supabase SQL Editor AFTER running clean-start-v2.sql
+-- Categories + Subcategories Seed Data (v2 — fixed)
+-- Only inserts subcategories for categories that exist in Category table
 -- ============================================================
 
 INSERT INTO "Category" ("id", "slug", "label", "ecosystem", "description", "icon", "image", "accent", "sortOrder", "active", "createdAt")
@@ -91,7 +91,7 @@ INSERT INTO "Category" ("id", "slug", "label", "ecosystem", "description", "icon
 VALUES (gen_random_uuid(), 'party-supplies', 'Party Supplies & Stores', 'PIMPMYPARTY', 'Balloons, decorations, tableware, party props, and celebration accessories.', 'PartyPopper', '/vendors/decorator.png', 'from-pink-400 to-rose-500', 21, true, now())
 ON CONFLICT ("slug") DO UPDATE SET "label" = EXCLUDED."label", "ecosystem" = EXCLUDED."ecosystem", "description" = EXCLUDED."description", "icon" = EXCLUDED."icon", "image" = EXCLUDED."image", "accent" = EXCLUDED."accent", "sortOrder" = EXCLUDED."sortOrder", "active" = true;
 
--- Subcategories
+-- Subcategories (only for categories that exist in Category table)
 INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
 VALUES (gen_random_uuid(), 'bakers-bakery-wedding-cakes', 'Wedding Cakes', (SELECT "id" FROM "Category" WHERE "slug" = 'bakers-bakery'), NULL, 0, true, false, now())
 ON CONFLICT ("slug") DO NOTHING;
@@ -662,120 +662,14 @@ ON CONFLICT ("slug") DO NOTHING;
 INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
 VALUES (gen_random_uuid(), 'party-supplies-other', 'Other', (SELECT "id" FROM "Category" WHERE "slug" = 'party-supplies'), NULL, 9, true, false, now())
 ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cake-artists-wedding-cakes', 'Wedding Cakes', (SELECT "id" FROM "Category" WHERE "slug" = 'cake-artists'), NULL, 0, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cake-artists-birthday-cakes', 'Birthday Cakes', (SELECT "id" FROM "Category" WHERE "slug" = 'cake-artists'), NULL, 1, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cake-artists-custom-cakes', 'Custom Cakes', (SELECT "id" FROM "Category" WHERE "slug" = 'cake-artists'), NULL, 2, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cake-artists-designer-cakes', 'Designer Cakes', (SELECT "id" FROM "Category" WHERE "slug" = 'cake-artists'), NULL, 3, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cake-artists-vegan-cakes', 'Vegan Cakes', (SELECT "id" FROM "Category" WHERE "slug" = 'cake-artists'), NULL, 4, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cake-artists-eggless-cakes', 'Eggless Cakes', (SELECT "id" FROM "Category" WHERE "slug" = 'cake-artists'), NULL, 5, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cake-artists-other', 'Other', (SELECT "id" FROM "Category" WHERE "slug" = 'cake-artists'), NULL, 6, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'bakers-wedding-cakes', 'Wedding Cakes', (SELECT "id" FROM "Category" WHERE "slug" = 'bakers'), NULL, 0, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'bakers-custom-cakes', 'Custom Cakes', (SELECT "id" FROM "Category" WHERE "slug" = 'bakers'), NULL, 1, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'bakers-other', 'Other', (SELECT "id" FROM "Category" WHERE "slug" = 'bakers'), NULL, 2, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cupcake-specialists-wedding-cupcakes', 'Wedding Cupcakes', (SELECT "id" FROM "Category" WHERE "slug" = 'cupcake-specialists'), NULL, 0, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cupcake-specialists-birthday-cupcakes', 'Birthday Cupcakes', (SELECT "id" FROM "Category" WHERE "slug" = 'cupcake-specialists'), NULL, 1, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cupcake-specialists-mini-cupcakes', 'Mini Cupcakes', (SELECT "id" FROM "Category" WHERE "slug" = 'cupcake-specialists'), NULL, 2, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cupcake-specialists-custom-cupcakes', 'Custom Cupcakes', (SELECT "id" FROM "Category" WHERE "slug" = 'cupcake-specialists'), NULL, 3, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'cupcake-specialists-other', 'Other', (SELECT "id" FROM "Category" WHERE "slug" = 'cupcake-specialists'), NULL, 4, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'chocolatiers-handmade-chocolates', 'Handmade Chocolates', (SELECT "id" FROM "Category" WHERE "slug" = 'chocolatiers'), NULL, 0, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'chocolatiers-truffles', 'Truffles', (SELECT "id" FROM "Category" WHERE "slug" = 'chocolatiers'), NULL, 1, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'chocolatiers-chocolate-boxes', 'Chocolate Boxes', (SELECT "id" FROM "Category" WHERE "slug" = 'chocolatiers'), NULL, 2, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'chocolatiers-other', 'Other', (SELECT "id" FROM "Category" WHERE "slug" = 'chocolatiers'), NULL, 3, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'dessert-makers-cheesecakes', 'Cheesecakes', (SELECT "id" FROM "Category" WHERE "slug" = 'dessert-makers'), NULL, 0, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'dessert-makers-tiramisu', 'Tiramisu', (SELECT "id" FROM "Category" WHERE "slug" = 'dessert-makers'), NULL, 1, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'dessert-makers-mousse', 'Mousse', (SELECT "id" FROM "Category" WHERE "slug" = 'dessert-makers'), NULL, 2, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'dessert-makers-puddings', 'Puddings', (SELECT "id" FROM "Category" WHERE "slug" = 'dessert-makers'), NULL, 3, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'dessert-makers-other', 'Other', (SELECT "id" FROM "Category" WHERE "slug" = 'dessert-makers'), NULL, 4, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'catering-wedding-catering', 'Wedding Catering', (SELECT "id" FROM "Category" WHERE "slug" = 'catering'), NULL, 0, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'catering-corporate-catering', 'Corporate Catering', (SELECT "id" FROM "Category" WHERE "slug" = 'catering'), NULL, 1, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'catering-buffet-catering', 'Buffet Catering', (SELECT "id" FROM "Category" WHERE "slug" = 'catering'), NULL, 2, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'catering-bbq-grill', 'BBQ & Grill', (SELECT "id" FROM "Category" WHERE "slug" = 'catering'), NULL, 3, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'catering-other', 'Other', (SELECT "id" FROM "Category" WHERE "slug" = 'catering'), NULL, 4, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'private-chefs-private-chef', 'Private Chef', (SELECT "id" FROM "Category" WHERE "slug" = 'private-chefs'), NULL, 0, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'private-chefs-pastry-chef', 'Pastry Chef', (SELECT "id" FROM "Category" WHERE "slug" = 'private-chefs'), NULL, 1, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'private-chefs-other', 'Other', (SELECT "id" FROM "Category" WHERE "slug" = 'private-chefs'), NULL, 2, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'specialty-foods-organic', 'Organic', (SELECT "id" FROM "Category" WHERE "slug" = 'specialty-foods'), NULL, 0, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'specialty-foods-vegan-plant-based', 'Vegan & Plant-Based', (SELECT "id" FROM "Category" WHERE "slug" = 'specialty-foods'), NULL, 1, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'specialty-foods-gluten-free', 'Gluten-Free', (SELECT "id" FROM "Category" WHERE "slug" = 'specialty-foods'), NULL, 2, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'specialty-foods-halal', 'Halal', (SELECT "id" FROM "Category" WHERE "slug" = 'specialty-foods'), NULL, 3, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'specialty-foods-kosher', 'Kosher', (SELECT "id" FROM "Category" WHERE "slug" = 'specialty-foods'), NULL, 4, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
-INSERT INTO "Subcategory" ("id", "slug", "label", "categoryId", "description", "sortOrder", "active", "isPending", "createdAt")
-VALUES (gen_random_uuid(), 'specialty-foods-other', 'Other', (SELECT "id" FROM "Category" WHERE "slug" = 'specialty-foods'), NULL, 5, true, false, now())
-ON CONFLICT ("slug") DO NOTHING;
+-- Skipping subcategories for "cake-artists" (backward-compat alias, not a real category)
+-- Skipping subcategories for "bakers" (backward-compat alias, not a real category)
+-- Skipping subcategories for "cupcake-specialists" (backward-compat alias, not a real category)
+-- Skipping subcategories for "chocolatiers" (backward-compat alias, not a real category)
+-- Skipping subcategories for "dessert-makers" (backward-compat alias, not a real category)
+-- Skipping subcategories for "catering" (backward-compat alias, not a real category)
+-- Skipping subcategories for "private-chefs" (backward-compat alias, not a real category)
+-- Skipping subcategories for "specialty-foods" (backward-compat alias, not a real category)
 
 SELECT count(*) AS category_count FROM "Category";
 SELECT count(*) AS subcategory_count FROM "Subcategory";
