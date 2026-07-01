@@ -53,7 +53,8 @@ import { StarRating } from "@/components/marketplace/star-rating";
 import { VendorCard } from "@/components/marketplace/vendor-card";
 import { CountdownTimer } from "@/components/marketplace/countdown-timer";
 import { useProducts, useVendors, useCreateBooking } from "@/lib/queries";
-import { getCategoryMigrated, CURRENCY_SYMBOLS } from "@/lib/constants";
+import { CURRENCY_SYMBOLS } from "@/lib/constants";
+import { useCategoryLabels } from "@/hooks/use-category-labels";
 import { formatPrice, countryCodeToFlag, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { VendorAIChat } from "@/components/marketplace/vendor-ai-chat";
@@ -140,7 +141,8 @@ export function VendorProfileClient({ vendor }: Props) {
     return ["all", ...Array.from(types)];
   }, [products]);
 
-  const cat = getCategoryMigrated(vendor.category);
+  const { getCategory } = useCategoryLabels();
+  const cat = getCategory(vendor.category);
   // Fallback: if the category doesn't match any known category ID,
   // create a synthetic category def so the badge still shows.
   const catDisplay = cat ?? {

@@ -13,7 +13,8 @@ import {
   PartyPopper,
   ArrowRight,
 } from "lucide-react";
-import { getCategoryMigrated, CURRENCY_SYMBOLS } from "@/lib/constants";
+import { CURRENCY_SYMBOLS } from "@/lib/constants";
+import { useCategoryLabels } from "@/hooks/use-category-labels";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Vendor } from "@/lib/types";
@@ -351,7 +352,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 // ── Vendor card ──────────────────────────────────────────────────────────
 
 function VendorChatCard({ vendor }: { vendor: ChatVendor }) {
-  const cat = getCategoryMigrated(vendor.category);
+  const { getCategory } = useCategoryLabels();
+  const cat = getCategory(vendor.category);
   const matchReason = vendor.matchReason || vendor.tagline;
 
   return (
@@ -486,8 +488,10 @@ async function fetchVendorSuggestions(categories: string[], city: string): Promi
 }
 
 function buildMatchReason(vendor: ChatVendor): string {
-  const cat = getCategoryMigrated(vendor.category);
-  const catLabel = cat?.label ?? vendor.category;
+  // Use title-cased slug as fallback (this is a pure function, can't use hooks)
+  const catLabel = vendor.category
+    ? vendor.category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : "";
   if (vendor.city && vendor.distance != null) return `${catLabel} near you in ${vendor.city}`;
   if (vendor.city) return `Great ${catLabel.toLowerCase()} in ${vendor.city}`;
   return `Top-rated ${catLabel.toLowerCase()}`;

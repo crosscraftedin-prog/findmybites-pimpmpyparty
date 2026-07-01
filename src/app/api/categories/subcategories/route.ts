@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { migrateCategory } from "@/lib/constants";
 
 /**
  * GET /api/categories/subcategories?category=<slug>
  * Returns all active subcategories for a given category slug.
+ * Applies migration map so old category slugs (cake-artists, bakers, etc.)
+ * still resolve to the correct new category.
  */
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
-    const categorySlug = sp.get("category");
+    const rawCategory = sp.get("category");
 
-    if (!categorySlug) {
+    if (!rawCategory) {
       return NextResponse.json([]);
     }
+
+    // Apply migration map so old slugs resolve to new categories
+    const categorySlug = migrateCategory(rawCategory);
 
     const cat = await db.category.findFirst({
       where: { slug: categorySlug, active: true },

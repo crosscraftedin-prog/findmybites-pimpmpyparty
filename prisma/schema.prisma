@@ -37,6 +37,10 @@ model Category {
   accent      String?
   sortOrder   Int      @default(0)
   active      Boolean  @default(true)
+  // ── Phase: DB-driven category metadata ──
+  seoTitle       String?
+  seoDescription String?
+  featured       Boolean  @default(false)
   createdAt   DateTime @default(now())
   subcategories Subcategory[]
 

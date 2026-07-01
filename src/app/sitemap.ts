@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
-import { CATEGORIES, migrateCategory } from "@/lib/constants";
+import { migrateCategory } from "@/lib/constants";
 import { CAKE_PAGES } from "@/lib/cake-pages";
 import { getAllSEOPages, getAllCities, getAllCategories } from "@/lib/seo-data";
 
@@ -154,11 +154,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     }
 
-    // Category pages per city
+    // Category pages per city — fetch valid slugs from DB
+    let validCategorySlugs: Set<string> = new Set();
+    try {
+      const dbCats = await db.category.findMany({
+        where: { active: true },
+        select: { slug: true },
+      });
+      validCategorySlugs = new Set(dbCats.map((c) => c.slug));
+    } catch {}
+
     for (const cc of cityCategories) {
       const migrated = migrateCategory(cc.category);
-      const cat = CATEGORIES.find((c) => c.id === migrated && c.ecosystem === cc.ecosystem);
-      if (!cat) continue;
+      if (!validCategorySlugs.has(migrated)) continue;
 
       const ecoSlug = cc.ecosystem === "FINDMYBITES" ? "findmybites" : "pimpmyparty";
       const countrySlug = slugify(cc.country);

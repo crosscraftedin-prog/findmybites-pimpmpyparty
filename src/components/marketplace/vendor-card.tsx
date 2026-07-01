@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { MapPin, BadgeCheck, Clock, Heart, MessageCircle } from "lucide-react";
 import type { Vendor } from "@/lib/types";
-import { getCategoryMigrated } from "@/lib/constants";
+import { useCategoryLabels } from "@/hooks/use-category-labels";
 import { formatPrice, countryCodeToFlag } from "@/lib/format";
 import { CategoryIcon } from "./icon";
 import { VendorImage } from "./vendor-image";
@@ -14,7 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export function VendorCard({ vendor, index = 0 }: { vendor: Vendor; index?: number }) {
-  const cat = getCategoryMigrated(vendor.category);
+  const { getCategory } = useCategoryLabels();
+  const cat = getCategory(vendor.category);
   const [liked, setLiked] = React.useState(false);
   const href = `/vendor/${vendor.slug}`;
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
-import { getCategoryMigrated } from "@/lib/constants";
+import { getCategoryInfo } from "@/lib/category-server";
 import type { VendorWithRelations } from "@/lib/types";
 import { VendorProfileClient } from "./vendor-profile-client";
 
@@ -103,14 +103,15 @@ export async function generateMetadata({
   if (!vendor) {
     return { title: "Vendor not found — FindMyBites × PimpMyParty" };
   }
-  const cat = getCategoryMigrated(vendor.category);
+  const cat = await getCategoryInfo(vendor.category);
+  const catLabel = cat?.label ?? "Vendor";
   const title =
     vendor.metaTitle ||
-    `${vendor.name} — ${cat?.label ?? "Vendor"} in ${vendor.city} | FindMyBites`;
+    `${vendor.name} — ${catLabel} in ${vendor.city} | FindMyBites`;
   const description =
     vendor.metaDescription ||
     vendor.tagline ||
-    `${vendor.name} is a ${cat?.label ?? "vendor"} in ${vendor.city}, ${vendor.country}. Book on FindMyBites × PimpMyParty.`;
+    `${vendor.name} is a ${catLabel} in ${vendor.city}, ${vendor.country}. Book on FindMyBites × PimpMyParty.`;
   const ogImage = vendor.heroImage || vendor.avatarImage || undefined;
 
   return {
@@ -143,7 +144,7 @@ export default async function VendorProfilePage({ params }: PageProps) {
   }
 
   // JSON-LD structured data for SEO
-  const cat = getCategoryMigrated(vendor.category);
+  const cat = await getCategoryInfo(vendor.category);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": vendor.ecosystem === "FINDMYBITES" ? "Bakery" : "LocalBusiness",

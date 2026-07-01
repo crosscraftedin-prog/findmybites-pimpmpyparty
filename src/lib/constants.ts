@@ -18,214 +18,47 @@ export function isAdminEmail(email: string | null | undefined): boolean {
 export interface CategoryDef {
   id: string;
   ecosystem: Ecosystem;
-  label: string;
-  description: string;
-  icon: string; // lucide icon name
-  image: string;
-  accent: string; // tailwind gradient classes
+  // ALL metadata (label, description, icon, image, accent, seoTitle, seoDescription)
+  // now lives in the database Category table. These fields are kept as optional
+  // only for backward compatibility with backend code that hasn't been migrated.
+  // They should NEVER be used for display — use useCategoryLabels() (client) or
+  // getCategoryInfo() (server) instead.
+  label?: string;
+  description?: string;
+  icon?: string;
+  image?: string;
+  accent?: string;
 }
 
+// This array is ONLY a slug → ecosystem mapping for backward compatibility.
+// It is used by:
+//   - migrateCategory() to resolve old slugs to new slugs
+//   - Backend APIs for slug validation
+// It does NOT contain labels, icons, images, or accent colors.
+// All visual metadata is in the Category database table.
 export const CATEGORIES: CategoryDef[] = [
-  // ---- FindMyBites (Food) — 6 categories (NEW ARCHITECTURE) ----
-  {
-    id: "bakers-bakery",
-    ecosystem: "FINDMYBITES",
-    label: "Bakers & Bakery",
-    description: "Cakes, cupcakes, chocolates, desserts — all baked goods in one place.",
-    icon: "Cake",
-    image: "/vendors/cake-artist.png",
-    accent: "from-orange-400 to-rose-500",
-  },
-  {
-    id: "caterers",
-    ecosystem: "FINDMYBITES",
-    label: "Caterers",
-    description: "Full-service catering for weddings, corporate events, and gatherings.",
-    icon: "UtensilsCrossed",
-    image: "/vendors/catering.png",
-    accent: "from-rose-400 to-red-500",
-  },
-  {
-    id: "chef-staff",
-    ecosystem: "FINDMYBITES",
-    label: "Chef & Staff",
-    description: "Private chefs, pastry chefs, bartenders, waiters, and event crew.",
-    icon: "ChefHat",
-    image: "/vendors/private-chef.png",
-    accent: "from-lime-400 to-emerald-500",
-  },
-  {
-    id: "food-trucks",
-    ecosystem: "FINDMYBITES",
-    label: "Food Trucks",
-    description: "Mobile kitchens serving street food, BBQ, pizza, and global bites.",
-    icon: "Truck",
-    image: "/vendors/food-truck.png",
-    accent: "from-yellow-400 to-amber-500",
-  },
-  {
-    id: "beverage-specialists",
-    ecosystem: "FINDMYBITES",
-    label: "Beverage Specialists",
-    description: "Coffee, tea, mocktail, juice, smoothie, and bubble tea catering.",
-    icon: "Coffee",
-    image: "/vendors/catering.png",
-    accent: "from-teal-400 to-cyan-500",
-  },
-  {
-    id: "specialty-food",
-    ecosystem: "FINDMYBITES",
-    label: "Specialty Food",
-    description: "Organic, keto, vegan, gluten-free, halal, kosher, sugar-free, dairy-free.",
-    icon: "UtensilsCrossed",
-    image: "/vendors/catering.png",
-    accent: "from-green-400 to-teal-500",
-  },
-  // ---- PimpMyParty (Events) — 15 categories ----
-  {
-    id: "event-planners",
-    ecosystem: "PIMPMYPARTY",
-    label: "Event Planners",
-    description: "End-to-end planning for weddings, milestones, and brand activations.",
-    icon: "ClipboardList",
-    image: "/vendors/event-planner.png",
-    accent: "from-fuchsia-400 to-purple-500",
-  },
-  {
-    id: "decorators",
-    ecosystem: "PIMPMYPARTY",
-    label: "Decorators",
-    description: "Balloon art, florals, tablescapes, and immersive themed decor.",
-    icon: "Flower2",
-    image: "/vendors/decorator.png",
-    accent: "from-purple-400 to-pink-500",
-  },
-  {
-    id: "photographers",
-    ecosystem: "PIMPMYPARTY",
-    label: "Photographers",
-    description: "Wedding, event, and corporate photography services.",
-    icon: "Camera",
-    image: "/vendors/photographer.png",
-    accent: "from-pink-400 to-purple-500",
-  },
-  {
-    id: "videographers",
-    ecosystem: "PIMPMYPARTY",
-    label: "Videographers",
-    description: "Cinematic video, films, and drone videography for events.",
-    icon: "Video",
-    image: "/vendors/photographer.png",
-    accent: "from-indigo-400 to-purple-500",
-  },
-  {
-    id: "djs",
-    ecosystem: "PIMPMYPARTY",
-    label: "DJs",
-    description: "DJs, live bands, and sound engineers to keep your party moving.",
-    icon: "Music",
-    image: "/vendors/dj.png",
-    accent: "from-fuchsia-500 to-rose-500",
-  },
-  {
-    id: "entertainers",
-    ecosystem: "PIMPMYPARTY",
-    label: "Entertainers",
-    description: "Magicians, clowns, mascots, performers, and live acts for all ages.",
-    icon: "Drama",
-    image: "/vendors/entertainer.png",
-    accent: "from-violet-400 to-fuchsia-500",
-  },
-  {
-    id: "venues",
-    ecosystem: "PIMPMYPARTY",
-    label: "Venues",
-    description: "Banquet halls, rooftops, gardens, and unique event spaces worldwide.",
-    icon: "Building2",
-    image: "/vendors/venue.png",
-    accent: "from-purple-500 to-indigo-500",
-  },
-  {
-    id: "florists",
-    ecosystem: "PIMPMYPARTY",
-    label: "Florists",
-    description: "Wedding flowers, bouquets, centerpieces, and floral installations.",
-    icon: "Flower2",
-    image: "/vendors/decorator.png",
-    accent: "from-rose-400 to-pink-500",
-  },
-  {
-    id: "rental-services",
-    ecosystem: "PIMPMYPARTY",
-    label: "Rental Services",
-    description: "Tents, furniture, tableware, and equipment rentals for events.",
-    icon: "Package",
-    image: "/vendors/venue.png",
-    accent: "from-slate-400 to-gray-500",
-  },
-  {
-    id: "makeup-artists",
-    ecosystem: "PIMPMYPARTY",
-    label: "Makeup Artists",
-    description: "Bridal, party, and editorial makeup services.",
-    icon: "Sparkles",
-    image: "/vendors/entertainer.png",
-    accent: "from-pink-500 to-rose-500",
-  },
-  {
-    id: "beauty-services",
-    ecosystem: "PIMPMYPARTY",
-    label: "Beauty Services",
-    description: "Hair styling, mehndi, spa, and grooming services for events.",
-    icon: "Sparkles",
-    image: "/vendors/entertainer.png",
-    accent: "from-rose-400 to-fuchsia-500",
-  },
-  {
-    id: "transportation",
-    ecosystem: "PIMPMYPARTY",
-    label: "Transportation",
-    description: "Limousines, party buses, and guest transport for events.",
-    icon: "Car",
-    image: "/vendors/venue.png",
-    accent: "from-blue-400 to-slate-500",
-  },
-  {
-    id: "invitation-printing",
-    ecosystem: "PIMPMYPARTY",
-    label: "Invitation & Printing",
-    description: "Custom invitations, cards, and printing for all occasions.",
-    icon: "Mail",
-    image: "/vendors/event-planner.png",
-    accent: "from-amber-400 to-yellow-500",
-  },
-  {
-    id: "kids-party-services",
-    ecosystem: "PIMPMYPARTY",
-    label: "Kids Party Services",
-    description: "Bounce houses, mascots, games, and themed kids entertainment.",
-    icon: "PartyPopper",
-    image: "/vendors/entertainer.png",
-    accent: "from-cyan-400 to-blue-500",
-  },
-  {
-    id: "audio-visual-services",
-    ecosystem: "PIMPMYPARTY",
-    label: "Audio Visual Services",
-    description: "Sound systems, lighting, LED walls, and AV production.",
-    icon: "Speaker",
-    image: "/vendors/dj.png",
-    accent: "from-slate-500 to-zinc-600",
-  },
-  {
-    id: "party-supplies",
-    ecosystem: "PIMPMYPARTY",
-    label: "Party Supplies & Stores",
-    description: "Balloons, decorations, tableware, party props, and celebration accessories.",
-    icon: "PartyPopper",
-    image: "/vendors/decorator.png",
-    accent: "from-pink-400 to-rose-500",
-  },
+  { id: "bakers-bakery", ecosystem: "FINDMYBITES" },
+  { id: "caterers", ecosystem: "FINDMYBITES" },
+  { id: "chef-staff", ecosystem: "FINDMYBITES" },
+  { id: "food-trucks", ecosystem: "FINDMYBITES" },
+  { id: "beverage-specialists", ecosystem: "FINDMYBITES" },
+  { id: "specialty-food", ecosystem: "FINDMYBITES" },
+  { id: "event-planners", ecosystem: "PIMPMYPARTY" },
+  { id: "decorators", ecosystem: "PIMPMYPARTY" },
+  { id: "photographers", ecosystem: "PIMPMYPARTY" },
+  { id: "videographers", ecosystem: "PIMPMYPARTY" },
+  { id: "djs", ecosystem: "PIMPMYPARTY" },
+  { id: "entertainers", ecosystem: "PIMPMYPARTY" },
+  { id: "venues", ecosystem: "PIMPMYPARTY" },
+  { id: "florists", ecosystem: "PIMPMYPARTY" },
+  { id: "rental-services", ecosystem: "PIMPMYPARTY" },
+  { id: "makeup-artists", ecosystem: "PIMPMYPARTY" },
+  { id: "beauty-services", ecosystem: "PIMPMYPARTY" },
+  { id: "transportation", ecosystem: "PIMPMYPARTY" },
+  { id: "invitation-printing", ecosystem: "PIMPMYPARTY" },
+  { id: "kids-party-services", ecosystem: "PIMPMYPARTY" },
+  { id: "audio-visual-services", ecosystem: "PIMPMYPARTY" },
+  { id: "party-supplies", ecosystem: "PIMPMYPARTY" },
 ];
 
 export function categoriesFor(ecosystem: Ecosystem): CategoryDef[] {

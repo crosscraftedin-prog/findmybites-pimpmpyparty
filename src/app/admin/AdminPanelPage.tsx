@@ -41,6 +41,7 @@ import { AdminPricing } from "@/components/admin/admin-pricing";
 import { AdminFilters } from "@/components/admin/admin-filters";
 import { AdminTemplates } from "@/components/admin/admin-templates";
 import { AdminLeadCenter } from "@/components/admin/admin-lead-center";
+import { useCategoryLabels } from "@/hooks/use-category-labels";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
 const CORAL = "#D85A30";
@@ -376,7 +377,7 @@ function ReviewPanel({
           <Section label="Business details">
             <p className="text-[13px] font-medium">{vendor.name}</p>
             <p className="text-[12px] text-black/50">
-              {vendor.category} · {vendor.city}, {vendor.country}
+              {getCategoryLabel(vendor.category)} · {vendor.city}, {vendor.country}
             </p>
           </Section>
 
@@ -526,6 +527,7 @@ export function AdminPanelPage({
   const [activeNav, setActiveNav] = React.useState("dashboard");
   const [loading, setLoading] = React.useState(true);
   const [kpi, setKpi] = React.useState<KPIData | null>(null);
+  const { getLabel: getCategoryLabel } = useCategoryLabels();
   const [pendingVendors, setPendingVendors] = React.useState<Vendor[]>([]);
   const [activity, setActivity] = React.useState<ActivityItem[]>([]);
   const [activityError, setActivityError] = React.useState(false);
@@ -993,7 +995,7 @@ export function AdminPanelPage({
                             {v.name}
                           </p>
                           <p className="truncate text-[11px] text-black/40">
-                            {v.city} · {v.category}
+                            {v.city} · {getCategoryLabel(v.category)}
                           </p>
                         </div>
                         <StatusBadge
@@ -1175,7 +1177,7 @@ export function AdminPanelPage({
                           <td>
                             <BrandPill ecosystem={v.ecosystem} />
                           </td>
-                          <td className="text-black/60">{v.category}</td>
+                          <td className="text-black/60">{getCategoryLabel(v.category)}</td>
                           <td className="text-black/60">
                             {v.city}, {v.countryCode || v.country}
                           </td>

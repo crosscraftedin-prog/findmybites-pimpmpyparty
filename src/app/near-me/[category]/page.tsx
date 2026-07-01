@@ -24,7 +24,7 @@ import {
   generateBreadcrumbJsonLd,
   generateFAQJsonLd,
 } from "@/lib/seo-content";
-import { CATEGORIES, getCategoryMigrated } from "@/lib/constants";
+import { getCategoryInfo } from "@/lib/category-server";
 
 /**
  * /near-me/[category] — "category near me" landing pages.
@@ -51,17 +51,21 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { category } = await params;
-  const catDef = getCategoryMigrated(category);
-  if (!catDef) return { title: "Not Found" };
-  return generateNearMeMetadata(catDef.label, category);
+  const catInfo = await getCategoryInfo(category);
+  if (!catInfo) return { title: "Not Found" };
+  return generateNearMeMetadata(catInfo.label, category);
 }
 
 export default async function NearMeCategoryPage({ params }: PageProps) {
   const { category: categorySlug } = await params;
-  const catDef = getCategoryMigrated(categorySlug);
-  if (!catDef) notFound();
+  const catInfo = await getCategoryInfo(categorySlug);
+  if (!catInfo) notFound();
+  // Determine ecosystem from the slug (first check if it's a FindMyBites slug)
+  const foodSlugs = new Set(["bakers-bakery", "caterers", "chef-staff", "food-trucks", "beverage-specialists", "specialty-food"]);
+  const eco = foodSlugs.has(categorySlug) ? "FINDMYBITES" : "PIMPMYPARTY";
+  // Build a catDef-like object for compatibility with existing code
+  const catDef = { ...catInfo, id: categorySlug, ecosystem: eco, description: "" };
 
-  const eco = catDef.ecosystem;
   const ecoColor = eco === "PIMPMYPARTY" ? ECO_COLOR_PARTY : ECO_COLOR_FOOD;
   const ecoTint = eco === "PIMPMYPARTY" ? ECO_TINT_PARTY : ECO_TINT_FOOD;
   const ecoLabel = eco === "PIMPMYPARTY" ? "PimpMyParty" : "FindMyBites";
@@ -81,12 +85,17 @@ export default async function NearMeCategoryPage({ params }: PageProps) {
     generateFAQJsonLd(faqs),
   ];
 
-  // Related categories in the same ecosystem
-  const related = CATEGORIES.filter(
-    (c) => c.ecosystem === eco && c.id !== categorySlug
-  )
-    .slice(0, 6)
-    .map((c) => ({ label: `${c.label} near me`, slug: c.id }));
+  // Related categories from DB
+  let related: { label: string; slug: string }[] = [];
+  try {
+    const dbRelated = await db.category.findMany({
+      where: { ecosystem: eco, active: true, slug: { not: categorySlug } },
+      orderBy: { sortOrder: "asc" },
+      take: 6,
+      select: { slug: true, label: true },
+    });
+    related = dbRelated.map((c) => ({ label: `${c.label} near me`, slug: c.slug }));
+  } catch {}
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F7F6F2]">
