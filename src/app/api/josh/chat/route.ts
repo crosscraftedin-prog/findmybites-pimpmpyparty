@@ -41,7 +41,7 @@ interface RequestBody {
 }
 
 const FALLBACK_RESPONSE =
-  "I'd love to help! 🎉 Tell me what you're celebrating, which city you're in, and what you need (cake, catering, DJ, photographer, etc.) and I'll find the best vendors for you.";
+  "I'm here to help! 🎉 Tell me your city and what you need — cake, catering, DJ, photographer, decorator — and I'll find the best vendors for you.";
 
 // ── ZAI instance factory ──────────────────────────────────────────────────
 // Tries env vars (Vercel), then config file (local dev), then hardcoded
@@ -312,12 +312,14 @@ export async function POST(req: NextRequest) {
 
     // ── 2. Build message history ─────────────────────────────────────────
     const history: ChatMessage[] = conversation?.messages
-      ? (conversation.messages as ChatMessage[])
+      ? (conversation.messages as unknown as ChatMessage[])
       : [];
     const newMessages: ChatMessage[] = [
       ...history,
       { role: "user", content: message, timestamp: new Date().toISOString() },
     ];
+
+    console.log("[josh/chat] conversationId:", conversation?.id ?? "none", "| history length:", history.length, "| prompt version: v2");
 
     // ── 3. Fetch real vendor data for context ────────────────────────────
     console.log("[josh/chat] Fetching vendors from DB...");
@@ -398,11 +400,28 @@ export async function POST(req: NextRequest) {
     console.log("[josh/chat] ZAI available:", !!zai);
 
     if (!zai) {
-      // AI unavailable — return a vendor_suggestions JSON block so the
-      // widget fetches vendor cards from /api/chat/vendors (which has
-      // sample vendor fallback). Josh still recommends vendors.
-      console.log("[josh/chat] AI unavailable — returning vendor_suggestions fallback");
+      // AI unavailable — use conversation history to provide a contextual response
+      console.log("[josh/chat] AI unavailable — using fallback with history");
       const { categories, city } = extractIntent(message);
+
+      // If this is NOT the first message (history exists), acknowledge contextually
+      if (history.length > 0) {
+        const lastAssistantMsg = [...history].reverse().find(m => m.role === "assistant");
+        const contextualMsg = categories.length > 0
+          ? `Based on what you've told me, I'm looking for ${categories.join(", ")}${city ? ` in ${city}` : ""}. Let me find some great options for you! 🎉\n\n{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${city || ""}","summary":"Found vendors matching your request!"}\n\nHere are my top picks for you 🎉`
+          : `Got it! I'm noting that down. ${lastAssistantMsg ? "To help you further, " : ""}could you tell me your city or what type of vendor you're looking for? For example: "cake in Dubai" or "DJ in Mumbai" 🎉`;
+        await saveConversation(conversation, [
+          ...newMessages,
+          { role: "assistant", content: contextualMsg, timestamp: new Date().toISOString() },
+        ]);
+        return NextResponse.json({
+          conversationId: conversation?.id,
+          message: contextualMsg,
+          fallback: true,
+        });
+      }
+
+      // First message — no history
       if (categories.length > 0) {
         const cityDisplay = city || "";
         const summary = city
@@ -419,7 +438,7 @@ export async function POST(req: NextRequest) {
           fallback: true,
         });
       }
-      // No categories detected — return a helpful prompt
+      // First message, no categories — return greeting
       const noCatMsg = "I'd love to help! 🎉 Tell me what you need — like \"cake in Dubai\", \"DJ in Mumbai\", or \"photographer in London\" — and I'll find the best vendors for you.";
       await saveConversation(conversation, [
         ...newMessages,
@@ -435,15 +454,20 @@ export async function POST(req: NextRequest) {
     const systemPrompt =
       JOSH_SYSTEM_PROMPT_V2 + vendorContext + vendorProfileContext + storefrontContext;
     console.log("[josh/chat] System prompt length:", systemPrompt.length, "| vendor context length:", vendorContext.length, "| storefront context length:", storefrontContext.length);
+    console.log("[josh/chat] Messages to LLM — history:", history.length, "| total messages:", newMessages.length);
+
+    const llmMessages = [
+      { role: "assistant" as const, content: systemPrompt },
+      ...newMessages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
+    ];
+
+    console.log("[josh/chat] LLM message roles:", llmMessages.map(m => m.role).join(" → "));
 
     const completion = await zai.chat.completions.create({
-      messages: [
-        { role: "assistant", content: systemPrompt },
-        ...newMessages.map((m) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        })),
-      ],
+      messages: llmMessages,
       thinking: { type: "disabled" },
     });
 

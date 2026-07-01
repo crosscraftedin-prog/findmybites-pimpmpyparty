@@ -30,6 +30,7 @@ export function VendorAIChat({ vendorId, vendorName, vendorCategory, vendorCity 
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [conversationId, setConversationId] = React.useState<string | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   const send = async (text: string) => {
@@ -45,6 +46,7 @@ export function VendorAIChat({ vendorId, vendorName, vendorCategory, vendorCity 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
+          conversationId: conversationId ?? undefined,
           userId: `vendor-visitor-${vendorId}`,
           userType: "customer",
           vendorId,
@@ -52,6 +54,9 @@ export function VendorAIChat({ vendorId, vendorName, vendorCategory, vendorCity 
         }),
       });
       const data = await res.json();
+      if (data.conversationId && !conversationId) {
+        setConversationId(data.conversationId);
+      }
       const aiMsg: Message = {
         id: String(Date.now() + 1),
         role: "assistant",
