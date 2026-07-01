@@ -332,6 +332,16 @@ function formatVendorsForChat(vendors: any[]): string {
 
 export async function POST(req: NextRequest) {
   console.log("[josh/chat] POST called");
+  // ============================================================
+  // DEBUG TRACE — temporary instrumentation (no logic changes)
+  // ============================================================
+  const __TRACE = "[DEBUG-TRACE]";
+  let __llmCalled = false;
+  let __greetingFallback = false;
+  let __slotFilling = false;
+  let __vendorSuggestion = false;
+  let __llmUsed = false;
+  let __blockingReturn: string | null = null;
   try {
     const body = (await req.json()) as RequestBody;
     const {
@@ -343,9 +353,24 @@ export async function POST(req: NextRequest) {
       vendorId,
     } = body;
 
+    // ── LOG 1: Incoming request ──────────────────────────────────────
+    console.log(`${__TRACE} ════════════════════════════════════════════`);
+    console.log(`${__TRACE} LOG 1 — INCOMING REQUEST`);
+    console.log(`${__TRACE}   message        = ${JSON.stringify(message)}`);
+    console.log(`${__TRACE}   conversationId = ${JSON.stringify(conversationId)}`);
+    console.log(`${__TRACE}   userId         = ${JSON.stringify(userId)}`);
+    console.log(`${__TRACE}   userType       = ${JSON.stringify(userType)}`);
+    console.log(`${__TRACE}   vendorId       = ${JSON.stringify(vendorId)}`);
+    console.log(`${__TRACE}   vendorContext  = ${JSON.stringify(body.vendorContext)}`);
+    console.log(`${__TRACE} ════════════════════════════════════════════`);
+
     console.log("[josh/chat] message:", message?.slice(0, 80), "| userId:", userId, "| userType:", userType);
 
     if (!message || !userId) {
+      __blockingReturn = "RETURN #1 — missing message/userId (400)";
+      console.log(`${__TRACE} RETURN #1 — reason: missing message or userId`);
+      console.log(`${__TRACE} LOG 9 — Was the LLM called? NO`);
+      console.log(`${__TRACE} LOG 10 — Blocked by: RETURN #1`);
       return NextResponse.json(
         { error: "Missing message or userId" },
         { status: 400 }
@@ -426,17 +451,33 @@ export async function POST(req: NextRequest) {
 
     // Extract NEW information from the CURRENT message only
     const newExtracted = extractFromMessage(message);
+
+    // ── LOG 3: ConversationState BEFORE merge ─────────────────────────
+    console.log(`${__TRACE} LOG 3 — ConversationState BEFORE merge`);
+    console.log(`${__TRACE}   ${JSON.stringify({ category: convState.category, subcategory: convState.subcategory, city: convState.city, eventType: convState.eventType, budget: convState.budget, dietaryRequirements: convState.dietaryRequirements, conversationMode: convState.conversationMode, messageCount: convState.messageCount })}`);
+
+    // ── LOG 2: extractFromMessage() return value ──────────────────────
+    console.log(`${__TRACE} LOG 2 — extractFromMessage() RETURNED:`);
+    console.log(`${__TRACE}   ${JSON.stringify(newExtracted)}`);
     console.log("[josh/chat] State BEFORE:", JSON.stringify({ category: convState.category, city: convState.city, budget: convState.budget, dietary: convState.dietaryRequirements }));
     console.log("[josh/chat] Extracted from message:", JSON.stringify(newExtracted));
 
     // Merge new info into state
     convState = mergeState(convState, newExtracted);
 
+    // ── LOG 4: ConversationState AFTER merge ──────────────────────────
+    console.log(`${__TRACE} LOG 4 — ConversationState AFTER merge`);
+    console.log(`${__TRACE}   ${JSON.stringify({ category: convState.category, subcategory: convState.subcategory, city: convState.city, eventType: convState.eventType, budget: convState.budget, dietaryRequirements: convState.dietaryRequirements, conversationMode: convState.conversationMode, messageCount: convState.messageCount })}`);
     console.log("[josh/chat] State AFTER:", JSON.stringify({ category: convState.category, city: convState.city, budget: convState.budget, dietary: convState.dietaryRequirements }));
 
     // Check missing slots
     const missingSlots = getMissingSlots(convState);
     const nextQuestion = getNextSlotQuestion(missingSlots);
+
+    // ── LOG 5: Missing slots ──────────────────────────────────────────
+    console.log(`${__TRACE} LOG 5 — Missing slots`);
+    console.log(`${__TRACE}   missingSlots = ${JSON.stringify(missingSlots)}`);
+    console.log(`${__TRACE}   nextQuestion = ${JSON.stringify(nextQuestion)}`);
     console.log("[josh/chat] Missing slots:", missingSlots, "| nextQuestion:", nextQuestion);
 
     // Build conversation summary for context (if available)
@@ -484,6 +525,9 @@ export async function POST(req: NextRequest) {
         take: 50,
       });
       console.log("[josh/chat] Vendors found:", topVendors.length);
+      // ── LOG 7: Vendor count ────────────────────────────────────────
+      console.log(`${__TRACE} LOG 7 — Vendor count`);
+      console.log(`${__TRACE}   topVendors.length = ${topVendors.length}`);
       vendorContext = buildVendorContext(topVendors as VendorContextRow[]);
 
       // If vendor user, fetch their own vendor profile
@@ -525,10 +569,12 @@ export async function POST(req: NextRequest) {
     // ── 4. Call ZAI (GLM) with full context ──────────────────────────────
     const zai = await getZAI();
     console.log("[josh/chat] ZAI available:", !!zai);
+    console.log(`${__TRACE} LOG 6 — ZAI instance available: ${!!zai}`);
 
     if (!zai) {
       // AI unavailable — use ConversationState for deterministic response
       console.log("[josh/chat] AI unavailable — using ConversationState fallback");
+      console.log(`${__TRACE} LOG 9 — Was the LLM called? NO (zai is null)`);
 
       // Use the already-updated convState (no need to reparse history!)
       const categories = convState.category ? [convState.category] : [];
@@ -537,6 +583,7 @@ export async function POST(req: NextRequest) {
       const dietary = convState.dietaryRequirements || [];
 
       console.log("[josh/chat] Fallback using state — categories:", categories, "| city:", city, "| budget:", budget, "| dietary:", dietary);
+      console.log(`${__TRACE} (fallback) categories = ${JSON.stringify(categories)} | city = ${JSON.stringify(city)} | history = ${trimmedHistory.length}`);
 
       // If this is NOT the first message (history exists), acknowledge contextually
       if (trimmedHistory.length > 0) {
@@ -544,17 +591,21 @@ export async function POST(req: NextRequest) {
 
         if (categories.length > 0 && city) {
           // We have enough to show vendors!
+          __vendorSuggestion = true;
           const dietaryStr = dietary.length > 0 ? ` (${dietary.join(", ")})` : "";
           const budgetStr = budget ? ` under ${budget}` : "";
           contextualMsg = `Based on our conversation, I'm looking for ${categories.join(", ")}${dietaryStr} in ${city}${budgetStr}. Let me find some great options for you! 🎉\n\n{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${city}","summary":"Found ${categories.join(", ")} in ${city}${dietaryStr}${budgetStr}!"}\n\nHere are my top picks for you 🎉`;
         } else if (categories.length > 0) {
           // We have category but no city — ask for city
+          __slotFilling = true;
           contextualMsg = `Got it — you're looking for ${categories.join(", ")}! Which city are you in? 🎉`;
         } else if (city) {
           // We have city but no category — ask what they need
+          __slotFilling = true;
           contextualMsg = `Great, you're in ${city}! What type of vendor do you need? For example: cake, catering, DJ, photographer, decorator 🎉`;
         } else {
           // Neither — ask what they need
+          __greetingFallback = true;
           contextualMsg = `Got it! What type of vendor are you looking for? For example: "cake in Dubai" or "DJ in Mumbai" 🎉`;
         }
 
@@ -563,6 +614,11 @@ export async function POST(req: NextRequest) {
           ...newMessages,
           { role: "assistant", content: contextualMsg, timestamp: new Date().toISOString() },
         ], convState);
+        __blockingReturn = "RETURN #2 — fallback w/ history, contextualMsg";
+        console.log(`${__TRACE} RETURN #2 — reason: AI unavailable + history exists`);
+        console.log(`${__TRACE}   greetingFallback=${__greetingFallback} slotFilling=${__slotFilling} vendorSuggestion=${__vendorSuggestion} llm=${__llmUsed}`);
+        console.log(`${__TRACE} LOG 10 — Blocked by: RETURN #2 (zai null, history>0)`);
+        console.log(`${__TRACE} LOG 11 — Greeting fallback = ${__greetingFallback} | Slot filling = ${__slotFilling} | Vendor suggestion = ${__vendorSuggestion} | LLM = ${__llmUsed}`);
         return NextResponse.json({
           conversationId: conversation?.id,
           message: contextualMsg,
@@ -572,6 +628,7 @@ export async function POST(req: NextRequest) {
 
       // First message — no history
       if (categories.length > 0) {
+        __vendorSuggestion = true;
         const cityDisplay = city || "";
         const summary = city
           ? `Looking for vendors in ${city} — I've got some great picks for you! 🎉`
@@ -581,6 +638,11 @@ export async function POST(req: NextRequest) {
           ...newMessages,
           { role: "assistant", content: fallbackMsg, timestamp: new Date().toISOString() },
         ], convState);
+        __blockingReturn = "RETURN #3 — fallback first msg w/ categories";
+        console.log(`${__TRACE} RETURN #3 — reason: AI unavailable + first message + categories.length>0`);
+        console.log(`${__TRACE}   greetingFallback=${__greetingFallback} slotFilling=${__slotFilling} vendorSuggestion=${__vendorSuggestion} llm=${__llmUsed}`);
+        console.log(`${__TRACE} LOG 10 — Blocked by: RETURN #3 (zai null, first msg, categories>0)`);
+        console.log(`${__TRACE} LOG 11 — Greeting fallback = ${__greetingFallback} | Slot filling = ${__slotFilling} | Vendor suggestion = ${__vendorSuggestion} | LLM = ${__llmUsed}`);
         return NextResponse.json({
           conversationId: conversation?.id,
           message: fallbackMsg,
@@ -588,11 +650,17 @@ export async function POST(req: NextRequest) {
         });
       }
       // First message, no categories — return greeting
+      __greetingFallback = true;
       const noCatMsg = "I'd love to help! 🎉 Tell me what you need — like \"cake in Dubai\", \"DJ in Mumbai\", or \"photographer in London\" — and I'll find the best vendors for you.";
       await saveConversationWithState(conversation, [
         ...newMessages,
         { role: "assistant", content: noCatMsg, timestamp: new Date().toISOString() },
       ], convState);
+      __blockingReturn = "RETURN #4 — fallback first msg, NO categories (GREETING)";
+      console.log(`${__TRACE} RETURN #4 — reason: AI unavailable + first message + NO categories → GREETING`);
+      console.log(`${__TRACE}   greetingFallback=${__greetingFallback} slotFilling=${__slotFilling} vendorSuggestion=${__vendorSuggestion} llm=${__llmUsed}`);
+      console.log(`${__TRACE} LOG 10 — Blocked by: RETURN #4 (zai null, first msg, categories EMPTY)`);
+      console.log(`${__TRACE} LOG 11 — Greeting fallback = ${__greetingFallback} | Slot filling = ${__slotFilling} | Vendor suggestion = ${__vendorSuggestion} | LLM = ${__llmUsed}`);
       return NextResponse.json({
         conversationId: conversation?.id,
         message: noCatMsg,
@@ -604,6 +672,7 @@ export async function POST(req: NextRequest) {
       JOSH_SYSTEM_PROMPT_V2 + vendorContext + vendorProfileContext + storefrontContext + conversationSummary + "\n\n" + stateContext;
     console.log("[josh/chat] System prompt length:", systemPrompt.length, "| vendor context:", vendorContext.length, "| storefront:", storefrontContext.length, "| summary:", conversationSummary.length);
     console.log("[josh/chat] Messages to LLM — history:", trimmedHistory.length, "| total:", newMessages.length);
+    console.log(`${__TRACE} (LLM path) systemPrompt length = ${systemPrompt.length} | stateContext:\n${stateContext.split("\n").map(l => "   " + l).join("\n")}`);
 
     // Build LLM messages: system prompt first, then conversation history in order
     const llmMessages = [
@@ -617,17 +686,21 @@ export async function POST(req: NextRequest) {
     console.log("[josh/chat] LLM roles:", llmMessages.map(m => m.role).join(" → "));
 
     const llmStartTime = Date.now();
+    __llmCalled = true;
+    console.log(`${__TRACE} LOG 9 — Was the LLM called? YES (about to call zai.chat.completions.create)`);
     const completion = await zai.chat.completions.create({
       messages: llmMessages,
       thinking: { type: "disabled" },
     });
     const llmResponseTime = Date.now() - llmStartTime;
+    __llmUsed = true;
 
     const assistantMessage: string =
       completion.choices[0]?.message?.content || FALLBACK_RESPONSE;
 
     console.log("[josh/chat] AI response:", assistantMessage.slice(0, 120));
     console.log("[josh/chat] LLM response time:", llmResponseTime, "ms | tokens:", completion.usage?.total_tokens ?? "unknown");
+    console.log(`${__TRACE} (LLM path) FULL AI RESPONSE:\n${__TRACE}   ${assistantMessage.replace(/\n/g, "\n" + __TRACE + "   ")}`);
 
     // ── 5. Save conversation to DB ───────────────────────────────────────
     const savedMessages: ChatMessage[] = [
@@ -665,6 +738,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    console.log(`${__TRACE} RETURN #5 — reason: LLM success, returning AI-generated message`);
+    console.log(`${__TRACE}   greetingFallback=${__greetingFallback} slotFilling=${__slotFilling} vendorSuggestion=${__vendorSuggestion} llm=${__llmUsed}`);
+    console.log(`${__TRACE} LOG 10 — N/A (LLM was called, not blocked)`);
+    console.log(`${__TRACE} LOG 11 — Greeting fallback = ${__greetingFallback} | Slot filling = ${__slotFilling} | Vendor suggestion = ${__vendorSuggestion} | LLM = ${__llmUsed}`);
     return NextResponse.json({
       conversationId: conversation?.id,
       message: assistantMessage,
@@ -672,6 +749,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[api/josh/chat] POST failed:", err);
+    console.log(`${__TRACE} EXCEPTION — LLM call or other step threw: ${(err as Error)?.message?.slice(0, 200)}`);
+    if (__llmCalled && !__llmUsed) {
+      console.log(`${__TRACE} LOG 9 — LLM call was attempted but THREW an exception`);
+    }
     // Error recovery — maintain conversation memory using accumulated intent
     try {
       // Extract intent from ENTIRE conversation
@@ -682,22 +763,31 @@ export async function POST(req: NextRequest) {
       const city = currentIntent.city || historyIntent.city;
 
       console.log("[josh/chat] Error recovery intent — categories:", categories, "| city:", city);
+      console.log(`${__TRACE} (error recovery) categories = ${JSON.stringify(categories)} | city = ${JSON.stringify(city)} | history = ${trimmedHistory?.length ?? 0}`);
 
       if (trimmedHistory && trimmedHistory.length > 0) {
         let msg = "";
         if (categories.length > 0 && city) {
+          __vendorSuggestion = true;
           msg = `I'm still here! Based on our conversation, I found ${categories.join(", ")} in ${city}. Let me show you some options! 🎉\n\n{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${city}","summary":"Found vendors for you!"}\n\nHere are my top picks for you 🎉`;
         } else if (categories.length > 0) {
+          __slotFilling = true;
           msg = `Got it — you're looking for ${categories.join(", ")}! Which city are you in? 🎉`;
         } else if (city) {
+          __slotFilling = true;
           msg = `Great, you're in ${city}! What type of vendor do you need? 🎉`;
         } else {
+          __greetingFallback = true;
           msg = `Got it! What type of vendor are you looking for? 🎉`;
         }
         await saveConversationWithState(conversation, [
           ...newMessages,
           { role: "assistant", content: msg, timestamp: new Date().toISOString() },
         ]);
+        console.log(`${__TRACE} RETURN #6 — reason: exception + history>0 (error recovery)`);
+        console.log(`${__TRACE}   greetingFallback=${__greetingFallback} slotFilling=${__slotFilling} vendorSuggestion=${__vendorSuggestion} llm=${__llmUsed}`);
+        console.log(`${__TRACE} LOG 10 — Blocked by: RETURN #6 (exception, history>0)`);
+        console.log(`${__TRACE} LOG 11 — Greeting fallback = ${__greetingFallback} | Slot filling = ${__slotFilling} | Vendor suggestion = ${__vendorSuggestion} | LLM = ${__llmUsed}`);
         return NextResponse.json({
           conversationId: conversation?.id,
           message: msg,
@@ -706,23 +796,38 @@ export async function POST(req: NextRequest) {
       }
 
       if (categories.length > 0) {
+        __vendorSuggestion = true;
         const cityDisplay = city || "";
         const summary = city
           ? `Looking for vendors in ${city} — I've got some great picks for you! 🎉`
           : "Here are some top vendors I found for you! 🎉";
         const fallbackMsg = `{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${cityDisplay}","summary":"${summary}"}\n\nHere are my top picks for you 🎉`;
+        console.log(`${__TRACE} RETURN #7 — reason: exception + first msg + categories>0 (error recovery)`);
+        console.log(`${__TRACE}   greetingFallback=${__greetingFallback} slotFilling=${__slotFilling} vendorSuggestion=${__vendorSuggestion} llm=${__llmUsed}`);
+        console.log(`${__TRACE} LOG 10 — Blocked by: RETURN #7 (exception, first msg, categories>0)`);
+        console.log(`${__TRACE} LOG 11 — Greeting fallback = ${__greetingFallback} | Slot filling = ${__slotFilling} | Vendor suggestion = ${__vendorSuggestion} | LLM = ${__llmUsed}`);
         return NextResponse.json({
           conversationId: conversation?.id,
           message: fallbackMsg,
           fallback: true,
         });
       }
+      __greetingFallback = true;
+      console.log(`${__TRACE} RETURN #8 — reason: exception + first msg + NO categories (GREETING, error recovery)`);
+      console.log(`${__TRACE}   greetingFallback=${__greetingFallback} slotFilling=${__slotFilling} vendorSuggestion=${__vendorSuggestion} llm=${__llmUsed}`);
+      console.log(`${__TRACE} LOG 10 — Blocked by: RETURN #8 (exception, first msg, categories EMPTY)`);
+      console.log(`${__TRACE} LOG 11 — Greeting fallback = ${__greetingFallback} | Slot filling = ${__slotFilling} | Vendor suggestion = ${__vendorSuggestion} | LLM = ${__llmUsed}`);
       return NextResponse.json({
         conversationId: conversation?.id,
         message: "I'd love to help! 🎉 Tell me your city and what you need — cake, catering, DJ, photographer — and I'll find the best vendors for you.",
         fallback: true,
       });
     } catch {
+      __greetingFallback = true;
+      console.log(`${__TRACE} RETURN #9 — reason: exception inside error recovery (FINAL GREETING FALLBACK)`);
+      console.log(`${__TRACE}   greetingFallback=${__greetingFallback} slotFilling=${__slotFilling} vendorSuggestion=${__vendorSuggestion} llm=${__llmUsed}`);
+      console.log(`${__TRACE} LOG 10 — Blocked by: RETURN #9 (nested exception)`);
+      console.log(`${__TRACE} LOG 11 — Greeting fallback = ${__greetingFallback} | Slot filling = ${__slotFilling} | Vendor suggestion = ${__vendorSuggestion} | LLM = ${__llmUsed}`);
       return NextResponse.json(
         { message: FALLBACK_RESPONSE, fallback: true },
         { status: 200 }
