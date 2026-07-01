@@ -33,6 +33,7 @@ import {
   getOrCreateConversation,
   saveConversation as storeSaveConversation,
   updateConversationSummary,
+  verifySavedState,
   getConversationHistory,
   type StoredConversation,
 } from "@/lib/josh/conversation-store";
@@ -158,10 +159,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing message or userId" }, { status: 400 });
     }
 
-    // ── STEP 1: Load or create conversation (hybrid store) ──────────────
-    // ROOT CAUSE FIX: Uses getOrCreateConversation which tries DB first,
-    // then falls back to in-memory store. State now persists across requests.
-    const { conversation, created, dbAvailable } = await getOrCreateConversation({
+    // ── STEP 1: Load or create conversation (DATABASE-ONLY, no memory fallback) ──
+    // The database (PostgreSQL) is the single source of truth.
+    // If the DB is unavailable, errors are logged and re-thrown — never swallowed.
+    const { conversation, created } = await getOrCreateConversation({
       conversationId: conversationId ?? null,
       userId,
       userEmail: userEmail ?? null,
@@ -174,7 +175,7 @@ export async function POST(req: NextRequest) {
     console.log(`[josh/v4] ${requestId}   conversationId = ${JSON.stringify(conversationId)}`);
     console.log(`[josh/v4] ${requestId}   userId         = ${JSON.stringify(userId)}`);
     console.log(`[josh/v4] ${requestId}   userType       = ${JSON.stringify(userType)}`);
-    console.log(`[josh/v4] ${requestId}   conversation   = ${conversation?.id ?? "null"} (source: ${conversation?.source ?? "none"}, created: ${created}, dbAvailable: ${dbAvailable})`);
+    console.log(`[josh/v4] ${requestId}   conversation   = ${conversation?.id ?? "null"} (created: ${created})`);
 
     // ── STEP 2: Build message history ───────────────────────────────────
     const history: ChatMessage[] = conversation?.messages
@@ -198,8 +199,7 @@ export async function POST(req: NextRequest) {
       convState.storefrontVendorId = body.vendorContext.vendorId;
     }
 
-    // Load existing state from the conversation (DB or in-memory)
-    // THIS IS THE KEY FIX: conversation.state is now populated from the hybrid store
+    // Load existing state from the database (single source of truth)
     if (conversation?.state) {
       convState = { ...DEFAULT_STATE, ...conversation.state };
       // Re-apply conversation mode from request body
@@ -321,19 +321,43 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── STEP 9: Save ConversationState to hybrid store ──────────────────
-    // ROOT CAUSE FIX: This now actually persists (DB or in-memory fallback)
+    // ── STEP 9: Save ConversationState to PostgreSQL (DATABASE-ONLY) ───
     const savedMessages: ChatMessage[] = [
       ...newMessages,
       { role: "assistant", content: assistantMessage, timestamp: new Date().toISOString() },
     ];
-    const saveResult = conversation
-      ? await storeSaveConversation(conversation, savedMessages, convState)
-      : { saved: false, source: "memory" as const };
+    let saveResult = { saved: false };
+    if (conversation) {
+      try {
+        saveResult = await storeSaveConversation(conversation, savedMessages, convState);
+      } catch (saveErr) {
+        // DB save failed — log with full detail and re-throw (do NOT swallow)
+        console.error(`[josh/v4] ${requestId} STEP 9 — SAVE FAILED (DB error):`, (saveErr as Error)?.message?.slice(0, 200));
+        throw saveErr;
+      }
+    }
 
     console.log(`[josh/v4] ${requestId} STEP 9 — SAVED CONVERSATIONSTATE`);
-    console.log(`[josh/v4] ${requestId}   saved = ${saveResult.saved} | source = ${saveResult.source} | conversationId = ${conversation?.id ?? "null"}`);
+    console.log(`[josh/v4] ${requestId}   saved = ${saveResult.saved} | conversationId = ${conversation?.id ?? "null"}`);
     console.log(`[josh/v4] ${requestId}   saved state = ${JSON.stringify({ category: convState.category, city: convState.city, eventType: convState.eventType, budget: convState.budget, dietaryRequirements: convState.dietaryRequirements, messageCount: convState.messageCount })}`);
+
+    // ── STEP 9b: READ-BACK VERIFICATION ────────────────────────────────
+    // Immediately read the saved state back from PostgreSQL and verify it matches.
+    // If verification fails, throw an error (Step 4 requirement).
+    let verificationPassed = false;
+    let reloadedState: ConversationState | null = null;
+    if (conversation && saveResult.saved) {
+      const verify = await verifySavedState(conversation.id, convState);
+      verificationPassed = verify.verified;
+      reloadedState = verify.reloadedState;
+      console.log(`[josh/v4] ${requestId} STEP 9b — READ-BACK VERIFICATION`);
+      console.log(`[josh/v4] ${requestId}   verificationPassed = ${verificationPassed}`);
+      console.log(`[josh/v4] ${requestId}   reloaded state = ${JSON.stringify({ category: reloadedState?.category, city: reloadedState?.city, eventType: reloadedState?.eventType, budget: reloadedState?.budget, dietaryRequirements: reloadedState?.dietaryRequirements, messageCount: reloadedState?.messageCount })}`);
+      if (!verificationPassed) {
+        console.error(`[josh/v4] ${requestId} VERIFICATION FAILED — saved state does not match expected state`);
+        throw new Error(`ConversationState verification failed for conversation ${conversation.id}`);
+      }
+    }
 
     // ── STEP 10: Generate summary if conversation is long (best-effort) ──
     if (savedMessages.length >= 10 && conversation && !conversation.conversationSummary) {
@@ -372,7 +396,7 @@ export async function POST(req: NextRequest) {
     };
 
     const totalLatency = Date.now() - startTime;
-    console.log(`[josh/v4] ${requestId} DONE | action=${action} requiresLLM=${didCallLLM} vendorCount=${vendors.length} cardCount=${cards.length} missingSlots=${JSON.stringify(missingSlots)} llmLatency=${llmLatency}ms totalLatency=${totalLatency}ms tokens=${tokenUsage?.total_tokens ?? "n/a"} fallback=${usedFallback} saveSource=${saveResult.source}`);
+    console.log(`[josh/v4] ${requestId} DONE | action=${action} requiresLLM=${didCallLLM} vendorCount=${vendors.length} cardCount=${cards.length} missingSlots=${JSON.stringify(missingSlots)} llmLatency=${llmLatency}ms totalLatency=${totalLatency}ms tokens=${tokenUsage?.total_tokens ?? "n/a"} fallback=${usedFallback} saved=${saveResult.saved} verified=${verificationPassed}`);
     console.log(`[josh/v4] ${requestId} ═══════════════════════════════════════════════════`);
 
     return NextResponse.json(response);
