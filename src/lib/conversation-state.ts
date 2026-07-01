@@ -368,9 +368,20 @@ export function buildSearchQuery(state: ConversationState): {
 
 /**
  * Format ConversationState as a readable string for the LLM prompt.
+ *
+ * v3: Emits a prominent BACKEND DIRECTIVE block that tells the LLM the exact
+ * ACTION to take for this message. This is how "the backend controls the flow"
+ * (Policy Rule 11). The LLM must obey the directive.
+ *
+ * @param vendorCount Number of real vendors loaded into the prompt context.
+ *   When 0, RECOMMEND_VENDORS / REFINE_RESULTS are downgraded to
+ *   NO_VENDORS_AVAILABLE so the LLM does NOT hallucinate vendor names.
  */
-export function formatStateForPrompt(state: ConversationState): string {
-  const lines: string[] = ["## CURRENT CONVERSATION STATE (source of truth)"];
+export function formatStateForPrompt(
+  state: ConversationState,
+  vendorCount: number = 0
+): string {
+  const lines: string[] = ["## CURRENT CONVERSATION STATE (SINGLE SOURCE OF TRUTH)"];
 
   if (state.conversationMode !== "CUSTOMER") {
     lines.push(`Mode: ${state.conversationMode}`);
@@ -391,16 +402,108 @@ export function formatStateForPrompt(state: ConversationState): string {
   if (state.vendorIdsDiscussed?.length > 0) lines.push(`Vendors discussed: ${state.vendorIdsDiscussed.length}`);
   if (state.storefrontVendorId) lines.push(`Currently viewing vendor: ${state.storefrontVendorId}`);
 
-  const missing = getMissingSlots(state);
-  if (missing.length > 0) {
-    lines.push(`Missing information: ${missing.join(", ")}`);
-    lines.push(`Next question to ask: ${getNextSlotQuestion(missing) || "none"}`);
-  } else {
-    lines.push(`All required information collected — ready to search vendors.`);
-  }
+  lines.push(`Messages so far: ${state.messageCount}`);
+
+  // ── Compute the directive ────────────────────────────────────────
+  const hasCategory = !!state.category;
+  const hasCity = !!state.city;
+  const isFirstMessage = (state.messageCount ?? 0) <= 1; // 1 = the current user msg just merged
+  const isCustomerMode = state.conversationMode === "CUSTOMER";
+
+  // Determine if optional filters were just added (used for REFINE_RESULTS)
+  const hasOptionalFilters =
+    !!state.budget ||
+    (state.dietaryRequirements?.length ?? 0) > 0 ||
+    !!state.eventDate ||
+    !!state.guestCount ||
+    state.deliveryRequired === true ||
+    state.pickupRequired === true ||
+    state.onlyVerified ||
+    state.onlyFeatured ||
+    !!state.sortBy;
 
   lines.push("");
-  lines.push("Use this state to answer the user's question. Do NOT ask for information that's already in the state. If all required fields are filled, recommend vendors immediately.");
+  lines.push("## ⚠️ BACKEND DIRECTIVE — YOU MUST EXECUTE THIS EXACT ACTION");
+  lines.push("(The backend controls the conversation flow. Do not invent a different action.)");
+
+  if (!isCustomerMode) {
+    // VENDOR / ADMIN / STOREFRONT modes — answer their question, no slot-filling
+    lines.push(`**ACTION: ${state.conversationMode}_MODE** — Answer the user's question about their ${state.conversationMode.toLowerCase()} context. Do not run customer slot-filling.`);
+  } else if (hasCategory && hasCity && vendorCount === 0) {
+    // Both required slots filled BUT no real vendors available → do NOT hallucinate
+    lines.push(`**ACTION: NO_VENDORS_AVAILABLE**`);
+    lines.push(`Both required slots are filled (category="${state.category}", city="${state.city}"), but the AVAILABLE VENDORS list in your context is EMPTY (vendor database unreachable, or zero matches for this search).`);
+    lines.push("- Do NOT invent, fabricate, or hallucinate vendor names, ratings, prices, or taglines.");
+    lines.push("- Do NOT output a vendor_suggestions JSON block.");
+    lines.push("- Do NOT list vendor cards.");
+    lines.push("- Acknowledge what the user is looking for in one warm sentence (e.g., \"I'd love to find wedding cake specialists in Dubai for you.\").");
+    lines.push("- Explain briefly that vendor data is temporarily unavailable or no exact matches were found.");
+    lines.push("- Suggest they browse the marketplace directly, or try a nearby city / broader category.");
+    lines.push("- Keep it to 2-3 sentences. Do NOT greet. Do NOT restart the conversation.");
+  } else if (hasCategory && hasCity) {
+    // Both required slots filled AND real vendors available → recommend (or refine)
+    const refineNotes: string[] = [];
+    if (state.budget) refineNotes.push(`budget=${state.budget}`);
+    if (state.dietaryRequirements?.length) refineNotes.push(`dietary=${state.dietaryRequirements.join("/")}`);
+    if (state.eventDate) refineNotes.push(`date=${state.eventDate}`);
+    if (state.guestCount) refineNotes.push(`guests=${state.guestCount}`);
+    if (state.deliveryRequired) refineNotes.push("delivery=yes");
+    if (state.onlyVerified) refineNotes.push("verified-only");
+    if (state.onlyFeatured) refineNotes.push("featured-only");
+    if (state.sortBy) refineNotes.push(`sort=${state.sortBy}`);
+
+    if (hasOptionalFilters) {
+      lines.push(`**ACTION: REFINE_RESULTS**`);
+      lines.push(`Both required slots are already filled (category="${state.category}", city="${state.city}"). The user just added optional filters: ${refineNotes.join(", ")}.`);
+      lines.push("- Acknowledge the new filter in one short sentence.");
+      lines.push("- Re-recommend vendors from the AVAILABLE VENDORS list, filtered by the new criteria.");
+      lines.push("- Do NOT ask any questions.");
+      lines.push("- Do NOT greet the user.");
+      lines.push("- Do NOT restart the conversation.");
+      lines.push("- ONLY use vendor names that appear in the AVAILABLE VENDORS list. Never invent vendors.");
+    } else {
+      lines.push(`**ACTION: RECOMMEND_VENDORS**`);
+      lines.push(`Both required slots are filled (category="${state.category}", city="${state.city}"). ${vendorCount} real vendors are loaded in context.`);
+      lines.push("- Search the AVAILABLE VENDORS list and recommend the top 2-3 matches IMMEDIATELY.");
+      lines.push("- Do NOT ask any questions. Do NOT greet. Do NOT restart.");
+      lines.push(`- Emit a vendor_suggestions JSON block: {"type":"vendor_suggestions","categories":["${state.category}"],"city":"${state.city}","summary":"..."}`);
+      lines.push("- Then list 2-3 vendor cards (name, rating, city, price, 1-line reason).");
+      lines.push("- ONLY use vendor names that appear in the AVAILABLE VENDORS list. Never invent vendors.");
+    }
+  } else if (hasCategory && !hasCity) {
+    lines.push(`**ACTION: ASK_FOR_CITY**`);
+    lines.push(`Category "${state.category}" is already known. City is the ONLY missing required slot.`);
+    lines.push(`- Ask naturally for the city (e.g., "Which city is your ${state.eventType ? state.eventType.toLowerCase() : "event"} in?").`);
+    lines.push("- Do NOT ask what they need (category is already known).");
+    lines.push("- Do NOT greet the user.");
+    lines.push("- Do NOT restart the conversation.");
+    lines.push("- Do NOT mention other slots (budget, date, guests).");
+  } else if (!hasCategory && hasCity) {
+    lines.push(`**ACTION: ASK_FOR_CATEGORY**`);
+    lines.push(`City "${state.city}" is already known. Category is the ONLY missing required slot.`);
+    lines.push("- Ask naturally what type of vendor they need (cake, DJ, photographer, decorator, etc.).");
+    lines.push("- Do NOT ask for the city.");
+    lines.push("- Do NOT greet the user.");
+    lines.push("- Do NOT restart.");
+  } else {
+    // Neither slot known
+    lines.push(`**ACTION: STATE_YOUR_NEED**`);
+    if (isFirstMessage) {
+      lines.push("- This is the first message. You may greet once (one line) and ask what they're planning.");
+      lines.push("- Example: \"Hey there! 🎉 What are you planning — a wedding, birthday, or something else? Tell me what you need and I'll find the best vendors.\"");
+    } else {
+      lines.push("- The user has spoken before but we still don't have a category. Ask ONLY what type of vendor they need.");
+      lines.push("- Do NOT greet. Do NOT restart.");
+    }
+  }
+
+  // Hard reminders
+  lines.push("");
+  lines.push("## REMINDERS");
+  lines.push(`- messageCount = ${state.messageCount}. ${state.messageCount > 1 ? "GREETINGS ARE FORBIDDEN (conversation already started)." : "Greeting allowed only if this is the very first message."}`);
+  lines.push("- ConversationState above is the SINGLE SOURCE OF TRUTH. Never ask for any value already listed.");
+  lines.push("- Never re-ask category, city, budget, dietary, date, or guests if they appear above.");
+  lines.push("- Required slots = category + city. Everything else is optional and only refines results.");
 
   return lines.join("\n");
 }

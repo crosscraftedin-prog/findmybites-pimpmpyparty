@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import ZAI from "z-ai-web-dev-sdk";
 import { db } from "@/lib/db";
-import { JOSH_SYSTEM_PROMPT_V2 } from "@/lib/josh-system-prompt-v2";
+import { JOSH_SYSTEM_PROMPT_V3 } from "@/lib/josh-system-prompt-v3";
 import { migrateCategory, getCategoryMigrated } from "@/lib/constants";
 import { parseJsonArray } from "@/lib/format";
 import {
@@ -414,7 +414,7 @@ export async function POST(req: NextRequest) {
       { role: "user", content: message, timestamp: new Date().toISOString() },
     ];
 
-    console.log("[josh/chat] conversationId:", conversation?.id ?? "none", "| history length:", trimmedHistory.length, "| prompt version: v2");
+    console.log("[josh/chat] conversationId:", conversation?.id ?? "none", "| history length:", trimmedHistory.length, "| prompt version: v3");
 
     // ── 2b. Load + update ConversationState ─────────────────────────────
     // Load existing state or initialize with defaults
@@ -485,9 +485,6 @@ export async function POST(req: NextRequest) {
     if (conversation?.conversationSummary) {
       conversationSummary = `\n\n## CONVERSATION SUMMARY (from previous messages)\n${conversation.conversationSummary}\n\nContinue this conversation naturally. Remember all context from the summary.`;
     }
-
-    // Build state context for LLM
-    const stateContext = formatStateForPrompt(convState);
 
     // ── 3. Fetch real vendor data for context ────────────────────────────
     console.log("[josh/chat] Fetching vendors from DB...");
@@ -565,6 +562,10 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error("[josh/chat] Vendor query FAILED:", (e as Error)?.message?.slice(0, 200));
     }
+
+    // Build state context for LLM (v3: includes BACKEND DIRECTIVE + vendor count
+    // so the directive can downgrade to NO_VENDORS_AVAILABLE when the list is empty)
+    const stateContext = formatStateForPrompt(convState, topVendors.length);
 
     // ── 4. Call ZAI (GLM) with full context ──────────────────────────────
     const zai = await getZAI();
@@ -668,11 +669,28 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Anti-hallucination guardrail: when no vendors are loaded (DB unavailable
+    // or zero matches), tell the LLM explicitly so it does NOT invent vendors.
+    const vendorAvailabilityNotice =
+      topVendors.length === 0
+        ? `\n\n## ⚠️ VENDOR DATA NOTICE
+No vendors are currently available in the context (the vendor database could not be reached, or your search returned zero matches).
+
+STRICT RULES FOR THIS MESSAGE:
+- Do NOT invent, fabricate, or hallucinate vendor names, ratings, prices, or taglines.
+- Do NOT output a vendor_suggestions JSON block with fake data.
+- If the BACKEND DIRECTIVE says RECOMMEND_VENDORS or REFINE_RESULTS but you have no real vendors in context, respond honestly instead:
+  - Acknowledge what the user is looking for (e.g., "I'd love to find wedding cake specialists in Dubai for you.").
+  - Explain briefly that vendor data is temporarily unavailable or that no exact matches were found.
+  - Suggest they browse the marketplace directly or try a nearby city / broader category.
+- Keep it to 2-3 sentences. Stay warm and helpful. Do not restart the conversation.`
+        : "";
+
     const systemPrompt =
-      JOSH_SYSTEM_PROMPT_V2 + vendorContext + vendorProfileContext + storefrontContext + conversationSummary + "\n\n" + stateContext;
-    console.log("[josh/chat] System prompt length:", systemPrompt.length, "| vendor context:", vendorContext.length, "| storefront:", storefrontContext.length, "| summary:", conversationSummary.length);
+      JOSH_SYSTEM_PROMPT_V3 + vendorContext + vendorProfileContext + storefrontContext + conversationSummary + vendorAvailabilityNotice + "\n\n" + stateContext;
+    console.log("[josh/chat] System prompt length:", systemPrompt.length, "| vendor context:", vendorContext.length, "| storefront:", storefrontContext.length, "| summary:", conversationSummary.length, "| vendorNotice:", vendorAvailabilityNotice.length);
     console.log("[josh/chat] Messages to LLM — history:", trimmedHistory.length, "| total:", newMessages.length);
-    console.log(`${__TRACE} (LLM path) systemPrompt length = ${systemPrompt.length} | stateContext:\n${stateContext.split("\n").map(l => "   " + l).join("\n")}`);
+    console.log(`${__TRACE} (LLM path) systemPrompt length = ${systemPrompt.length} | vendors loaded = ${topVendors.length} | stateContext:\n${stateContext.split("\n").map(l => "   " + l).join("\n")}`);
 
     // Build LLM messages: system prompt first, then conversation history in order
     const llmMessages = [
