@@ -188,7 +188,7 @@ function extractIntent(message: string): { categories: string[]; city: string | 
     }
   }
   // Try to extract a city (common ones + any capitalized word)
-  const knownCities = ["dubai", "abu dhabi", "london", "mumbai", "delhi", "hyderabad", "bangalore", "riyadh", "jeddah", "lagos", "nairobi", "cape town", "johannesburg", "tokyo", "singapore", "sydney", "melbourne", "new york", "toronto", "paris", "berlin", "amsterdam"];
+  const knownCities = ["dubai", "abu dhabi", "london", "mumbai", "delhi", "hyderabad", "bangalore", "bengaluru", "riyadh", "jeddah", "lagos", "nairobi", "cape town", "johannesburg", "tokyo", "singapore", "sydney", "melbourne", "new york", "toronto", "paris", "berlin", "amsterdam", "pune", "chennai", "goa", "kolkata"];
   let city: string | null = null;
   for (const c of knownCities) {
     if (lower.includes(c)) {
@@ -197,6 +197,62 @@ function extractIntent(message: string): { categories: string[]; city: string | 
     }
   }
   return { categories, city };
+}
+
+/**
+ * Extract intent from the ENTIRE conversation history, not just the current message.
+ * Scans all user messages for categories + city + budget + dietary.
+ */
+function extractIntentFromHistory(history: ChatMessage[]): {
+  categories: string[];
+  city: string | null;
+  budget: string | null;
+  dietary: string[];
+} {
+  const allUserText = history
+    .filter(m => m.role === "user")
+    .map(m => m.content)
+    .join(" ");
+  
+  const lower = allUserText.toLowerCase();
+  const categories: string[] = [];
+  for (const [catId, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.some((k) => lower.includes(k))) {
+      if (!categories.includes(catId)) categories.push(catId);
+    }
+  }
+
+  const knownCities = ["dubai", "abu dhabi", "london", "mumbai", "delhi", "hyderabad", "bangalore", "bengaluru", "riyadh", "jeddah", "lagos", "nairobi", "cape town", "johannesburg", "tokyo", "singapore", "sydney", "melbourne", "new york", "toronto", "paris", "berlin", "amsterdam", "pune", "chennai", "goa", "kolkata"];
+  let city: string | null = null;
+  for (const c of knownCities) {
+    if (lower.includes(c)) {
+      city = c.charAt(0).toUpperCase() + c.slice(1);
+      break;
+    }
+  }
+
+  // Extract budget
+  let budget: string | null = null;
+  const budgetMatch = allUserText.match(/(?:budget|under|₹|\$|£|€)\s*(\d[\d,]*)/i);
+  if (budgetMatch) budget = budgetMatch[1].replace(/,/g, "");
+
+  // Extract dietary
+  const dietary: string[] = [];
+  const dietaryKeywords: Record<string, string> = {
+    "Eggless": "eggless",
+    "Vegan": "vegan",
+    "Vegetarian": "vegetarian",
+    "Gluten-Free": "gluten",
+    "Nut-Free": "nut-free",
+    "Dairy-Free": "dairy-free",
+    "Halal": "halal",
+    "Kosher": "kosher",
+  };
+  for (const [label, keyword] of Object.entries(dietaryKeywords)) {
+    if (lower.includes(keyword)) dietary.push(label);
+  }
+
+  return { categories, city, budget, dietary };
 }
 
 /**
@@ -412,14 +468,41 @@ export async function POST(req: NextRequest) {
     if (!zai) {
       // AI unavailable — use conversation history to provide a contextual response
       console.log("[josh/chat] AI unavailable — using fallback with history");
-      const { categories, city } = extractIntent(message);
+
+      // Extract intent from ENTIRE conversation (history + current message)
+      const allMessages = [...trimmedHistory, { role: "user", content: message, timestamp: new Date().toISOString() }];
+      const historyIntent = extractIntentFromHistory(allMessages);
+      const currentIntent = extractIntent(message);
+
+      // Merge: prefer history intent (accumulated), add current message's intent
+      const categories = [...new Set([...historyIntent.categories, ...currentIntent.categories])];
+      const city = currentIntent.city || historyIntent.city;
+      const budget = historyIntent.budget;
+      const dietary = historyIntent.dietary;
+
+      console.log("[josh/chat] Fallback intent — categories:", categories, "| city:", city, "| budget:", budget, "| dietary:", dietary);
 
       // If this is NOT the first message (history exists), acknowledge contextually
       if (trimmedHistory.length > 0) {
-        const lastAssistantMsg = [...history].reverse().find(m => m.role === "assistant");
-        const contextualMsg = categories.length > 0
-          ? `Based on what you've told me, I'm looking for ${categories.join(", ")}${city ? ` in ${city}` : ""}. Let me find some great options for you! 🎉\n\n{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${city || ""}","summary":"Found vendors matching your request!"}\n\nHere are my top picks for you 🎉`
-          : `Got it! I'm noting that down. ${lastAssistantMsg ? "To help you further, " : ""}could you tell me your city or what type of vendor you're looking for? For example: "cake in Dubai" or "DJ in Mumbai" 🎉`;
+        // Build a contextual response using accumulated intent
+        let contextualMsg = "";
+
+        if (categories.length > 0 && city) {
+          // We have enough to show vendors!
+          const dietaryStr = dietary.length > 0 ? ` (${dietary.join(", ")})` : "";
+          const budgetStr = budget ? ` under ${budget}` : "";
+          contextualMsg = `Based on our conversation, I'm looking for ${categories.join(", ")}${dietaryStr} in ${city}${budgetStr}. Let me find some great options for you! 🎉\n\n{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${city}","summary":"Found ${categories.join(", ")} in ${city}${dietaryStr}${budgetStr}!"}\n\nHere are my top picks for you 🎉`;
+        } else if (categories.length > 0) {
+          // We have category but no city — ask for city
+          contextualMsg = `Got it — you're looking for ${categories.join(", ")}! Which city are you in? 🎉`;
+        } else if (city) {
+          // We have city but no category — ask what they need
+          contextualMsg = `Great, you're in ${city}! What type of vendor do you need? For example: cake, catering, DJ, photographer, decorator 🎉`;
+        } else {
+          // Neither — ask what they need
+          contextualMsg = `Got it! What type of vendor are you looking for? For example: "cake in Dubai" or "DJ in Mumbai" 🎉`;
+        }
+
         await saveConversation(conversation, [
           ...newMessages,
           { role: "assistant", content: contextualMsg, timestamp: new Date().toISOString() },
@@ -533,27 +616,39 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[api/josh/chat] POST failed:", err);
-    // Error recovery — maintain conversation memory, don't restart
+    // Error recovery — maintain conversation memory using accumulated intent
     try {
-      const { categories, city } = extractIntent(message || "");
+      // Extract intent from ENTIRE conversation
+      const allMessages = [...trimmedHistory, { role: "user", content: message || "", timestamp: new Date().toISOString() }];
+      const historyIntent = extractIntentFromHistory(allMessages);
+      const currentIntent = extractIntent(message || "");
+      const categories = [...new Set([...historyIntent.categories, ...currentIntent.categories])];
+      const city = currentIntent.city || historyIntent.city;
 
-      // If conversation has history, acknowledge contextually
+      console.log("[josh/chat] Error recovery intent — categories:", categories, "| city:", city);
+
       if (trimmedHistory && trimmedHistory.length > 0) {
-        const contextualMsg = categories.length > 0
-          ? `I'm still here! Based on our conversation, I found ${categories.join(", ")}${city ? ` in ${city}` : ""}. Let me show you some options! 🎉\n\n{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${city || ""}","summary":"Found vendors for you!"}\n\nHere are my top picks for you 🎉`
-          : `Got it! I'm still tracking our conversation. Could you tell me your city or what type of vendor you need? 🎉`;
+        let msg = "";
+        if (categories.length > 0 && city) {
+          msg = `I'm still here! Based on our conversation, I found ${categories.join(", ")} in ${city}. Let me show you some options! 🎉\n\n{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${city}","summary":"Found vendors for you!"}\n\nHere are my top picks for you 🎉`;
+        } else if (categories.length > 0) {
+          msg = `Got it — you're looking for ${categories.join(", ")}! Which city are you in? 🎉`;
+        } else if (city) {
+          msg = `Great, you're in ${city}! What type of vendor do you need? 🎉`;
+        } else {
+          msg = `Got it! What type of vendor are you looking for? 🎉`;
+        }
         await saveConversation(conversation, [
           ...newMessages,
-          { role: "assistant", content: contextualMsg, timestamp: new Date().toISOString() },
+          { role: "assistant", content: msg, timestamp: new Date().toISOString() },
         ]);
         return NextResponse.json({
           conversationId: conversation?.id,
-          message: contextualMsg,
+          message: msg,
           fallback: true,
         });
       }
 
-      // First message error
       if (categories.length > 0) {
         const cityDisplay = city || "";
         const summary = city
