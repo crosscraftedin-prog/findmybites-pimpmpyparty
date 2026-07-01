@@ -314,12 +314,22 @@ export async function POST(req: NextRequest) {
     const history: ChatMessage[] = conversation?.messages
       ? (conversation.messages as unknown as ChatMessage[])
       : [];
+
+    // Limit history to last 20 messages to avoid token overflow
+    const trimmedHistory = history.slice(-20);
+
     const newMessages: ChatMessage[] = [
-      ...history,
+      ...trimmedHistory,
       { role: "user", content: message, timestamp: new Date().toISOString() },
     ];
 
-    console.log("[josh/chat] conversationId:", conversation?.id ?? "none", "| history length:", history.length, "| prompt version: v2");
+    console.log("[josh/chat] conversationId:", conversation?.id ?? "none", "| history length:", trimmedHistory.length, "| prompt version: v2");
+
+    // Build conversation summary for context (if available)
+    let conversationSummary = "";
+    if (conversation?.conversationSummary) {
+      conversationSummary = `\n\n## CONVERSATION SUMMARY (from previous messages)\n${conversation.conversationSummary}\n\nContinue this conversation naturally. Remember all context from the summary.`;
+    }
 
     // ── 3. Fetch real vendor data for context ────────────────────────────
     console.log("[josh/chat] Fetching vendors from DB...");
@@ -405,7 +415,7 @@ export async function POST(req: NextRequest) {
       const { categories, city } = extractIntent(message);
 
       // If this is NOT the first message (history exists), acknowledge contextually
-      if (history.length > 0) {
+      if (trimmedHistory.length > 0) {
         const lastAssistantMsg = [...history].reverse().find(m => m.role === "assistant");
         const contextualMsg = categories.length > 0
           ? `Based on what you've told me, I'm looking for ${categories.join(", ")}${city ? ` in ${city}` : ""}. Let me find some great options for you! 🎉\n\n{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${city || ""}","summary":"Found vendors matching your request!"}\n\nHere are my top picks for you 🎉`
@@ -452,10 +462,11 @@ export async function POST(req: NextRequest) {
     }
 
     const systemPrompt =
-      JOSH_SYSTEM_PROMPT_V2 + vendorContext + vendorProfileContext + storefrontContext;
-    console.log("[josh/chat] System prompt length:", systemPrompt.length, "| vendor context length:", vendorContext.length, "| storefront context length:", storefrontContext.length);
-    console.log("[josh/chat] Messages to LLM — history:", history.length, "| total messages:", newMessages.length);
+      JOSH_SYSTEM_PROMPT_V2 + vendorContext + vendorProfileContext + storefrontContext + conversationSummary;
+    console.log("[josh/chat] System prompt length:", systemPrompt.length, "| vendor context:", vendorContext.length, "| storefront:", storefrontContext.length, "| summary:", conversationSummary.length);
+    console.log("[josh/chat] Messages to LLM — history:", trimmedHistory.length, "| total:", newMessages.length);
 
+    // Build LLM messages: system prompt first, then conversation history in order
     const llmMessages = [
       { role: "assistant" as const, content: systemPrompt },
       ...newMessages.map((m) => ({
@@ -464,16 +475,20 @@ export async function POST(req: NextRequest) {
       })),
     ];
 
-    console.log("[josh/chat] LLM message roles:", llmMessages.map(m => m.role).join(" → "));
+    console.log("[josh/chat] LLM roles:", llmMessages.map(m => m.role).join(" → "));
 
+    const llmStartTime = Date.now();
     const completion = await zai.chat.completions.create({
       messages: llmMessages,
       thinking: { type: "disabled" },
     });
+    const llmResponseTime = Date.now() - llmStartTime;
 
     const assistantMessage: string =
       completion.choices[0]?.message?.content || FALLBACK_RESPONSE;
+
     console.log("[josh/chat] AI response:", assistantMessage.slice(0, 120));
+    console.log("[josh/chat] LLM response time:", llmResponseTime, "ms | tokens:", completion.usage?.total_tokens ?? "unknown");
 
     // ── 5. Save conversation to DB ───────────────────────────────────────
     const savedMessages: ChatMessage[] = [
@@ -518,29 +533,42 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[api/josh/chat] POST failed:", err);
-    // When ZAI fails, extract intent from the message and return a
-    // vendor_suggestions JSON block so the WIDGET fetches vendor cards
-    // from /api/chat/vendors (which has sample vendor fallback). This way
-    // Josh still recommends vendors even when AI is completely down.
+    // Error recovery — maintain conversation memory, don't restart
     try {
       const { categories, city } = extractIntent(message || "");
+
+      // If conversation has history, acknowledge contextually
+      if (trimmedHistory && trimmedHistory.length > 0) {
+        const contextualMsg = categories.length > 0
+          ? `I'm still here! Based on our conversation, I found ${categories.join(", ")}${city ? ` in ${city}` : ""}. Let me show you some options! 🎉\n\n{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${city || ""}","summary":"Found vendors for you!"}\n\nHere are my top picks for you 🎉`
+          : `Got it! I'm still tracking our conversation. Could you tell me your city or what type of vendor you need? 🎉`;
+        await saveConversation(conversation, [
+          ...newMessages,
+          { role: "assistant", content: contextualMsg, timestamp: new Date().toISOString() },
+        ]);
+        return NextResponse.json({
+          conversationId: conversation?.id,
+          message: contextualMsg,
+          fallback: true,
+        });
+      }
+
+      // First message error
       if (categories.length > 0) {
         const cityDisplay = city || "";
         const summary = city
-          ? `Looking for ${categories.length > 0 ? "vendors" : "options"} in ${city} — I've got some great picks for you! 🎉`
+          ? `Looking for vendors in ${city} — I've got some great picks for you! 🎉`
           : "Here are some top vendors I found for you! 🎉";
         const fallbackMsg = `{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${cityDisplay}","summary":"${summary}"}\n\nHere are my top picks for you 🎉`;
-        console.log("[josh/chat] Returning vendor_suggestions fallback (AI down):", fallbackMsg.slice(0, 80));
         return NextResponse.json({
           conversationId: conversation?.id,
           message: fallbackMsg,
           fallback: true,
         });
       }
-      // No categories detected — return a helpful message
       return NextResponse.json({
         conversationId: conversation?.id,
-        message: "I'd love to help! 🎉 Tell me what you need — like \"cake in Dubai\", \"DJ in Mumbai\", or \"photographer in London\" — and I'll find the best vendors for you.",
+        message: "I'd love to help! 🎉 Tell me your city and what you need — cake, catering, DJ, photographer — and I'll find the best vendors for you.",
         fallback: true,
       });
     } catch {
