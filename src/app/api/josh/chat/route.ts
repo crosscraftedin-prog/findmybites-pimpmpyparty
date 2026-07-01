@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import ZAI from "z-ai-web-dev-sdk";
 import { db } from "@/lib/db";
-import { JOSH_SYSTEM_PROMPT } from "@/lib/josh-system-prompt";
+import { JOSH_SYSTEM_PROMPT_V2 } from "@/lib/josh-system-prompt-v2";
 import { migrateCategory, getCategoryMigrated } from "@/lib/constants";
 import { parseJsonArray } from "@/lib/format";
 
@@ -433,7 +433,7 @@ export async function POST(req: NextRequest) {
     }
 
     const systemPrompt =
-      JOSH_SYSTEM_PROMPT + vendorContext + vendorProfileContext + storefrontContext;
+      JOSH_SYSTEM_PROMPT_V2 + vendorContext + vendorProfileContext + storefrontContext;
     console.log("[josh/chat] System prompt length:", systemPrompt.length, "| vendor context length:", vendorContext.length, "| storefront context length:", storefrontContext.length);
 
     const completion = await zai.chat.completions.create({
