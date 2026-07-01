@@ -60,7 +60,7 @@ export function VendorAIChat({ vendorId, vendorName, vendorCategory, vendorCity 
       const aiMsg: Message = {
         id: String(Date.now() + 1),
         role: "assistant",
-        content: data.reply || data.response || "I'd be happy to help! Contact the vendor directly for specific questions.",
+        content: data.message || data.reply || data.response || "I'd be happy to help! Contact the vendor directly for specific questions.",
       };
       setMessages((m) => [...m, aiMsg]);
     } catch {
