@@ -14,6 +14,7 @@ import {
   computeConversationAction,
   didFiltersJustChange,
   getActionInstructions,
+  requiresLLM as actionRequiresLLM,
 } from "@/lib/josh/conversation-action";
 import {
   searchVendors,
@@ -25,6 +26,8 @@ import {
 import {
   buildLLMPayload,
   buildLLMPayloadSection,
+  buildVendorCards,
+  buildSuggestions,
   type JoshChatResponse,
 } from "@/lib/josh/josh-llm-payload";
 
@@ -285,7 +288,8 @@ export async function POST(req: NextRequest) {
     const filtersJustChanged = didFiltersJustChange(newExtracted, stateBeforeMerge);
 
     // We need vendorCount to compute the action, so search FIRST.
-    // ── 5. Backend performs the marketplace search ───────────────────────
+    // ── 5. Backend performs the marketplace search (BEFORE any LLM call) ─
+    // The LLM never searches. Vendor search never depends on AI output.
     const searchResult = await searchVendors(convState, 10);
     const vendors: JoshVendor[] = searchResult.vendors;
     const products: JoshProduct[] = searchResult.products;
@@ -297,125 +301,150 @@ export async function POST(req: NextRequest) {
       filtersJustChanged,
     });
 
-    console.log(`[josh/v4] ${requestId} filtersJustChanged=${filtersJustChanged} vendorCount=${vendors.length} productCount=${products.length}`);
-    console.log(`[josh/v4] ${requestId} >>> COMPUTED ACTION: ${action}`);
+    // Build the structured cards + suggestions directly from backend search.
+    // The frontend renders these without parsing AI text.
+    const cards = buildVendorCards(vendors, convState);
+    const suggestions = buildSuggestions(action, convState);
 
-    // ── 6. Build the structured LLM payload ──────────────────────────────
-    const payload = buildLLMPayload({
-      action,
-      state: convState,
-      vendors,
-      products,
-      filters,
-    });
-    const payloadSection = buildLLMPayloadSection(payload);
+    console.log(`[josh/v4] ${requestId} filtersJustChanged=${filtersJustChanged} vendorCount=${vendors.length} productCount=${products.length} cardCount=${cards.length}`);
+    console.log(`[josh/v4] ${requestId} >>> COMPUTED ACTION: ${action} | requiresLLM=${actionRequiresLLM(action)}`);
 
-    // Build extra context (vendor profile for vendor mode, storefront for storefront mode)
-    let extraContext = "";
-    if (userType === "vendor" && vendorId) {
-      try {
-        const ownVendor = await db.vendor.findUnique({ where: { id: vendorId } });
-        if (ownVendor) extraContext = buildVendorProfileContext(ownVendor);
-      } catch {}
-    }
-    if (userType === "customer" && body.vendorContext?.vendorId) {
-      extraContext = await buildStorefrontContext(body.vendorContext.vendorId);
-    }
-
-    const systemPrompt = JOSH_SYSTEM_PROMPT_V4 + extraContext + payloadSection;
-    const promptSize = systemPrompt.length;
-    console.log(`[josh/v4] ${requestId} promptSize=${promptSize} (systemPrompt=${JOSH_SYSTEM_PROMPT_V4.length} extraContext=${extraContext.length} payload=${payloadSection.length})`);
-
-    // ── 7. Get ZAI instance ──────────────────────────────────────────────
-    const zai = await getZAI();
-    console.log(`[josh/v4] ${requestId} ZAI available=${!!zai}`);
-
-    // ── 8. Deterministic fallback when AI is unavailable ─────────────────
-    // The backend ALREADY knows the action, so we can generate a correct
-    // response WITHOUT the LLM. This is the key V4 guarantee: even with no
-    // AI, the conversation still follows the correct flow.
+    // ── 6. Generate the response ─────────────────────────────────────────
+    // Deterministic actions (ASK_CITY, ASK_CATEGORY, NO_RESULTS,
+    // SEARCH_VENDORS, REFINE_RESULTS, STATE_NEED) NEVER call the LLM.
+    // The backend generates the message + structured cards directly.
+    // Only LLM-required actions (GENERAL_CHAT, VENDOR_MODE, ADMIN_MODE,
+    // STOREFRONT_MODE) invoke the LLM.
     let assistantMessage: string;
     let llmLatency = 0;
     let tokenUsage: any = undefined;
     let usedFallback = false;
+    let didCallLLM = false;
+    let promptSize = 0;
 
-    if (!zai) {
-      console.log(`[josh/v4] ${requestId} AI unavailable — using deterministic backend fallback for action=${action}`);
+    if (!actionRequiresLLM(action)) {
+      // ── 6a. Deterministic path — NO LLM call ──
+      // Marketplace conversations work correctly even if the LLM is offline.
       assistantMessage = deterministicResponse(action, convState, vendors, products);
-      usedFallback = true;
+      console.log(`[josh/v4] ${requestId} DETERMINISTIC response (no LLM): ${assistantMessage.slice(0, 100)}`);
     } else {
-      // ── 9. Call the LLM to verbalize the action ───────────────────────
-      const llmMessages = [
-        { role: "assistant" as const, content: systemPrompt },
-        ...newMessages.map((m) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        })),
-      ];
+      // ── 6b. LLM path — only for GENERAL_CHAT / VENDOR_MODE / ADMIN_MODE / STOREFRONT_MODE ──
+      didCallLLM = true;
 
-      const llmStart = Date.now();
-      try {
-        const completion = await zai.chat.completions.create({
-          messages: llmMessages,
-          thinking: { type: "disabled" },
-        });
-        llmLatency = Date.now() - llmStart;
-        tokenUsage = completion.usage;
-        assistantMessage = completion.choices[0]?.message?.content || FALLBACK_RESPONSE;
-        console.log(`[josh/v4] ${requestId} LLM response (${llmLatency}ms, tokens=${tokenUsage?.total_tokens ?? "unknown"}): ${assistantMessage.slice(0, 120)}`);
-      } catch (llmErr) {
-        llmLatency = Date.now() - llmStart;
-        console.error(`[josh/v4] ${requestId} LLM call FAILED after ${llmLatency}ms:`, (llmErr as Error)?.message?.slice(0, 200));
-        // Fall back to deterministic response — the conversation still flows correctly
+      // Build the structured LLM payload
+      const payload = buildLLMPayload({
+        action,
+        state: convState,
+        vendors,
+        products,
+        filters,
+      });
+      const payloadSection = buildLLMPayloadSection(payload);
+
+      // Build extra context (vendor profile for vendor mode, storefront for storefront mode)
+      let extraContext = "";
+      if (userType === "vendor" && vendorId) {
+        try {
+          const ownVendor = await db.vendor.findUnique({ where: { id: vendorId } });
+          if (ownVendor) extraContext = buildVendorProfileContext(ownVendor);
+        } catch {}
+      }
+      if (userType === "customer" && body.vendorContext?.vendorId) {
+        extraContext = await buildStorefrontContext(body.vendorContext.vendorId);
+      }
+
+      const systemPrompt = JOSH_SYSTEM_PROMPT_V4 + extraContext + payloadSection;
+      promptSize = systemPrompt.length;
+      console.log(`[josh/v4] ${requestId} promptSize=${promptSize} (systemPrompt=${JOSH_SYSTEM_PROMPT_V4.length} extraContext=${extraContext.length} payload=${payloadSection.length})`);
+
+      const zai = await getZAI();
+      console.log(`[josh/v4] ${requestId} ZAI available=${!!zai}`);
+
+      if (!zai) {
+        console.log(`[josh/v4] ${requestId} AI unavailable for LLM action — using deterministic fallback`);
         assistantMessage = deterministicResponse(action, convState, vendors, products);
         usedFallback = true;
+      } else {
+        const llmMessages = [
+          { role: "assistant" as const, content: systemPrompt },
+          ...newMessages.map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+        ];
+
+        const llmStart = Date.now();
+        try {
+          const completion = await zai.chat.completions.create({
+            messages: llmMessages,
+            thinking: { type: "disabled" },
+          });
+          llmLatency = Date.now() - llmStart;
+          tokenUsage = completion.usage;
+          assistantMessage = completion.choices[0]?.message?.content || deterministicResponse(action, convState, vendors, products);
+          console.log(`[josh/v4] ${requestId} LLM response (${llmLatency}ms, tokens=${tokenUsage?.total_tokens ?? "unknown"}): ${assistantMessage.slice(0, 120)}`);
+        } catch (llmErr) {
+          llmLatency = Date.now() - llmStart;
+          console.error(`[josh/v4] ${requestId} LLM call FAILED after ${llmLatency}ms:`, (llmErr as Error)?.message?.slice(0, 200));
+          // Fall back to deterministic response — the conversation still flows correctly
+          assistantMessage = deterministicResponse(action, convState, vendors, products);
+          usedFallback = true;
+        }
       }
     }
 
-    // ── 10. Save conversation to DB ──────────────────────────────────────
+    // ── 7. Save conversation to DB ───────────────────────────────────────
     const savedMessages: ChatMessage[] = [
       ...newMessages,
       { role: "assistant", content: assistantMessage, timestamp: new Date().toISOString() },
     ];
     await saveConversationWithState(conversation, savedMessages, convState);
 
-    // ── 11. Generate summary if conversation is getting long ─────────────
-    if (savedMessages.length >= 10 && !conversation?.conversationSummary && zai) {
-      try {
-        const summaryRes = await zai.chat.completions.create({
-          messages: [
-            { role: "assistant", content: "Summarize this conversation in 2-3 sentences (key needs, preferences, vendors discussed):" },
-            ...savedMessages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-          ],
-          thinking: { type: "disabled" },
-        });
-        const summary = summaryRes.choices[0]?.message?.content;
-        if (summary && conversation) {
-          await db.joshConversation.update({
-            where: { id: conversation.id },
-            data: { conversationSummary: summary },
-          }).catch(() => {});
+    // ── 8. Generate summary if conversation is getting long (LLM-only, best-effort) ─
+    if (savedMessages.length >= 10 && !conversation?.conversationSummary) {
+      const zaiForSummary = await getZAI();
+      if (zaiForSummary) {
+        try {
+          const summaryRes = await zaiForSummary.chat.completions.create({
+            messages: [
+              { role: "assistant", content: "Summarize this conversation in 2-3 sentences (key needs, preferences, vendors discussed):" },
+              ...savedMessages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+            ],
+            thinking: { type: "disabled" },
+          });
+          const summary = summaryRes.choices[0]?.message?.content;
+          if (summary && conversation) {
+            await db.joshConversation.update({
+              where: { id: conversation.id },
+              data: { conversationSummary: summary },
+            }).catch(() => {});
+          }
+        } catch {
+          // summary is nice-to-have
         }
-      } catch {
-        // summary is nice-to-have
       }
     }
 
-    // ── 12. Return structured JSON (Step 11) ─────────────────────────────
+    // ── 9. Return structured JSON ────────────────────────────────────────
+    // The frontend renders UI from `cards`, `vendors`, `suggestions`, and
+    // `action` — it NEVER parses JSON from the `message` text.
     const response: JoshChatResponse = {
       conversationId: conversation?.id ?? null,
       message: assistantMessage,
       action,
-      state: convState,
+      conversationState: convState,
       vendors,
+      cards,
       products,
       filters,
+      suggestions,
+      requiresLLM: didCallLLM,
       usage: tokenUsage,
       ...(usedFallback ? { fallback: true } : {}),
     };
 
     const totalLatency = Date.now() - startTime;
-    console.log(`[josh/v4] ${requestId} DONE action=${action} vendorCount=${vendors.length} productCount=${products.length} promptSize=${promptSize} llmLatency=${llmLatency}ms totalLatency=${totalLatency}ms tokens=${tokenUsage?.total_tokens ?? "n/a"} fallback=${usedFallback}`);
+    console.log(`[josh/v4] ${requestId} DONE action=${action} requiresLLM=${didCallLLM} vendorCount=${vendors.length} cardCount=${cards.length} productCount=${products.length} promptSize=${promptSize} llmLatency=${llmLatency}ms totalLatency=${totalLatency}ms tokens=${tokenUsage?.total_tokens ?? "n/a"} fallback=${usedFallback}`);
     console.log(`[josh/v4] ═══════════════════════════════════════════════════`);
 
     return NextResponse.json(response);
@@ -427,10 +456,13 @@ export async function POST(req: NextRequest) {
       conversationId: null,
       message: FALLBACK_RESPONSE,
       action: ConversationAction.GENERAL_CHAT,
-      state: { ...DEFAULT_STATE },
+      conversationState: { ...DEFAULT_STATE },
       vendors: [],
+      cards: [],
       products: [],
       filters: [],
+      suggestions: [],
+      requiresLLM: false,
       fallback: true,
     };
     return NextResponse.json(response);
@@ -463,23 +495,25 @@ function deterministicResponse(
       return `What type of service are you looking for in ${state.city}? For example: cake, DJ, photographer, decorator 🎉`;
     }
     case ConversationAction.SEARCH_VENDORS: {
-      const top = vendors.slice(0, 3);
-      const list = top.map((v) => {
-        const symbol = v.currency === "INR" ? "₹" : v.currency === "USD" ? "$" : v.currency === "GBP" ? "£" : v.currency === "AED" ? "AED" : v.currency + " ";
-        return `🎂 **${v.name}** — ⭐${v.rating} (${v.reviewCount} reviews)\n📍 ${v.city}, ${v.country} | 💰 From ${symbol}${v.basePrice}\n📝 "${v.tagline}"\n🔗 /vendor/${v.slug}`;
-      }).join("\n\n");
-      return `{"type":"vendor_suggestions","categories":["${state.category}"],"city":"${state.city}","summary":"Top ${state.category} in ${state.city}"}\n\nHere are my top picks for you 🎉\n\n${list}`;
+      // The structured `cards` array carries the vendor data. The message is
+      // pure natural language that introduces them — NO embedded JSON.
+      const catLabel = state.category
+        ? state.category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+        : "vendors";
+      const n = vendors.length;
+      return state.eventType
+        ? `Here are the top ${n} ${catLabel.toLowerCase()} for your ${state.eventType.toLowerCase()} in ${state.city} 🎉`
+        : `Here are the top ${n} ${catLabel.toLowerCase()} in ${state.city} 🎉`;
     }
     case ConversationAction.REFINE_RESULTS: {
       if (vendors.length === 0) {
         return `I've applied your filters, but no vendors matched in ${state.city}. Try a nearby city or a broader category.`;
       }
-      const top = vendors.slice(0, 3);
-      const list = top.map((v) => {
-        const symbol = v.currency === "INR" ? "₹" : v.currency === "USD" ? "$" : v.currency === "GBP" ? "£" : v.currency === "AED" ? "AED" : v.currency + " ";
-        return `🎂 **${v.name}** — ⭐${v.rating} (${v.reviewCount} reviews)\n📍 ${v.city}, ${v.country} | 💰 From ${symbol}${v.basePrice}\n📝 "${v.tagline}"\n🔗 /vendor/${v.slug}`;
-      }).join("\n\n");
-      return `{"type":"vendor_suggestions","categories":["${state.category}"],"city":"${state.city}","summary":"Refined results"}\n\nI've filtered the results based on your preferences. Here are the best matches 🎉\n\n${list}`;
+      // Pure natural language — the structured cards carry the vendor data.
+      const catLabel = state.category
+        ? state.category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+        : "vendors";
+      return `I've narrowed the list to ${vendors.length} ${catLabel.toLowerCase()} in ${state.city} based on your preferences 🎉`;
     }
     case ConversationAction.NO_RESULTS: {
       return `I couldn't find vendors matching those filters in ${state.city}. Try a nearby city, a broader category, or remove a filter — I'm happy to search again! 🎉`;

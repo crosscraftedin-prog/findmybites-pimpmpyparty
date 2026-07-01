@@ -37,6 +37,33 @@ export enum ConversationAction {
 }
 
 /**
+ * The set of actions that are FULLY DETERMINISTIC and must NOT call the LLM.
+ * The backend generates the response + structured cards directly in TypeScript.
+ *
+ * Marketplace conversations work correctly even if the LLM is offline.
+ */
+export const DETERMINISTIC_ACTIONS: ReadonlySet<ConversationAction> = new Set([
+  ConversationAction.STATE_NEED,
+  ConversationAction.ASK_CITY,
+  ConversationAction.ASK_CATEGORY,
+  ConversationAction.SEARCH_VENDORS,
+  ConversationAction.REFINE_RESULTS,
+  ConversationAction.NO_RESULTS,
+]);
+
+/**
+ * Returns true if the given action requires the LLM (i.e. it is NOT in the
+ * deterministic set). The LLM is only invoked for:
+ *   - GENERAL_CHAT
+ *   - VENDOR_MODE (vendor coaching, listing audits, SEO, product descriptions)
+ *   - ADMIN_MODE (admin insights)
+ *   - STOREFRONT_MODE (explaining specific vendor offerings)
+ */
+export function requiresLLM(action: ConversationAction): boolean {
+  return !DETERMINISTIC_ACTIONS.has(action);
+}
+
+/**
  * Determine whether the current message just added an optional filter.
  * "Optional filters" = budget, dietary, eventDate, guestCount, delivery,
  * pickup, onlyVerified, onlyFeatured, onlyAvailable, sortBy.

@@ -13,35 +13,58 @@ import {
   PartyPopper,
   ArrowRight,
 } from "lucide-react";
-import { CURRENCY_SYMBOLS } from "@/lib/constants";
 import { useCategoryLabels } from "@/hooks/use-category-labels";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Vendor } from "@/lib/types";
 
 // ── Types ────────────────────────────────────────────────────────────────
+
+/** A ready-to-render vendor card from the backend (no AI parsing required). */
+interface ChatVendorCard {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  subcategory: string | null;
+  city: string;
+  country: string;
+  countryCode: string;
+  tagline: string;
+  description: string;
+  rating: number;
+  reviewCount: number;
+  priceRange: string;
+  basePrice: number;
+  currency: string;
+  featured: boolean;
+  verified: boolean;
+  tags: string[];
+  ecosystem: string;
+  whatsapp: string | null;
+  heroImage: string;
+  deliveryAvailable: boolean;
+  pickupAvailable: boolean;
+  responseTime: string;
+  matchReason: string;
+}
+
+/** A next-step suggestion chip. */
+interface ChatSuggestion {
+  label: string;
+  href?: string;
+  action?: string;
+}
 
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  vendors?: ChatVendor[];
-  action?: "request_all_quotes";
-}
-
-interface ChatVendor extends Vendor {
-  distance: number | null;
-  matchReason?: string;
-}
-
-interface ParsedAIResponse {
-  text: string;
-  vendorSuggestions?: {
-    categories: string[];
-    city: string;
-    summary: string;
-  };
-  requestAllQuotes?: boolean;
+  /** Structured vendor cards rendered below the message (from backend search). */
+  cards?: ChatVendorCard[];
+  /** Next-step suggestion chips rendered below the cards. */
+  suggestions?: ChatSuggestion[];
+  /** The backend-computed action for this message. */
+  action?: string;
 }
 
 // ── Main widget ──────────────────────────────────────────────────────────
@@ -204,25 +227,18 @@ function ChatWindow({ onClose }: { onClose: () => void }) {
       if (data.conversationId && !conversationId) {
         setConversationId(data.conversationId);
       }
-      const aiText: string =
-        data.message || data.response || "Hmm, I didn't catch that. Could you say more?";
 
-      const parsed = parseAIResponse(aiText);
-
-      let vendors: ChatVendor[] | undefined;
-      if (parsed.vendorSuggestions) {
-        vendors = await fetchVendorSuggestions(
-          parsed.vendorSuggestions.categories,
-          parsed.vendorSuggestions.city
-        );
-      }
-
+      // V4 PRODUCTION: render from structured fields, NOT from parsed AI text.
+      // The backend returns `cards` (ready-to-render vendor cards) and
+      // `suggestions` (next-step chips) directly. The frontend NEVER parses
+      // JSON from the assistant message text.
       const assistantMsg: ChatMessage = {
         id: `a-${Date.now()}`,
         role: "assistant",
-        content: parsed.text,
-        vendors,
-        action: parsed.requestAllQuotes ? "request_all_quotes" : undefined,
+        content: data.message || "Hmm, I didn't catch that. Could you say more?",
+        cards: Array.isArray(data.cards) && data.cards.length > 0 ? data.cards : undefined,
+        suggestions: Array.isArray(data.suggestions) && data.suggestions.length > 0 ? data.suggestions : undefined,
+        action: data.action,
       };
       setMessages((m) => [...m, assistantMsg]);
     } catch {
@@ -285,7 +301,7 @@ function ChatWindow({ onClose }: { onClose: () => void }) {
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto bg-muted/30 p-4">
         {messages.map((m) => (
-          <MessageBubble key={m.id} message={m} />
+          <MessageBubble key={m.id} message={m} onSuggestionClick={(s) => sendMessage(s.label)} />
         ))}
         {loading && <TypingIndicator />}
       </div>
@@ -315,7 +331,7 @@ function ChatWindow({ onClose }: { onClose: () => void }) {
 
 // ── Message bubble ───────────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, onSuggestionClick }: { message: ChatMessage; onSuggestionClick?: (suggestion: ChatSuggestion) => void }) {
   const isUser = message.role === "user";
   return (
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
@@ -330,18 +346,36 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         >
           {message.content}
         </div>
-        {message.vendors && message.vendors.length > 0 && (
+        {/* Structured vendor cards from the backend (no AI-text parsing) */}
+        {message.cards && message.cards.length > 0 && (
           <div className="space-y-2">
-            {message.vendors.map((v) => (
+            {message.cards.map((v) => (
               <VendorChatCard key={v.id} vendor={v} />
             ))}
           </div>
         )}
-        {message.action === "request_all_quotes" && (
-          <div className="rounded-xl border border-[#FF6B35]/30 bg-[#FF6B35]/5 p-3 text-center">
-            <p className="text-xs font-medium text-foreground">
-              I&apos;ll send your request to all suggested vendors at once! 🎉
-            </p>
+        {/* Next-step suggestion chips */}
+        {message.suggestions && message.suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {message.suggestions.map((s, i) =>
+              s.href ? (
+                <a
+                  key={i}
+                  href={s.href}
+                  className="rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:bg-accent"
+                >
+                  {s.label}
+                </a>
+              ) : (
+                <button
+                  key={i}
+                  onClick={() => onSuggestionClick?.(s)}
+                  className="rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:bg-accent"
+                >
+                  {s.label}
+                </button>
+              )
+            )}
           </div>
         )}
       </div>
@@ -351,7 +385,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
 // ── Vendor card ──────────────────────────────────────────────────────────
 
-function VendorChatCard({ vendor }: { vendor: ChatVendor }) {
+function VendorChatCard({ vendor }: { vendor: ChatVendorCard }) {
   const { getCategory } = useCategoryLabels();
   const cat = getCategory(vendor.category);
   const matchReason = vendor.matchReason || vendor.tagline;
@@ -387,12 +421,10 @@ function VendorChatCard({ vendor }: { vendor: ChatVendor }) {
               <span className="font-semibold text-foreground">{vendor.rating.toFixed(1)}</span>
               <span>({vendor.reviewCount})</span>
             </span>
-            {vendor.distance != null && (
-              <span className="flex items-center gap-0.5">
-                <MapPin className="size-2.5" />
-                {vendor.distance < 1 ? `${Math.round(vendor.distance * 1000)} m away` : `${vendor.distance} km away`}
-              </span>
-            )}
+            <span className="flex items-center gap-0.5">
+              <MapPin className="size-2.5" />
+              {vendor.city}
+            </span>
             <span className="font-semibold text-foreground">from {formatPrice(vendor.basePrice, vendor.currency)}</span>
           </div>
           <p className="mt-1 line-clamp-1 text-[10px] italic text-muted-foreground">{matchReason}</p>
@@ -429,70 +461,7 @@ function TypingIndicator() {
   );
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-function parseAIResponse(raw: string): ParsedAIResponse {
-  const result: ParsedAIResponse = { text: raw };
-  // Match vendor_suggestions JSON blocks (may contain arrays, so allow nested)
-  const jsonRegex = /\{"type"\s*:\s*"vendor_suggestions"[^]*?\}/g;
-  const matches = raw.match(jsonRegex);
-
-  if (matches) {
-    for (const match of matches) {
-      try {
-        const parsed = JSON.parse(match);
-        if (parsed.type === "vendor_suggestions" && Array.isArray(parsed.categories)) {
-          result.vendorSuggestions = {
-            categories: parsed.categories.filter((c: unknown) => typeof c === "string"),
-            city: typeof parsed.city === "string" ? parsed.city : "",
-            summary: typeof parsed.summary === "string" ? parsed.summary : "",
-          };
-          // Remove the JSON block but KEEP everything else (including vendor
-          // details the AI formatted after the JSON). If there's no other
-          // text, use the summary.
-          const withoutJson = result.text.replace(match, "").trim();
-          result.text = withoutJson || parsed.summary || "";
-        }
-      } catch {}
-    }
-  }
-
-  // Also handle request_all_quotes blocks
-  const quoteRegex = /\{"type"\s*:\s*"request_all_quotes"\s*\}/g;
-  const quoteMatches = raw.match(quoteRegex);
-  if (quoteMatches) {
-    result.requestAllQuotes = true;
-    for (const match of quoteMatches) {
-      result.text = result.text.replace(match, "").trim();
-    }
-  }
-
-  result.text = result.text.replace(/\n{3,}/g, "\n\n").trim();
-  return result;
-}
-
-async function fetchVendorSuggestions(categories: string[], city: string): Promise<ChatVendor[]> {
-  try {
-    const params = new URLSearchParams({ categories: categories.join(","), limit: "5" });
-    if (city) params.set("city", city);
-    const res = await fetch(`/api/chat/vendors?${params}`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.vendors ?? []).map((v: ChatVendor) => ({
-      ...v,
-      matchReason: buildMatchReason(v),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-function buildMatchReason(vendor: ChatVendor): string {
-  // Use title-cased slug as fallback (this is a pure function, can't use hooks)
-  const catLabel = vendor.category
-    ? vendor.category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-    : "";
-  if (vendor.city && vendor.distance != null) return `${catLabel} near you in ${vendor.city}`;
-  if (vendor.city) return `Great ${catLabel.toLowerCase()} in ${vendor.city}`;
-  return `Top-rated ${catLabel.toLowerCase()}`;
-}
+// NOTE: V4 production refactor — removed parseAIResponse(), fetchVendorSuggestions(),
+// and buildMatchReason(). The frontend now renders vendor cards and suggestions
+// directly from the structured backend response fields (`data.cards`,
+// `data.suggestions`). No JSON is parsed from assistant message text.
