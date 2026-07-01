@@ -453,6 +453,10 @@ model JoshConversation {
   vendorId            String?  // if userType = vendor, their vendor listing id
   messages            Json     @default("[]") // [{role, content, timestamp}]
   conversationSummary String?  // AI-generated summary after 10+ messages
+  // ── Phase 6: Structured Conversation State ──
+  // Deterministic intent state — updated after every message, never reparsed.
+  // This is the source of truth for marketplace search, slot filling, and mode.
+  state                Json     @default("{}") // ConversationState JSON
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   lastMessageAt       DateTime @default(now())

@@ -4,6 +4,16 @@ import { db } from "@/lib/db";
 import { JOSH_SYSTEM_PROMPT_V2 } from "@/lib/josh-system-prompt-v2";
 import { migrateCategory, getCategoryMigrated } from "@/lib/constants";
 import { parseJsonArray } from "@/lib/format";
+import {
+  DEFAULT_STATE,
+  extractFromMessage,
+  mergeState,
+  getMissingSlots,
+  getNextSlotQuestion,
+  buildSearchQuery,
+  formatStateForPrompt,
+  type ConversationState,
+} from "@/lib/conversation-state";
 
 /**
  * POST /api/josh/chat
@@ -381,11 +391,62 @@ export async function POST(req: NextRequest) {
 
     console.log("[josh/chat] conversationId:", conversation?.id ?? "none", "| history length:", trimmedHistory.length, "| prompt version: v2");
 
+    // ── 2b. Load + update ConversationState ─────────────────────────────
+    // Load existing state or initialize with defaults
+    let convState: ConversationState = { ...DEFAULT_STATE };
+
+    // Set conversation mode
+    if (userType === "vendor") convState.conversationMode = "VENDOR";
+    else if (userType === "admin") convState.conversationMode = "ADMIN";
+    else if (body.vendorContext?.vendorId) {
+      convState.conversationMode = "STOREFRONT";
+      convState.storefrontVendorId = body.vendorContext.vendorId;
+    }
+
+    // Load existing state from DB
+    if (conversation?.state) {
+      try {
+        const savedState = typeof conversation.state === "string"
+          ? JSON.parse(conversation.state)
+          : conversation.state;
+        convState = { ...DEFAULT_STATE, ...savedState };
+      } catch {}
+    }
+
+    // If this is the first message and no state exists, extract from history (migration)
+    if (trimmedHistory.length > 0 && (!conversation?.state || Object.keys(convState).length <= 2)) {
+      console.log("[josh/chat] Migrating: extracting state from history (one-time)");
+      for (const msg of trimmedHistory) {
+        if (msg.role === "user") {
+          const extracted = extractFromMessage(msg.content);
+          convState = mergeState(convState, extracted);
+        }
+      }
+    }
+
+    // Extract NEW information from the CURRENT message only
+    const newExtracted = extractFromMessage(message);
+    console.log("[josh/chat] State BEFORE:", JSON.stringify({ category: convState.category, city: convState.city, budget: convState.budget, dietary: convState.dietaryRequirements }));
+    console.log("[josh/chat] Extracted from message:", JSON.stringify(newExtracted));
+
+    // Merge new info into state
+    convState = mergeState(convState, newExtracted);
+
+    console.log("[josh/chat] State AFTER:", JSON.stringify({ category: convState.category, city: convState.city, budget: convState.budget, dietary: convState.dietaryRequirements }));
+
+    // Check missing slots
+    const missingSlots = getMissingSlots(convState);
+    const nextQuestion = getNextSlotQuestion(missingSlots);
+    console.log("[josh/chat] Missing slots:", missingSlots, "| nextQuestion:", nextQuestion);
+
     // Build conversation summary for context (if available)
     let conversationSummary = "";
     if (conversation?.conversationSummary) {
       conversationSummary = `\n\n## CONVERSATION SUMMARY (from previous messages)\n${conversation.conversationSummary}\n\nContinue this conversation naturally. Remember all context from the summary.`;
     }
+
+    // Build state context for LLM
+    const stateContext = formatStateForPrompt(convState);
 
     // ── 3. Fetch real vendor data for context ────────────────────────────
     console.log("[josh/chat] Fetching vendors from DB...");
@@ -466,25 +527,19 @@ export async function POST(req: NextRequest) {
     console.log("[josh/chat] ZAI available:", !!zai);
 
     if (!zai) {
-      // AI unavailable — use conversation history to provide a contextual response
-      console.log("[josh/chat] AI unavailable — using fallback with history");
+      // AI unavailable — use ConversationState for deterministic response
+      console.log("[josh/chat] AI unavailable — using ConversationState fallback");
 
-      // Extract intent from ENTIRE conversation (history + current message)
-      const allMessages = [...trimmedHistory, { role: "user", content: message, timestamp: new Date().toISOString() }];
-      const historyIntent = extractIntentFromHistory(allMessages);
-      const currentIntent = extractIntent(message);
+      // Use the already-updated convState (no need to reparse history!)
+      const categories = convState.category ? [convState.category] : [];
+      const city = convState.city;
+      const budget = convState.budget;
+      const dietary = convState.dietaryRequirements || [];
 
-      // Merge: prefer history intent (accumulated), add current message's intent
-      const categories = [...new Set([...historyIntent.categories, ...currentIntent.categories])];
-      const city = currentIntent.city || historyIntent.city;
-      const budget = historyIntent.budget;
-      const dietary = historyIntent.dietary;
-
-      console.log("[josh/chat] Fallback intent — categories:", categories, "| city:", city, "| budget:", budget, "| dietary:", dietary);
+      console.log("[josh/chat] Fallback using state — categories:", categories, "| city:", city, "| budget:", budget, "| dietary:", dietary);
 
       // If this is NOT the first message (history exists), acknowledge contextually
       if (trimmedHistory.length > 0) {
-        // Build a contextual response using accumulated intent
         let contextualMsg = "";
 
         if (categories.length > 0 && city) {
@@ -503,10 +558,11 @@ export async function POST(req: NextRequest) {
           contextualMsg = `Got it! What type of vendor are you looking for? For example: "cake in Dubai" or "DJ in Mumbai" 🎉`;
         }
 
-        await saveConversation(conversation, [
+        // Save conversation with updated state
+        await saveConversationWithState(conversation, [
           ...newMessages,
           { role: "assistant", content: contextualMsg, timestamp: new Date().toISOString() },
-        ]);
+        ], convState);
         return NextResponse.json({
           conversationId: conversation?.id,
           message: contextualMsg,
@@ -521,10 +577,10 @@ export async function POST(req: NextRequest) {
           ? `Looking for vendors in ${city} — I've got some great picks for you! 🎉`
           : "Here are some top vendors I found for you! 🎉";
         const fallbackMsg = `{"type":"vendor_suggestions","categories":${JSON.stringify(categories)},"city":"${cityDisplay}","summary":"${summary}"}\n\nHere are my top picks for you 🎉`;
-        await saveConversation(conversation, [
+        await saveConversationWithState(conversation, [
           ...newMessages,
           { role: "assistant", content: fallbackMsg, timestamp: new Date().toISOString() },
-        ]);
+        ], convState);
         return NextResponse.json({
           conversationId: conversation?.id,
           message: fallbackMsg,
@@ -533,10 +589,10 @@ export async function POST(req: NextRequest) {
       }
       // First message, no categories — return greeting
       const noCatMsg = "I'd love to help! 🎉 Tell me what you need — like \"cake in Dubai\", \"DJ in Mumbai\", or \"photographer in London\" — and I'll find the best vendors for you.";
-      await saveConversation(conversation, [
+      await saveConversationWithState(conversation, [
         ...newMessages,
         { role: "assistant", content: noCatMsg, timestamp: new Date().toISOString() },
-      ]);
+      ], convState);
       return NextResponse.json({
         conversationId: conversation?.id,
         message: noCatMsg,
@@ -545,7 +601,7 @@ export async function POST(req: NextRequest) {
     }
 
     const systemPrompt =
-      JOSH_SYSTEM_PROMPT_V2 + vendorContext + vendorProfileContext + storefrontContext + conversationSummary;
+      JOSH_SYSTEM_PROMPT_V2 + vendorContext + vendorProfileContext + storefrontContext + conversationSummary + "\n\n" + stateContext;
     console.log("[josh/chat] System prompt length:", systemPrompt.length, "| vendor context:", vendorContext.length, "| storefront:", storefrontContext.length, "| summary:", conversationSummary.length);
     console.log("[josh/chat] Messages to LLM — history:", trimmedHistory.length, "| total:", newMessages.length);
 
@@ -578,7 +634,7 @@ export async function POST(req: NextRequest) {
       ...newMessages,
       { role: "assistant", content: assistantMessage, timestamp: new Date().toISOString() },
     ];
-    await saveConversation(conversation, savedMessages);
+    await saveConversationWithState(conversation, savedMessages, convState);
 
     // ── 6. Generate summary if conversation is getting long ──────────────
     if (savedMessages.length >= 10 && !conversation?.conversationSummary) {
@@ -638,7 +694,7 @@ export async function POST(req: NextRequest) {
         } else {
           msg = `Got it! What type of vendor are you looking for? 🎉`;
         }
-        await saveConversation(conversation, [
+        await saveConversationWithState(conversation, [
           ...newMessages,
           { role: "assistant", content: msg, timestamp: new Date().toISOString() },
         ]);
@@ -687,6 +743,29 @@ async function saveConversation(
       where: { id: conversation.id },
       data: {
         messages: messages as any,
+        lastMessageAt: new Date(),
+      },
+    });
+  } catch {
+    // DB unavailable — conversation just won't persist
+  }
+}
+
+/**
+ * Save conversation with updated ConversationState.
+ */
+async function saveConversationWithState(
+  conversation: any,
+  messages: ChatMessage[],
+  state: ConversationState
+): Promise<void> {
+  if (!conversation) return;
+  try {
+    await db.joshConversation.update({
+      where: { id: conversation.id },
+      data: {
+        messages: messages as any,
+        state: state as any,
         lastMessageAt: new Date(),
       },
     });
