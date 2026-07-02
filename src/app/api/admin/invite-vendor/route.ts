@@ -22,14 +22,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { name, whatsapp, ecosystem, category, city, country, tagline } = body as {
+    const { name, whatsapp, ecosystem, countryCode, country } = body as {
       name: string;
       whatsapp: string;
       ecosystem: string;
-      category?: string;
-      city?: string;
+      countryCode?: string;
       country?: string;
-      tagline?: string;
     };
 
     // Validate required fields
@@ -42,6 +40,14 @@ export async function POST(req: NextRequest) {
     if (!ecosystem || !["FINDMYBITES", "PIMPMYPARTY"].includes(ecosystem)) {
       return NextResponse.json({ error: "Valid ecosystem is required (FINDMYBITES or PIMPMYPARTY)" }, { status: 400 });
     }
+
+    // Resolve country info
+    const { getCountryByCode, CURRENCY_SYMBOLS } = await import("@/lib/countries");
+    const countryInfo = countryCode ? getCountryByCode(countryCode) : undefined;
+    const finalCountry = countryInfo?.name || country || "Unknown";
+    const finalCountryCode = countryInfo?.code || countryCode || "IN";
+    const finalCurrency = countryInfo?.currency || "INR";
+    const finalContinent = countryInfo?.continent || "Asia";
 
     // Generate a slug from the business name
     const baseSlug = name.trim().toLowerCase()
@@ -60,20 +66,22 @@ export async function POST(req: NextRequest) {
     expiresAt.setDate(expiresAt.getDate() + 7); // 7-day expiry
 
     // Create the vendor record with approved=true, invite_type='admin'
+    // Business details (category, city, address, etc.) are left empty —
+    // the vendor fills them in after activating their account.
     const vendor = await db.vendor.create({
       data: {
         name: name.trim(),
         slug,
         ecosystem,
-        category: category || "bakers-bakery",
-        tagline: tagline?.trim() || `Welcome to ${name.trim()}`,
+        category: "bakers-bakery", // default; vendor updates after activation
+        tagline: `Welcome to ${name.trim()}`,
         description: "",
-        city: city?.trim() || "Unknown",
-        country: country?.trim() || "Unknown",
-        countryCode: "IN",
-        continent: "Asia",
-        currency: "INR",
-        priceRange: "₹₹",
+        city: "Unknown", // vendor fills after activation
+        country: finalCountry,
+        countryCode: finalCountryCode,
+        continent: finalContinent,
+        currency: finalCurrency,
+        priceRange: "—",
         basePrice: 0,
         rating: 0,
         reviewCount: 0,

@@ -24,10 +24,10 @@ import {
   ExternalLink,
   MessageCircle,
   Search,
-  Plus,
   Store,
-  Clock,
+  ChevronDown,
 } from "lucide-react";
+import { COUNTRIES, getCountryByCode, type CountryInfo } from "@/lib/countries";
 
 interface PendingVendor {
   id: string;
@@ -65,8 +65,9 @@ export function AdminVendorInvitations() {
   const [ecosystem, setEcosystem] = React.useState("FINDMYBITES");
   const [name, setName] = React.useState("");
   const [whatsapp, setWhatsapp] = React.useState("");
-  const [city, setCity] = React.useState("");
-  const [category, setCategory] = React.useState("bakers-bakery");
+  const [selectedCountry, setSelectedCountry] = React.useState<CountryInfo | null>(null);
+  const [countrySearch, setCountrySearch] = React.useState("");
+  const [countryDropdownOpen, setCountryDropdownOpen] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [inviteResult, setInviteResult] = React.useState<InviteResult | null>(null);
 
@@ -100,6 +101,10 @@ export function AdminVendorInvitations() {
       toast.error("Business name and WhatsApp number are required");
       return;
     }
+    if (!selectedCountry) {
+      toast.error("Please select a country");
+      return;
+    }
     setSending(true);
     try {
       const res = await fetch("/api/admin/invite-vendor", {
@@ -109,8 +114,8 @@ export function AdminVendorInvitations() {
           name: name.trim(),
           whatsapp: whatsapp.trim(),
           ecosystem,
-          category,
-          city: city.trim() || undefined,
+          countryCode: selectedCountry.code,
+          country: selectedCountry.name,
         }),
       });
       const data = await res.json();
@@ -123,7 +128,7 @@ export function AdminVendorInvitations() {
       // Reset form
       setName("");
       setWhatsapp("");
-      setCity("");
+      setSelectedCountry(null);
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -182,9 +187,10 @@ export function AdminVendorInvitations() {
         {/* ── Send Invite Tab ── */}
         <TabsContent value="invite" className="mt-4">
           <div className="max-w-md space-y-4 rounded-xl border border-border bg-card p-5">
+            {/* Platform */}
             <div>
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Platform
+                Platform *
               </Label>
               <div className="mt-1.5 flex gap-2">
                 {(["FINDMYBITES", "PIMPMYPARTY"] as const).map(eco => (
@@ -205,6 +211,59 @@ export function AdminVendorInvitations() {
               </div>
             </div>
 
+            {/* Country (searchable dropdown) */}
+            <div className="relative">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Country *
+              </Label>
+              <button
+                onClick={() => setCountryDropdownOpen(!countryDropdownOpen)}
+                className="mt-1.5 flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {selectedCountry ? (
+                  <span className="flex items-center gap-2">
+                    <span className="text-base">{selectedCountry.code === "IN" ? "🇮🇳" : selectedCountry.code === "AE" ? "🇦🇪" : selectedCountry.code === "US" ? "🇺🇸" : selectedCountry.code === "GB" ? "🇬🇧" : "🌍"}</span>
+                    {selectedCountry.name} ({selectedCountry.code})
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Select country…</span>
+                )}
+                <ChevronDown className="size-4 text-muted-foreground" />
+              </button>
+              {countryDropdownOpen && (
+                <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-border bg-card shadow-lg">
+                  <div className="sticky top-0 border-b border-border bg-card p-2">
+                    <Input
+                      placeholder="Search countries…"
+                      value={countrySearch}
+                      onChange={e => setCountrySearch(e.target.value)}
+                      className="h-8 text-sm"
+                      autoFocus
+                    />
+                  </div>
+                  {COUNTRIES
+                    .filter(c => !countrySearch || c.name.toLowerCase().includes(countrySearch.toLowerCase()) || c.code.toLowerCase().includes(countrySearch.toLowerCase()))
+                    .map(c => (
+                      <button
+                        key={c.code}
+                        onClick={() => {
+                          setSelectedCountry(c);
+                          setCountryDropdownOpen(false);
+                          setCountrySearch("");
+                          // Auto-prefix WhatsApp with dialing code
+                          setWhatsapp(`+${c.dialCode} `);
+                        }}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted/30"
+                      >
+                        <span>{c.name} ({c.code})</span>
+                        <span className="text-xs text-muted-foreground">+{c.dialCode}</span>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Business Name */}
             <div>
               <Label htmlFor="biz-name">Business Name *</Label>
               <Input
@@ -216,55 +275,27 @@ export function AdminVendorInvitations() {
               />
             </div>
 
+            {/* WhatsApp Number (auto-prefixed with dialing code) */}
             <div>
               <Label htmlFor="biz-whatsapp">WhatsApp Number *</Label>
               <Input
                 id="biz-whatsapp"
                 value={whatsapp}
                 onChange={e => setWhatsapp(e.target.value)}
-                placeholder="+91 98765 43210"
+                placeholder={selectedCountry ? `+${selectedCountry.dialCode} 98765 43210` : "Select country first"}
                 className="mt-1"
+                disabled={!selectedCountry}
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="biz-city">City</Label>
-                <Input
-                  id="biz-city"
-                  value={city}
-                  onChange={e => setCity(e.target.value)}
-                  placeholder="Mumbai"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="biz-category">Category</Label>
-                <select
-                  id="biz-category"
-                  value={category}
-                  onChange={e => setCategory(e.target.value)}
-                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="bakers-bakery">Bakers & Bakery</option>
-                  <option value="caterers">Caterers</option>
-                  <option value="chef-staff">Private Chef</option>
-                  <option value="food-trucks">Food Trucks</option>
-                  <option value="decorators">Decorators</option>
-                  <option value="photographers">Photographers</option>
-                  <option value="videographers">Videographers</option>
-                  <option value="djs">DJs</option>
-                  <option value="venues">Venues</option>
-                  <option value="florists">Florists</option>
-                  <option value="makeup-artists">Makeup Artists</option>
-                  <option value="event-planners">Event Planners</option>
-                </select>
-              </div>
+              {selectedCountry && (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Dialing code +{selectedCountry.dialCode} auto-filled. Enter the local number.
+                </p>
+              )}
             </div>
 
             <Button
               onClick={sendInvite}
-              disabled={sending || !name.trim() || !whatsapp.trim()}
+              disabled={sending || !name.trim() || !whatsapp.trim() || !selectedCountry}
               className="w-full gap-1.5 bg-[#FF6B35] text-white hover:bg-[#e85a2a]"
             >
               {sending ? (
@@ -275,7 +306,7 @@ export function AdminVendorInvitations() {
             </Button>
 
             <p className="text-center text-[11px] text-muted-foreground">
-              The vendor will be created as approved. WhatsApp opens automatically with a pre-filled invitation message.
+              The vendor will be created as approved. WhatsApp opens automatically with a pre-filled invitation message. Business details are collected after the vendor activates their account.
             </p>
           </div>
         </TabsContent>
