@@ -447,7 +447,10 @@ export async function POST(req: NextRequest) {
       suggestions: [],
       requiresLLM: false,
       fallback: true,
-    };
+      ...(process.env.NODE_ENV !== "production" ? { debugError: errMsg.slice(0, 300) } : {}),
+    } as any;
+    // Temporary: include error in production for diagnosis
+    (response as any).debugError = `${errName}: ${errMsg.slice(0, 300)}`;
     return NextResponse.json(response);
   }
 }
