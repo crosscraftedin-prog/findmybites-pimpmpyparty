@@ -145,6 +145,8 @@ model Vendor {
   bookings         Booking[]
   products         Product[]
   availability     VendorAvailability[]
+  subscriptions    VendorSubscription[]
+  payments         PaymentHistory[]
 
   @@index([ecosystem])
   @@index([category])
@@ -968,3 +970,97 @@ model ReviewVote {
   @@index([reviewId])
   @@map("review_votes")
 }
+
+// ── Subscription Lifecycle Management ─────────────────────────────────────
+// Production-ready subscription system built on top of the existing Razorpay
+// Orders integration. Designed so that Razorpay Subscriptions (AutoPay) can
+// replace Razorpay Orders later WITHOUT changing the dashboard, billing
+// history, expiry logic, or feature gating.
+//
+// The `provider` field makes the billing layer provider-agnostic:
+//   - "razorpay_orders"       (current — one-time payments, manual renewal)
+//   - "razorpay_subscriptions" (future — AutoPay, automatic recurring)
+//   - "stripe"                 (future — international)
+//
+// Only the payment provider module changes; the subscription record,
+// expiry math, feature gating, and billing history stay the same.
+
+model VendorSubscription {
+  id                String   @id @default(cuid())
+  vendorId          String
+  vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  // ── Plan details ──
+  planName          String   // "vendor-pro" | "business"
+  planTier          String   @default("pro") // "pro" | "business" (human label)
+  billingCycle      String   @default("monthly") // "monthly" | "yearly"
+  status            String   @default("active") // "active" | "expired" | "cancelled" | "past_due"
+
+  // ── Billing window ──
+  planStartedAt     DateTime @default(now())
+  planExpiresAt     DateTime // 30 days (monthly) or 365 days (yearly) after start
+  nextRenewalDate   DateTime? // null for one-time orders; set for future AutoPay
+  cancelledAt       DateTime?
+
+  // ── Provider (modular — swap without touching expiry/gating logic) ──
+  provider          String   @default("razorpay_orders") // "razorpay_orders" | "razorpay_subscriptions" | "stripe"
+  providerSubscriptionId String? // Razorpay subscription_id (future AutoPay) or stripe sub id
+
+  // ── Pricing snapshot at activation (immutable record of what was paid) ──
+  amountPaid        Int      // in smallest currency unit (paise/cents/fils)
+  currency          String   @default("INR")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // ── Relations ──
+  payments          PaymentHistory[]
+
+  @@index([vendorId])
+  @@index([status])
+  @@index([planExpiresAt])
+  @@index([provider])
+  @@map("vendor_subscriptions")
+}
+
+// ── Payment History (immutable audit log of every payment) ────────────────
+// Every successful payment creates a row here. Used by the Billing History
+// page and admin revenue reports. Never updated after creation (append-only).
+
+model PaymentHistory {
+  id                String   @id @default(cuid())
+  vendorId          String
+  vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  subscriptionId    String?
+  subscription      VendorSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  // ── Payment details ──
+  orderId           String   // Razorpay order_id
+  paymentId         String   @unique // Razorpay payment_id (prevent duplicate processing)
+  invoiceNumber     String?  // generated invoice number (e.g. FMB-INV-2024-00001)
+  signature         String?  // stored for audit (HMAC verified at activation)
+
+  // ── Plan + amount ──
+  planName          String   // "vendor-pro" | "business"
+  billingCycle      String   @default("monthly")
+  amount            Int      // smallest currency unit
+  currency          String   @default("INR")
+  paymentStatus     String   @default("captured") // "captured" | "failed" | "refunded"
+
+  // ── Provider ──
+  provider          String   @default("razorpay_orders")
+  paymentMethod     String?  // "upi" | "card" | "netbanking" | "wallet" (from Razorpay)
+
+  // ── Type ──
+  paymentType       String   @default("new") // "new" | "renewal"
+
+  createdAt         DateTime @default(now())
+
+  @@index([vendorId])
+  @@index([subscriptionId])
+  @@index([orderId])
+  @@index([paymentStatus])
+  @@index([createdAt])
+  @@map("payment_history")
+}
+

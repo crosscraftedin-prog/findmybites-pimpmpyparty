@@ -510,6 +510,9 @@ export function SubscriptionModal({
                 razorpay_signature: response.razorpay_signature,
                 vendorId: vendorId || orderData.vendorId,
                 planName,
+                billingCycle,
+                amount: orderData.amount,
+                currency: orderData.currency,
               }),
             });
             const verifyData = await verifyRes.json();
