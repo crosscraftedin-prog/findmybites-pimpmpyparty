@@ -286,7 +286,9 @@ export async function POST(req: NextRequest) {
         try {
           const ownVendor = await db.vendor.findUnique({ where: { id: vendorId } });
           if (ownVendor) extraContext = buildVendorProfileContext(ownVendor);
-        } catch {}
+        } catch (e) {
+          console.error(`[josh/v4] ${requestId} vendor profile fetch failed:`, (e as Error)?.message?.slice(0, 150));
+        }
       }
       if (userType === "customer" && body.vendorContext?.vendorId) {
         extraContext = await buildStorefrontContext(body.vendorContext.vendorId);
@@ -402,7 +404,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(response);
   } catch (err) {
     const totalLatency = Date.now() - startTime;
-    console.error(`[josh/v4] ${requestId} POST FAILED (${totalLatency}ms):`, err);
+    const errMsg = (err as Error)?.message ?? String(err);
+    const errName = (err as Error)?.name ?? "Error";
+    console.error(`[josh/v4] ${requestId} POST FAILED (${totalLatency}ms):`, errName, errMsg.slice(0, 300));
+
+    // PRODUCTION REQUIREMENT: Do NOT silently fall back to a new conversation
+    // when the database is unreachable. Return an explicit error so the
+    // client knows persistence failed and can retry or surface the issue.
+    //
+    // Detect database connection errors (Prisma P1001 = can't reach server,
+    // PrismaClientInitializationError = protocol/config error).
+    const isDbError =
+      errName === "PrismaClientInitializationError" ||
+      errMsg.includes("Can't reach database server") ||
+      errMsg.includes("must start with the protocol") ||
+      errMsg.includes("Error validating datasource") ||
+      errMsg.includes("verification failed");
+
+    if (isDbError) {
+      console.error(`[josh/v4] ${requestId} DATABASE UNREACHABLE — returning explicit error (no silent fallback)`);
+      return NextResponse.json(
+        {
+          error: "DATABASE_UNREACHABLE",
+          message: "Josh AI cannot reach the conversation database. Conversation state was not persisted. Please retry in a moment.",
+          action: "DB_ERROR",
+          requiresLLM: false,
+        },
+        { status: 503 }
+      );
+    }
+
+    // For non-DB errors (LLM failures, etc.), return a graceful fallback
     const response: JoshChatResponse = {
       conversationId: null,
       message: FALLBACK_RESPONSE,
