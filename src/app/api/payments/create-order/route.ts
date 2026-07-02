@@ -15,8 +15,8 @@ const PLANS: Record<string, { amount: number; name: string }> = {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { planName, vendorId, userEmail, amount: bodyAmount } = body as {
-      planName: string; vendorId?: string; userEmail?: string; amount?: number;
+    const { planName, vendorId, userEmail, amount: bodyAmount, currency: bodyCurrency } = body as {
+      planName: string; vendorId?: string; userEmail?: string; amount?: number; currency?: string;
     };
 
     if (!planName || !PLANS[planName]) {
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": authHeader },
       body: JSON.stringify({
-        amount, currency: "INR",
+        amount, currency: bodyCurrency || "INR",
         receipt: `V${Date.now().toString().slice(-8)}`,
         notes: { vendorId: actualVendorId, planName, userEmail: actualEmail, platform: "FindMyBites" },
       }),

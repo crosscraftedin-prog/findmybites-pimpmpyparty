@@ -31,6 +31,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.findmybites.com"),
   title: "FindMyBites × PimpMyParty — Global Food & Party Marketplace",
   description:
     "The world's dual marketplace for food artisans, bakers, caterers, party planners, decorators and entertainers. Discover and book verified vendors across 6 continents.",
