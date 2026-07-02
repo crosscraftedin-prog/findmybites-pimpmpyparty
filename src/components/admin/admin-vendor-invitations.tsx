@@ -168,14 +168,14 @@ export function AdminVendorInvitations() {
   return (
     <div>
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Vendor Invitations</h2>
+        <h2 className="text-lg font-semibold">Invite Vendor</h2>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="invite">Send Invite</TabsTrigger>
           <TabsTrigger value="pending">
-            Pending Signups ({pendingVendors.length})
+            Pending Vendors ({pendingVendors.length})
           </TabsTrigger>
         </TabsList>
 
@@ -280,7 +280,7 @@ export function AdminVendorInvitations() {
           </div>
         </TabsContent>
 
-        {/* ── Pending Signups Tab ── */}
+        {/* ── Pending Vendors Tab ── */}
         <TabsContent value="pending" className="mt-4">
           {/* Search */}
           <div className="relative mb-3 max-w-sm">
@@ -300,9 +300,9 @@ export function AdminVendorInvitations() {
           ) : filteredPending.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border py-10 text-center">
               <Store className="mx-auto size-8 text-muted-foreground/30 mb-2" />
-              <p className="text-sm font-medium">No pending signups</p>
+              <p className="text-sm font-medium">No pending vendors</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Organic vendor registrations will appear here for approval.
+                New vendor registrations will appear here for approval.
               </p>
             </div>
           ) : (
@@ -398,9 +398,9 @@ export function AdminVendorInvitations() {
       <Dialog open={!!approvalResult} onOpenChange={(o) => !o && setApprovalResult(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Vendor Approved! ✅</DialogTitle>
+            <DialogTitle>Vendor Approved — Activate Account ✅</DialogTitle>
             <DialogDescription>
-              {approvalResult?.vendor.name} is now approved. Share the activation link via WhatsApp.
+              {approvalResult?.vendor.name} is now approved. Share the activation link via WhatsApp so they can complete their setup.
             </DialogDescription>
           </DialogHeader>
           {approvalResult && (
