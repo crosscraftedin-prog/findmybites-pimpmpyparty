@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
-import { useProducts, useCreateProduct, useDeleteProduct } from "@/lib/queries";
 import { CURRENCY_SYMBOLS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -46,11 +45,24 @@ type SortOption = "newest" | "oldest" | "name" | "price_high" | "price_low" | "v
 type StatusFilter = "all" | "active" | "draft" | "hidden" | "unavailable";
 
 export function Products({ vendor }: ProductsProps) {
-  // Keep existing data fetching (preserves backward compat)
-  const { data: productsData, isLoading } = useProducts(vendor.id);
-  const allProducts = productsData?.products ?? [];
-  const createProduct = useCreateProduct();
-  const deleteProduct = useDeleteProduct();
+  // ── Unified API: /api/vendor/products (ownership resolved from session, NOT frontend) ──
+  const [allProducts, setAllProducts] = React.useState<any[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [refreshKey, setRefreshKey] = React.useState(0);
+
+  const reload = React.useCallback(() => setRefreshKey(k => k + 1), []);
+
+  React.useEffect(() => {
+    setIsLoading(true);
+    fetch("/api/vendor/products?limit=100")
+      .then(res => res.ok ? res.json() : { products: [], stats: null })
+      .then(data => {
+        setAllProducts(data.products ?? []);
+        if (data.stats) setStatsData(data.stats);
+      })
+      .catch(() => setAllProducts([]))
+      .finally(() => setIsLoading(false));
+  }, [refreshKey]);
 
   // UI state
   const [search, setSearch] = React.useState("");
@@ -58,6 +70,7 @@ export function Products({ vendor }: ProductsProps) {
   const [sortBy, setSortBy] = React.useState<SortOption>("newest");
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [showBulkActions, setShowBulkActions] = React.useState(false);
+  const [statsData, setStatsData] = React.useState<any>(null);
 
   // Existing form state (preserved)
   const [showModal, setShowModal] = React.useState(false);
@@ -71,17 +84,18 @@ export function Products({ vendor }: ProductsProps) {
   const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
   const isFood = vendor.ecosystem === "FINDMYBITES";
 
-  // ── Stats (computed client-side from existing data) ──
+  // ── Stats (prefer server-side, fallback to client-side) ──
   const stats = React.useMemo(() => {
+    if (statsData) return statsData;
     const total = allProducts.length;
-    const active = allProducts.filter(p => (p as any).isAvailable !== false && (p as any).status !== "draft" && (p as any).status !== "hidden").length;
-    const draft = allProducts.filter(p => (p as any).status === "draft").length;
-    const hidden = allProducts.filter(p => (p as any).status === "hidden").length;
-    const unavailable = allProducts.filter(p => (p as any).isAvailable === false).length;
-    const totalViews = allProducts.reduce((sum, p) => sum + ((p as any).views ?? 0), 0);
-    const featured = allProducts.filter(p => (p as any).isFeatured || (p as any).featured).length;
-    return { total, active, draft, hidden, unavailable, totalViews, featured };
-  }, [allProducts]);
+    const active = allProducts.filter(p => p.isAvailable !== false && p.status !== "draft" && p.status !== "hidden").length;
+    const draft = allProducts.filter(p => p.status === "draft").length;
+    const hidden = allProducts.filter(p => p.status === "hidden").length;
+    const unavailable = allProducts.filter(p => p.isAvailable === false).length;
+    const totalViews = allProducts.reduce((sum, p) => sum + (p.views ?? 0), 0);
+    const featured = allProducts.filter(p => p.isFeatured || p.featured).length;
+    return { total, active, draft, hidden, unavailable, totalViews, featured, totalEnquiries: 0 };
+  }, [allProducts, statsData]);
 
   // ── Filtered + sorted products ──
   const filteredProducts = React.useMemo(() => {
@@ -93,20 +107,21 @@ export function Products({ vendor }: ProductsProps) {
       result = result.filter(p =>
         p.name?.toLowerCase().includes(q) ||
         p.description?.toLowerCase().includes(q) ||
-        (p as any).category?.toLowerCase().includes(q) ||
-        (p as any).productType?.toLowerCase().includes(q)
+        p.category?.toLowerCase().includes(q) ||
+        p.productType?.toLowerCase().includes(q) ||
+        p.subCategory?.toLowerCase().includes(q)
       );
     }
 
     // Status filter
     if (statusFilter === "active") {
-      result = result.filter(p => (p as any).isAvailable !== false && (p as any).status !== "draft" && (p as any).status !== "hidden");
+      result = result.filter(p => p.isAvailable !== false && p.status !== "draft" && p.status !== "hidden");
     } else if (statusFilter === "draft") {
-      result = result.filter(p => (p as any).status === "draft");
+      result = result.filter(p => p.status === "draft");
     } else if (statusFilter === "hidden") {
-      result = result.filter(p => (p as any).status === "hidden");
+      result = result.filter(p => p.status === "hidden");
     } else if (statusFilter === "unavailable") {
-      result = result.filter(p => (p as any).isAvailable === false);
+      result = result.filter(p => p.isAvailable === false);
     }
 
     // Sort
@@ -115,7 +130,7 @@ export function Products({ vendor }: ProductsProps) {
       case "name": result.sort((a, b) => a.name.localeCompare(b.name)); break;
       case "price_high": result.sort((a, b) => b.price - a.price); break;
       case "price_low": result.sort((a, b) => a.price - b.price); break;
-      case "views": result.sort((a, b) => ((b as any).views ?? 0) - ((a as any).views ?? 0)); break;
+      case "views": result.sort((a, b) => (b.views ?? 0) - (a.views ?? 0)); break;
       default: result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
 
@@ -163,25 +178,33 @@ export function Products({ vendor }: ProductsProps) {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Delete "${name}"?`)) return;
     try {
-      await deleteProduct.mutateAsync({ id, vendorId: vendor.id });
+      const res = await fetch(`/api/vendor/products/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
       toast.success("Product deleted");
+      reload();
     } catch { toast.error("Failed to delete"); }
   };
 
-  const handleDuplicate = async (p: Product) => {
+  const handleDuplicate = async (p: any) => {
     try {
-      const res = await fetch(`/api/products/${p.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "duplicate" }) });
+      const res = await fetch(`/api/vendor/products/${p.id}?action=duplicate`, { method: "POST" });
       if (!res.ok) throw new Error("Failed to duplicate");
       toast.success("Product duplicated as draft");
+      reload();
     } catch { toast.error("Failed to duplicate"); }
   };
 
-  const handleToggleVisibility = async (p: Product) => {
-    const newStatus = (p as any).status === "hidden" ? "active" : "hidden";
+  const handleToggleVisibility = async (p: any) => {
+    const newStatus = p.status === "hidden" ? "active" : "hidden";
     try {
-      const res = await fetch(`/api/products/${p.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus }) });
+      const res = await fetch(`/api/vendor/products/${p.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
       if (!res.ok) throw new Error("Failed to update");
       toast.success(newStatus === "hidden" ? "Product hidden" : "Product published");
+      reload();
     } catch { toast.error("Failed to update"); }
   };
 
@@ -210,14 +233,22 @@ export function Products({ vendor }: ProductsProps) {
     try {
       const extraFieldsObj: Record<string, any> = {};
       for (const [key, value] of Object.entries(form)) { if (STANDARD_FIELDS.has(key)) continue; extraFieldsObj[key] = value; }
-      const payload: any = { ...form, price: Number(form.price), comparePrice: form.comparePrice ? Number(form.comparePrice) : null, capacity: form.capacity ? Number(form.capacity) : null, vendorId: vendor.id, dietaryTags: form.dietaryTags || [], allergens: form.allergens || [], extraFields: extraFieldsObj, templateSlug: template?.slug, templateVersion: template?.version ?? 1 };
+      const payload: any = { ...form, price: Number(form.price), comparePrice: form.comparePrice ? Number(form.comparePrice) : null, capacity: form.capacity ? Number(form.capacity) : null, dietaryTags: form.dietaryTags || [], allergens: form.allergens || [], extraFields: extraFieldsObj, templateSlug: template?.slug, templateVersion: template?.version ?? 1 };
       if (editingProduct) {
-        const res = await fetch(`/api/products/${editingProduct.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        if (!res.ok) throw new Error("Update failed"); toast.success("Product updated!");
+        const res = await fetch(`/api/vendor/products/${editingProduct.id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("Update failed");
+        toast.success("Product updated!");
       } else {
-        await createProduct.mutateAsync(payload as any); toast.success("Product created!");
+        const res = await fetch("/api/vendor/products", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("Create failed");
+        toast.success("Product created!");
       }
       setShowModal(false); setForm(buildEmptyForm());
+      reload();
     } catch (e: any) { toast.error(e.message || "Failed to save"); }
     setSaving(false);
   };
@@ -236,14 +267,18 @@ export function Products({ vendor }: ProductsProps) {
     for (const id of ids) {
       try {
         if (action === "delete") {
-          await deleteProduct.mutateAsync({ id, vendorId: vendor.id });
+          await fetch(`/api/vendor/products/${id}`, { method: "DELETE" });
         } else if (action === "hide" || action === "publish") {
-          await fetch(`/api/products/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: action === "hide" ? "hidden" : "active" }) });
+          await fetch(`/api/vendor/products/${id}`, {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: action === "hide" ? "hidden" : "active" }),
+          });
         }
       } catch {}
     }
     toast.success(`${ids.length} products ${action === "delete" ? "deleted" : action === "hide" ? "hidden" : "published"}`);
     setSelected(new Set()); setShowBulkActions(false);
+    reload();
   };
 
   return (
@@ -365,10 +400,10 @@ export function Products({ vendor }: ProductsProps) {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filteredProducts.map((p, idx) => {
               const isSelected = selected.has(p.id);
-              const isAvailable = (p as any).isAvailable !== false;
-              const status = (p as any).status || (isAvailable ? "active" : "unavailable");
-              const views = (p as any).views ?? 0;
-              const isFeatured = (p as any).isFeatured || (p as any).featured;
+              const isAvailable = p.isAvailable !== false;
+              const status = p.status || (isAvailable ? "active" : "unavailable");
+              const views = p.views ?? 0;
+              const isFeatured = p.isFeatured || p.featured;
 
               return (
                 <motion.div
@@ -426,16 +461,16 @@ export function Products({ vendor }: ProductsProps) {
                   <div className="p-3">
                     <h3 className="truncate text-sm font-bold">{p.name}</h3>
                     <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                      {(p as any).productType || (p as any).category || (isFood ? "Food Product" : "Service Package")}
+                      {p.productType || p.category || (isFood ? "Food Product" : "Service Package")}
                     </p>
 
                     {/* Price + Views */}
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-sm font-bold text-brand">
                         {symbol}{p.price.toLocaleString()}
-                        {(p as any).comparePrice && (
+                        {p.comparePrice && (
                           <span className="ml-1 text-xs text-muted-foreground line-through">
-                            {symbol}{(p as any).comparePrice.toLocaleString()}
+                            {symbol}{p.comparePrice.toLocaleString()}
                           </span>
                         )}
                       </span>
