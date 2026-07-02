@@ -23,6 +23,7 @@ import {
   Filter,
   LayoutTemplate,
   ClipboardList,
+  ShieldCheck,
 } from "lucide-react";
 import {
   BarChart,
@@ -41,6 +42,8 @@ import { AdminPricing } from "@/components/admin/admin-pricing";
 import { AdminFilters } from "@/components/admin/admin-filters";
 import { AdminTemplates } from "@/components/admin/admin-templates";
 import { AdminLeadCenter } from "@/components/admin/admin-lead-center";
+import { AdminClaimsSection } from "@/components/admin/admin-claims";
+import { AdminSubscriptions } from "@/components/admin/admin-subscriptions";
 import { useCategoryLabels } from "@/hooks/use-category-labels";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
@@ -133,6 +136,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
       { id: "lead-center", label: "Lead Center", icon: ClipboardList },
+      { id: "claims", label: "Claims", icon: ShieldCheck },
       { id: "analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
@@ -892,6 +896,10 @@ export function AdminPanelPage({
             />
           ) : activeNav === "lead-center" ? (
             <AdminLeadCenter />
+          ) : activeNav === "claims" ? (
+            <AdminClaimsSection />
+          ) : activeNav === "subscriptions" ? (
+            <AdminSubscriptions />
           ) : activeNav === "seo-pages" ? (
             <AdminSeoPages />
           ) : activeNav === "pricing" ? (
