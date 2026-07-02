@@ -439,6 +439,20 @@ model Product {
   // Analytics
   enquiryCount       Int      @default(0)
 
+  // ── Variants, Inventory, Scheduling, Enhanced Analytics ──
+  // Variants (JSON: [{name, price, offerPrice, sku, available, image}])
+  variants           String?
+  // Inventory
+  stockType          String?  @default("unlimited") // "unlimited" | "limited" | "out_of_stock"
+  lowStockThreshold  Int      @default(5)
+  // Scheduling
+  scheduledPublishAt DateTime?
+  scheduledExpiryAt  DateTime?
+  // Enhanced analytics
+  whatsappClicks     Int      @default(0)
+  orderCount         Int      @default(0)
+  lastViewedAt       DateTime?
+
   // ── Food vendor enhanced fields ──
   allergens           String?
   customAllergen      String?

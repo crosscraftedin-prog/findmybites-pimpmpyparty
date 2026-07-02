@@ -4,7 +4,7 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, ChevronLeft, ChevronRight, Loader2, Sparkles, Upload, X,
-  Image as ImageIcon, Eye, Star, AlertCircle, Wand2,
+  Image as ImageIcon, Eye, Star, AlertCircle, Wand2, Plus, PartyPopper, Monitor, Tablet, Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,9 +27,10 @@ const STEPS = [
   { id: 1, title: "Basic Info", icon: Star },
   { id: 2, title: "Photos", icon: ImageIcon },
   { id: 3, title: "Pricing", icon: Star },
-  { id: 4, title: "Details", icon: Star },
-  { id: 5, title: "SEO", icon: Star },
-  { id: 6, title: "Preview", icon: Eye },
+  { id: 4, title: "Variants", icon: Star },
+  { id: 5, title: "Details", icon: Star },
+  { id: 6, title: "SEO", icon: Star },
+  { id: 7, title: "Preview", icon: Eye },
 ];
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -90,6 +91,16 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     metaTitle: initialData?.metaTitle || "",
     metaDescription: initialData?.metaDescription || "",
     tags: initialData?.tags || "",
+    // Variants & Inventory
+    variants: initialData?.variants || [],
+    stockType: initialData?.stockType || "unlimited",
+    stockCount: initialData?.stockCount ?? "",
+    lowStockThreshold: initialData?.lowStockThreshold ?? 5,
+    // Scheduling
+    scheduledPublishAt: initialData?.scheduledPublishAt || "",
+    scheduledExpiryAt: initialData?.scheduledExpiryAt || "",
+    // Featured
+    featured: initialData?.featured || false,
   });
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
@@ -171,6 +182,28 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
 
   const qualityStars = Math.round(qualityScore / 20);
 
+  // ── SEO Score ──
+  const seoScore = React.useMemo(() => {
+    let score = 0;
+    if (form.metaTitle?.trim()) {
+      score += 25;
+      if (form.metaTitle.length >= 30 && form.metaTitle.length <= 60) score += 10;
+    }
+    if (form.metaDescription?.trim()) {
+      score += 25;
+      if (form.metaDescription.length >= 120 && form.metaDescription.length <= 160) score += 10;
+    }
+    if (form.tags?.trim()) score += 20;
+    if (form.images?.length > 0) score += 10;
+    return Math.min(score, 100);
+  }, [form]);
+
+  const seoLabel = seoScore >= 80 ? "Excellent" : seoScore >= 50 ? "Good" : "Poor";
+
+  // ── Success state ──
+  const [published, setPublished] = React.useState(false);
+  const [previewDevice, setPreviewDevice] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
+
   // ── AI Product Writer ──
   const generateWithAI = async () => {
     if (!form.name?.trim()) {
@@ -250,13 +283,13 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const handlePublish = async () => {
     if (!validation.allPassed) {
       toast.error("Please complete all required fields before publishing");
-      setStep(6); // go to preview/validation step
+      setStep(7);
       return;
     }
-    const payload = { ...form, price: form.price ? Number(form.price) : 0, status: "active" };
-    // Clear draft
+    const payload = { ...form, price: form.price ? Number(form.price) : 0, status: "active", variants: form.variants?.length > 0 ? JSON.stringify(form.variants) : null };
     localStorage.removeItem(`product-draft-${vendor.id}`);
     await onSave(payload);
+    setPublished(true);
   };
 
   const handleSaveDraft = async () => {
@@ -474,8 +507,97 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                 </div>
               )}
 
-              {/* Step 4: Details (dynamic by ecosystem) */}
+              {/* Step 4: Variants & Inventory */}
               {step === 4 && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold">Variants & Inventory</h3>
+
+                  {/* Variants */}
+                  <div>
+                    <Label>Variants (optional)</Label>
+                    <p className="text-xs text-muted-foreground mb-2">Add size/weight/package options with different prices</p>
+                    {form.variants?.length > 0 && (
+                      <div className="space-y-2 mb-2">
+                        {form.variants.map((v: any, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2 rounded-lg border border-border p-2">
+                            <Input value={v.name} onChange={(e) => {
+                              const variants = [...form.variants]; variants[idx] = { ...v, name: e.target.value }; set("variants", variants);
+                            }} placeholder="e.g. 1kg" className="h-8 flex-1 text-sm" />
+                            <Input value={v.price} onChange={(e) => {
+                              const variants = [...form.variants]; variants[idx] = { ...v, price: e.target.value }; set("variants", variants);
+                            }} placeholder="Price" type="number" className="h-8 w-20 text-sm" />
+                            <button onClick={() => set("variants", form.variants.filter((_: any, i: number) => i !== idx))}
+                              className="grid size-7 place-items-center rounded text-red-600 hover:bg-red-50"><X className="size-3.5" /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => {
+                      set("variants", [...(form.variants || []), { name: "", price: "", offerPrice: "", sku: "", available: true }]);
+                    }} className="gap-1">
+                      <Plus className="size-3.5" /> Add Variant
+                    </Button>
+                  </div>
+
+                  {/* Inventory */}
+                  <div className="rounded-xl border border-border p-3">
+                    <Label className="mb-2 block">Inventory</Label>
+                    <div className="flex gap-2 mb-2">
+                      {["unlimited", "limited", "out_of_stock"].map(s => (
+                        <button key={s} onClick={() => set("stockType", s)}
+                          className={cn("rounded-lg border px-3 py-1.5 text-xs font-medium",
+                            form.stockType === s ? "border-brand bg-brand/10 text-brand" : "border-border text-muted-foreground")}>
+                          {s === "unlimited" ? "Unlimited" : s === "limited" ? "Limited" : "Out of Stock"}
+                        </button>
+                      ))}
+                    </div>
+                    {form.stockType === "limited" && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor="p-stock" className="text-xs">Quantity Available</Label>
+                          <Input id="p-stock" type="number" value={form.stockCount} onChange={e => set("stockCount", e.target.value)}
+                            placeholder="50" className="mt-1 h-9" />
+                        </div>
+                        <div>
+                          <Label htmlFor="p-low" className="text-xs">Low Stock Alert At</Label>
+                          <Input id="p-low" type="number" value={form.lowStockThreshold} onChange={e => set("lowStockThreshold", e.target.value)}
+                            placeholder="5" className="mt-1 h-9" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Scheduling */}
+                  <div className="rounded-xl border border-border p-3">
+                    <Label className="mb-2 block">Scheduling (optional)</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="p-pub" className="text-xs">Schedule Publish Date</Label>
+                        <Input id="p-pub" type="datetime-local" value={form.scheduledPublishAt} onChange={e => set("scheduledPublishAt", e.target.value)}
+                          className="mt-1 h-9 text-sm" />
+                      </div>
+                      <div>
+                        <Label htmlFor="p-exp" className="text-xs">Schedule Expiry Date</Label>
+                        <Input id="p-exp" type="datetime-local" value={form.scheduledExpiryAt} onChange={e => set("scheduledExpiryAt", e.target.value)}
+                          className="mt-1 h-9 text-sm" />
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[10px] text-muted-foreground">Leave empty to publish immediately. Expiry auto-hides the product.</p>
+                  </div>
+
+                  {/* Featured */}
+                  <div className="flex items-center gap-2 rounded-xl border border-border p-3">
+                    <input type="checkbox" id="p-featured" checked={form.featured} onChange={e => set("featured", e.target.checked)}
+                      className="size-4 rounded border-border" />
+                    <Label htmlFor="p-featured" className="text-sm cursor-pointer">
+                      Feature this product <span className="text-xs text-muted-foreground">(appears first on your profile — Free plan: max 2)</span>
+                    </Label>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 5: Details (dynamic by ecosystem) */}
+              {step === 5 && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold">{isFood ? "Food Product Details" : "Package Details"}</h3>
                   <div>
@@ -525,8 +647,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                 </div>
               )}
 
-              {/* Step 5: SEO */}
-              {step === 5 && (
+              {/* Step 6: SEO */}
+              {step === 6 && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-bold">SEO Settings</h3>
@@ -554,36 +676,53 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                 </div>
               )}
 
-              {/* Step 6: Preview & Publish */}
-              {step === 6 && (
+              {/* Step 7: Preview & Publish */}
+              {step === 7 && (
                 <div className="space-y-4">
+                  {/* Success Animation */}
+                  {published ? (
+                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="py-12 text-center">
+                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring" }}
+                        className="mx-auto mb-4 grid size-16 place-items-center rounded-full bg-emerald-500">
+                        <PartyPopper className="size-8 text-white" />
+                      </motion.div>
+                      <h3 className="text-xl font-bold text-emerald-700">Your product is now live!</h3>
+                      <p className="mt-2 text-sm text-muted-foreground">Customers can now find and order this product.</p>
+                      <div className="mt-6 flex flex-wrap justify-center gap-2">
+                        <Button onClick={() => window.open(`/product/${form.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, "_blank")} variant="outline" className="gap-1.5">
+                          <Eye className="size-4" /> View Product
+                        </Button>
+                        <Button onClick={() => { setPublished(false); setStep(1); setForm({ ...form, name: "", description: "", images: [] }); }} variant="outline" className="gap-1.5">
+                          <Plus className="size-4" /> Add Another
+                        </Button>
+                        <Button onClick={onClose} className="bg-brand text-brand-foreground hover:bg-brand/90">Go to Dashboard</Button>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <>
                   <h3 className="text-lg font-bold">Preview & Publish</h3>
-                  {/* Validation Checklist */}
-                  <div className="rounded-xl border border-border bg-card p-4">
-                    <h4 className="mb-3 text-sm font-semibold">Publish Checklist</h4>
-                    <div className="space-y-2">
-                      {validation.checks.map(c => (
-                        <div key={c.id} className="flex items-center gap-2 text-sm">
-                          <div className={cn("grid size-5 place-items-center rounded-full", c.passed ? "bg-emerald-500" : "bg-muted")}>
-                            {c.passed ? <Check className="size-3 text-white" /> : <AlertCircle className="size-3 text-muted-foreground" />}
-                          </div>
-                          <span className={cn(c.passed ? "text-foreground" : "text-muted-foreground")}>{c.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-3 border-t border-border pt-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium">Quality Score</span>
-                        <span className="text-sm font-bold">{qualityScore}%</span>
-                      </div>
-                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
-                        <div className={cn("h-full rounded-full", qualityScore >= 80 ? "bg-emerald-500" : qualityScore >= 50 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${qualityScore}%` }} />
-                      </div>
-                    </div>
+
+                  {/* Device Preview Toggle */}
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    {[
+                      { id: "desktop", icon: Monitor, label: "Desktop" },
+                      { id: "tablet", icon: Tablet, label: "Tablet" },
+                      { id: "mobile", icon: Smartphone, label: "Mobile" },
+                    ].map(d => {
+                      const Icon = d.icon;
+                      return (
+                        <button key={d.id} onClick={() => setPreviewDevice(d.id)}
+                          className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium",
+                            previewDevice === d.id ? "border-brand bg-brand/10 text-brand" : "border-border text-muted-foreground")}>
+                          <Icon className="size-3.5" /> {d.label}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Product Preview Card */}
-                  <div className="rounded-xl border border-border bg-card p-4">
+                  {/* Product Preview Card (responsive by device) */}
+                  <div className={cn("mx-auto rounded-xl border border-border bg-card p-4 transition-all",
+                    previewDevice === "desktop" ? "max-w-full" : previewDevice === "tablet" ? "max-w-md" : "max-w-xs")}>
                     <div className="flex gap-3">
                       <div className="size-20 shrink-0 overflow-hidden rounded-lg bg-muted">
                         {form.images?.[0] ? (
@@ -601,12 +740,50 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                         </p>
                       </div>
                     </div>
+                    {form.featured && <Badge className="mt-2 bg-amber-100 text-amber-700">⭐ Featured</Badge>}
+                  </div>
+
+                  {/* Validation + Scores */}
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <h4 className="mb-3 text-sm font-semibold">Publish Checklist</h4>
+                    <div className="space-y-2">
+                      {validation.checks.map(c => (
+                        <div key={c.id} className="flex items-center gap-2 text-sm">
+                          <div className={cn("grid size-5 place-items-center rounded-full", c.passed ? "bg-emerald-500" : "bg-muted")}>
+                            {c.passed ? <Check className="size-3 text-white" /> : <AlertCircle className="size-3 text-muted-foreground" />}
+                          </div>
+                          <span className={cn(c.passed ? "text-foreground" : "text-muted-foreground")}>{c.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-4 border-t border-border pt-3">
+                      <div>
+                        <span className="text-xs font-medium">Quality Score</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                            <div className={cn("h-full rounded-full", qualityScore >= 80 ? "bg-emerald-500" : qualityScore >= 50 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${qualityScore}%` }} />
+                          </div>
+                          <span className="text-xs font-bold">{qualityScore}%</span>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium">SEO Score: {seoLabel}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                            <div className={cn("h-full rounded-full", seoScore >= 80 ? "bg-emerald-500" : seoScore >= 50 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${seoScore}%` }} />
+                          </div>
+                          <span className="text-xs font-bold">{seoScore}%</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {!validation.allPassed && (
                     <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
                       <AlertCircle className="mb-1 inline size-4" /> Complete the missing items above before publishing.
                     </div>
+                  )}
+                    </>
                   )}
                 </div>
               )}
@@ -628,12 +805,12 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
           <Button variant="ghost" onClick={handleSaveDraft} disabled={saving}>
             Save Draft
           </Button>
-          {step < 6 ? (
+          {step < 7 ? (
             <Button onClick={() => setStep(step + 1)} disabled={!canProceed} className="gap-1 bg-brand text-brand-foreground hover:bg-brand/90">
               Next <ChevronRight className="size-4" />
             </Button>
           ) : (
-            <Button onClick={handlePublish} disabled={saving || !validation.allPassed} className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
+            <Button onClick={handlePublish} disabled={saving || !validation.allPassed || published} className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
               Publish
             </Button>
