@@ -1,0 +1,437 @@
+"use client";
+
+import * as React from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Send,
+  Check,
+  X,
+  Loader2,
+  Copy,
+  ExternalLink,
+  MessageCircle,
+  Search,
+  Plus,
+  Store,
+  Clock,
+} from "lucide-react";
+
+interface PendingVendor {
+  id: string;
+  name: string;
+  slug: string;
+  ecosystem: string;
+  category: string;
+  city: string;
+  whatsapp: string | null;
+  userEmail: string | null;
+  invite_type: string | null;
+  approved: boolean;
+  createdAt: string;
+}
+
+interface InviteResult {
+  vendor: { id: string; name: string };
+  inviteUrl: string;
+  token: string;
+  whatsappShareUrl: string;
+  expiresAt: string;
+}
+
+const ECOSYSTEM_NAME: Record<string, string> = {
+  FINDMYBITES: "FindMyBites",
+  PIMPMYPARTY: "PimpMyParty",
+};
+
+export function AdminVendorInvitations() {
+  const [tab, setTab] = React.useState("invite");
+  const [pendingVendors, setPendingVendors] = React.useState<PendingVendor[]>([]);
+  const [loadingPending, setLoadingPending] = React.useState(true);
+
+  // Invite form state
+  const [ecosystem, setEcosystem] = React.useState("FINDMYBITES");
+  const [name, setName] = React.useState("");
+  const [whatsapp, setWhatsapp] = React.useState("");
+  const [city, setCity] = React.useState("");
+  const [category, setCategory] = React.useState("bakers-bakery");
+  const [sending, setSending] = React.useState(false);
+  const [inviteResult, setInviteResult] = React.useState<InviteResult | null>(null);
+
+  // Approval state
+  const [approvingId, setApprovingId] = React.useState<string | null>(null);
+  const [approvalResult, setApprovalResult] = React.useState<InviteResult | null>(null);
+
+  // Search for pending vendors
+  const [search, setSearch] = React.useState("");
+
+  const loadPendingVendors = async () => {
+    setLoadingPending(true);
+    try {
+      const res = await fetch("/api/admin/vendors?approved=false&pageSize=50");
+      if (!res.ok) return;
+      const data = await res.json();
+      setPendingVendors(data.vendors ?? []);
+    } catch {
+      // silent
+    }
+    setLoadingPending(false);
+  };
+
+  React.useEffect(() => {
+    loadPendingVendors();
+  }, []);
+
+  // ── Send invite ──
+  const sendInvite = async () => {
+    if (!name.trim() || !whatsapp.trim()) {
+      toast.error("Business name and WhatsApp number are required");
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await fetch("/api/admin/invite-vendor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          whatsapp: whatsapp.trim(),
+          ecosystem,
+          category,
+          city: city.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send invite");
+
+      setInviteResult(data);
+      // Auto-open WhatsApp
+      window.open(data.whatsappShareUrl, "_blank");
+      toast.success(`Invite sent for ${name.trim()}! WhatsApp opened.`);
+      // Reset form
+      setName("");
+      setWhatsapp("");
+      setCity("");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+    setSending(false);
+  };
+
+  // ── Approve pending vendor ──
+  const approveVendor = async (vendorId: string) => {
+    setApprovingId(vendorId);
+    try {
+      const res = await fetch(`/api/admin/vendors/${vendorId}/approve`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to approve");
+
+      setApprovalResult(data);
+      window.open(data.whatsappShareUrl, "_blank");
+      toast.success("Vendor approved! Activation link sent via WhatsApp.");
+      loadPendingVendors();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+    setApprovingId(null);
+  };
+
+  const copyLink = async (url: string) => {
+    await navigator.clipboard.writeText(url);
+    toast.success("Link copied to clipboard");
+  };
+
+  const filteredPending = React.useMemo(() => {
+    if (!search.trim()) return pendingVendors;
+    const q = search.toLowerCase();
+    return pendingVendors.filter(v =>
+      v.name.toLowerCase().includes(q) ||
+      v.city?.toLowerCase().includes(q) ||
+      v.whatsapp?.toLowerCase().includes(q)
+    );
+  }, [pendingVendors, search]);
+
+  return (
+    <div>
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Vendor Invitations</h2>
+      </div>
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="invite">Send Invite</TabsTrigger>
+          <TabsTrigger value="pending">
+            Pending Signups ({pendingVendors.length})
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ── Send Invite Tab ── */}
+        <TabsContent value="invite" className="mt-4">
+          <div className="max-w-md space-y-4 rounded-xl border border-border bg-card p-5">
+            <div>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Platform
+              </Label>
+              <div className="mt-1.5 flex gap-2">
+                {(["FINDMYBITES", "PIMPMYPARTY"] as const).map(eco => (
+                  <button
+                    key={eco}
+                    onClick={() => setEcosystem(eco)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      ecosystem === eco
+                        ? eco === "FINDMYBITES"
+                          ? "border-[#FF6B35] bg-[#FF6B35]/10 text-[#FF6B35]"
+                          : "border-purple-500 bg-purple-50 text-purple-600"
+                        : "border-border bg-card text-muted-foreground hover:bg-muted/30"
+                    }`}
+                  >
+                    {ECOSYSTEM_NAME[eco]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="biz-name">Business Name *</Label>
+              <Input
+                id="biz-name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="e.g. Sugar & Bloom Bakery"
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="biz-whatsapp">WhatsApp Number *</Label>
+              <Input
+                id="biz-whatsapp"
+                value={whatsapp}
+                onChange={e => setWhatsapp(e.target.value)}
+                placeholder="+91 98765 43210"
+                className="mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="biz-city">City</Label>
+                <Input
+                  id="biz-city"
+                  value={city}
+                  onChange={e => setCity(e.target.value)}
+                  placeholder="Mumbai"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="biz-category">Category</Label>
+                <select
+                  id="biz-category"
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="bakers-bakery">Bakers & Bakery</option>
+                  <option value="caterers">Caterers</option>
+                  <option value="chef-staff">Private Chef</option>
+                  <option value="food-trucks">Food Trucks</option>
+                  <option value="decorators">Decorators</option>
+                  <option value="photographers">Photographers</option>
+                  <option value="videographers">Videographers</option>
+                  <option value="djs">DJs</option>
+                  <option value="venues">Venues</option>
+                  <option value="florists">Florists</option>
+                  <option value="makeup-artists">Makeup Artists</option>
+                  <option value="event-planners">Event Planners</option>
+                </select>
+              </div>
+            </div>
+
+            <Button
+              onClick={sendInvite}
+              disabled={sending || !name.trim() || !whatsapp.trim()}
+              className="w-full gap-1.5 bg-[#FF6B35] text-white hover:bg-[#e85a2a]"
+            >
+              {sending ? (
+                <><Loader2 className="size-4 animate-spin" /> Sending…</>
+              ) : (
+                <><Send className="size-4" /> Send Invite</>
+              )}
+            </Button>
+
+            <p className="text-center text-[11px] text-muted-foreground">
+              The vendor will be created as approved. WhatsApp opens automatically with a pre-filled invitation message.
+            </p>
+          </div>
+        </TabsContent>
+
+        {/* ── Pending Signups Tab ── */}
+        <TabsContent value="pending" className="mt-4">
+          {/* Search */}
+          <div className="relative mb-3 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, city, or WhatsApp…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {loadingPending ? (
+            <div className="py-8 text-center text-muted-foreground">
+              <Loader2 className="mx-auto size-6 animate-spin" />
+            </div>
+          ) : filteredPending.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border py-10 text-center">
+              <Store className="mx-auto size-8 text-muted-foreground/30 mb-2" />
+              <p className="text-sm font-medium">No pending signups</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Organic vendor registrations will appear here for approval.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredPending.map(v => (
+                <div
+                  key={v.id}
+                  className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {ECOSYSTEM_NAME[v.ecosystem] || "—"} · {v.category || "—"}
+                    </p>
+                    <p className="truncate text-sm font-bold">{v.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {v.city || "Unknown city"} · {v.whatsapp || "No WhatsApp"} ·{" "}
+                      {new Date(v.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className="rounded-full px-2 py-0.5 text-[10px] uppercase bg-amber-100 text-amber-700">
+                      Pending
+                    </Badge>
+                    <Button
+                      size="sm"
+                      onClick={() => approveVendor(v.id)}
+                      disabled={approvingId === v.id}
+                      className="gap-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                    >
+                      {approvingId === v.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <><Check className="size-3.5" /> Approve</>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Invite Result Dialog ── */}
+      <Dialog open={!!inviteResult} onOpenChange={(o) => !o && setInviteResult(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invite Sent! 🎉</DialogTitle>
+            <DialogDescription>
+              {inviteResult?.vendor.name} has been created and approved. WhatsApp opened with the invitation message.
+            </DialogDescription>
+          </DialogHeader>
+          {inviteResult && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Activation Link (valid for 7 days)
+                </p>
+                <code className="block break-all text-xs">{inviteResult.inviteUrl}</code>
+              </div>
+              <div className="grid gap-2">
+                <Button
+                  onClick={() => copyLink(inviteResult.inviteUrl)}
+                  className="w-full gap-1.5"
+                >
+                  <Copy className="size-4" /> Copy Link
+                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => window.open(inviteResult.whatsappShareUrl, "_blank")}
+                    className="flex-1 gap-1.5 bg-[#25D366] text-white hover:bg-[#1ebe57]"
+                  >
+                    <MessageCircle className="size-4" /> WhatsApp
+                  </Button>
+                  <Button
+                    onClick={() => window.open(inviteResult.inviteUrl, "_blank")}
+                    variant="outline"
+                    className="flex-1 gap-1.5"
+                  >
+                    <ExternalLink className="size-4" /> Open
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setInviteResult(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Approval Result Dialog ── */}
+      <Dialog open={!!approvalResult} onOpenChange={(o) => !o && setApprovalResult(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vendor Approved! ✅</DialogTitle>
+            <DialogDescription>
+              {approvalResult?.vendor.name} is now approved. Share the activation link via WhatsApp.
+            </DialogDescription>
+          </DialogHeader>
+          {approvalResult && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Activation Link (valid for 7 days)
+                </p>
+                <code className="block break-all text-xs">{approvalResult.activateUrl || approvalResult.inviteUrl}</code>
+              </div>
+              <div className="grid gap-2">
+                <Button
+                  onClick={() => copyLink(approvalResult.activateUrl || approvalResult.inviteUrl)}
+                  className="w-full gap-1.5"
+                >
+                  <Copy className="size-4" /> Copy Link
+                </Button>
+                <Button
+                  onClick={() => window.open(approvalResult.whatsappShareUrl, "_blank")}
+                  className="w-full gap-1.5 bg-[#25D366] text-white hover:bg-[#1ebe57]"
+                >
+                  <MessageCircle className="size-4" /> Share on WhatsApp
+                </Button>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setApprovalResult(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -49,6 +49,7 @@ const AdminFilters = dynamic(() => import("@/components/admin/admin-filters").th
 const AdminTemplates = dynamic(() => import("@/components/admin/admin-templates").then(m => ({ default: m.AdminTemplates })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminLeadCenter = dynamic(() => import("@/components/admin/admin-lead-center").then(m => ({ default: m.AdminLeadCenter })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminClaimsSection = dynamic(() => import("@/components/admin/admin-claims").then(m => ({ default: m.AdminClaimsSection })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
+const AdminVendorInvitations = dynamic(() => import("@/components/admin/admin-vendor-invitations").then(m => ({ default: m.AdminVendorInvitations })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminSubscriptions = dynamic(() => import("@/components/admin/admin-subscriptions").then(m => ({ default: m.AdminSubscriptions })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 import { useCategoryLabels } from "@/hooks/use-category-labels";
 
@@ -142,7 +143,8 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
       { id: "lead-center", label: "Lead Center", icon: ClipboardList },
-      { id: "claims", label: "Claims", icon: ShieldCheck },
+      { id: "invitations", label: "Vendor Invitations", icon: ShieldCheck },
+      { id: "claims", label: "Claims (Legacy)", icon: ClipboardList },
       { id: "analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
@@ -890,6 +892,8 @@ export function AdminPanelPage({
             />
           ) : activeNav === "lead-center" ? (
             <AdminLeadCenter />
+          ) : activeNav === "invitations" ? (
+            <AdminVendorInvitations />
           ) : activeNav === "claims" ? (
             <AdminClaimsSection />
           ) : activeNav === "subscriptions" ? (

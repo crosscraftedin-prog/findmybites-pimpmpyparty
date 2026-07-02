@@ -137,6 +137,8 @@ model Vendor {
   owner_user_id    String?
   // Tracks the listing lifecycle: unclaimed → pending → approved/rejected
   ownership_status String?   @default("unclaimed")
+  // How the vendor was onboarded: 'admin' (invited) or 'organic' (self-registered)
+  invite_type      String?   @default("organic")
   // Plan expiry — set when a Razorpay payment is verified.
   // Monthly → +30 days, Yearly → +365 days
   planExpiresAt     DateTime?
