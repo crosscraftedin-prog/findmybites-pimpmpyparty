@@ -403,6 +403,42 @@ model Product {
   isFeatured  Boolean  @default(false)
   sortOrder   Int      @default(0)
   updatedAt   DateTime @updatedAt
+
+  // ── Product Management System: extended fields ──
+  // FindMyBites food-specific
+  subCategory       String?
+  shortDescription  String?
+  vegetarian        Boolean  @default(false)
+  vegan             Boolean  @default(false)
+  halal             Boolean  @default(false)
+  glutenFree        Boolean  @default(false)
+  sugarFree         Boolean  @default(false)
+  spicyLevel        String?  // "mild" | "medium" | "hot" | "extra_hot"
+  ingredients       String?  // long text
+  allergenInfo      String?  // long text
+
+  // PimpMyParty package-specific
+  includedServices   String?  // JSON array
+  optionalServices   String?  // JSON array
+  equipmentIncluded  String?  // text
+  indoorOutdoor      String?  // "indoor" | "outdoor" | "both"
+  travelAvailable    Boolean  @default(false)
+  bookingNotice      String?  // e.g. "2 weeks"
+  cancellationPolicy String?  // text
+
+  // Pricing options
+  offerPrice         Int?     // sale/discount price
+  startingFromPrice  Boolean  @default(false) // show "Starting from" prefix
+  hidePrice          Boolean  @default(false) // don't show price publicly
+  priceOnRequest     Boolean  @default(false) // "Price on request"
+
+  // Availability modes
+  limitedTime        Boolean  @default(false)
+  customOrderOnly    Boolean  @default(false)
+
+  // Analytics
+  enquiryCount       Int      @default(0)
+
   // ── Food vendor enhanced fields ──
   allergens           String?
   customAllergen      String?
