@@ -167,7 +167,7 @@ export async function verifySavedState(
       console.error(`[josh/store] VERIFY FAILED: conversation ${conversationId} not found after save`);
       return { verified: false, reloadedState: null };
     }
-    const reloadedState = (row.state as ConversationState) ?? null;
+    const reloadedState = (row.state as unknown as ConversationState) ?? null;
     const verified = stateMatches(reloadedState, expectedState);
     if (verified) {
       console.log(`[josh/store] VERIFY PASSED: conversation ${conversationId} state matches`);
