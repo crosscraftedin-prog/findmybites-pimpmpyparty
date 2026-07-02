@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       { categories },
-      { headers: { "Cache-Control": "no-store, must-revalidate" } }
+      { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } }
     );
   } catch (err) {
     console.error("[api/categories] GET failed:", err);
