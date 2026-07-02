@@ -3,6 +3,12 @@ import { db } from "@/lib/db";
 import { migrateCategory } from "@/lib/constants";
 import type { Ecosystem } from "@/lib/types";
 
+// PERFORMANCE: In-memory cache for categories (5-minute TTL).
+// Categories change rarely (admin-managed), so caching avoids hitting
+// the database on every page load across the entire site.
+let _cache: { data: any; expiry: number } | null = null;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 interface CategoryWithCount {
   id: string;
   ecosystem: Ecosystem;
@@ -25,6 +31,14 @@ interface CategoryWithCount {
  */
 export async function GET(req: NextRequest) {
   try {
+    // Check in-memory cache first
+    if (_cache && Date.now() < _cache.expiry) {
+      return NextResponse.json(
+        { categories: _cache.data },
+        { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } }
+      );
+    }
+
     const sp = req.nextUrl.searchParams;
     const ecosystemParam = sp.get("ecosystem") as Ecosystem | null;
 
@@ -85,6 +99,9 @@ export async function GET(req: NextRequest) {
         label: s.label,
       })),
     }));
+
+    // Store in cache
+    _cache = { data: categories, expiry: Date.now() + CACHE_TTL_MS };
 
     return NextResponse.json(
       { categories },
