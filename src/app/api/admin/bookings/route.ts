@@ -1,101 +1,38 @@
-import { requireAdmin } from "@/lib/admin-guard";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import type { Booking } from "@/lib/types";
+import { searchBookings, getBookingAnalytics, cancelBooking } from "@/lib/bookings/booking-service";
 
-function transformBooking(b: any): Booking {
-  return {
-    id: b.id,
-    vendorId: b.vendorId,
-    name: b.name,
-    email: b.email,
-    eventType: b.eventType,
-    eventDate: b.eventDate,
-    eventCity: b.eventCity,
-    guests: b.guests,
-    budget: b.budget,
-    message: b.message,
-    status: b.status as Booking["status"],
-    createdAt: b.createdAt instanceof Date ? b.createdAt.toISOString() : b.createdAt,
-    // Phase 4 fields
-    phone: b.phone ?? null,
-    eventTime: b.eventTime ?? null,
-    address: b.address ?? null,
-    notes: b.notes ?? null,
-    referenceImage: b.referenceImage ?? null,
-    preferredContact: b.preferredContact ?? null,
-    productId: b.productId ?? null,
-    aiSummary: b.aiSummary ?? null,
-    leadScore: b.leadScore ?? null,
-    aiQualification: b.aiQualification ?? null,
-    conciergeEventId: b.conciergeEventId ?? null,
-  } as Booking;
-}
-
-/**
- * GET /api/admin/bookings?status=&page=&pageSize=
- * Returns all bookings (optionally filtered by status) with the vendor name
- * joined, newest first. Paginated.
- */
+/** GET /api/admin/bookings?search=...&status=...&city=... — all bookings (admin) */
 export async function GET(req: NextRequest) {
   try {
-  const guard = await requireAdmin();
-  if (guard) return guard;
     const sp = req.nextUrl.searchParams;
-    const status = sp.get("status") ?? undefined;
-    const pageRaw = Number(sp.get("page"));
-    const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.round(pageRaw) : 1;
-    const pageSizeRaw = Number(sp.get("pageSize"));
-    const pageSize =
-      Number.isFinite(pageSizeRaw) && pageSizeRaw > 0
-        ? Math.min(100, Math.round(pageSizeRaw))
-        : 25;
-
-    const where = status ? { status } : {};
-    const [total, rows] = await Promise.all([
-      db.booking.count({ where }),
-      db.booking.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: {
-          vendor: {
-            select: {
-              name: true,
-              city: true,
-              slug: true,
-              category: true,
-              rating: true,
-              reviewCount: true,
-            },
-          },
-        },
+    const [bookings, analytics] = await Promise.all([
+      searchBookings({
+        status: (sp.get("status") as any) ?? undefined,
+        city: sp.get("city") ?? undefined,
+        search: sp.get("search") ?? undefined,
+        dateFrom: sp.get("dateFrom") ?? undefined,
+        dateTo: sp.get("dateTo") ?? undefined,
+        limit: sp.get("limit") ? parseInt(sp.get("limit")!) : 100,
+        offset: sp.get("offset") ? parseInt(sp.get("offset")!) : 0,
       }),
+      getBookingAnalytics(),
     ]);
+    return NextResponse.json({ bookings, count: bookings.length, analytics });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
 
-    const bookings = rows.map((b) => ({
-      ...transformBooking(b),
-      vendorName: b.vendor?.name ?? "—",
-      vendorCity: b.vendor?.city ?? "",
-      vendorSlug: b.vendor?.slug ?? null,
-      vendorCategory: b.vendor?.category ?? null,
-      vendorRating: b.vendor?.rating ?? null,
-      vendorReviewCount: b.vendor?.reviewCount ?? null,
-    }));
-
-    return NextResponse.json({
-      bookings,
-      total,
-      page,
-      pageSize,
-      totalPages: Math.max(1, Math.ceil(total / pageSize)),
-    });
-  } catch (err) {
-    console.error("[api/admin/bookings] GET failed:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch bookings" },
-      { status: 500 }
-    );
+/** POST /api/admin/bookings — admin cancel booking */
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    if (body.action === "cancel") {
+      const booking = await cancelBooking(body.bookingId, body.adminId ?? null, "admin", body.reason);
+      return NextResponse.json({ success: true, booking });
+    }
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

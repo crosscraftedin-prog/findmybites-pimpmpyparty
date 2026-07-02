@@ -20,7 +20,7 @@ model User {
   image         String?
   emailVerified DateTime?
   createdAt     DateTime  @default(now())
-
+  bookings      BookingV2[]
 }
 
 // Master category table — normalized, admin-managed, future-proof.
@@ -147,6 +147,7 @@ model Vendor {
   availability     VendorAvailability[]
   subscriptions    VendorSubscription[]
   payments         PaymentHistory[]
+  bookingsV2       BookingV2[]
 
   @@index([ecosystem])
   @@index([category])
@@ -1063,4 +1064,157 @@ model PaymentHistory {
   @@index([createdAt])
   @@map("payment_history")
 }
+
+// ── Bookings Management System (V2) ───────────────────────────────────────
+// Production-ready booking system designed for millions of rows.
+// This is a NEW model alongside the existing `Booking` (enquiry) model —
+// the existing model is NOT modified.
+//
+// Future-ready architecture:
+//   - depositAmount + depositStatus: support deposits/partial payments
+//   - commissionAmount + commissionRate: support marketplace commission
+//   - invoiceNumber: support invoices
+//   - escrowStatus: support escrow (future)
+//   - couponCode: support coupons
+//   - recurrenceRule: support recurring services (iCal RRULE)
+//   - calendarSyncToken: support Google/Outlook/Apple Calendar sync
+//   - provider-agnostic notification events (email/whatsapp/push-ready)
+
+model BookingV2 {
+  id              String   @id @default(cuid())
+  bookingNumber   String   @unique // human-readable: FMB-BKG-YYYY-NNNNN
+  vendorId        String
+  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  // ── Customer info ──
+  customerName    String
+  customerPhone   String
+  customerEmail   String
+  // Optional link to an authenticated User (if the customer is logged in)
+  customerId      String?
+  customer        User?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  // ── Event details ──
+  eventType       String   // "Wedding", "Birthday", "Corporate", etc.
+  bookingDate     DateTime // the event date
+  bookingTime     String   // "14:00" (time of day)
+  address         String   // delivery / event address
+  city            String
+  guests          Int      @default(0)
+  budget          Int      @default(0) // in smallest currency unit (paise)
+  currency        String   @default("INR")
+  specialNotes    String?  // customer notes
+
+  // ── Products / Services ──
+  // JSON array: [{ productId, name, qty, price }]
+  items           String   @default("[]")
+  totalAmount     Int      @default(0) // sum of items, in smallest currency unit
+
+  // ── Status (booking lifecycle) ──
+  // pending → confirmed → accepted → in_progress → completed
+  //                    ↘ rejected
+  //         → cancelled (at any point)
+  //         → refunded (future)
+  status          String   @default("pending") // pending|confirmed|accepted|rejected|in_progress|completed|cancelled|refunded
+
+  // ── Reference image (customer upload) ──
+  referenceImage  String?
+
+  // ── Future-ready: payments ──
+  depositAmount   Int      @default(0) // deposit required (smallest unit)
+  depositStatus   String   @default("none") // none|required|paid|partial|refunded
+  paymentStatus   String   @default("unpaid") // unpaid|deposit_paid|partially_paid|paid|refunded
+  escrowStatus    String   @default("none") // none|held|released|refunded
+  commissionRate  Float    @default(0) // marketplace commission percentage (0-100)
+  commissionAmount Int     @default(0) // computed commission (smallest unit)
+  couponCode      String?
+
+  // ── Future-ready: invoicing ──
+  invoiceNumber   String?
+
+  // ── Future-ready: recurring services ──
+  recurrenceRule  String?  // iCal RRULE string (e.g. "FREQ=WEEKLY;BYDAY=MO")
+
+  // ── Future-ready: calendar sync ──
+  calendarSyncToken String? // Google/Outlook sync token
+  calendarEventId  String?  // external calendar event ID
+
+  // ── Internal (vendor-only) notes ──
+  internalNotes   String?
+
+  // ── Reassignment (admin) ──
+  reassignedFrom  String?  // previous vendorId if reassigned
+  reassignedAt    DateTime?
+  reassignedBy    String?  // admin user id
+
+  // ── Audit ──
+  createdBy       String?  // user id or "guest"
+  cancelledReason String?
+  cancelledAt     DateTime?
+  rejectedReason  String?
+  rejectedAt      DateTime?
+  completedAt     DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // ── Relations ──
+  notes           BookingNote[]
+  events          BookingEvent[]
+
+  // ── Scalable indexes (designed for millions of rows) ──
+  @@index([vendorId])
+  @@index([customerId])
+  @@index([customerEmail])
+  @@index([status])
+  @@index([bookingDate])
+  @@index([city])
+  @@index([createdAt])
+  @@index([vendorId, status])
+  @@index([vendorId, bookingDate])
+  @@index([status, bookingDate])
+  @@index([customerEmail, status])
+  @@map("bookings_v2")
+}
+
+// ── Booking Notes (internal vendor notes + customer-visible notes) ────────
+model BookingNote {
+  id          String   @id @default(cuid())
+  bookingId   String
+  booking     BookingV2 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  authorId    String?  // user id (vendor or admin)
+  authorName  String
+  authorRole  String   @default("vendor") // "vendor" | "admin" | "customer"
+  note        String
+  isInternal  Boolean  @default(true) // internal = vendor-only; false = customer-visible
+  createdAt   DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([createdAt])
+  @@map("booking_notes")
+}
+
+// ── Booking Events (audit log + notification source) ─────────────────────
+// Every status change + action creates an immutable event row.
+// This is the audit log (Step: Security) and the source for notifications.
+model BookingEvent {
+  id          String   @id @default(cuid())
+  bookingId   String
+  booking     BookingV2 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  eventType   String   // "created"|"accepted"|"rejected"|"rescheduled"|"completed"|"cancelled"|"reminder_24h"|"note_added"|"reassigned"
+  actorId     String?  // user id who performed the action
+  actorRole   String   @default("system") // "vendor"|"admin"|"customer"|"system"
+  metadata    String?  // JSON: { oldStatus, newStatus, oldDate, newDate, ... }
+  // ── Notification delivery status (provider-agnostic) ──
+  notifEmailSent    Boolean @default(false)
+  notifWhatsappSent Boolean @default(false)
+  notifPushSent     Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("booking_events")
+}
+
 
