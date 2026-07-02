@@ -18,6 +18,7 @@ import { PlanBilling } from "@/components/dashboard/PlanBilling";
 import { Settings } from "@/components/dashboard/Settings";
 import { Messages } from "@/components/dashboard/Messages";
 import { Notifications } from "@/components/dashboard/Notifications";
+import { VendorOnboarding } from "@/components/dashboard/vendor-onboarding";
 
 /**
  * /dashboard — Protected vendor dashboard.
@@ -102,7 +103,10 @@ export default function DashboardPage() {
         {/* Main content */}
         <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
           {activeTab === "overview" && (
-            <Overview vendor={vendor} bookings={bookings} onNavigate={setActiveTab} />
+            <div className="space-y-6 p-4 lg:p-6">
+              <VendorOnboarding vendorId={vendor.id} onNavigate={setActiveTab} />
+              <Overview vendor={vendor} bookings={bookings} onNavigate={setActiveTab} />
+            </div>
           )}
           {activeTab === "listing" && <MyListing vendor={vendor} />}
           {activeTab === "products" && <Products vendor={vendor} />}
