@@ -1,24 +1,17 @@
 "use client";
 
 import * as React from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus,
-  Pencil,
-  Trash2,
-  Package,
-  Check,
-  Loader2,
-  Star,
+  Plus, Pencil, Trash2, Package, Check, Loader2, Star, Search, Eye, Copy,
+  EyeOff, Globe, TrendingUp, FileText, MoreVertical, X, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
+  Dialog, DialogContent, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { useProducts, useCreateProduct, useDeleteProduct } from "@/lib/queries";
 import { CURRENCY_SYMBOLS } from "@/lib/constants";
@@ -32,205 +25,136 @@ interface ProductsProps {
   vendor: Vendor;
 }
 
-// ── Standard field keys that map to dedicated Product columns ──
-// Everything else goes into the extraFields JSON column.
 const STANDARD_FIELDS = new Set([
-  "name",
-  "description",
-  "packageType",
-  "price",
-  "comparePrice",
-  "currency",
-  "capacity",
-  "duration",
-  "includes",
-  "dietaryTags",
-  "addOns",
-  "leadTime",
-  "allergens",
-  "customAllergen",
-  "cuisineType",
-  "customisationAvailable",
-  "customisationNotes",
-  "shelfLife",
-  "storageMethod",
-  "storageInstructions",
-  "recipePublic",
-  "recipeText",
-  "recipePdf",
-  "offerType",
-  "offerLabel",
-  "offerExpiresAt",
-  "freeItemDescription",
-  "bundleDescription",
-  "bundleDiscount",
-  "isFlashDeal",
-  "flashDealEndsAt",
-  "minOrderForOffer",
-  "exclusiveMemberOffer",
-  "isAvailable",
-  "isFeatured",
-  "images",
-  "productType",
+  "name","description","packageType","price","comparePrice","currency","images",
+  "isAvailable","productType","leadTime","capacity","duration","dietaryTags",
+  "allergens","extraFields","templateSlug","templateVersion",
 ]);
-
-// Fields that should be stored as JSON arrays
-const ARRAY_FIELDS = new Set([
-  "dietaryTags",
-  "allergens",
-  "includes",
-  "addOns",
-  "occasion",
-  "theme",
-  "snackContents",
-  "material",
-  "personalization",
-  "courses",
-  "staffIncluded",
-  "equipmentIncluded",
-  "amenities",
-  "languageSkills",
-  "balloonColours",
-  "colour",
-  "cuisineType",
-  "flavour",
-  "decorTheme",
-  "genre",
-  "vehicleType",
-  "rentalCategory",
-  "giftCategory",
-  "floralType",
-  "flowerType",
-  "printCategory",
-  "printSize",
-  "printTechnique",
-  "serviceType",
-  "productsUsed",
-  "staffRole",
-]);
-
-// Fields that are boolean
 const BOOLEAN_FIELDS = new Set([
-  "deliveryAvailable",
-  "pickupAvailable",
-  "nationwideShipping",
-  "customDesign",
-  "photoCake",
-  "themeCake",
-  "nameOnCake",
-  "giftBox",
-  "customBranding",
-  "recipePublic",
-  "isAvailable",
-  "isFeatured",
-  "sameDay",
-  "customOrder",
-  "inStock",
-  "printRelease",
-  "onlineGallery",
-  "customPlaylist",
-  "songRequests",
-  "trialAvailable",
-  "homeService",
-  "groupBooking",
-  "uniformProvided",
-  "trained",
-  "freshnessGuarantee",
-  "cleanupIncluded",
-  "setupIncluded",
-  "setupAvailable",
-  "tastingAvailable",
-  "designService",
-  "sampleAvailable",
-  "bulkDiscount",
-  "depositRequired",
-  "chauffeurIncluded",
-  "decorIncluded",
-  "driverBata",
-  "fuelIncluded",
-  "giftWrapping",
+  "eggless","vegetarian","vegan","halal","glutenFree","sugarFree","deliveryAvailable",
+  "pickupAvailable","customOrder","sameDay","isFeatured","travelAvailable",
+  "startingFromPrice","hidePrice","priceOnRequest","inStock","limitedTime",
+  "customOrderOnly","featured",
 ]);
+const ARRAY_FIELDS = new Set([
+  "sizes","flavours","tags","includes","includedServices","optionalServices",
+  "addOns","bulkDiscount","depositRequired","chauffeurIncluded","decorIncluded",
+  "driverBata","fuelIncluded","giftWrapping",
+]);
+
+type SortOption = "newest" | "oldest" | "name" | "price_high" | "price_low" | "views";
+type StatusFilter = "all" | "active" | "draft" | "hidden" | "unavailable";
 
 export function Products({ vendor }: ProductsProps) {
+  // Keep existing data fetching (preserves backward compat)
   const { data: productsData, isLoading } = useProducts(vendor.id);
-  const products = productsData?.products ?? [];
+  const allProducts = productsData?.products ?? [];
   const createProduct = useCreateProduct();
   const deleteProduct = useDeleteProduct();
+
+  // UI state
+  const [search, setSearch] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
+  const [sortBy, setSortBy] = React.useState<SortOption>("newest");
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [showBulkActions, setShowBulkActions] = React.useState(false);
+
+  // Existing form state (preserved)
   const [showModal, setShowModal] = React.useState(false);
   const [editingProduct, setEditingProduct] = React.useState<Product | null>(null);
   const [saving, setSaving] = React.useState(false);
-
-  const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
-
-  // ── Fetch resolved template for this vendor's category + subcategory ──
   const [template, setTemplate] = React.useState<TemplateDef | null>(null);
   const [filterOptions, setFilterOptions] = React.useState<Record<string, string[]>>({});
   const [templateLoading, setTemplateLoading] = React.useState(true);
+  const [form, setForm] = React.useState<Record<string, any>>({});
 
-  React.useEffect(() => {
-    if (!vendor.category) {
-      setTemplateLoading(false);
-      return;
+  const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
+  const isFood = vendor.ecosystem === "FINDMYBITES";
+
+  // ── Stats (computed client-side from existing data) ──
+  const stats = React.useMemo(() => {
+    const total = allProducts.length;
+    const active = allProducts.filter(p => (p as any).isAvailable !== false && (p as any).status !== "draft" && (p as any).status !== "hidden").length;
+    const draft = allProducts.filter(p => (p as any).status === "draft").length;
+    const hidden = allProducts.filter(p => (p as any).status === "hidden").length;
+    const unavailable = allProducts.filter(p => (p as any).isAvailable === false).length;
+    const totalViews = allProducts.reduce((sum, p) => sum + ((p as any).views ?? 0), 0);
+    const featured = allProducts.filter(p => (p as any).isFeatured || (p as any).featured).length;
+    return { total, active, draft, hidden, unavailable, totalViews, featured };
+  }, [allProducts]);
+
+  // ── Filtered + sorted products ──
+  const filteredProducts = React.useMemo(() => {
+    let result = [...allProducts];
+
+    // Search
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(p =>
+        p.name?.toLowerCase().includes(q) ||
+        p.description?.toLowerCase().includes(q) ||
+        (p as any).category?.toLowerCase().includes(q) ||
+        (p as any).productType?.toLowerCase().includes(q)
+      );
     }
+
+    // Status filter
+    if (statusFilter === "active") {
+      result = result.filter(p => (p as any).isAvailable !== false && (p as any).status !== "draft" && (p as any).status !== "hidden");
+    } else if (statusFilter === "draft") {
+      result = result.filter(p => (p as any).status === "draft");
+    } else if (statusFilter === "hidden") {
+      result = result.filter(p => (p as any).status === "hidden");
+    } else if (statusFilter === "unavailable") {
+      result = result.filter(p => (p as any).isAvailable === false);
+    }
+
+    // Sort
+    switch (sortBy) {
+      case "oldest": result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()); break;
+      case "name": result.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case "price_high": result.sort((a, b) => b.price - a.price); break;
+      case "price_low": result.sort((a, b) => a.price - b.price); break;
+      case "views": result.sort((a, b) => ((b as any).views ?? 0) - ((a as any).views ?? 0)); break;
+      default: result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+
+    return result;
+  }, [allProducts, search, statusFilter, sortBy]);
+
+  // ── Template loading (preserved) ──
+  React.useEffect(() => {
+    if (!vendor.category) { setTemplateLoading(false); return; }
     setTemplateLoading(true);
     const params = new URLSearchParams({ category: vendor.category });
     if (vendor.subcategory) params.set("subcategory", vendor.subcategory);
     fetch(`/api/templates/resolve?${params.toString()}&t=${Date.now()}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.template) {
-          setTemplate(data.template);
-          setFilterOptions(data.filterOptions || {});
-        }
+      .then(r => r.json())
+      .then(data => {
+        if (data.template) { setTemplate(data.template); setFilterOptions(data.filterOptions || {}); }
         setTemplateLoading(false);
       })
-      .catch(() => {
-        setTemplateLoading(false);
-      });
+      .catch(() => setTemplateLoading(false));
   }, [vendor.category, vendor.subcategory]);
 
-  // ── Build the initial empty form based on the template ──
   const buildEmptyForm = React.useCallback((): Record<string, any> => {
-    const form: Record<string, any> = {
-      name: "",
-      description: "",
-      packageType: "standard",
-      price: "",
-      comparePrice: "",
-      currency: vendor.currency || "USD",
-      images: [],
-      isAvailable: true,
-      productType: "",
-    };
-    if (!template) return form;
+    const f: Record<string, any> = { name: "", description: "", packageType: "standard", price: "", comparePrice: "", currency: vendor.currency || "USD", images: [], isAvailable: true, productType: "" };
+    if (!template) return f;
     for (const field of template.fields) {
-      if (field.key in form) continue; // don't override defaults
-      if (BOOLEAN_FIELDS.has(field.key)) {
-        form[field.key] = false;
-      } else if (ARRAY_FIELDS.has(field.key) || field.type === "chips") {
-        form[field.key] = [];
-      } else if (field.type === "toggle" || field.type === "section_toggle") {
-        form[field.key] = false;
-      } else if (field.type === "toggle_group") {
-        form[field.key] = "";
-      } else if (field.type === "images") {
-        form[field.key] = [];
-      } else {
-        form[field.key] = "";
-      }
+      if (field.key in f) continue;
+      if (BOOLEAN_FIELDS.has(field.key)) f[field.key] = false;
+      else if (ARRAY_FIELDS.has(field.key) || field.type === "chips") f[field.key] = [];
+      else if (field.type === "toggle" || field.type === "section_toggle") f[field.key] = false;
+      else if (field.type === "toggle_group") f[field.key] = "";
+      else if (field.type === "images") f[field.key] = [];
+      else f[field.key] = "";
     }
-    return form;
+    return f;
   }, [template, vendor.currency]);
 
-  const [form, setForm] = React.useState<Record<string, any>>({});
+  React.useEffect(() => { setForm(buildEmptyForm()); }, [buildEmptyForm]);
 
-  // Rebuild form when template changes
-  React.useEffect(() => {
-    setForm(buildEmptyForm());
-  }, [buildEmptyForm]);
-
-  const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
-
+  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
   const toggleArray = (key: string, value: string) => {
     const arr = Array.isArray(form[key]) ? form[key] : [];
     set(key, arr.includes(value) ? arr.filter((v: string) => v !== value) : [...arr, value]);
@@ -241,325 +165,341 @@ export function Products({ vendor }: ProductsProps) {
     try {
       await deleteProduct.mutateAsync({ id, vendorId: vendor.id });
       toast.success("Product deleted");
-    } catch {
-      toast.error("Failed to delete");
-    }
+    } catch { toast.error("Failed to delete"); }
   };
 
-  const openAdd = () => {
-    setEditingProduct(null);
-    setForm(buildEmptyForm());
-    setShowModal(true);
+  const handleDuplicate = async (p: Product) => {
+    try {
+      const res = await fetch(`/api/products/${p.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "duplicate" }) });
+      if (!res.ok) throw new Error("Failed to duplicate");
+      toast.success("Product duplicated as draft");
+    } catch { toast.error("Failed to duplicate"); }
   };
+
+  const handleToggleVisibility = async (p: Product) => {
+    const newStatus = (p as any).status === "hidden" ? "active" : "hidden";
+    try {
+      const res = await fetch(`/api/products/${p.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus }) });
+      if (!res.ok) throw new Error("Failed to update");
+      toast.success(newStatus === "hidden" ? "Product hidden" : "Product published");
+    } catch { toast.error("Failed to update"); }
+  };
+
+  const openAdd = () => { setEditingProduct(null); setForm(buildEmptyForm()); setShowModal(true); };
 
   const openEdit = (p: Product) => {
     setEditingProduct(p);
     const newForm = buildEmptyForm();
-    // Load standard fields
-    newForm.name = p.name || "";
-    newForm.description = p.description || "";
+    newForm.name = p.name || ""; newForm.description = p.description || "";
     newForm.packageType = (p as any).packageType || "standard";
-    newForm.price = String(p.price);
-    newForm.comparePrice = (p as any).comparePrice ? String((p as any).comparePrice) : "";
+    newForm.price = String(p.price); newForm.comparePrice = (p as any).comparePrice ? String((p as any).comparePrice) : "";
     newForm.currency = (p as any).currency || vendor.currency || "USD";
-    newForm.images = p.images || [];
-    newForm.isAvailable = (p as any).isAvailable !== false;
+    newForm.images = p.images || []; newForm.isAvailable = (p as any).isAvailable !== false;
     newForm.productType = (p as any).productType || p.productType || "";
-    newForm.leadTime = (p as any).leadTime || "";
-    newForm.capacity = (p as any).capacity ? String((p as any).capacity) : "";
+    newForm.leadTime = (p as any).leadTime || ""; newForm.capacity = (p as any).capacity ? String((p as any).capacity) : "";
     newForm.duration = (p as any).duration || "";
-
-    // Load dietaryTags and allergens (JSON arrays)
-    if ((p as any).dietaryTags) {
-      try {
-        newForm.dietaryTags = typeof (p as any).dietaryTags === "string"
-          ? JSON.parse((p as any).dietaryTags)
-          : (p as any).dietaryTags;
-      } catch {}
-    }
-    if ((p as any).allergens) {
-      try {
-        newForm.allergens = typeof (p as any).allergens === "string"
-          ? JSON.parse((p as any).allergens)
-          : (p as any).allergens;
-      } catch {}
-    }
-
-    // Load extra fields (JSON)
-    if ((p as any).extraFields) {
-      try {
-        const extra = typeof (p as any).extraFields === "string"
-          ? JSON.parse((p as any).extraFields)
-          : (p as any).extraFields;
-        Object.assign(newForm, extra);
-      } catch {}
-    }
-
-    setForm(newForm);
-    setShowModal(true);
+    if ((p as any).dietaryTags) { try { newForm.dietaryTags = typeof (p as any).dietaryTags === "string" ? JSON.parse((p as any).dietaryTags) : (p as any).dietaryTags; } catch {} }
+    if ((p as any).allergens) { try { newForm.allergens = typeof (p as any).allergens === "string" ? JSON.parse((p as any).allergens) : (p as any).allergens; } catch {} }
+    if ((p as any).extraFields) { try { const extra = typeof (p as any).extraFields === "string" ? JSON.parse((p as any).extraFields) : (p as any).extraFields; Object.assign(newForm, extra); } catch {} }
+    setForm(newForm); setShowModal(true);
   };
 
   const save = async () => {
-    if (!form.name?.trim() || !form.price) {
-      toast.error("Name and price are required");
-      return;
-    }
+    if (!form.name?.trim() || !form.price) { toast.error("Name and price are required"); return; }
     setSaving(true);
     try {
-      // Build payload: standard fields + extraFields JSON
       const extraFieldsObj: Record<string, any> = {};
-      for (const [key, value] of Object.entries(form)) {
-        if (STANDARD_FIELDS.has(key)) continue;
-        extraFieldsObj[key] = value;
-      }
-
-      const payload: any = {
-        ...form,
-        price: Number(form.price),
-        comparePrice: form.comparePrice ? Number(form.comparePrice) : null,
-        capacity: form.capacity ? Number(form.capacity) : null,
-        vendorId: vendor.id,
-        // Array fields → JSON strings for dedicated columns
-        dietaryTags: form.dietaryTags || [],
-        allergens: form.allergens || [],
-        // Template-specific fields → JSON
-        extraFields: extraFieldsObj,
-        // Template Engine v2: versioning
-        templateSlug: template?.slug,
-        templateVersion: template?.version ?? 1,
-      };
-
+      for (const [key, value] of Object.entries(form)) { if (STANDARD_FIELDS.has(key)) continue; extraFieldsObj[key] = value; }
+      const payload: any = { ...form, price: Number(form.price), comparePrice: form.comparePrice ? Number(form.comparePrice) : null, capacity: form.capacity ? Number(form.capacity) : null, vendorId: vendor.id, dietaryTags: form.dietaryTags || [], allergens: form.allergens || [], extraFields: extraFieldsObj, templateSlug: template?.slug, templateVersion: template?.version ?? 1 };
       if (editingProduct) {
-        const res = await fetch(`/api/products/${editingProduct.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) throw new Error("Update failed");
-        toast.success("Product updated!");
+        const res = await fetch(`/api/products/${editingProduct.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!res.ok) throw new Error("Update failed"); toast.success("Product updated!");
       } else {
-        await createProduct.mutateAsync(payload as any);
-        toast.success("Product created!");
+        await createProduct.mutateAsync(payload as any); toast.success("Product created!");
       }
-      setShowModal(false);
-      setForm(buildEmptyForm());
-    } catch (e: any) {
-      toast.error(e.message || "Failed to save");
-    }
+      setShowModal(false); setForm(buildEmptyForm());
+    } catch (e: any) { toast.error(e.message || "Failed to save"); }
     setSaving(false);
   };
 
-  const isFood = vendor.ecosystem === "FINDMYBITES";
+  // ── Bulk actions ──
+  const toggleSelect = (id: string) => {
+    setSelected(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  };
+  const toggleSelectAll = () => {
+    if (selected.size === filteredProducts.length) setSelected(new Set());
+    else setSelected(new Set(filteredProducts.map(p => p.id)));
+  };
+  const bulkAction = async (action: string) => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    for (const id of ids) {
+      try {
+        if (action === "delete") {
+          await deleteProduct.mutateAsync({ id, vendorId: vendor.id });
+        } else if (action === "hide" || action === "publish") {
+          await fetch(`/api/products/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: action === "hide" ? "hidden" : "active" }) });
+        }
+      } catch {}
+    }
+    toast.success(`${ids.length} products ${action === "delete" ? "deleted" : action === "hide" ? "hidden" : "published"}`);
+    setSelected(new Set()); setShowBulkActions(false);
+  };
 
   return (
-    <div className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
+    <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
+      {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">
-            Your Products & Packages
-          </h1>
+          <h1 className="text-2xl font-extrabold tracking-tight">{isFood ? "Your Products" : "Your Packages"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add the services or dishes you offer so customers know exactly what to book
+            {isFood ? "Add the dishes you offer so customers know exactly what to order" : "Add the services you offer so customers know exactly what to book"}
           </p>
         </div>
-        <Button
-          onClick={openAdd}
-          className="bg-brand text-brand-foreground hover:bg-brand/90"
-        >
-          <Plus className="size-4" /> Add Product
+        <Button onClick={openAdd} className="bg-brand text-brand-foreground hover:bg-brand/90">
+          <Plus className="size-4" /> {isFood ? "Add Product" : "Add Package"}
         </Button>
       </div>
 
-      {/* Products grid */}
+      {/* Stats Cards */}
+      {!isLoading && allProducts.length > 0 && (
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+          {[
+            { label: "Total", val: stats.total, icon: Package, color: "text-blue-600", bg: "bg-blue-50" },
+            { label: "Live", val: stats.active, icon: Check, color: "text-emerald-600", bg: "bg-emerald-50" },
+            { label: "Draft", val: stats.draft, icon: FileText, color: "text-amber-600", bg: "bg-amber-50" },
+            { label: "Hidden", val: stats.hidden, icon: EyeOff, color: "text-gray-600", bg: "bg-gray-50" },
+            { label: "Featured", val: stats.featured, icon: Star, color: "text-purple-600", bg: "bg-purple-50" },
+            { label: "Views", val: stats.totalViews, icon: Eye, color: "text-cyan-600", bg: "bg-cyan-50" },
+            { label: "Unavailable", val: stats.unavailable, icon: X, color: "text-red-600", bg: "bg-red-50" },
+          ].map(s => {
+            const Icon = s.icon;
+            return (
+              <div key={s.label} className={cn("rounded-xl border border-border p-3", s.bg)}>
+                <div className="flex items-center justify-between mb-1">
+                  <Icon className={cn("size-4", s.color)} />
+                </div>
+                <p className={cn("text-xl font-bold", s.color)}>{s.val}</p>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{s.label}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Search + Filters + Sort */}
+      {!isLoading && allProducts.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder={`Search ${isFood ? "products" : "packages"}…`}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as StatusFilter)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            <option value="all">All Status</option>
+            <option value="active">Live</option>
+            <option value="draft">Draft</option>
+            <option value="hidden">Hidden</option>
+            <option value="unavailable">Unavailable</option>
+          </select>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as SortOption)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="name">A–Z</option>
+            <option value="price_high">Price: High→Low</option>
+            <option value="price_low">Price: Low→High</option>
+            <option value="views">Most Viewed</option>
+          </select>
+          {selected.size > 0 && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2 py-1">
+              <span className="text-xs font-medium">{selected.size} selected</span>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => bulkAction("publish")}>Publish</Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => bulkAction("hide")}>Hide</Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600" onClick={() => bulkAction("delete")}>Delete</Button>
+              <Button size="sm" variant="ghost" className="h-7" onClick={() => setSelected(new Set())}><X className="size-3" /></Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Products */}
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="size-8 animate-spin text-muted-foreground" />
         </div>
-      ) : products.length === 0 ? (
+      ) : allProducts.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border py-16 text-center">
           <Package className="mx-auto size-12 text-muted-foreground/40" />
-          <h3 className="mt-4 text-lg font-bold">No products yet</h3>
+          <h3 className="mt-4 text-lg font-bold">No {isFood ? "products" : "packages"} yet</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add your first product to help customers understand what you offer
+            Add your first {isFood ? "product" : "package"} to help customers understand what you offer
           </p>
-          <Button
-            onClick={openAdd}
-            className="mt-4 bg-brand text-brand-foreground hover:bg-brand/90"
-          >
-            <Plus className="size-4" /> Add your first product
+          <Button onClick={openAdd} className="mt-4 bg-brand text-brand-foreground hover:bg-brand/90">
+            <Plus className="size-4" /> Add your first {isFood ? "product" : "package"}
           </Button>
         </div>
+      ) : filteredProducts.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border py-10 text-center">
+          <p className="text-sm font-medium">No results found</p>
+          <p className="mt-1 text-xs text-muted-foreground">Try a different search or filter</p>
+        </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {products.map((p) => (
-            <div
-              key={p.id}
-              className="rounded-xl border border-border bg-card p-4"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    {(p as any).isFeatured && (
-                      <Star className="size-3.5 fill-amber-400 text-amber-400" />
-                    )}
-                    <h3 className="truncate font-bold">{p.name}</h3>
-                  </div>
-                  <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                    {p.description}
-                  </p>
-                </div>
-                <Badge variant="secondary" className="shrink-0 border-0 capitalize">
-                  {(p as any).packageType || "standard"}
-                </Badge>
+        <div className="space-y-3">
+          {/* Select All */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <button onClick={toggleSelectAll} className="flex items-center gap-1.5 hover:text-foreground">
+              <div className={cn("grid size-4 place-items-center rounded border", selected.size === filteredProducts.length && filteredProducts.length > 0 ? "border-brand bg-brand" : "border-muted-foreground/30")}>
+                {selected.size === filteredProducts.length && filteredProducts.length > 0 && <Check className="size-3 text-white" />}
               </div>
-              <div className="mt-2 flex items-center gap-3 text-xs">
-                <span className="font-bold text-brand">
-                  {symbol}
-                  {p.price.toLocaleString()}
-                </span>
-                {(p as any).capacity && (
-                  <span className="text-muted-foreground">
-                    Up to {(p as any).capacity} guests
-                  </span>
-                )}
-              </div>
-              <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-                <span
+              Select All
+            </button>
+          </div>
+
+          {/* Product Cards */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredProducts.map((p, idx) => {
+              const isSelected = selected.has(p.id);
+              const isAvailable = (p as any).isAvailable !== false;
+              const status = (p as any).status || (isAvailable ? "active" : "unavailable");
+              const views = (p as any).views ?? 0;
+              const isFeatured = (p as any).isFeatured || (p as any).featured;
+
+              return (
+                <motion.div
+                  key={p.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.03 }}
                   className={cn(
-                    "inline-flex items-center gap-1 text-xs font-medium",
-                    (p as any).isAvailable !== false
-                      ? "text-emerald-600"
-                      : "text-muted-foreground"
+                    "rounded-xl border bg-card overflow-hidden transition-shadow hover:shadow-md",
+                    isSelected ? "border-brand ring-1 ring-brand" : "border-border"
                   )}
                 >
-                  <span
-                    className={cn(
-                      "size-2 rounded-full",
-                      (p as any).isAvailable !== false
-                        ? "bg-emerald-500"
-                        : "bg-muted-foreground/40"
+                  {/* Image + Checkbox */}
+                  <div className="relative h-32 bg-muted">
+                    {p.image ? (
+                      <img src={p.image} alt={p.name} className="h-full w-full object-cover" loading="lazy" />
+                    ) : p.images && p.images.length > 0 ? (
+                      <img src={p.images[0]} alt={p.name} className="h-full w-full object-cover" loading="lazy" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center">
+                        <Package className="size-8 text-muted-foreground/30" />
+                      </div>
                     )}
-                  />
-                  {(p as any).isAvailable !== false ? "Available" : "Unavailable"}
-                </span>
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => openEdit(p)}
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDelete(p.id, p.name)}
-                    className="text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
+                    {/* Checkbox */}
+                    <button
+                      onClick={() => toggleSelect(p.id)}
+                      className={cn(
+                        "absolute left-2 top-2 grid size-5 place-items-center rounded border transition-colors",
+                        isSelected ? "border-brand bg-brand" : "border-white/80 bg-black/20 backdrop-blur hover:bg-black/40"
+                      )}
+                    >
+                      {isSelected && <Check className="size-3 text-white" />}
+                    </button>
+                    {/* Status badge */}
+                    <div className="absolute right-2 top-2">
+                      <Badge className={cn(
+                        "rounded-full px-2 py-0.5 text-[9px] uppercase backdrop-blur",
+                        status === "active" ? "bg-emerald-500/90 text-white" :
+                        status === "draft" ? "bg-amber-500/90 text-white" :
+                        status === "hidden" ? "bg-gray-600/90 text-white" :
+                        "bg-red-500/90 text-white"
+                      )}>
+                        {status}
+                      </Badge>
+                    </div>
+                    {/* Featured star */}
+                    {isFeatured && (
+                      <div className="absolute bottom-2 right-2">
+                        <Star className="size-4 fill-amber-400 text-amber-400" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-3">
+                    <h3 className="truncate text-sm font-bold">{p.name}</h3>
+                    <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                      {(p as any).productType || (p as any).category || (isFood ? "Food Product" : "Service Package")}
+                    </p>
+
+                    {/* Price + Views */}
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-sm font-bold text-brand">
+                        {symbol}{p.price.toLocaleString()}
+                        {(p as any).comparePrice && (
+                          <span className="ml-1 text-xs text-muted-foreground line-through">
+                            {symbol}{(p as any).comparePrice.toLocaleString()}
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <Eye className="size-3" /> {views}
+                      </span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="mt-3 flex items-center gap-1 border-t border-border pt-2">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(p)}>
+                        <Pencil className="size-3" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => handleDuplicate(p)}>
+                        <Copy className="size-3" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => handleToggleVisibility(p)}>
+                        {status === "hidden" ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
+                      </Button>
+                      <a href={`/product/${p.slug}`} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="ghost" className="h-7 px-2">
+                          <Globe className="size-3" />
+                        </Button>
+                      </a>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 ml-auto text-destructive hover:bg-destructive/10" onClick={() => handleDelete(p.id, p.name)}>
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {/* Smart Dynamic Product Form Modal (Template Engine powered) */}
+      {/* Smart Dynamic Product Form Modal (preserved — Template Engine powered) */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto p-0 sm:max-w-2xl">
-          <DialogTitle className="px-5 pt-5 text-lg font-bold">
-            {editingProduct ? "Edit Product" : "Add Product"}
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogTitle>
+            {editingProduct ? "Edit" : "Add"} {isFood ? "Product" : "Package"}
           </DialogTitle>
-          <DialogDescription className="px-5 text-sm text-muted-foreground">
-            {template
-              ? `Using ${template.name} — fill in the details below`
-              : isFood
-                ? "Fill in the details — the form adapts to what you're selling"
-                : "Add your product details"}
+          <DialogDescription>
+            {template ? `Using template: ${template.name}` : "Fill in the details below"}
           </DialogDescription>
-          <div className="space-y-3 p-5 pt-3">
-            {templateLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="size-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : template ? (
-              <TemplateForm
-                template={template}
-                filterOptions={filterOptions}
-                form={form}
-                set={set}
-                toggleArray={toggleArray}
-                currencySymbol={symbol}
-              />
-            ) : (
-              // Fallback: basic form when no template is found
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-xs font-semibold">Product name *</Label>
-                  <Input
-                    value={form.name || ""}
-                    onChange={(e) => set("name", e.target.value)}
-                    placeholder="e.g. Custom Wedding Cake"
-                    className="mt-1 h-10"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs font-semibold">Price * ({symbol})</Label>
-                    <Input
-                      type="number"
-                      value={form.price || ""}
-                      onChange={(e) => set("price", e.target.value)}
-                      placeholder="0"
-                      className="mt-1 h-10"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs font-semibold">Package type</Label>
-                    <Input
-                      value={form.packageType || "standard"}
-                      onChange={(e) => set("packageType", e.target.value)}
-                      className="mt-1 h-10"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs font-semibold">Description</Label>
-                  <textarea
-                    value={form.description || ""}
-                    onChange={(e) => set("description", e.target.value)}
-                    placeholder="Describe what's included..."
-                    rows={2}
-                    maxLength={300}
-                    className="mt-1 w-full resize-none rounded-lg border border-black/15 px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* ── Save button ───────────────────────────────────── */}
-            <div className="sticky bottom-0 flex gap-2 border-t border-border bg-card p-3">
-              <Button
-                onClick={save}
-                disabled={saving}
-                className="flex-1 bg-brand text-brand-foreground hover:bg-brand/90"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Saving...
-                  </>
-                ) : (
-                  <>
-                    <Check className="size-4" />{" "}
-                    {editingProduct ? "Update Product" : "Create Product"}
-                  </>
-                )}
-              </Button>
-              <Button variant="outline" onClick={() => setShowModal(false)}>
-                Cancel
-              </Button>
+          {templateLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
             </div>
+          ) : (
+            <TemplateForm
+              template={template}
+              form={form}
+              set={set}
+              toggleArray={toggleArray}
+              filterOptions={filterOptions}
+            />
+          )}
+          <div className="flex justify-end gap-2 border-t border-border pt-4">
+            <Button variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
+            <Button onClick={save} disabled={saving} className="bg-brand text-brand-foreground hover:bg-brand/90">
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+              {editingProduct ? "Save Changes" : "Create"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
