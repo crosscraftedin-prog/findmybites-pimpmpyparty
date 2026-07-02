@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-guard";
 import { reassignBooking } from "@/lib/bookings/booking-service";
 
 /** POST /api/admin/bookings/[id]/reassign — reassign booking to another vendor */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin();
+  if (guard) return guard;
   try {
     const { id } = await params;
     const body = await req.json();

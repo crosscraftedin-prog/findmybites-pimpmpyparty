@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-guard";
 import { PrismaClient } from "@prisma/client";
 
 /**
  * GET /api/admin/diagnose
  *
  * Diagnostic endpoint that tests every database table and returns
- * the EXACT error messages. No auth required (so we can test without
- * login issues getting in the way).
+ * the EXACT error messages. Admin-only (requires authentication).
  *
  * This endpoint bypasses the resilient client wrapper and uses a
  * raw PrismaClient to get full error details.
  */
 
 export async function GET() {
+  const guard = await requireAdmin();
+  if (guard) return guard;
+
   const results: { table: string; status: string; error?: string; count?: number }[] = [];
 
   // Create a raw Prisma client (bypass the resilient wrapper)

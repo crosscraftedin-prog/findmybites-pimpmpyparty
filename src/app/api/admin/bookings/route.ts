@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-guard";
 import { searchBookings, getBookingAnalytics, cancelBooking } from "@/lib/bookings/booking-service";
 
 /** GET /api/admin/bookings?search=...&status=...&city=... — all bookings (admin) */
 export async function GET(req: NextRequest) {
+  const guard = await requireAdmin();
+  if (guard) return guard;
   try {
     const sp = req.nextUrl.searchParams;
     const [bookings, analytics] = await Promise.all([
@@ -25,6 +28,8 @@ export async function GET(req: NextRequest) {
 
 /** POST /api/admin/bookings — admin cancel booking */
 export async function POST(req: NextRequest) {
+  const guard = await requireAdmin();
+  if (guard) return guard;
   try {
     const body = await req.json();
     if (body.action === "cancel") {

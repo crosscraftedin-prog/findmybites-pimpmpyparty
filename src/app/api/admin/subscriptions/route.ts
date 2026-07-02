@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-guard";
 import { db } from "@/lib/db";
 import {
   getAdminSubscriptionReport,
@@ -15,6 +16,8 @@ import {
  * Admin actions: manual extension or cancellation.
  */
 export async function GET() {
+  const guard = await requireAdmin();
+  if (guard) return guard;
   try {
     const report = await getAdminSubscriptionReport();
 
@@ -73,6 +76,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const guard = await requireAdmin();
+  if (guard) return guard;
   try {
     const body = await req.json();
     const { action, subscriptionId, days } = body as {
