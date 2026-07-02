@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import type { Vendor, Product } from "@/lib/types";
 import type { TemplateDef } from "@/lib/template-definitions";
 import { TemplateForm } from "./TemplateForm";
+import { ProductWizard } from "./product-wizard";
 
 interface ProductsProps {
   vendor: Vendor;
@@ -507,37 +508,38 @@ export function Products({ vendor }: ProductsProps) {
         </div>
       )}
 
-      {/* Smart Dynamic Product Form Modal (preserved — Template Engine powered) */}
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogTitle>
-            {editingProduct ? "Edit" : "Add"} {isFood ? "Product" : "Package"}
-          </DialogTitle>
-          <DialogDescription>
-            {template ? `Using template: ${template.name}` : "Fill in the details below"}
-          </DialogDescription>
-          {templateLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="size-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <TemplateForm
-              template={template}
-              form={form}
-              set={set}
-              toggleArray={toggleArray}
-              filterOptions={filterOptions}
-            />
-          )}
-          <div className="flex justify-end gap-2 border-t border-border pt-4">
-            <Button variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving} className="bg-brand text-brand-foreground hover:bg-brand/90">
-              {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-              {editingProduct ? "Save Changes" : "Create"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Multi-Step Product Wizard (replaces old dialog) */}
+      {showModal && (
+        <ProductWizard
+          vendor={vendor}
+          initialData={editingProduct || undefined}
+          onSave={async (data) => {
+            setSaving(true);
+            try {
+              if (editingProduct) {
+                const res = await fetch(`/api/vendor/products/${editingProduct.id}`, {
+                  method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+                });
+                if (!res.ok) throw new Error("Update failed");
+                toast.success("Product updated!");
+              } else {
+                const res = await fetch("/api/vendor/products", {
+                  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+                });
+                if (!res.ok) throw new Error("Create failed");
+                toast.success("Product created!");
+              }
+              setShowModal(false);
+              reload();
+            } catch (e: any) {
+              toast.error(e.message || "Failed to save");
+            }
+            setSaving(false);
+          }}
+          onClose={() => setShowModal(false)}
+          saving={saving}
+        />
+      )}
     </div>
   );
 }
