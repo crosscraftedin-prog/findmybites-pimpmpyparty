@@ -324,10 +324,13 @@ export function MyListing({ vendor }: MyListingProps) {
               <ImageUpload
                 value={form.avatarImage}
                 onChange={(url) => set("avatarImage", url)}
-                folder="logos"
+                folder="logo"
                 label="Upload Logo"
                 aspect="square"
                 camera
+                vendorId={vendor.id}
+                autoSave
+                field="avatarImage"
               />
             </div>
             <div>
@@ -336,9 +339,12 @@ export function MyListing({ vendor }: MyListingProps) {
               <ImageUpload
                 value={form.heroImage}
                 onChange={(url) => set("heroImage", url)}
-                folder="covers"
+                folder="cover"
                 label="Upload Cover Banner"
                 aspect="wide"
+                vendorId={vendor.id}
+                autoSave
+                field="heroImage"
               />
             </div>
           </div>
@@ -349,6 +355,7 @@ export function MyListing({ vendor }: MyListingProps) {
               images={gallery}
               onChange={setGallery}
               maxImages={10}
+              vendorId={vendor.id}
             />
           </div>
         </TabsContent>
