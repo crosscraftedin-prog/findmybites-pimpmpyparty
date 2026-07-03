@@ -139,6 +139,27 @@ model Vendor {
   ownership_status String?   @default("unclaimed")
   // How the vendor was onboarded: 'admin' (invited) or 'organic' (self-registered)
   invite_type      String?   @default("organic")
+
+  // ── Business Profile Management ──
+  businessType       String?  // "home" | "shop" | "studio" | "cloud_kitchen" | "event_company" | "freelancer"
+  yearStarted        Int?
+  businessRegNumber  String?
+  gstVatNumber       String?
+  languagesSpoken    String?  // comma-separated: "English, Hindi, Arabic"
+  hideAddress        Boolean  @default(false)
+  pinterest          String?
+  linkedin           String?
+  telegram           String?
+  holidayMode        Boolean  @default(false)
+  vacationMode       Boolean  @default(false)
+  emergencyClosure   Boolean  @default(false)
+  homeService        Boolean  @default(false)
+  onlineConsultation Boolean  @default(false)
+  maxOrder           Int?
+  responseRate       Int?     @default(0) // percentage
+  profileViews       Int      @default(0)
+  productViews       Int      @default(0)
+  galleryViews       Int      @default(0)
   // Plan expiry — set when a Razorpay payment is verified.
   // Monthly → +30 days, Yearly → +365 days
   planExpiresAt     DateTime?
