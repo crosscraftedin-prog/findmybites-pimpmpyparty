@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import type { Vendor } from "@/lib/types";
 import { CreateVendorForm } from "@/components/marketplace/create-vendor-form";
 import { useVendor } from "@/lib/queries";
+import { ImageUpload, GalleryUpload } from "./image-upload";
 
 interface MyListingProps {
   vendor: Vendor;
@@ -316,41 +317,39 @@ export function MyListing({ vendor }: MyListingProps) {
 
         {/* Media Gallery */}
         <TabsContent value="media" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label>Logo URL</Label>
-              <Input value={form.avatarImage} onChange={e => set("avatarImage", e.target.value)} placeholder="https://…" className="mt-1" />
-              {form.avatarImage && <img src={form.avatarImage} alt="Logo" className="mt-2 size-16 rounded-lg object-cover" />}
+              <Label>Business Logo</Label>
+              <p className="mb-2 text-xs text-muted-foreground">Square image, min 200×200px</p>
+              <ImageUpload
+                value={form.avatarImage}
+                onChange={(url) => set("avatarImage", url)}
+                folder="logos"
+                label="Upload Logo"
+                aspect="square"
+                camera
+              />
             </div>
             <div>
-              <Label>Cover Banner URL</Label>
-              <Input value={form.heroImage} onChange={e => set("heroImage", e.target.value)} placeholder="https://…" className="mt-1" />
-              {form.heroImage && <img src={form.heroImage} alt="Cover" className="mt-2 h-16 w-full rounded-lg object-cover" />}
+              <Label>Cover Banner</Label>
+              <p className="mb-2 text-xs text-muted-foreground">Wide image, 16:9 ratio recommended</p>
+              <ImageUpload
+                value={form.heroImage}
+                onChange={(url) => set("heroImage", url)}
+                folder="covers"
+                label="Upload Cover Banner"
+                aspect="wide"
+              />
             </div>
           </div>
           <div>
             <Label>Gallery Images</Label>
-            <p className="text-xs text-muted-foreground mb-2">Add image URLs (up to 10 on Free plan)</p>
-            {gallery.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 mb-2 sm:grid-cols-4">
-                {gallery.map((img, idx) => (
-                  <div key={idx} className="group relative aspect-square overflow-hidden rounded-lg border border-border">
-                    <img src={img} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
-                    <button onClick={() => setGallery(gallery.filter((_, i) => i !== idx))}
-                      className="absolute right-1 top-1 grid size-5 place-items-center rounded bg-red-500 text-white opacity-0 transition-opacity group-hover:opacity-100">
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Input placeholder="Paste image URL…" id="gallery-url" className="flex-1" />
-              <Button variant="outline" size="sm" onClick={() => {
-                const input = document.getElementById("gallery-url") as HTMLInputElement;
-                if (input?.value) { setGallery([...gallery, input.value]); input.value = ""; }
-              }}><Plus className="size-4" /> Add</Button>
-            </div>
+            <p className="mb-2 text-xs text-muted-foreground">Upload up to 10 images. First image is the cover.</p>
+            <GalleryUpload
+              images={gallery}
+              onChange={setGallery}
+              maxImages={10}
+            />
           </div>
         </TabsContent>
 
