@@ -107,10 +107,19 @@ export async function GET(req: NextRequest) {
     const featured = sp.get("featured") === "true";
     const limitRaw = sp.get("limit");
     const limit = limitRaw ? Math.max(1, Number(limitRaw) || 60) : 60;
+    // Enhanced filters (Phase 1: Global Customer Search)
+    const country = sp.get("country") ?? undefined;
+    const state = sp.get("state") ?? undefined;
+    const city = sp.get("city") ?? undefined;
+    const delivery = sp.get("delivery") === "true" ? true : undefined;
+    const pickup = sp.get("pickup") === "true" ? true : undefined;
+    const verified = sp.get("verified") === "true" ? true : undefined;
+    const lat = sp.get("lat") ? Number(sp.get("lat")) : undefined;
+    const lng = sp.get("lng") ? Number(sp.get("lng")) : undefined;
+    const radius = sp.get("radius") ? Number(sp.get("radius")) : undefined;
+    const dietary = sp.get("dietary") ?? undefined;
 
-    // Structured (non-search) filters — always applied via Prisma.
-    // Only show APPROVED vendors on the public site (pending ones are hidden
-    // until an admin approves them).
+    // Structured (non-search) filters
     const where: Prisma.VendorWhereInput = { approved: true };
     if (ecosystem) where.ecosystem = ecosystem;
     if (category) where.category = category;
@@ -118,6 +127,15 @@ export async function GET(req: NextRequest) {
     if (priceRange) where.priceRange = priceRange;
     if (featured) where.featured = true;
     if (minRating > 0) where.rating = { gte: minRating };
+    // Enhanced filters
+    if (country) where.country = { contains: country, mode: "insensitive" };
+    if (state) where.state = { contains: state, mode: "insensitive" };
+    if (city) where.city = { contains: city, mode: "insensitive" };
+    if (delivery !== undefined) where.deliveryAvailable = delivery;
+    if (pickup !== undefined) where.pickupAvailable = pickup;
+    if (verified !== undefined) where.verified = verified;
+    // Dietary filter: search tags column for the dietary keyword
+    if (dietary) where.tags = { contains: dietary, mode: "insensitive" };
 
     // ── Search path ──────────────────────────────────────────────────────
     // When a search term is present we hand it to the FTS5 index, which returns
