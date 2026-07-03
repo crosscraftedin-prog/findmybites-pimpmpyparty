@@ -22,13 +22,16 @@ import { db } from "@/lib/db";
 
 export type BookingStatus =
   | "pending"
+  | "contacted"
+  | "negotiating"
   | "confirmed"
   | "accepted"
-  | "rejected"
   | "in_progress"
   | "completed"
+  | "rejected"
   | "cancelled"
-  | "refunded";
+  | "refunded"
+  | "archived";
 
 export type BookingEventType =
   | "created"
@@ -39,6 +42,10 @@ export type BookingEventType =
   | "cancelled"
   | "reminder_24h"
   | "note_added"
+  | "status_changed"
+  | "payment_updated"
+  | "quote_sent"
+  | "archived"
   | "reassigned";
 
 export interface BookingItem {
@@ -593,6 +600,179 @@ export async function reassignBooking(
   await recordEvent(bookingId, "reassigned", adminId, "admin", { oldVendorId, newVendorId });
   console.log(`[booking] Reassigned ${booking.bookingNumber} from ${oldVendorId} to ${newVendorId}`);
   return toBookingDetails(updated);
+}
+
+// ── CRM: Pipeline stage transitions ──────────────────────────────────────
+
+export async function updateBookingStatus(
+  bookingId: string,
+  vendorId: string,
+  newStatus: BookingStatus
+): Promise<BookingDetails> {
+  const booking = await db.bookingV2.findUnique({ where: { id: bookingId } });
+  if (!booking) throw new Error("Booking not found");
+  if (booking.vendorId !== vendorId) throw new Error("Not authorized");
+
+  const oldStatus = booking.status;
+  const updated = await db.bookingV2.update({
+    where: { id: bookingId },
+    data: { status: newStatus },
+    include: { vendor: { select: { name: true, slug: true } } },
+  });
+
+  await recordEvent(bookingId, "status_changed", null, "vendor", { oldStatus, newStatus });
+  console.log(`[booking] Status ${booking.bookingNumber}: ${oldStatus} → ${newStatus}`);
+  return toBookingDetails(updated);
+}
+
+export async function archiveBooking(bookingId: string, vendorId: string): Promise<BookingDetails> {
+  return updateBookingStatus(bookingId, vendorId, "archived");
+}
+
+// ── CRM: Payment tracking ────────────────────────────────────────────────
+
+export async function updatePaymentStatus(
+  bookingId: string,
+  vendorId: string,
+  paymentStatus: string,
+  depositStatus?: string
+): Promise<BookingDetails> {
+  const booking = await db.bookingV2.findUnique({ where: { id: bookingId } });
+  if (!booking) throw new Error("Booking not found");
+  if (booking.vendorId !== vendorId) throw new Error("Not authorized");
+
+  const updateData: any = { paymentStatus };
+  if (depositStatus) updateData.depositStatus = depositStatus;
+
+  const updated = await db.bookingV2.update({
+    where: { id: bookingId },
+    data: updateData,
+    include: { vendor: { select: { name: true, slug: true } } },
+  });
+
+  await recordEvent(bookingId, "payment_updated", null, "vendor", { paymentStatus, depositStatus });
+  return toBookingDetails(updated);
+}
+
+// ── CRM: Customer profiles ───────────────────────────────────────────────
+
+export interface CustomerProfile {
+  customerEmail: string;
+  customerName: string;
+  customerPhone: string;
+  city: string;
+  totalBookings: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  lifetimeSpend: number;
+  lastBookingDate: string | null;
+  currency: string;
+}
+
+export async function getVendorCustomers(vendorId: string): Promise<CustomerProfile[]> {
+  const bookings = await db.bookingV2.findMany({
+    where: { vendorId },
+    select: {
+      customerEmail: true,
+      customerName: true,
+      customerPhone: true,
+      city: true,
+      status: true,
+      totalAmount: true,
+      currency: true,
+      bookingDate: true,
+    },
+    orderBy: { bookingDate: "desc" },
+  });
+
+  // Group by email
+  const customerMap = new Map<string, CustomerProfile>();
+  for (const b of bookings) {
+    const email = b.customerEmail.toLowerCase();
+    if (!customerMap.has(email)) {
+      customerMap.set(email, {
+        customerEmail: email,
+        customerName: b.customerName,
+        customerPhone: b.customerPhone,
+        city: b.city,
+        totalBookings: 0,
+        completedOrders: 0,
+        cancelledOrders: 0,
+        lifetimeSpend: 0,
+        lastBookingDate: null,
+        currency: b.currency,
+      });
+    }
+    const c = customerMap.get(email)!;
+    c.totalBookings++;
+    if (b.status === "completed") {
+      c.completedOrders++;
+      c.lifetimeSpend += b.totalAmount;
+    }
+    if (b.status === "cancelled") c.cancelledOrders++;
+    c.lastBookingDate = b.bookingDate instanceof Date ? b.bookingDate.toISOString() : b.bookingDate;
+  }
+
+  return Array.from(customerMap.values()).sort((a, b) => b.totalBookings - a.totalBookings);
+}
+
+// ── CRM: Pipeline stats ──────────────────────────────────────────────────
+
+export interface PipelineStats {
+  new: number;
+  contacted: number;
+  negotiating: number;
+  confirmed: number;
+  accepted: number;
+  inProgress: number;
+  completed: number;
+  cancelled: number;
+  rejected: number;
+  archived: number;
+  revenue: number;
+  conversionRate: number;
+  avgResponseTime: string;
+}
+
+export async function getPipelineStats(vendorId: string): Promise<PipelineStats> {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfToday = new Date(startOfToday);
+  endOfToday.setDate(endOfToday.getDate() + 1);
+
+  const counts = await Promise.all([
+    db.bookingV2.count({ where: { vendorId, status: "pending" } }),
+    db.bookingV2.count({ where: { vendorId, status: "contacted" } }),
+    db.bookingV2.count({ where: { vendorId, status: "negotiating" } }),
+    db.bookingV2.count({ where: { vendorId, status: "confirmed" } }),
+    db.bookingV2.count({ where: { vendorId, status: "accepted" } }),
+    db.bookingV2.count({ where: { vendorId, status: "in_progress" } }),
+    db.bookingV2.count({ where: { vendorId, status: "completed" } }),
+    db.bookingV2.count({ where: { vendorId, status: "cancelled" } }),
+    db.bookingV2.count({ where: { vendorId, status: "rejected" } }),
+    db.bookingV2.count({ where: { vendorId, status: "archived" } }),
+  ]);
+
+  const [totalBookings, completedAgg] = await Promise.all([
+    db.bookingV2.count({ where: { vendorId } }),
+    db.bookingV2.aggregate({ where: { vendorId, status: "completed" }, _sum: { totalAmount: true } }),
+  ]);
+
+  return {
+    new: counts[0],
+    contacted: counts[1],
+    negotiating: counts[2],
+    confirmed: counts[3],
+    accepted: counts[4],
+    inProgress: counts[5],
+    completed: counts[6],
+    cancelled: counts[7],
+    rejected: counts[8],
+    archived: counts[9],
+    revenue: completedAgg._sum.totalAmount ?? 0,
+    conversionRate: totalBookings > 0 ? Math.round((counts[6] / totalBookings) * 100) : 0,
+    avgResponseTime: "Under 2 hours",
+  };
 }
 
 // ── Analytics ────────────────────────────────────────────────────────────

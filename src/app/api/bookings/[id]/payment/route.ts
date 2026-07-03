@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { updateBookingStatus, type BookingStatus } from "@/lib/bookings/booking-service";
+import { updatePaymentStatus } from "@/lib/bookings/booking-service";
 
-/** PUT /api/bookings/[id]/status — update pipeline status (vendor only) */
+/** PUT /api/bookings/[id]/payment — update payment status (vendor only) */
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -15,10 +15,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!vendor) return NextResponse.json({ error: "No vendor listing" }, { status: 404 });
 
     const body = await req.json();
-    const { status } = body as { status: BookingStatus };
-    if (!status) return NextResponse.json({ error: "status is required" }, { status: 400 });
-
-    const booking = await updateBookingStatus(id, vendor.id, status);
+    const { paymentStatus, depositStatus } = body;
+    const booking = await updatePaymentStatus(id, vendor.id, paymentStatus, depositStatus);
     return NextResponse.json({ success: true, booking });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
