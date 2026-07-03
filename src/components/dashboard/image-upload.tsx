@@ -316,13 +316,14 @@ export function ImageUpload({
  */
 export function GalleryUpload({
   images, onChange, maxImages = 10, vendorId = "temp",
-  onUpgrade,
+  onUpgrade, folder = "gallery",
 }: {
   images: string[];
   onChange: (urls: string[]) => void;
   maxImages?: number;
   vendorId?: string;
   onUpgrade?: () => void;
+  folder?: string;
 }) {
   const [uploading, setUploading] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
@@ -365,7 +366,7 @@ export function GalleryUpload({
         const compressed = await compressImage(file, "free");
         const ext = compressed.type.split("/")[1];
         const fileName = secureFilename(ext);
-        const path = `${vendorId}/gallery/${fileName}`;
+        const path = `${vendorId}/${folder}/${fileName}`;
 
         const { data, error } = await supabaseBrowser.storage
           .from("vendor-uploads")

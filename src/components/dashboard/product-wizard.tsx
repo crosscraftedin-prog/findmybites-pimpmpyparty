@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Vendor } from "@/lib/types";
+import { GalleryUpload } from "./image-upload";
 
 interface ProductWizardProps {
   vendor: Vendor;
@@ -237,36 +238,6 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     setAiGenerating(false);
   };
 
-  // ── Image upload ──
-  const handleImageUpload = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const newImages: string[] = [...(form.images || [])];
-    for (const file of Array.from(files).slice(0, 10 - newImages.length)) {
-      // Convert to base64 for now (production: upload to Supabase Storage)
-      const reader = new FileReader();
-      const dataUrl = await new Promise<string>((resolve) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
-      });
-      newImages.push(dataUrl);
-    }
-    set("images", newImages);
-    autoSave(); // save after upload
-    toast.success(`${files.length} image(s) added`);
-  };
-
-  const removeImage = (idx: number) => {
-    set("images", form.images.filter((_: any, i: number) => i !== idx));
-  };
-
-  const moveImage = (idx: number, dir: "left" | "right") => {
-    const imgs = [...form.images];
-    const newIdx = dir === "left" ? idx - 1 : idx + 1;
-    if (newIdx < 0 || newIdx >= imgs.length) return;
-    [imgs[idx], imgs[newIdx]] = [imgs[newIdx], imgs[idx]];
-    set("images", imgs);
-  };
-
   // ── Auto-generate SEO ──
   const generateSEO = () => {
     if (!form.name) return;
@@ -435,34 +406,18 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold">Photos & Video</h3>
                   <div>
-                    <Label>Product Images (up to 10)</Label>
-                    <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/30 py-8 hover:bg-muted/50">
-                      <Upload className="size-8 text-muted-foreground" />
-                          <span className="mt-2 text-sm font-medium">Drag & drop or click to upload</span>
-                          <span className="text-xs text-muted-foreground">PNG, JPG, WebP — max 10 images</span>
-                          <input type="file" accept="image/*" multiple className="hidden"
-                            onChange={e => handleImageUpload(e.target.files)} />
-                    </label>
+                    <Label>Product Images</Label>
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      Drag & drop or click to upload. First image is the cover.
+                    </p>
+                    <GalleryUpload
+                      images={form.images || []}
+                      onChange={(urls) => { set("images", urls); autoSave(); }}
+                      maxImages={10}
+                      vendorId={vendor.id}
+                      folder="products"
+                    />
                   </div>
-                  {/* Image grid */}
-                  {form.images?.length > 0 && (
-                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                      {form.images.map((img: string, idx: number) => (
-                        <div key={idx} className="group relative aspect-square overflow-hidden rounded-lg border border-border">
-                          <img src={img} alt={`Product ${idx + 1}`} className="h-full w-full object-cover" />
-                          {idx === 0 && <Badge className="absolute left-1 top-1 bg-brand text-white text-[8px]">Cover</Badge>}
-                          <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                            <button onClick={() => moveImage(idx, "left")} disabled={idx === 0}
-                              className="grid size-6 place-items-center rounded bg-white/80 text-xs disabled:opacity-30">←</button>
-                            <button onClick={() => removeImage(idx)}
-                              className="grid size-6 place-items-center rounded bg-red-500 text-white"><X className="size-3" /></button>
-                            <button onClick={() => moveImage(idx, "right")} disabled={idx === form.images.length - 1}
-                              className="grid size-6 place-items-center rounded bg-white/80 text-xs disabled:opacity-30">→</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                   <div>
                     <Label htmlFor="p-video">Product Video URL (optional)</Label>
                     <Input id="p-video" value={form.videoUrl} onChange={e => set("videoUrl", e.target.value)}
