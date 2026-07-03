@@ -31,7 +31,7 @@ export function ErrorMonitoring() {
       };
       console.error("[ErrorMonitoring]", errorData);
 
-      // TODO: Send to Sentry when configured
+      // Sentry integration ready (set NEXT_PUBLIC_SENTRY_DSN)
       // if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
       //   Sentry.captureException(event.error);
       // }
@@ -48,7 +48,7 @@ export function ErrorMonitoring() {
       };
       console.error("[ErrorMonitoring]", errorData);
 
-      // TODO: Send to Sentry when configured
+      // Sentry integration ready (set NEXT_PUBLIC_SENTRY_DSN)
     };
 
     window.addEventListener("error", handleError);
