@@ -46,6 +46,27 @@ export interface ProductDetail {
   leadTime: string | null; pricingTiers: any[] | null;
   views: number; enquiryCount: number; sortOrder: number;
   createdAt: string; updatedAt: string;
+  // ── Inventory & Availability Management ──
+  status: string;
+  salesRevenue: number;
+  maxOrdersPerDay: number | null;
+  availabilityMode: string;
+  availableDays: string[];
+  availabilityStart: string | null;
+  availabilityEnd: string | null;
+  preparationTimeCategory: string | null;
+  preparationTimeCustom: string | null;
+  bookingNoticeHours: number | null;
+  serviceAreaType: string | null;
+  serviceCities: string[];
+  forceHidden: boolean;
+  adminNotes: string | null;
+  seasonLabel: string | null;
+  stockType: string | null;
+  stockCount: number | null;
+  lowStockThreshold: number;
+  orderCount: number;
+  lastViewedAt: string | null;
 }
 
 function toDetail(p: any): ProductDetail {
@@ -81,22 +102,48 @@ function toDetail(p: any): ProductDetail {
     views: p.views ?? 0, enquiryCount: p.enquiryCount ?? 0, sortOrder: p.sortOrder ?? 0,
     createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
     updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
+    // ── Inventory & Availability Management ──
+    status: p.status ?? "active",
+    salesRevenue: p.salesRevenue ?? 0,
+    maxOrdersPerDay: p.maxOrdersPerDay ?? null,
+    availabilityMode: p.availabilityMode ?? "always",
+    availableDays: p.availableDays ? safeParseArr<string>(p.availableDays) : [],
+    availabilityStart: p.availabilityStart ? (p.availabilityStart instanceof Date ? p.availabilityStart.toISOString() : p.availabilityStart) : null,
+    availabilityEnd: p.availabilityEnd ? (p.availabilityEnd instanceof Date ? p.availabilityEnd.toISOString() : p.availabilityEnd) : null,
+    preparationTimeCategory: p.preparationTimeCategory ?? null,
+    preparationTimeCustom: p.preparationTimeCustom ?? null,
+    bookingNoticeHours: p.bookingNoticeHours ?? null,
+    serviceAreaType: p.serviceAreaType ?? null,
+    serviceCities: p.serviceCities ? safeParseArr<string>(p.serviceCities) : [],
+    forceHidden: p.forceHidden ?? false,
+    adminNotes: p.adminNotes ?? null,
+    seasonLabel: p.seasonLabel ?? null,
+    stockType: p.stockType ?? "unlimited",
+    stockCount: p.stockCount ?? null,
+    lowStockThreshold: p.lowStockThreshold ?? 10,
+    orderCount: p.orderCount ?? 0,
+    lastViewedAt: p.lastViewedAt ? (p.lastViewedAt instanceof Date ? p.lastViewedAt.toISOString() : p.lastViewedAt) : null,
   };
+}
+
+function safeParseArr<T>(raw: string | null | undefined): T[] {
+  if (!raw) return [];
+  try { return JSON.parse(raw) as T[]; } catch { return []; }
 }
 
 export async function searchProducts(params: ProductSearchParams) {
   const where: any = { vendorId: params.vendorId };
   if (params.search) {
+    // NOTE: SQLite is case-insensitive by default for contains; the explicit
+    // mode:"insensitive" is postgres-only and errors on SQLite.
     where.OR = [
-      { name: { contains: params.search, mode: "insensitive" } },
-      { description: { contains: params.search, mode: "insensitive" } },
+      { name: { contains: params.search } },
+      { description: { contains: params.search } },
     ];
   }
   if (params.category) where.category = params.category;
-  if (params.status === "active") { where.isAvailable = true; }
-  else if (params.status === "draft") { where.status = "draft"; }
-  else if (params.status === "hidden") { where.status = "hidden"; }
-  else if (params.status === "unavailable") { where.isAvailable = false; }
+  // Unified status taxonomy: active | draft | out_of_stock | temporarily_unavailable | seasonal | archived
+  if (params.status && params.status !== "all") { where.status = params.status; }
 
   let orderBy: any = { createdAt: "desc" };
   if (params.sortBy === "oldest") orderBy = { createdAt: "asc" };
@@ -113,15 +160,15 @@ export async function searchProducts(params: ProductSearchParams) {
 }
 
 export async function getProductStats(vendorId: string): Promise<ProductStats> {
-  const [total, active, draft, hidden, unavailable, viewsAgg] = await Promise.all([
+  const [total, active, draft, outOfStock, unavailable, viewsAgg] = await Promise.all([
     db.product.count({ where: { vendorId } }),
-    db.product.count({ where: { vendorId, isAvailable: true } }),
+    db.product.count({ where: { vendorId, status: "active" } }),
     db.product.count({ where: { vendorId, status: "draft" } }),
-    db.product.count({ where: { vendorId, status: "hidden" } }),
-    db.product.count({ where: { vendorId, isAvailable: false } }),
+    db.product.count({ where: { vendorId, status: "out_of_stock" } }),
+    db.product.count({ where: { vendorId, status: "temporarily_unavailable" } }),
     db.product.aggregate({ where: { vendorId }, _sum: { views: true } }),
   ]);
-  return { total, active, draft, hidden, unavailable, totalViews: viewsAgg._sum.views ?? 0, totalEnquiries: 0 };
+  return { total, active, draft, hidden: outOfStock, unavailable, totalViews: viewsAgg._sum.views ?? 0, totalEnquiries: 0 };
 }
 
 export async function getProduct(productId: string, vendorId: string): Promise<ProductDetail | null> {
@@ -161,6 +208,21 @@ export async function createProduct(vendorId: string, data: any): Promise<Produc
     cancellationPolicy: data.cancellationPolicy || null, leadTime: data.leadTime || null,
     pricingTiers: data.pricingTiers ? JSON.stringify(data.pricingTiers) : null,
     status: data.status || "active",
+    // ── Inventory & Availability Management defaults ──
+    stockType: data.stockType || "unlimited",
+    stockCount: data.stockCount ?? null,
+    lowStockThreshold: data.lowStockThreshold ?? 10,
+    maxOrdersPerDay: data.maxOrdersPerDay ?? null,
+    availabilityMode: data.availabilityMode || "always",
+    availableDays: Array.isArray(data.availableDays) && data.availableDays.length ? JSON.stringify(data.availableDays) : null,
+    availabilityStart: data.availabilityStart ? new Date(data.availabilityStart) : null,
+    availabilityEnd: data.availabilityEnd ? new Date(data.availabilityEnd) : null,
+    preparationTimeCategory: data.preparationTimeCategory || null,
+    preparationTimeCustom: data.preparationTimeCustom || null,
+    bookingNoticeHours: data.bookingNoticeHours ?? null,
+    serviceAreaType: data.serviceAreaType || null,
+    serviceCities: Array.isArray(data.serviceCities) && data.serviceCities.length ? JSON.stringify(data.serviceCities) : null,
+    seasonLabel: data.seasonLabel || null,
   }});
   return toDetail(p);
 }
@@ -169,13 +231,18 @@ export async function updateProduct(productId: string, vendorId: string, data: a
   const existing = await db.product.findFirst({ where: { id: productId, vendorId } });
   if (!existing) throw new Error("Product not found or not owned by this vendor");
   const updateData: any = {};
+  // NOTE: forceHidden, adminNotes, salesRevenue, orderCount are admin/system-only
+  // and intentionally excluded here so vendors cannot self-promote or self-unhide.
   const fields = ["name","description","shortDescription","price","offerPrice","currency","image","videoUrl",
     "productType","category","subCategory","ecosystem","sizes","flavours","weight","prepTime","servings","shape",
     "ingredients","allergenInfo","spicyLevel","eggless","vegetarian","vegan","halal","glutenFree","sugarFree",
     "deliveryAvailable","pickupAvailable","customOrder","sameDay","startingFromPrice","hidePrice","priceOnRequest",
     "isAvailable","inStock","limitedTime","customOrderOnly","featured","metaTitle","metaDescription",
     "duration","capacity","serviceAreas","equipmentIncluded","indoorOutdoor","travelAvailable",
-    "bookingNotice","cancellationPolicy","leadTime","status"];
+    "bookingNotice","cancellationPolicy","leadTime","status",
+    "maxOrdersPerDay","availabilityMode","availabilityStart","availabilityEnd",
+    "preparationTimeCategory","preparationTimeCustom","bookingNoticeHours","serviceAreaType",
+    "seasonLabel","stockType","stockCount","lowStockThreshold"];
   for (const f of fields) { if (data[f] !== undefined) updateData[f] = data[f]; }
   if (data.images !== undefined) updateData.images = data.images ? JSON.stringify(data.images) : null;
   if (data.tags !== undefined) updateData.tags = data.tags ? JSON.stringify(data.tags) : null;
@@ -183,6 +250,11 @@ export async function updateProduct(productId: string, vendorId: string, data: a
   if (data.includedServices !== undefined) updateData.includedServices = data.includedServices ? JSON.stringify(data.includedServices) : null;
   if (data.optionalServices !== undefined) updateData.optionalServices = data.optionalServices ? JSON.stringify(data.optionalServices) : null;
   if (data.pricingTiers !== undefined) updateData.pricingTiers = data.pricingTiers ? JSON.stringify(data.pricingTiers) : null;
+  if (data.availableDays !== undefined) updateData.availableDays = Array.isArray(data.availableDays) && data.availableDays.length ? JSON.stringify(data.availableDays) : null;
+  if (data.serviceCities !== undefined) updateData.serviceCities = Array.isArray(data.serviceCities) && data.serviceCities.length ? JSON.stringify(data.serviceCities) : null;
+  // Normalise date fields
+  if (data.availabilityStart !== undefined) updateData.availabilityStart = data.availabilityStart ? new Date(data.availabilityStart) : null;
+  if (data.availabilityEnd !== undefined) updateData.availabilityEnd = data.availabilityEnd ? new Date(data.availabilityEnd) : null;
   const p = await db.product.update({ where: { id: productId }, data: updateData });
   return toDetail(p);
 }

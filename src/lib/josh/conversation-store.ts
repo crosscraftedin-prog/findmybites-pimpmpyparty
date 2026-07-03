@@ -134,8 +134,8 @@ export async function saveConversation(
     await db.joshConversation.update({
       where: { id: conversation.id },
       data: {
-        messages: messages as any,
-        state: state as any,
+        messages: JSON.stringify(messages),
+        state: JSON.stringify(state),
         lastMessageAt: new Date(),
       },
     });
@@ -167,7 +167,10 @@ export async function verifySavedState(
       console.error(`[josh/store] VERIFY FAILED: conversation ${conversationId} not found after save`);
       return { verified: false, reloadedState: null };
     }
-    const reloadedState = (row.state as unknown as ConversationState) ?? null;
+    let reloadedState: ConversationState | null = null;
+    try {
+      reloadedState = typeof row.state === "string" ? JSON.parse(row.state) : (row.state as ConversationState);
+    } catch { reloadedState = null; }
     const verified = stateMatches(reloadedState, expectedState);
     if (verified) {
       console.log(`[josh/store] VERIFY PASSED: conversation ${conversationId} state matches`);
@@ -241,8 +244,12 @@ export async function getConversationHistory(params: {
       });
     }
     if (row) {
+      let msgs: any[] = [];
+      try {
+        msgs = typeof row.messages === "string" ? JSON.parse(row.messages) : (Array.isArray(row.messages) ? row.messages : []);
+      } catch { msgs = []; }
       return {
-        messages: (row.messages as any[]) || [],
+        messages: msgs,
         conversationId: row.id,
         conversationSummary: row.conversationSummary,
       };
@@ -264,13 +271,17 @@ function rowToStored(row: any): StoredConversation {
   } catch {
     state = null;
   }
+  let msgs: any[] = [];
+  try {
+    msgs = typeof row.messages === "string" ? JSON.parse(row.messages) : (Array.isArray(row.messages) ? row.messages : []);
+  } catch { msgs = []; }
   return {
     id: row.id,
     userId: row.userId,
     userEmail: row.userEmail,
     userType: row.userType,
     vendorId: row.vendorId,
-    messages: (row.messages as any[]) || [],
+    messages: msgs,
     state,
     conversationSummary: row.conversationSummary,
     lastMessageAt: row.lastMessageAt,

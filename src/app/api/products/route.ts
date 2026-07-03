@@ -62,6 +62,9 @@ export async function GET(req: NextRequest) {
     if (featured) where.isFeatured = true;
     if (isAvailable === "true") where.isAvailable = true;
     if (isAvailable === "false") where.isAvailable = false;
+    // Public safety: never expose admin-force-hidden, draft, or archived products.
+    where.forceHidden = false;
+    where.status = { notIn: ["draft", "archived"] };
 
     const products = await db.product.findMany({
       where,

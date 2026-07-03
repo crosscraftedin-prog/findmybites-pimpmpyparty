@@ -44,7 +44,10 @@ async function getProduct(slug: string) {
       },
     });
 
-    if (!p || !p.isAvailable) return null;
+    if (!p) return null;
+    // Public visibility: hide drafts, archived, and admin-force-hidden products.
+    if (p.forceHidden) return null;
+    if (p.status === "draft" || p.status === "archived") return null;
 
     return p;
   } catch (err) {

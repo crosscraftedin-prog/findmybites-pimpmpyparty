@@ -52,6 +52,7 @@ import {
   ProductBadge,
 } from "@/components/marketplace/vendor-highlights";
 import { SmartEnquiryForm } from "@/components/marketplace/smart-enquiry-form";
+import { ProductAvailabilityBanner } from "@/components/inventory/product-availability-banner";
 import type { VendorWithRelations } from "@/lib/types";
 
 interface Props {
@@ -441,6 +442,23 @@ export function ProductPageClient({ slug }: Props) {
                     {product.customisationAvailable && (
                       <Badge className="border-0 bg-blue-100 text-blue-700"><Check className="size-3" /> Customisation</Badge>
                     )}
+                  </div>
+
+                  {/* Availability & inventory banner */}
+                  <div className="mt-3">
+                    <ProductAvailabilityBanner
+                      productId={product.id}
+                      preparationTimeCategory={(product as any).preparationTimeCategory}
+                      preparationTimeCustom={(product as any).preparationTimeCustom}
+                      prepTime={product.prepTime}
+                      bookingNoticeHours={(product as any).bookingNoticeHours}
+                      serviceAreaType={(product as any).serviceAreaType}
+                      deliveryAvailable={product.deliveryAvailable}
+                      stockType={(product as any).stockType}
+                      stockCount={(product as any).stockCount}
+                      lowStockThreshold={(product as any).lowStockThreshold}
+                      status={(product as any).status}
+                    />
                   </div>
                 </div>
               </div>

@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -508,6 +508,43 @@ model Product {
   templateSlug          String?
   templateVersion       Int?
 
+  // ── Inventory & Availability Management System ──
+  // Unified lifecycle status (works for food products AND event packages).
+  // active | draft | out_of_stock | temporarily_unavailable | seasonal | archived
+  status                String   @default("active")
+  // Analytics: lifetime views (incremented on every public product page view)
+  views                 Int      @default(0)
+  // Lifetime sales revenue in smallest currency unit
+  salesRevenue          Int      @default(0)
+  // Maximum confirmed orders allowed per day (null = unlimited). Once the
+  // daily confirmed-booking count reaches this, the product shows "Fully Booked".
+  maxOrdersPerDay       Int?
+  // Availability mode: "always" | "selected_days" | "date_range"
+  availabilityMode      String   @default("always")
+  // JSON array of weekday codes for "selected_days": ["MON","TUE",...,"SUN"]
+  availableDays         String?
+  // Date range for seasonal / limited-time products (e.g. Christmas Cakes)
+  availabilityStart     DateTime?
+  availabilityEnd       DateTime?
+  // Structured preparation time category: same_day|24_hours|2_days|3_days|1_week|custom
+  preparationTimeCategory String?
+  // Custom preparation time label (when category = custom), e.g. "3-5 days"
+  preparationTimeCustom String?
+  // Required advance booking notice in HOURS (e.g. 2, 24, 48, 168).
+  // Customers cannot book earlier than this. null = no minimum notice.
+  bookingNoticeHours    Int?
+  // Service area scope for PimpMyParty packages: local|city|state|country|worldwide
+  serviceAreaType       String?
+  // JSON array of service cities (free-form, multiple allowed)
+  serviceCities         String?
+  // Admin override: when true the product is hidden from public marketplace
+  // regardless of vendor status. Only admins can set this.
+  forceHidden           Boolean  @default(false)
+  // Internal admin notes (not visible to vendor or customer)
+  adminNotes            String?
+  // Season label for seasonal products, e.g. "Christmas 2025"
+  seasonLabel           String?
+
   @@index([vendorId])
   @@index([productType])
   @@index([slug])
@@ -516,7 +553,63 @@ model Product {
   @@index([category])
   @@index([isAvailable])
   @@index([templateSlug])
+  @@index([status])
+  @@index([availabilityMode])
+  @@index([availabilityStart])
+  @@index([availabilityEnd])
+  @@index([forceHidden])
 
+  // ── Relations ──
+  blockedDates    ProductBlockedDate[]
+  analyticsDaily  ProductAnalyticsDaily[]
+}
+
+// ── Product Calendar: Blocked Dates ───────────────────────────────────────
+// Vendors block individual dates or date ranges for a product:
+// holidays, vacations, fully-booked dates, or manual unavailability.
+// Distinct from VendorAvailability (which is per-vendor). This is per-product.
+model ProductBlockedDate {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // Block type: "holiday" | "vacation" | "fully_booked" | "manual" | "maintenance"
+  blockType   String   @default("manual")
+  // Single date (always set). For ranges, startDate = first day, endDate = last day.
+  startDate   DateTime
+  endDate     DateTime
+  // Optional human note, e.g. "Diwali holiday" or "Family vacation"
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([productId])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([productId, startDate])
+  @@map("product_blocked_dates")
+}
+
+// ── Product Analytics: Daily Aggregates ───────────────────────────────────
+// One row per (product, day). Enables fast analytics charts + dashboards
+// without scanning the full bookings table. Upserted by the analytics service.
+model ProductAnalyticsDaily {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // Calendar day in YYYY-MM-DD (vendor-local date)
+  dateKey     String
+  views       Int      @default(0)
+  enquiries   Int      @default(0)
+  bookings    Int      @default(0)
+  // Revenue booked that day (smallest currency unit)
+  revenue     Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([productId, dateKey])
+  @@index([productId, dateKey])
+  @@index([dateKey])
+  @@map("product_analytics_daily")
 }
 
 // ── Josh AI conversation persistence ──────────────────────────────────────
@@ -527,12 +620,12 @@ model JoshConversation {
   userEmail           String?
   userType            String   @default("customer") // "customer" | "vendor"
   vendorId            String?  // if userType = vendor, their vendor listing id
-  messages            Json     @default("[]") // [{role, content, timestamp}]
+  messages            String   @default("[]") // JSON: [{role, content, timestamp}]
   conversationSummary String?  // AI-generated summary after 10+ messages
   // ── Phase 6: Structured Conversation State ──
   // Deterministic intent state — updated after every message, never reparsed.
   // This is the source of truth for marketplace search, slot filling, and mode.
-  state                Json     @default("{}") // ConversationState JSON
+  state                String   @default("{}") // JSON: ConversationState
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   lastMessageAt       DateTime @default(now())

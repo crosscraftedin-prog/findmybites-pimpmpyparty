@@ -24,6 +24,7 @@ import {
   LayoutTemplate,
   ClipboardList,
   ShieldCheck,
+  Boxes,
 } from "lucide-react";
 import {
   BarChart,
@@ -51,6 +52,7 @@ const AdminLeadCenter = dynamic(() => import("@/components/admin/admin-lead-cent
 const AdminVendorInvitations = dynamic(() => import("@/components/admin/admin-vendor-invitations").then(m => ({ default: m.AdminVendorInvitations })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminVendorOnboarding = dynamic(() => import("@/components/admin/admin-vendor-onboarding").then(m => ({ default: m.AdminVendorOnboarding })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminSubscriptions = dynamic(() => import("@/components/admin/admin-subscriptions").then(m => ({ default: m.AdminSubscriptions })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
+const AdminInventory = dynamic(() => import("@/components/admin/admin-inventory").then(m => ({ default: m.AdminInventory })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 import { useCategoryLabels } from "@/hooks/use-category-labels";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
@@ -145,6 +147,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: "lead-center", label: "Lead Center", icon: ClipboardList },
       { id: "invitations", label: "Invite Vendor", icon: ShieldCheck },
       { id: "onboarding", label: "Vendor Onboarding", icon: Users },
+      { id: "inventory", label: "Inventory", icon: Boxes },
       { id: "analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
@@ -896,6 +899,8 @@ export function AdminPanelPage({
             <AdminVendorInvitations />
           ) : activeNav === "onboarding" ? (
             <AdminVendorOnboarding />
+          ) : activeNav === "inventory" ? (
+            <div className="p-4 lg:p-6"><AdminInventory /></div>
           ) : activeNav === "subscriptions" ? (
             <AdminSubscriptions />
           ) : activeNav === "seo-pages" ? (

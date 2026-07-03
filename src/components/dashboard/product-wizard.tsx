@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, ChevronLeft, ChevronRight, Loader2, Sparkles, Upload, X,
   Image as ImageIcon, Eye, Star, AlertCircle, Wand2, Plus, PartyPopper, Monitor, Tablet, Smartphone,
+  Boxes, Clock, CalendarDays, Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,8 @@ const STEPS = [
   { id: 4, title: "Variants", icon: Star },
   { id: 5, title: "Details", icon: Star },
   { id: 6, title: "SEO", icon: Star },
-  { id: 7, title: "Preview", icon: Eye },
+  { id: 7, title: "Inventory", icon: Boxes },
+  { id: 8, title: "Preview", icon: Eye },
 ];
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -97,6 +99,18 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     stockType: initialData?.stockType || "unlimited",
     stockCount: initialData?.stockCount ?? "",
     lowStockThreshold: initialData?.lowStockThreshold ?? 5,
+    // ── Inventory & Availability Management ──
+    maxOrdersPerDay: initialData?.maxOrdersPerDay ?? "",
+    availabilityMode: initialData?.availabilityMode || "always",
+    availableDays: initialData?.availableDays || [],
+    availabilityStart: initialData?.availabilityStart || "",
+    availabilityEnd: initialData?.availabilityEnd || "",
+    preparationTimeCategory: initialData?.preparationTimeCategory || "",
+    preparationTimeCustom: initialData?.preparationTimeCustom || "",
+    bookingNoticeHours: initialData?.bookingNoticeHours ?? "",
+    serviceAreaType: initialData?.serviceAreaType || "",
+    serviceCities: initialData?.serviceCities || [],
+    seasonLabel: initialData?.seasonLabel || "",
     // Scheduling
     scheduledPublishAt: initialData?.scheduledPublishAt || "",
     scheduledExpiryAt: initialData?.scheduledExpiryAt || "",
@@ -254,17 +268,39 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const handlePublish = async () => {
     if (!validation.allPassed) {
       toast.error("Please complete all required fields before publishing");
-      setStep(7);
+      setStep(1);
       return;
     }
-    const payload = { ...form, price: form.price ? Number(form.price) : 0, status: "active", variants: form.variants?.length > 0 ? JSON.stringify(form.variants) : null };
+    const payload = {
+      ...form,
+      price: form.price ? Number(form.price) : 0,
+      status: "active",
+      variants: form.variants?.length > 0 ? JSON.stringify(form.variants) : null,
+      // Normalise inventory fields for the API
+      stockCount: form.stockCount === "" ? null : Number(form.stockCount),
+      lowStockThreshold: Number(form.lowStockThreshold) || 5,
+      maxOrdersPerDay: form.maxOrdersPerDay === "" ? null : Number(form.maxOrdersPerDay),
+      bookingNoticeHours: form.bookingNoticeHours === "" ? null : Number(form.bookingNoticeHours),
+      availabilityStart: form.availabilityStart ? new Date(form.availabilityStart).toISOString() : null,
+      availabilityEnd: form.availabilityEnd ? new Date(form.availabilityEnd).toISOString() : null,
+    };
     localStorage.removeItem(`product-draft-${vendor.id}`);
     await onSave(payload);
     setPublished(true);
   };
 
   const handleSaveDraft = async () => {
-    const payload = { ...form, price: form.price ? Number(form.price) : 0, status: "draft" };
+    const payload = {
+      ...form,
+      price: form.price ? Number(form.price) : 0,
+      status: "draft",
+      stockCount: form.stockCount === "" ? null : Number(form.stockCount),
+      lowStockThreshold: Number(form.lowStockThreshold) || 5,
+      maxOrdersPerDay: form.maxOrdersPerDay === "" ? null : Number(form.maxOrdersPerDay),
+      bookingNoticeHours: form.bookingNoticeHours === "" ? null : Number(form.bookingNoticeHours),
+      availabilityStart: form.availabilityStart ? new Date(form.availabilityStart).toISOString() : null,
+      availabilityEnd: form.availabilityEnd ? new Date(form.availabilityEnd).toISOString() : null,
+    };
     localStorage.removeItem(`product-draft-${vendor.id}`);
     await onSave(payload);
   };
@@ -631,8 +667,206 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                 </div>
               )}
 
-              {/* Step 7: Preview & Publish */}
+              {/* Step 7: Inventory & Availability */}
               {step === 7 && (
+                <div className="space-y-5">
+                  <div>
+                    <h3 className="flex items-center gap-2 text-lg font-bold">
+                      <Boxes className="size-5 text-primary" /> Inventory & Availability
+                    </h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Control stock, availability windows, preparation time, and booking rules. You can fine-tune these later from the Inventory manager.
+                    </p>
+                  </div>
+
+                  {/* Status */}
+                  <WizardCard icon={<Star className="size-4" />} title="Publishing Status">
+                    <Label className="text-xs">Status</Label>
+                    <select
+                      value={form.status}
+                      onChange={(e) => set("status", e.target.value)}
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    >
+                      <option value="active">Active (visible in marketplace)</option>
+                      <option value="draft">Draft (hidden, work in progress)</option>
+                      <option value="seasonal">Seasonal (limited-time offering)</option>
+                      <option value="temporarily_unavailable">Temporarily Unavailable</option>
+                    </select>
+                  </WizardCard>
+
+                  {/* Stock */}
+                  <WizardCard icon={<Boxes className="size-4" />} title="Stock">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Stock type</Label>
+                        <select
+                          value={form.stockType}
+                          onChange={(e) => set("stockType", e.target.value)}
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        >
+                          <option value="unlimited">Unlimited Stock</option>
+                          <option value="limited">Limited Stock</option>
+                        </select>
+                      </div>
+                      {form.stockType === "limited" && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Quantity available</Label>
+                          <Input
+                            type="number" min={0} placeholder="e.g. 12"
+                            value={form.stockCount}
+                            onChange={(e) => set("stockCount", e.target.value)}
+                          />
+                          <p className="text-[10px] text-muted-foreground">e.g. 12 Cakes Remaining — auto-decreases after orders.</p>
+                        </div>
+                      )}
+                    </div>
+                    {form.stockType === "limited" && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Low-stock alert threshold</Label>
+                        <Input
+                          type="number" min={0}
+                          value={form.lowStockThreshold}
+                          onChange={(e) => set("lowStockThreshold", e.target.value)}
+                          className="max-w-[160px]"
+                        />
+                      </div>
+                    )}
+                  </WizardCard>
+
+                  {/* Availability */}
+                  <WizardCard icon={<CalendarDays className="size-4" />} title="Availability">
+                    <Label className="text-xs">Availability mode</Label>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {[
+                        { v: "always", l: "Always Available" },
+                        { v: "selected_days", l: "Selected Days" },
+                        { v: "date_range", l: "Date Range" },
+                      ].map((m) => (
+                        <button
+                          key={m.v}
+                          type="button"
+                          onClick={() => set("availabilityMode", m.v)}
+                          className={`rounded-lg border p-2.5 text-xs font-medium transition ${form.availabilityMode === m.v ? "border-primary ring-1 ring-primary" : "border-border hover:bg-accent"}`}
+                        >
+                          {m.l}
+                        </button>
+                      ))}
+                    </div>
+
+                    {form.availabilityMode === "selected_days" && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Available days (e.g. Fri / Sat / Sun for wedding packages)</Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => (
+                            <button
+                              key={d}
+                              type="button"
+                              onClick={() => {
+                                const arr = form.availableDays || [];
+                                set("availableDays", arr.includes(d) ? arr.filter((x: string) => x !== d) : [...arr, d]);
+                              }}
+                              className={`h-9 w-11 rounded-lg border text-xs font-medium transition ${form.availableDays?.includes(d) ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-accent"}`}
+                            >
+                              {d.slice(0, 3)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {form.availabilityMode === "date_range" && (
+                      <>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Available from (e.g. 1 December)</Label>
+                            <Input type="date" value={form.availabilityStart?.slice(0, 10) || ""} onChange={(e) => set("availabilityStart", e.target.value)} />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Available until (e.g. 31 December)</Label>
+                            <Input type="date" value={form.availabilityEnd?.slice(0, 10) || ""} onChange={(e) => set("availabilityEnd", e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Season label (optional)</Label>
+                          <Input placeholder="e.g. Christmas 2025" value={form.seasonLabel} onChange={(e) => set("seasonLabel", e.target.value)} />
+                        </div>
+                      </>
+                    )}
+                  </WizardCard>
+
+                  {/* Preparation & Notice */}
+                  <WizardCard icon={<Clock className="size-4" />} title="Preparation Time & Booking Notice">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Preparation time</Label>
+                        <select
+                          value={form.preparationTimeCategory}
+                          onChange={(e) => set("preparationTimeCategory", e.target.value)}
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        >
+                          <option value="">Not specified</option>
+                          <option value="same_day">Same Day</option>
+                          <option value="24_hours">24 Hours</option>
+                          <option value="2_days">2 Days</option>
+                          <option value="3_days">3 Days</option>
+                          <option value="1_week">1 Week</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                      {form.preparationTimeCategory === "custom" && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Custom prep time</Label>
+                          <Input placeholder="e.g. 3-5 days" value={form.preparationTimeCustom} onChange={(e) => set("preparationTimeCustom", e.target.value)} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs flex items-center gap-1"><Bell className="size-3" /> Booking notice (customers can't book earlier than this)</Label>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => set("bookingNoticeHours", "")} className={`rounded-lg border px-3 py-1.5 text-xs ${form.bookingNoticeHours === "" ? "border-primary ring-1 ring-primary" : "border-border"}`}>No minimum</button>
+                        {[{ v: "2", l: "2 hours" }, { v: "24", l: "24 hours" }, { v: "48", l: "48 hours" }, { v: "168", l: "7 days" }].map((b) => (
+                          <button key={b.v} type="button" onClick={() => set("bookingNoticeHours", b.v)} className={`rounded-lg border px-3 py-1.5 text-xs ${String(form.bookingNoticeHours) === b.v ? "border-primary ring-1 ring-primary" : "border-border"}`}>{b.l}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </WizardCard>
+
+                  {/* Max orders per day */}
+                  <WizardCard icon={<Boxes className="size-4" />} title="Maximum Orders Per Day">
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="number" min={1} placeholder="e.g. 15"
+                        value={form.maxOrdersPerDay}
+                        onChange={(e) => set("maxOrdersPerDay", e.target.value)}
+                        className="max-w-[160px]"
+                      />
+                      <span className="text-xs text-muted-foreground">orders / day — leave empty for unlimited. Shows "Fully Booked" when reached.</span>
+                    </div>
+                  </WizardCard>
+
+                  {/* Service area (party packages only) */}
+                  {vendor.ecosystem === "PIMPMYPARTY" && (
+                    <WizardCard icon={<CalendarDays className="size-4" />} title="Service Area">
+                      <Label className="text-xs">How far will you travel?</Label>
+                      <select
+                        value={form.serviceAreaType}
+                        onChange={(e) => set("serviceAreaType", e.target.value)}
+                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="">Select scope</option>
+                        <option value="local">Local</option>
+                        <option value="city">City</option>
+                        <option value="state">State</option>
+                        <option value="country">Country</option>
+                        <option value="worldwide">Worldwide</option>
+                      </select>
+                    </WizardCard>
+                  )}
+                </div>
+              )}
+
+              {/* Step 8: Preview & Publish */}
+              {step === 8 && (
                 <div className="space-y-4">
                   {/* Success Animation */}
                   {published ? (
@@ -760,7 +994,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
           <Button variant="ghost" onClick={handleSaveDraft} disabled={saving}>
             Save Draft
           </Button>
-          {step < 7 ? (
+          {step < 8 ? (
             <Button onClick={() => setStep(step + 1)} disabled={!canProceed} className="gap-1 bg-brand text-brand-foreground hover:bg-brand/90">
               Next <ChevronRight className="size-4" />
             </Button>
@@ -772,6 +1006,19 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Small titled card used inside wizard steps. */
+function WizardCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+      <h4 className="flex items-center gap-2 text-sm font-semibold">
+        {icon}
+        {title}
+      </h4>
+      {children}
     </div>
   );
 }

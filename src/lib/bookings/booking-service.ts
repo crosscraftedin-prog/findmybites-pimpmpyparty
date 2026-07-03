@@ -17,6 +17,7 @@
  */
 
 import { db } from "@/lib/db";
+import { decrementStock, restoreStock, trackEvent, checkAvailability } from "@/lib/inventory/inventory-service";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -222,6 +223,20 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
 
   const items = input.items ?? [];
   const totalAmount = computeTotalAmount(items) || input.budget;
+
+  // ── Pre-flight inventory/availability check ──
+  // Reject bookings for out-of-stock, blocked, or notice-violating products.
+  if (items.length > 0 && input.bookingDate) {
+    const reqDate = new Date(input.bookingDate);
+    for (const item of items) {
+      if (item.productId) {
+        const avail = await checkAvailability(item.productId, reqDate, item.qty || 1);
+        if (!avail.available) {
+          throw new Error(`"${item.name || "Item"}" is not available: ${avail.message}`);
+        }
+      }
+    }
+  }
 
   let bookingNumber = generateBookingNumber();
   let attempts = 0;
@@ -614,6 +629,34 @@ export async function updateBookingStatus(
   if (booking.vendorId !== vendorId) throw new Error("Not authorized");
 
   const oldStatus = booking.status;
+  const wasConfirmed = ["confirmed", "accepted", "in_progress"].includes(oldStatus);
+  const isConfirmed = ["confirmed", "accepted", "in_progress"].includes(newStatus);
+  const isCancelled = newStatus === "cancelled";
+
+  // ── Inventory integration ──
+  // Decrement stock when a booking becomes confirmed; restore on cancellation.
+  const items = parseItems(booking.items);
+  if (isConfirmed && !wasConfirmed) {
+    for (const item of items) {
+      if (item.productId) {
+        const res = await decrementStock(item.productId, item.qty || 1);
+        if (!res.ok) {
+          // Don't hard-fail the status change, but log prominently.
+          console.warn(`[booking] Stock decrement failed for ${item.productId}: ${res.message}`);
+        }
+        await trackEvent(item.productId, "bookings", (item.price * item.qty) || 0).catch(() => {});
+      }
+    }
+  } else if (isCancelled && wasConfirmed) {
+    for (const item of items) {
+      if (item.productId) {
+        await restoreStock(item.productId, item.qty || 1).catch((e) =>
+          console.warn(`[booking] Stock restore failed for ${item.productId}:`, e)
+        );
+      }
+    }
+  }
+
   const updated = await db.bookingV2.update({
     where: { id: bookingId },
     data: { status: newStatus },

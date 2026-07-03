@@ -69,8 +69,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    // Don't show unavailable products to the public
-    if (!product.isAvailable) {
+    // Public visibility: hide admin-force-hidden, draft, and archived products.
+    // Out-of-stock and temporarily-unavailable products remain viewable so
+    // customers see the correct availability banner.
+    if (product.forceHidden || product.status === "draft" || product.status === "archived") {
       return NextResponse.json({ error: "Product not available" }, { status: 404 });
     }
 
@@ -211,6 +213,16 @@ export async function GET(req: NextRequest) {
         templateVersion: product.templateVersion,
         // Template Engine extra fields (cake shape, size, flavour, etc.)
         extraFields,
+        // ── Inventory & Availability Management ──
+        stockType: product.stockType,
+        stockCount: product.stockCount,
+        lowStockThreshold: product.lowStockThreshold,
+        status: product.status,
+        availabilityMode: product.availabilityMode,
+        preparationTimeCategory: product.preparationTimeCategory,
+        preparationTimeCustom: product.preparationTimeCustom,
+        bookingNoticeHours: product.bookingNoticeHours,
+        serviceAreaType: product.serviceAreaType,
         createdAt: product.createdAt.toISOString(),
       },
       vendor: product.vendor

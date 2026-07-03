@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Pencil, Trash2, Package, Check, Loader2, Star, Search, Eye, Copy,
   EyeOff, Globe, TrendingUp, FileText, MoreVertical, X, ChevronDown,
+  Boxes,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,9 @@ import type { Vendor, Product } from "@/lib/types";
 import type { TemplateDef } from "@/lib/template-definitions";
 import { TemplateForm } from "./TemplateForm";
 import { ProductWizard } from "./product-wizard";
+import { StatusBadge, StockPill } from "@/components/inventory/status-badge";
+import { InventoryManager } from "@/components/inventory/inventory-manager";
+import { InventoryDashboard } from "@/components/inventory/inventory-dashboard";
 
 interface ProductsProps {
   vendor: Vendor;
@@ -43,7 +47,7 @@ const ARRAY_FIELDS = new Set([
 ]);
 
 type SortOption = "newest" | "oldest" | "name" | "price_high" | "price_low" | "views";
-type StatusFilter = "all" | "active" | "draft" | "hidden" | "unavailable";
+type StatusFilter = "all" | "active" | "draft" | "out_of_stock" | "temporarily_unavailable" | "seasonal" | "archived";
 
 export function Products({ vendor }: ProductsProps) {
   // ── Unified API: /api/vendor/products (ownership resolved from session, NOT frontend) ──
@@ -78,6 +82,8 @@ export function Products({ vendor }: ProductsProps) {
   const [editingProduct, setEditingProduct] = React.useState<Product | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [template, setTemplate] = React.useState<TemplateDef | null>(null);
+  // Inventory manager dialog
+  const [inventoryProduct, setInventoryProduct] = React.useState<{ id: string; name: string } | null>(null);
   const [filterOptions, setFilterOptions] = React.useState<Record<string, string[]>>({});
   const [templateLoading, setTemplateLoading] = React.useState(true);
   const [form, setForm] = React.useState<Record<string, any>>({});
@@ -89,13 +95,13 @@ export function Products({ vendor }: ProductsProps) {
   const stats = React.useMemo(() => {
     if (statsData) return statsData;
     const total = allProducts.length;
-    const active = allProducts.filter(p => p.isAvailable !== false && p.status !== "draft" && p.status !== "hidden").length;
+    const active = allProducts.filter(p => (p.status || "active") === "active").length;
     const draft = allProducts.filter(p => p.status === "draft").length;
-    const hidden = allProducts.filter(p => p.status === "hidden").length;
-    const unavailable = allProducts.filter(p => p.isAvailable === false).length;
+    const outOfStock = allProducts.filter(p => p.status === "out_of_stock").length;
+    const seasonal = allProducts.filter(p => p.status === "seasonal").length;
     const totalViews = allProducts.reduce((sum, p) => sum + (p.views ?? 0), 0);
     const featured = allProducts.filter(p => p.isFeatured || p.featured).length;
-    return { total, active, draft, hidden, unavailable, totalViews, featured, totalEnquiries: 0 };
+    return { total, active, draft, outOfStock, seasonal, totalViews, featured, totalEnquiries: 0 };
   }, [allProducts, statsData]);
 
   // ── Filtered + sorted products ──
@@ -115,14 +121,8 @@ export function Products({ vendor }: ProductsProps) {
     }
 
     // Status filter
-    if (statusFilter === "active") {
-      result = result.filter(p => p.isAvailable !== false && p.status !== "draft" && p.status !== "hidden");
-    } else if (statusFilter === "draft") {
-      result = result.filter(p => p.status === "draft");
-    } else if (statusFilter === "hidden") {
-      result = result.filter(p => p.status === "hidden");
-    } else if (statusFilter === "unavailable") {
-      result = result.filter(p => p.isAvailable === false);
+    if (statusFilter !== "all") {
+      result = result.filter(p => (p.status || "active") === statusFilter);
     }
 
     // Sort
@@ -196,7 +196,8 @@ export function Products({ vendor }: ProductsProps) {
   };
 
   const handleToggleVisibility = async (p: any) => {
-    const newStatus = p.status === "hidden" ? "active" : "hidden";
+    const cur = p.status || "active";
+    const newStatus = cur === "draft" ? "active" : "draft";
     try {
       const res = await fetch(`/api/vendor/products/${p.id}`, {
         method: "PUT",
@@ -204,7 +205,7 @@ export function Products({ vendor }: ProductsProps) {
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) throw new Error("Failed to update");
-      toast.success(newStatus === "hidden" ? "Product hidden" : "Product published");
+      toast.success(newStatus === "draft" ? "Moved to draft" : "Product published");
       reload();
     } catch { toast.error("Failed to update"); }
   };
@@ -272,18 +273,25 @@ export function Products({ vendor }: ProductsProps) {
         } else if (action === "hide" || action === "publish") {
           await fetch(`/api/vendor/products/${id}`, {
             method: "PUT", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: action === "hide" ? "hidden" : "active" }),
+            body: JSON.stringify({ status: action === "hide" ? "archived" : "active" }),
           });
         }
       } catch {}
     }
-    toast.success(`${ids.length} products ${action === "delete" ? "deleted" : action === "hide" ? "hidden" : "published"}`);
+    toast.success(`${ids.length} products ${action === "delete" ? "deleted" : action === "hide" ? "archived" : "published"}`);
     setSelected(new Set()); setShowBulkActions(false);
     reload();
   };
 
   return (
     <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
+      {/* Inventory Dashboard widget */}
+      {!isLoading && allProducts.length > 0 && (
+        <div className="mb-6">
+          <InventoryDashboard onManageProduct={(id, name) => setInventoryProduct({ id, name })} />
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
@@ -302,12 +310,12 @@ export function Products({ vendor }: ProductsProps) {
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
           {[
             { label: "Total", val: stats.total, icon: Package, color: "text-blue-600", bg: "bg-blue-50" },
-            { label: "Live", val: stats.active, icon: Check, color: "text-emerald-600", bg: "bg-emerald-50" },
+            { label: "Active", val: stats.active, icon: Check, color: "text-emerald-600", bg: "bg-emerald-50" },
             { label: "Draft", val: stats.draft, icon: FileText, color: "text-amber-600", bg: "bg-amber-50" },
-            { label: "Hidden", val: stats.hidden, icon: EyeOff, color: "text-gray-600", bg: "bg-gray-50" },
-            { label: "Featured", val: stats.featured, icon: Star, color: "text-purple-600", bg: "bg-purple-50" },
+            { label: "Out of Stock", val: (stats as any).outOfStock ?? 0, icon: X, color: "text-red-600", bg: "bg-red-50" },
+            { label: "Seasonal", val: (stats as any).seasonal ?? 0, icon: Star, color: "text-violet-600", bg: "bg-violet-50" },
             { label: "Views", val: stats.totalViews, icon: Eye, color: "text-cyan-600", bg: "bg-cyan-50" },
-            { label: "Unavailable", val: stats.unavailable, icon: X, color: "text-red-600", bg: "bg-red-50" },
+            { label: "Featured", val: stats.featured, icon: Star, color: "text-purple-600", bg: "bg-purple-50" },
           ].map(s => {
             const Icon = s.icon;
             return (
@@ -338,10 +346,12 @@ export function Products({ vendor }: ProductsProps) {
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as StatusFilter)}
             className="h-9 rounded-md border border-input bg-background px-3 text-sm">
             <option value="all">All Status</option>
-            <option value="active">Live</option>
+            <option value="active">Active</option>
             <option value="draft">Draft</option>
-            <option value="hidden">Hidden</option>
-            <option value="unavailable">Unavailable</option>
+            <option value="out_of_stock">Out of Stock</option>
+            <option value="temporarily_unavailable">Temp. Unavailable</option>
+            <option value="seasonal">Seasonal</option>
+            <option value="archived">Archived</option>
           </select>
           <select value={sortBy} onChange={e => setSortBy(e.target.value as SortOption)}
             className="h-9 rounded-md border border-input bg-background px-3 text-sm">
@@ -405,6 +415,9 @@ export function Products({ vendor }: ProductsProps) {
               const status = p.status || (isAvailable ? "active" : "unavailable");
               const views = p.views ?? 0;
               const isFeatured = p.isFeatured || p.featured;
+              const stockType = (p as any).stockType || "unlimited";
+              const stockCount = (p as any).stockCount ?? null;
+              const lowStockThreshold = (p as any).lowStockThreshold ?? 10;
 
               return (
                 <motion.div
@@ -440,15 +453,7 @@ export function Products({ vendor }: ProductsProps) {
                     </button>
                     {/* Status badge */}
                     <div className="absolute right-2 top-2">
-                      <Badge className={cn(
-                        "rounded-full px-2 py-0.5 text-[9px] uppercase backdrop-blur",
-                        status === "active" ? "bg-emerald-500/90 text-white" :
-                        status === "draft" ? "bg-amber-500/90 text-white" :
-                        status === "hidden" ? "bg-gray-600/90 text-white" :
-                        "bg-red-500/90 text-white"
-                      )}>
-                        {status}
-                      </Badge>
+                      <StatusBadge status={status} />
                     </div>
                     {/* Featured star */}
                     {isFeatured && (
@@ -464,6 +469,11 @@ export function Products({ vendor }: ProductsProps) {
                     <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
                       {p.productType || p.category || (isFood ? "Food Product" : "Service Package")}
                     </p>
+
+                    {/* Stock pill */}
+                    <div className="mt-1.5">
+                      <StockPill stockType={stockType} stockCount={stockCount} lowStockThreshold={lowStockThreshold} />
+                    </div>
 
                     {/* Price + Views */}
                     <div className="mt-2 flex items-center justify-between">
@@ -485,11 +495,14 @@ export function Products({ vendor }: ProductsProps) {
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(p)}>
                         <Pencil className="size-3" />
                       </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" title="Inventory & Availability" onClick={() => setInventoryProduct({ id: p.id, name: p.name })}>
+                        <Boxes className="size-3" />
+                      </Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => handleDuplicate(p)}>
                         <Copy className="size-3" />
                       </Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => handleToggleVisibility(p)}>
-                        {status === "hidden" ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
+                        {status === "draft" ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
                       </Button>
                       <a href={`/product/${p.slug}`} target="_blank" rel="noopener noreferrer">
                         <Button size="sm" variant="ghost" className="h-7 px-2">
@@ -539,6 +552,28 @@ export function Products({ vendor }: ProductsProps) {
           onClose={() => setShowModal(false)}
           saving={saving}
         />
+      )}
+
+      {/* Inventory & Availability Manager (full-screen sheet on mobile, dialog on desktop) */}
+      {inventoryProduct && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true">
+          <div className="flex max-h-[95vh] w-full flex-col overflow-hidden rounded-t-2xl border bg-background shadow-xl sm:max-w-3xl sm:rounded-2xl">
+            <div className="flex items-center justify-between border-b p-3">
+              <h2 className="text-sm font-semibold">Manage Inventory</h2>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setInventoryProduct(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <InventoryManager
+                productId={inventoryProduct.id}
+                productName={inventoryProduct.name}
+                ecosystem={vendor.ecosystem}
+                onClose={() => setInventoryProduct(null)}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
