@@ -8,6 +8,7 @@ import { Providers } from "@/lib/providers";
 import { EcosystemSync } from "@/components/marketplace/ecosystem-sync";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { ErrorMonitoring } from "@/components/analytics/error-monitoring";
+import { MobileBottomNav } from "@/components/marketplace/mobile-bottom-nav";
 
 // Lazy-load the AI chat widget so it doesn't bloat the initial bundle.
 const AIChatWidget = React.lazy(() =>
@@ -109,6 +110,7 @@ export default function RootLayout({
           <GoogleAnalytics />
           <ErrorMonitoring />
           {children}
+          <MobileBottomNav />
           <Toaster />
           <SonnerToaster richColors position="top-center" />
           {/* AI Event Planner chatbot — floating button on every page */}

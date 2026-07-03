@@ -15,6 +15,7 @@ import { FeaturedSection } from "@/components/marketplace/featured-section";
 import { TrendingProductsSection } from "@/components/marketplace/trending-products-section";
 import { PopularCitiesSection } from "@/components/marketplace/popular-cities-section";
 import { RecentVendorsSection } from "@/components/marketplace/recent-vendors-section";
+import { VerifiedVendorsSection } from "@/components/marketplace/verified-vendors-section";
 import { ReviewsCarousel } from "@/components/marketplace/reviews-carousel";
 import { EventTypeSection } from "@/components/marketplace/event-type-section";
 import { InspirationGallery } from "@/components/marketplace/inspiration-gallery";
@@ -47,6 +48,7 @@ export default function Home() {
         {/* PimpMyParty: browse by event type */}
         <EventTypeSection />
         <FeaturedSection />
+        <VerifiedVendorsSection />
         {/* FindMyBites: trending products / PimpMyParty: trending services */}
         <TrendingProductsSection />
         {/* PimpMyParty: inspiration gallery (mosaic of vendor work) */}
