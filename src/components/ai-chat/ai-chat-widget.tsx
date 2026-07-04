@@ -82,6 +82,19 @@ export function AIChatWidget() {
     };
   }, []);
 
+  // ── Listen for external "open Josh chat" triggers ──
+  // This lets the dashboard sidebar's "Chat with Josh" button (and any other
+  // component) open the chat widget by dispatching a custom event:
+  //   window.dispatchEvent(new CustomEvent("open-josh-chat"))
+  React.useEffect(() => {
+    const handleOpen = () => {
+      setOpen(true);
+      setShowTooltip(false);
+    };
+    window.addEventListener("open-josh-chat", handleOpen as EventListener);
+    return () => window.removeEventListener("open-josh-chat", handleOpen as EventListener);
+  }, []);
+
   return (
     <>
       <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">

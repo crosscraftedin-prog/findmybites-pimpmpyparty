@@ -155,14 +155,21 @@ export function Sidebar({ vendor, activeTab, onTabChange, userEmail }: SidebarPr
 
         {/* Bottom: help + logout */}
         <div className="space-y-2 border-t border-border p-3">
-          <div className="rounded-lg bg-brand-soft/50 p-3">
+          <button
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("open-josh-chat"));
+              }
+            }}
+            className="group w-full rounded-lg bg-brand-soft/50 p-3 text-left transition-all hover:bg-brand-soft hover:shadow-sm"
+          >
             <p className="text-xs font-medium text-brand-soft-foreground">
               Need help? Chat with Josh 👋
             </p>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
               Your AI event planner
             </p>
-          </div>
+          </button>
           <button
             onClick={handleSignOut}
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
