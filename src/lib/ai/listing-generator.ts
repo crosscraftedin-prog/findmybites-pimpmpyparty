@@ -86,38 +86,49 @@ export async function generateBusinessProfile(input: VendorSetupInput, style: Wr
   ].filter(Boolean);
 
   const prompt = `You are an expert business copywriter for a ${marketplaceLabel} marketplace.
-Generate a complete business profile for the following vendor.
+Generate a UNIQUE business profile for the following vendor.
 
 ${STYLE_PROMPTS[style]}
+
+CRITICAL — AVOID GENERIC CONTENT:
+- Do NOT start descriptions with "We are passionate about..." or "We are a..."
+- Do NOT use generic phrases like "quality you can trust", "exceeding expectations", "one-stop solution"
+- Every sentence must be SPECIFIC to this vendor's name, category, city, and specialities
+- Use the business name naturally in the description (not just at the start)
+- Mention the specific city and category in a natural way
+- Include concrete details (e.g. for a wedding planner: "from mandap setup to baraat coordination")
+- Make the tagline memorable and unique — not a cliché
+- Each "why choose us" reason must be specific to this type of business, not generic
 
 Vendor context:
 ${contextLines.join("\n")}
 
 Return ONLY valid JSON (no markdown, no code fences) with this EXACT structure:
 {
-  "description": "80-150 word professional business description",
-  "shortDescription": "1-2 sentence summary (max 160 chars)",
-  "tagline": "short catchy one-line tagline (max 60 chars)",
-  "seoTitle": "SEO-optimized title for Google (50-60 chars, include category + city)",
-  "metaDescription": "Meta description for Google (140-160 chars, persuasive with CTA)",
-  "keywords": ["8-10 SEO keywords for Google ranking"],
+  "description": "80-150 word UNIQUE business description (specific to this vendor, no generic phrases)",
+  "shortDescription": "1-2 sentence summary (max 160 chars, specific to this business)",
+  "tagline": "short catchy UNIQUE tagline (max 60 chars, avoid clichés)",
+  "seoTitle": "SEO-optimized title for Google (50-60 chars, include category + city + business name)",
+  "metaDescription": "Meta description for Google (140-160 chars, persuasive with CTA, specific)",
+  "keywords": ["8-10 SEO keywords for Google ranking (specific to this category + city)"],
   "tags": ["6-8 short tags for search & filtering (1-2 words, lowercase)"],
-  "services": ["4-6 services this business likely offers"],
-  "whyChooseUs": ["4-5 reasons customers should choose this business"],
-  "highlights": ["4-5 key highlights or unique selling points"],
-  "customerPromise": "1-2 sentence promise to customers about quality/service",
-  "faq": [{"question": "common customer question", "answer": "helpful answer"}, ...4-5 FAQs],
-  "socialBio": "short social media bio (max 150 chars, with emojis)"
+  "services": ["4-6 SPECIFIC services this ${catLabel} business offers"],
+  "whyChooseUs": ["4-5 SPECIFIC reasons (not generic — tie to this vendor's category)"],
+  "highlights": ["4-5 SPECIFIC highlights or unique selling points"],
+  "customerPromise": "1-2 sentence promise specific to this type of business",
+  "faq": [{"question": "common customer question for a ${catLabel}", "answer": "specific helpful answer"}, ...4-5 FAQs],
+  "socialBio": "short social media bio (max 150 chars, with 1-2 emojis, specific to this business)"
 }
 
 Requirements:
-- All content must be specific to ${catLabel} businesses
-- Description: 80-150 words, natural and engaging
-- SEO title must include the category and city (${input.city || "the city"})
-- Keywords should include category + city + relevant terms
-- Tags should be short (1-2 words), lowercase
-- FAQ should answer real customer questions for this type of business
-- Social bio should be catchy with 1-2 relevant emojis`;
+- All content must be specific to ${catLabel} businesses in ${input.city || "the city"}
+- Description: 80-150 words, natural and engaging, NO generic openings
+- SEO title must include the category, city, and business name
+- Keywords should include category + city + specific service terms
+- Tags should be short (1-2 words), lowercase, specific
+- FAQ should answer REAL customer questions for a ${catLabel}
+- Social bio should be catchy with 1-2 relevant emojis
+- Do NOT repeat the same phrase across fields`;
 
   const text = await callLLM(prompt);
   const parsed = extractJson(text || "");

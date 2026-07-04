@@ -16,7 +16,6 @@ import { Availability } from "@/components/dashboard/Availability";
 import { Analytics } from "@/components/dashboard/Analytics";
 import { MarketingCenter } from "@/components/marketing/marketing-center";
 import { SupportCenter } from "@/components/support/support-center";
-import { SetupAssistant } from "@/components/setup-assistant/setup-assistant";
 import { PlanBilling } from "@/components/dashboard/PlanBilling";
 import { Settings } from "@/components/dashboard/Settings";
 import { Messages } from "@/components/dashboard/Messages";
@@ -120,7 +119,6 @@ export default function DashboardPage() {
           {activeTab === "marketing" && <MarketingCenter vendor={vendor} />}
           {activeTab === "billing" && <PlanBilling vendor={vendor} />}
           {activeTab === "support" && <SupportCenter vendor={vendor} />}
-          {activeTab === "setup-assistant" && <SetupAssistant vendor={vendor} />}
           {activeTab === "settings" && <Settings vendor={vendor} userEmail={user.email ?? ""} />}
         </main>
       </div>

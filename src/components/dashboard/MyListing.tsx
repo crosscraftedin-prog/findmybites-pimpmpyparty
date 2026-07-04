@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   Eye, Save, Loader2, Store, MapPin, Phone, Clock, Truck, Image as ImageIcon,
-  Search, Check, Plus, X, Star, Sparkles,
+  Search, Check, Plus, X, Star, Sparkles, Rocket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,12 @@ import type { Vendor } from "@/lib/types";
 import { CreateVendorForm } from "@/components/marketplace/create-vendor-form";
 import { useVendor } from "@/lib/queries";
 import { ImageUpload, GalleryUpload } from "./image-upload";
+import {
+  BusinessScoreCard, MissingFieldsCard, QualityCheckCard, PublishCard,
+  SuccessScreen, AutoSaveIndicator, IntegratedAIPanel,
+  computeBusinessScore, detectMissingFields, runQualityChecks,
+  type AiBusinessProfile,
+} from "./listing-ai-tools";
 
 interface MyListingProps {
   vendor: Vendor;
@@ -47,6 +53,13 @@ export function MyListing({ vendor }: MyListingProps) {
   const [saving, setSaving] = React.useState(false);
   const [aiSeoLoading, setAiSeoLoading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState("business");
+  const [autoSaveStatus, setAutoSaveStatus] = React.useState<"idle" | "saving" | "saved">("idle");
+  const [productCount, setProductCount] = React.useState(0);
+  const [publishing, setPublishing] = React.useState(false);
+  const [published, setPublished] = React.useState(false);
+  const formRef = React.useRef<any>({});
+  const galleryRef = React.useRef<string[]>([]);
+  const autoSaveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Form state
   const [form, setForm] = React.useState<any>({});
@@ -117,6 +130,36 @@ export function MyListing({ vendor }: MyListingProps) {
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
+  // ── Fetch product count for Business Score ──
+  React.useEffect(() => {
+    fetch("/api/vendor/products?limit=1")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.total !== undefined) setProductCount(d.total); })
+      .catch(() => {});
+  }, []);
+
+  // ── Auto-save (debounced 2s after last change) ──
+  formRef.current = form;
+  galleryRef.current = gallery;
+
+  React.useEffect(() => {
+    if (!form.name) return; // don't auto-save until basic info exists
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    setAutoSaveStatus("saving");
+    autoSaveTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/vendor/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...formRef.current, gallery: galleryRef.current }),
+        });
+        if (res.ok) { setAutoSaveStatus("saved"); setTimeout(() => setAutoSaveStatus("idle"), 3000); }
+        else setAutoSaveStatus("idle");
+      } catch { setAutoSaveStatus("idle"); }
+    }, 2000);
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+  }, [form, gallery]);
+
   // ── One-click AI SEO generation ──
   // Calls the existing /api/vendor/marketing/ai/seo endpoint which uses GLM
   // to generate an SEO title + description based on the vendor's business
@@ -165,7 +208,7 @@ export function MyListing({ vendor }: MyListingProps) {
     setSaving(false);
   };
 
-  // Profile completeness
+  // Profile completeness (legacy — kept for the header bar)
   const completeness = React.useMemo(() => {
     if (!form.name) return 0;
     const checks = [
@@ -176,6 +219,47 @@ export function MyListing({ vendor }: MyListingProps) {
     return Math.round((checks.filter(Boolean).length / checks.length) * 100);
   }, [form, gallery]);
 
+  // ── Business Score (8 sections, 0-100) ──
+  const businessScore = React.useMemo(() => computeBusinessScore(form, gallery, productCount), [form, gallery, productCount]);
+
+  // ── Smart Missing Field Detection ──
+  const missingFields = React.useMemo(() => detectMissingFields(form, gallery), [form, gallery]);
+
+  // ── AI Quality Check ──
+  const qualityChecks = React.useMemo(() => runQualityChecks(form), [form]);
+
+  // ── AI profile apply handler ──
+  const handleAiApply = (profile: AiBusinessProfile) => {
+    if (profile.description) set("description", profile.description);
+    if (profile.tagline) set("tagline", profile.tagline);
+    if (profile.seoTitle) set("metaTitle", profile.seoTitle);
+    if (profile.metaDescription) set("metaDescription", profile.metaDescription);
+    if (profile.tags?.length) set("tags", profile.tags.join(", "));
+  };
+
+  // ── Publish handler ──
+  const handlePublish = async () => {
+    setPublishing(true);
+    try {
+      // Save first, then mark as published
+      await save();
+      setPublished(true);
+      toast.success("🎉 Your business profile is now live!");
+    } catch {
+      toast.error("Publish failed");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleSuccessAction = (action: string) => {
+    if (action === "products") setActiveTab("products");
+    else if (action === "gallery") setActiveTab("media");
+    else if (action === "share") router.push(`/vendor/${vendor.slug}`);
+    else if (action === "upgrade") router.push("/dashboard");
+    setPublished(false);
+  };
+
   if (isLoading || !fullVendor) {
     return (
       <div className="flex h-full items-center justify-center p-8">
@@ -185,7 +269,12 @@ export function MyListing({ vendor }: MyListingProps) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
+    <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
+      {/* Success Screen */}
+      {published && (
+        <SuccessScreen vendorName={form.name || vendor.name} onAction={handleSuccessAction} />
+      )}
+
       {/* Header */}
       <div className="sticky top-0 z-10 -mx-4 mb-6 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -194,9 +283,10 @@ export function MyListing({ vendor }: MyListingProps) {
             <p className="text-base font-bold">{vendor.name}</p>
             <div className="mt-1 flex items-center gap-2">
               <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
-                <div className={cn("h-full rounded-full", completeness >= 80 ? "bg-emerald-500" : completeness >= 50 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${completeness}%` }} />
+                <div className={cn("h-full rounded-full", businessScore.overall >= 80 ? "bg-emerald-500" : businessScore.overall >= 50 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${businessScore.overall}%` }} />
               </div>
-              <span className="text-[10px] font-medium text-muted-foreground">{completeness}% complete</span>
+              <span className="text-[10px] font-medium text-muted-foreground">Score: {businessScore.overall}/100</span>
+              <span className="ml-2"><AutoSaveIndicator status={autoSaveStatus} /></span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -211,6 +301,10 @@ export function MyListing({ vendor }: MyListingProps) {
         </div>
       </div>
 
+      {/* 2-column layout: form + sidebar */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        {/* Left: tabs + form */}
+        <div>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4 flex-wrap">
           <TabsTrigger value="business" className="gap-1"><Store className="size-3.5" /> Business</TabsTrigger>
@@ -224,6 +318,9 @@ export function MyListing({ vendor }: MyListingProps) {
 
         {/* Business Info */}
         <TabsContent value="business" className="space-y-4">
+          {/* Integrated AI Business Profile Generator */}
+          <IntegratedAIPanel form={form} onApply={handleAiApply} onNavigate={setActiveTab} />
+
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Business Name *</Label><Input value={form.name} onChange={e => set("name", e.target.value)} className="mt-1" /></div>
             <div><Label>Short Tagline</Label><Input value={form.tagline} onChange={e => set("tagline", e.target.value)} placeholder="Custom cakes since 2015" className="mt-1" /></div>
@@ -442,6 +539,16 @@ export function MyListing({ vendor }: MyListingProps) {
           </div>
         </TabsContent>
       </Tabs>
+        </div>
+
+        {/* Right sidebar: Business Score + Missing Fields + Quality Check + Publish */}
+        <div className="space-y-4">
+          <BusinessScoreCard data={businessScore} />
+          <MissingFieldsCard missing={missingFields} onNavigate={setActiveTab} />
+          <QualityCheckCard checks={qualityChecks} onFix={(c) => {}} />
+          <PublishCard score={businessScore.overall} canPublish={businessScore.overall >= 80} onPublish={handlePublish} publishing={publishing} />
+        </div>
+      </div>
     </div>
   );
 }
