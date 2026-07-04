@@ -54,7 +54,7 @@ export async function PUT(req: NextRequest) {
       "whatsapp", "website", "instagram", "facebook", "youtube", "tiktok", "twitter", "snapchat",
       "pinterest", "linkedin", "telegram",
       "openHours", "deliveryAvailable", "pickupAvailable", "homeService", "onlineConsultation",
-      "serviceAreas", "minOrder", "maxOrder", "prepTime", "bookingNotice",
+      "serviceAreas", "maxOrder", "prepTime", "bookingNotice",
       "metaTitle", "metaDescription",
       "businessType", "yearStarted", "businessRegNumber", "gstVatNumber", "languagesSpoken",
       "hideAddress", "holidayMode", "vacationMode", "emergencyClosure",
@@ -73,7 +73,6 @@ export async function PUT(req: NextRequest) {
     // Numeric fields
     if (body.yearStarted !== undefined) updateData.yearStarted = body.yearStarted ? Number(body.yearStarted) : null;
     if (body.basePrice !== undefined) updateData.basePrice = Number(body.basePrice) || 0;
-    if (body.minOrder !== undefined) updateData.minOrder = body.minOrder ? Number(body.minOrder) : null;
     if (body.maxOrder !== undefined) updateData.maxOrder = body.maxOrder ? Number(body.maxOrder) : null;
     if (body.latitude !== undefined) updateData.latitude = body.latitude ? Number(body.latitude) : null;
     if (body.longitude !== undefined) updateData.longitude = body.longitude ? Number(body.longitude) : null;
