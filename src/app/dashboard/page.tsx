@@ -16,6 +16,7 @@ import { Enquiries } from "@/components/dashboard/Enquiries";
 import { Availability } from "@/components/dashboard/Availability";
 import { Analytics } from "@/components/dashboard/Analytics";
 import { MarketingCenter } from "@/components/marketing/marketing-center";
+import { GrowthManager } from "@/components/growth-manager/growth-manager";
 import { SupportCenter } from "@/components/support/support-center";
 import { PlanBilling } from "@/components/dashboard/PlanBilling";
 import { Settings } from "@/components/dashboard/Settings";
@@ -117,6 +118,7 @@ export default function DashboardPage() {
           {activeTab === "messages" && <Messages vendorId={vendor.id} />}
           {activeTab === "availability" && <Availability vendorId={vendor.id} />}
           {activeTab === "analytics" && <Analytics vendor={vendor} />}
+          {activeTab === "growth-manager" && <GrowthManager vendor={vendor} onNavigate={setActiveTab} />}
           {activeTab === "marketing" && <MarketingCenter vendor={vendor} />}
           {activeTab === "billing" && <PlanBilling vendor={vendor} />}
           {activeTab === "support" && <SupportCenter vendor={vendor} />}
