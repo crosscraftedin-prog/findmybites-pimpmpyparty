@@ -15,6 +15,7 @@ import { Enquiries } from "@/components/dashboard/Enquiries";
 import { Availability } from "@/components/dashboard/Availability";
 import { Analytics } from "@/components/dashboard/Analytics";
 import { MarketingCenter } from "@/components/marketing/marketing-center";
+import { SupportCenter } from "@/components/support/support-center";
 import { PlanBilling } from "@/components/dashboard/PlanBilling";
 import { Settings } from "@/components/dashboard/Settings";
 import { Messages } from "@/components/dashboard/Messages";
@@ -117,6 +118,7 @@ export default function DashboardPage() {
           {activeTab === "analytics" && <Analytics vendor={vendor} />}
           {activeTab === "marketing" && <MarketingCenter vendor={vendor} />}
           {activeTab === "billing" && <PlanBilling vendor={vendor} />}
+          {activeTab === "support" && <SupportCenter vendor={vendor} />}
           {activeTab === "settings" && <Settings vendor={vendor} userEmail={user.email ?? ""} />}
         </main>
       </div>

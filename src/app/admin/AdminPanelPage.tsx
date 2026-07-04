@@ -29,6 +29,7 @@ import {
   CheckSquare,
   Square,
   Sparkles,
+  LifeBuoy,
 } from "lucide-react";
 import {
   BarChart,
@@ -58,6 +59,7 @@ const AdminVendorOnboarding = dynamic(() => import("@/components/admin/admin-ven
 const AdminSubscriptions = dynamic(() => import("@/components/admin/admin-subscriptions").then(m => ({ default: m.AdminSubscriptions })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminInventory = dynamic(() => import("@/components/admin/admin-inventory").then(m => ({ default: m.AdminInventory })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminMarketing = dynamic(() => import("@/components/admin/admin-marketing").then(m => ({ default: m.AdminMarketing })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
+const AdminSupport = dynamic(() => import("@/components/admin/admin-support").then(m => ({ default: m.AdminSupport })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const VendorDeleteModal = dynamic(() => import("@/components/admin/vendor-delete-modal").then(m => ({ default: m.VendorDeleteModal })), { ssr: false });
 const CleanupTestVendors = dynamic(() => import("@/components/admin/cleanup-test-vendors").then(m => ({ default: m.CleanupTestVendors })), { ssr: false });
 import { useCategoryLabels } from "@/hooks/use-category-labels";
@@ -156,6 +158,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: "onboarding", label: "Vendor Onboarding", icon: Users },
       { id: "inventory", label: "Inventory", icon: Boxes },
       { id: "marketing", label: "Marketing", icon: Megaphone },
+      { id: "support", label: "Support", icon: LifeBuoy },
       { id: "analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
@@ -986,6 +989,8 @@ export function AdminPanelPage({
             <div className="p-4 lg:p-6"><AdminInventory /></div>
           ) : activeNav === "marketing" ? (
             <div className="p-4 lg:p-6"><AdminMarketing /></div>
+          ) : activeNav === "support" ? (
+            <AdminSupport />
           ) : activeNav === "subscriptions" ? (
             <AdminSubscriptions />
           ) : activeNav === "seo-pages" ? (

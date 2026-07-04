@@ -181,6 +181,9 @@ model Vendor {
   aiGenerationLogs   AiGenerationLog[]
   analyticsDaily     VendorAnalyticsDaily[]
 
+  // ── Support System ──
+  supportTickets     SupportTicket[]
+
   @@index([ecosystem])
   @@index([category])
   @@index([continent])
@@ -1592,4 +1595,95 @@ model AdminAuditLog {
   @@index([adminId])
   @@index([createdAt])
   @@map("admin_audit_logs")
+}
+
+// ── Vendor Support & Admin Messaging System ────────────────────────────────
+// WhatsApp-style support tickets between vendors and platform admins.
+// Each ticket is a conversation thread with messages, attachments, and
+// a full status workflow. Future-ready for live chat / AI chatbot / email
+// integration via the polymorphic channel field.
+
+model SupportTicket {
+  id              String   @id @default(cuid())
+  // Ticket number for human display: SUP-YYYY-NNNNN
+  ticketNumber    String   @unique
+  vendorId        String
+  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  // ── Ticket metadata ──
+  subject         String
+  // account | business_listing | subscription | payments | products | photos |
+  // reviews | claim_business | technical_bug | feature_request | other
+  category        String
+  // low | medium | high | urgent
+  priority        String   @default("medium")
+  // open | pending | waiting_vendor | in_progress | resolved | closed
+  status          String   @default("open")
+
+  // ── Auto-captured context (stored once at creation) ──
+  businessName    String?
+  vendorEmail     String?
+  vendorPhone     String?
+  browserInfo     String?
+  dashboardUrl    String?
+
+  // ── Assignment ──
+  assignedTo      String?  // admin user id
+  assignedToEmail String?  // admin email snapshot
+
+  // ── Internal admin notes (not visible to vendor) ──
+  internalNotes   String?  // JSON array of {note, adminEmail, timestamp}
+
+  // ── Tracking ──
+  // ID of the last message from vendor — used for "waiting for vendor" logic
+  lastVendorMessageAt DateTime?
+  lastAdminMessageAt  DateTime?
+  // Vendor-side unread count (admin messages vendor hasn't seen)
+  vendorUnreadCount   Int      @default(0)
+  // Admin-side unread count (vendor messages admin hasn't seen)
+  adminUnreadCount    Int      @default(0)
+
+  // ── Merge support ──
+  mergedIntoId    String?  // if this ticket was merged into another
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+
+  // ── Relations ──
+  messages        SupportMessage[]
+
+  @@index([vendorId])
+  @@index([status])
+  @@index([priority])
+  @@index([assignedTo])
+  @@index([createdAt])
+  @@index([vendorId, status])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id              String   @id @default(cuid())
+  ticketId        String
+  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  // "vendor" | "admin" | "system" (system = automated status changes)
+  senderType      String
+  senderId        String?  // vendor id or admin user id
+  senderName      String   // display name snapshot
+  senderAvatar    String?  // avatar URL snapshot
+
+  // Message body (plain text — supports emoji)
+  body            String
+
+  // Attachments: JSON array of {type: "image"|"pdf"|"document", url, name, size}
+  attachments     String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([senderType])
+  @@index([createdAt])
+  @@map("support_messages")
 }

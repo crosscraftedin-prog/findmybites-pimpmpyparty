@@ -18,6 +18,7 @@ import {
   Package,
   Mail,
   Megaphone,
+  LifeBuoy,
 } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { useClaimAuth } from "@/hooks/use-claim-auth";
@@ -42,6 +43,7 @@ export type DashboardTab =
   | "analytics"
   | "marketing"
   | "billing"
+  | "support"
   | "settings";
 
 interface NavItem {
@@ -60,6 +62,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "marketing", label: "Marketing", icon: Megaphone },
   { id: "billing", label: "Plan & Billing", icon: Star },
+  { id: "support", label: "Support", icon: LifeBuoy },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 

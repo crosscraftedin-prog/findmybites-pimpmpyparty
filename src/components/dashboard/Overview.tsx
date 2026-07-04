@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { SupportWidget } from "@/components/support/support-widget";
 import {
   Eye,
   MessageSquare,
@@ -203,6 +204,11 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
         vendorName={vendor.name}
         onSelectPlan={() => setShowUpgrade(false)}
       />
+
+      {/* Support widget */}
+      <div className="mt-6">
+        <SupportWidget onNavigate={(tab) => onNavigate(tab as DashboardTab)} />
+      </div>
     </div>
   );
 }
