@@ -197,6 +197,16 @@ model Vendor {
   @@index([ecosystem, city])
   @@index([approved, latitude, longitude])
 
+  // ── Marketing & Growth Center relations ──
+  growthScores       GrowthScore[]
+  marketingCampaigns MarketingCampaign[]
+  emailCampaigns     EmailCampaign[]
+  reviewRequests     ReviewRequest[]
+  referralsMade      Referral[] @relation("ReferralReferrer")
+  referralsJoined    Referral[] @relation("ReferralInvitee")
+  aiGenerationLogs   AiGenerationLog[]
+  analyticsDaily     VendorAnalyticsDaily[]
+
   @@map("vendor_listings")
 }
 
@@ -1384,3 +1394,181 @@ model BookingEvent {
 }
 
 
+
+// ── Marketing & Growth Center ─────────────────────────────────────────────
+// Comprehensive marketing toolkit: campaigns, AI-generated social/email/
+// whatsapp content, QR codes, review requests, referrals, growth snapshots.
+
+// Vendor's current growth score + breakdown (snapshot for trend tracking).
+// Recomputed on demand; latest row per vendor is the current score.
+model GrowthScore {
+  id              String   @id @default(cuid())
+  vendorId        String
+  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  // Overall 0-100
+  score           Int      @default(0)
+  // Star rating 0-5
+  stars           Int      @default(0)
+  // Breakdown JSON: { profileComplete, products, seo, photos, responseRate, reviews, subscription }
+  breakdown       String?
+  // Plain-text list of weak areas for the AI advisor
+  weakAreas       String?
+  computedAt      DateTime @default(now())
+
+  @@index([vendorId, computedAt])
+  @@map("growth_scores")
+}
+
+// Marketing campaigns (coupons, festivals, flash sales, referral, etc.)
+model MarketingCampaign {
+  id              String   @id @default(cuid())
+  vendorId        String
+  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  // coupon | festival | weekend | birthday | wedding_season | referral | flash_sale | countdown
+  type            String
+  name            String
+  // Optional coupon code (for coupon/flash_sale types)
+  code            String?
+  // discount percent (0-100) or flat amount in smallest currency unit
+  discountPercent Int?
+  discountAmount  Int?
+  currency        String   @default("INR")
+  // AI-generated marketing copy
+  headline        String?
+  description     String?
+  terms           String?
+  // Scheduling
+  startsAt        DateTime?
+  endsAt          DateTime?
+  // Status: draft | active | paused | expired
+  status          String   @default("draft")
+  // Engagement counters
+  views           Int      @default(0)
+  clicks          Int      @default(0)
+  redemptions     Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([vendorId])
+  @@index([vendorId, status])
+  @@index([type])
+  @@index([status, startsAt])
+  @@map("marketing_campaigns")
+}
+
+// Email campaigns / newsletters
+model EmailCampaign {
+  id              String   @id @default(cuid())
+  vendorId        String
+  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  // Template: new_product | festival | special_offer | thank_you | booking_reminder | re_engagement
+  template        String
+  subject         String
+  preheader       String?
+  body            String
+  // Recipient list size snapshot
+  recipientCount  Int      @default(0)
+  // Sent stats
+  sentAt          DateTime?
+  openedCount     Int      @default(0)
+  clickedCount    Int      @default(0)
+  status          String   @default("draft") // draft | sent | scheduled
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([vendorId])
+  @@index([vendorId, status])
+  @@map("email_campaigns")
+}
+
+// Review booster: track review requests sent and received
+model ReviewRequest {
+  id              String   @id @default(cuid())
+  vendorId        String
+  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  // channel: whatsapp | email | sms | qr
+  channel         String
+  // The customer this request was sent to (optional)
+  customerName    String?
+  customerContact String?
+  // Token for the public review-landing link
+  token           String   @unique
+  // Status: sent | opened | completed | ignored
+  status          String   @default("sent")
+  sentAt          DateTime @default(now())
+  openedAt        DateTime?
+  completedAt     DateTime?
+
+  @@index([vendorId])
+  @@index([vendorId, status])
+  @@index([token])
+  @@map("review_requests")
+}
+
+// Referral program: track vendor-to-vendor referrals
+model Referral {
+  id              String   @id @default(cuid())
+  referrerVendorId String
+  referrer        Vendor   @relation("ReferralReferrer", fields: [referrerVendorId], references: [id], onDelete: Cascade)
+  // The invited vendor's email (used to match on signup)
+  inviteeEmail    String
+  // The vendor that signed up (set when activated)
+  inviteeVendorId String?
+  invitee         Vendor?  @relation("ReferralInvitee", fields: [inviteeVendorId], references: [id], onDelete: SetNull)
+  // Unique referral code
+  code            String   @unique
+  // Status: sent | activated | rewarded
+  status          String   @default("sent")
+  // Reward tracking
+  creditsEarned   Int      @default(0)
+  commissionEarned Int     @default(0)
+  sentAt          DateTime @default(now())
+  activatedAt     DateTime?
+  rewardedAt      DateTime?
+
+  @@index([referrerVendorId])
+  @@index([inviteeEmail])
+  @@index([code])
+  @@map("referrals")
+}
+
+// AI generation log — for admin analytics + rate limiting
+model AiGenerationLog {
+  id              String   @id @default(cuid())
+  vendorId        String?
+  vendor          Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  // feature: growth_advisor | social_post | email_campaign | whatsapp_msg | seo | campaign_copy
+  feature         String
+  // tokens used (approx)
+  tokens          Int      @default(0)
+  success         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  @@index([vendorId])
+  @@index([feature])
+  @@index([createdAt])
+  @@map("ai_generation_logs")
+}
+
+// Daily marketing analytics aggregate (per vendor, per day).
+// Mirrors ProductAnalyticsDaily but for the vendor profile as a whole.
+model VendorAnalyticsDaily {
+  id              String   @id @default(cuid())
+  vendorId        String
+  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  dateKey         String   // YYYY-MM-DD
+  profileViews    Int      @default(0)
+  productViews    Int      @default(0)
+  enquiries       Int      @default(0)
+  bookings        Int      @default(0)
+  revenue         Int      @default(0)
+  follows         Int      @default(0)
+  wishlistAdds    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([vendorId, dateKey])
+  @@index([vendorId, dateKey])
+  @@index([dateKey])
+  @@map("vendor_analytics_daily")
+}

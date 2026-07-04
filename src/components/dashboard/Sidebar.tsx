@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   Package,
   Mail,
+  Megaphone,
 } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { useClaimAuth } from "@/hooks/use-claim-auth";
@@ -39,6 +40,7 @@ export type DashboardTab =
   | "messages"
   | "availability"
   | "analytics"
+  | "marketing"
   | "billing"
   | "settings";
 
@@ -56,6 +58,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "messages", label: "Messages", icon: Mail },
   { id: "availability", label: "Availability", icon: Calendar },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
+  { id: "marketing", label: "Marketing", icon: Megaphone },
   { id: "billing", label: "Plan & Billing", icon: Star },
   { id: "settings", label: "Settings", icon: Settings },
 ];
