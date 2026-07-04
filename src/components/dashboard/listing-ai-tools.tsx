@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   Store, Image as ImageIcon, Package, Search, Share2, ShieldCheck,
   Heart, BarChart3, CheckCircle2, AlertTriangle, XCircle, Rocket,
-  Sparkles, Loader2, PartyPopper, ArrowRight, Copy,
+  Sparkles, Loader2, PartyPopper, ArrowRight, Copy, Clock, Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -249,7 +249,17 @@ export function MissingFieldsCard({ missing, onNavigate }: { missing: MissingFie
 
 // ── Auto-save indicator ──────────────────────────────────────────────────────
 
-export function AutoSaveIndicator({ status }: { status: "idle" | "saving" | "saved" }) {
+export function AutoSaveIndicator({ status, lastSavedAt }: { status: "idle" | "saving" | "saved"; lastSavedAt?: number }) {
+  const [, force] = React.useReducer((x) => x + 1, 0);
+  // Re-render every 5s so "Last saved X seconds ago" stays fresh
+  React.useEffect(() => {
+    if (status !== "idle" || !lastSavedAt) return;
+    const interval = setInterval(force, 5000);
+    return () => clearInterval(interval);
+  }, [status, lastSavedAt]);
+
+  const timeAgo = lastSavedAt ? formatTimeAgo(lastSavedAt) : "";
+
   return (
     <div className="flex items-center gap-1.5 text-[11px]">
       {status === "saving" && (
@@ -259,10 +269,21 @@ export function AutoSaveIndicator({ status }: { status: "idle" | "saving" | "sav
         <><CheckCircle2 className="size-3 text-emerald-500" /> <span className="text-emerald-600 dark:text-emerald-400">Saved ✓</span></>
       )}
       {status === "idle" && (
-        <span className="text-muted-foreground">All changes saved</span>
+        <>
+          <CheckCircle2 className="size-3 text-muted-foreground" />
+          <span className="text-muted-foreground">{lastSavedAt ? `Last saved ${timeAgo}` : "All changes saved"}</span>
+        </>
       )}
     </div>
   );
+}
+
+function formatTimeAgo(ts: number): string {
+  const diff = Date.now() - ts;
+  if (diff < 5000) return "just now";
+  if (diff < 60000) return `${Math.floor(diff / 1000)} seconds ago`;
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} minute${Math.floor(diff / 60000) > 1 ? "s" : ""} ago`;
+  return `${Math.floor(diff / 3600000)} hour${Math.floor(diff / 3600000) > 1 ? "s" : ""} ago`;
 }
 
 // ── AI Quality Check ─────────────────────────────────────────────────────────
@@ -580,8 +601,55 @@ export function IntegratedAIPanel({ form, onApply, onNavigate }: {
               <div><span className="font-semibold text-muted-foreground">Services:</span> {profile.services.join(", ")}</div>
             )}
           </div>
+
+          {/* Smart Suggestions — appear after AI generation */}
+          <SmartSuggestionsPanel form={form} onNavigate={onNavigate} />
         </>
       )}
+    </div>
+  );
+}
+
+// ── Smart Suggestions Panel (8 specific items, appears after AI generation) ──
+
+export function SmartSuggestionsPanel({ form, onNavigate }: { form: any; onNavigate: (tab: string) => void }) {
+  const suggestions = [
+    { id: "gallery", label: "Upload 5 more gallery images", done: false, tab: "media", icon: ImageIcon },
+    { id: "product", label: "Add your first product", done: false, tab: "products", icon: Package },
+    { id: "hours", label: "Complete business hours", done: !!form.openHours, tab: "hours", icon: Clock },
+    { id: "verify", label: "Verify your business", done: form.approved, tab: "business", icon: ShieldCheck },
+    { id: "instagram", label: "Connect Instagram", done: !!form.instagram, tab: "contact", icon: Share2 },
+    { id: "whatsapp", label: "Add WhatsApp", done: !!form.whatsapp, tab: "contact", icon: Heart },
+    { id: "delivery", label: "Enable delivery", done: !!form.deliveryAvailable, tab: "delivery", icon: Truck },
+    { id: "upgrade", label: "Upgrade to Pro", done: false, tab: "billing", icon: Sparkles },
+  ];
+
+  return (
+    <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20 p-3 space-y-2">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-800 dark:text-blue-200">
+        <Sparkles className="size-3.5" /> Smart Suggestions
+      </p>
+      <div className="space-y-1">
+        {suggestions.map((s) => {
+          const Icon = s.icon;
+          return (
+            <button
+              key={s.id}
+              onClick={() => onNavigate(s.tab)}
+              className={cn("flex w-full items-center gap-2 rounded-md p-1.5 text-left text-xs transition-colors hover:bg-white/50 dark:hover:bg-white/5",
+                s.done ? "opacity-50" : "")}
+            >
+              {s.done ? (
+                <CheckCircle2 className="size-3.5 shrink-0 text-emerald-500" />
+              ) : (
+                <span className="flex size-3.5 shrink-0 items-center justify-center rounded-full border border-blue-400" />
+              )}
+              <Icon className="size-3 shrink-0 text-blue-600 dark:text-blue-400" />
+              <span className={cn(s.done ? "line-through text-muted-foreground" : "text-blue-800 dark:text-blue-200")}>{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

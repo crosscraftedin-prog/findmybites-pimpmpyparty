@@ -54,6 +54,7 @@ export function MyListing({ vendor }: MyListingProps) {
   const [aiSeoLoading, setAiSeoLoading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState("business");
   const [autoSaveStatus, setAutoSaveStatus] = React.useState<"idle" | "saving" | "saved">("idle");
+  const [lastSavedAt, setLastSavedAt] = React.useState<number | undefined>(undefined);
   const [productCount, setProductCount] = React.useState(0);
   const [publishing, setPublishing] = React.useState(false);
   const [published, setPublished] = React.useState(false);
@@ -153,7 +154,7 @@ export function MyListing({ vendor }: MyListingProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...formRef.current, gallery: galleryRef.current }),
         });
-        if (res.ok) { setAutoSaveStatus("saved"); setTimeout(() => setAutoSaveStatus("idle"), 3000); }
+        if (res.ok) { setAutoSaveStatus("saved"); setLastSavedAt(Date.now()); setTimeout(() => setAutoSaveStatus("idle"), 3000); }
         else setAutoSaveStatus("idle");
       } catch { setAutoSaveStatus("idle"); }
     }, 2000);
@@ -286,7 +287,7 @@ export function MyListing({ vendor }: MyListingProps) {
                 <div className={cn("h-full rounded-full", businessScore.overall >= 80 ? "bg-emerald-500" : businessScore.overall >= 50 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${businessScore.overall}%` }} />
               </div>
               <span className="text-[10px] font-medium text-muted-foreground">Score: {businessScore.overall}/100</span>
-              <span className="ml-2"><AutoSaveIndicator status={autoSaveStatus} /></span>
+              <span className="ml-2"><AutoSaveIndicator status={autoSaveStatus} lastSavedAt={lastSavedAt} /></span>
             </div>
           </div>
           <div className="flex items-center gap-2">
