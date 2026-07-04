@@ -16,7 +16,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { resolveVendorFromSession } from "@/lib/vendor-session";
-import { generateAiListing, getVendorContext, type WritingStyle, type VendorListingInput } from "@/lib/ai/listing-generator";
+import { generateBusinessProfile, getVendorContext, type WritingStyle, type VendorSetupInput } from "@/lib/ai/listing-generator";
 
 export async function POST(req: NextRequest) {
   const vendor = await resolveVendorFromSession();
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const style = (body.style as WritingStyle) || "professional";
 
-    let input: VendorListingInput;
+    let input: VendorSetupInput;
 
     if (body.businessName) {
       // Use context from the request body (form data)
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Business name and category are required" }, { status: 400 });
     }
 
-    const result = await generateAiListing(input, style);
+    const result = await generateBusinessProfile(input, style);
 
     // Log AI usage
     try {
