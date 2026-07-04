@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -14,12 +14,12 @@ datasource db {
 // storing extra profile fields). The Vendor.userEmail is a plain string, not
 // a FK to this table, to avoid constraint failures.
 model User {
-  id            String    @id @default(cuid())
+  id            String      @id @default(cuid())
   name          String?
-  email         String    @unique
+  email         String      @unique
   image         String?
   emailVerified DateTime?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime    @default(now())
   bookings      BookingV2[]
 }
 
@@ -27,38 +27,37 @@ model User {
 // The old CATEGORIES constant in constants.ts maps to these rows via the
 // `slug` field (e.g. "bakers", "cake-artists", "djs").
 model Category {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  label       String
-  ecosystem   String
-  description String?
-  icon        String?
-  image       String?
-  accent      String?
-  sortOrder   Int      @default(0)
-  active      Boolean  @default(true)
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  label          String
+  ecosystem      String
+  description    String?
+  icon           String?
+  image          String?
+  accent         String?
+  sortOrder      Int           @default(0)
+  active         Boolean       @default(true)
   // ── Phase: DB-driven category metadata ──
   seoTitle       String?
   seoDescription String?
-  featured       Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  subcategories Subcategory[]
-
+  featured       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  subcategories  Subcategory[]
 }
 
 // Subcategory table — belongs to a Category, admin-managed.
 model Subcategory {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  label       String
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  description String?
-  sortOrder   Int      @default(0)
-  active      Boolean  @default(true)
-  isPending   Boolean  @default(false)
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  label           String
+  categoryId      String
+  category        Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  description     String?
+  sortOrder       Int      @default(0)
+  active          Boolean  @default(true)
+  isPending       Boolean  @default(false)
   addedByVendorId String?
-  createdAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
 
   @@index([categoryId])
   @@map("Subcategory")
@@ -67,110 +66,120 @@ model Subcategory {
 // A vendor / business listed on the marketplace.
 // ecosystem: "FINDMYBITES" (food) or "PIMPMYPARTY" (events & party services)
 model Vendor {
-  id               String    @id @default(cuid())
-  name             String
-  slug             String    @unique
-  ecosystem        String
-  category         String
-  tagline          String
-  description      String
-  city             String
-  country          String
-  countryCode      String
-  continent        String
-  currency         String
-  priceRange       String
-  basePrice        Int
-  rating           Float     @default(0)
-  reviewCount      Int       @default(0)
-  heroImage        String
-  avatarImage      String
-  gallery          String
-  tags             String
-  featured         Boolean   @default(false)
-  verified         Boolean   @default(true)
+  id                String  @id @default(cuid())
+  name              String
+  slug              String  @unique
+  ecosystem         String
+  category          String
+  tagline           String
+  description       String
+  city              String
+  country           String
+  countryCode       String
+  continent         String
+  currency          String
+  priceRange        String
+  basePrice         Int
+  rating            Float   @default(0)
+  reviewCount       Int     @default(0)
+  heroImage         String
+  avatarImage       String
+  gallery           String
+  tags              String
+  featured          Boolean @default(false)
+  verified          Boolean @default(true)
   // approval workflow: new vendor listings are pending (approved=false) until
   // an admin approves them. Only approved vendors show on the public site.
-  approved         Boolean   @default(false)
-  responseTime     String
-  yearsActive      Int       @default(1)
-  completedBookings Int      @default(0)
+  approved          Boolean @default(false)
+  responseTime      String
+  yearsActive       Int     @default(1)
+  completedBookings Int     @default(0)
   // contact + location details (optional, added for richer listings)
-  subcategory      String?
-  state            String?
-  address          String?
-  zipCode          String?
-  instagram        String?
-  website          String?
-  whatsapp         String?
+  subcategory       String?
+  state             String?
+  address           String?
+  zipCode           String?
+  instagram         String?
+  website           String?
+  whatsapp          String?
   // ── Social media (additional platforms) ──
-  facebook         String?
-  youtube          String?
-  tiktok           String?
-  twitter          String?
-  snapchat         String?
+  facebook          String?
+  youtube           String?
+  tiktok            String?
+  twitter           String?
+  snapchat          String?
   // ── India-specific ──
-  fssaiNumber      String?
+  fssaiNumber       String?
   // ── Listing settings ──
-  settingsLocked   Boolean  @default(false)
+  settingsLocked    Boolean @default(false)
   // business settings
-  openHours        String?
-  deliveryAvailable Boolean  @default(false)
-  pickupAvailable  Boolean   @default(false)
-  serviceAreas     String?
+  openHours         String?
+  deliveryAvailable Boolean @default(false)
+  pickupAvailable   Boolean @default(false)
+  serviceAreas      String?
   // SEO
-  metaTitle        String?
-  metaDescription  String?
+  metaTitle         String?
+  metaDescription   String?
   // geo coordinates for "Near Me" search (degrees). Nullable so legacy
   // vendors without a geocoded address are simply excluded from geo queries.
-  latitude         Float?
-  longitude        Float?
+  latitude          Float?
+  longitude         Float?
   // how far (km) this vendor will travel to serve a customer. Null = no limit
   // (e.g. a venue the customer travels to, or a vendor serving worldwide).
-  serviceRadiusKm  Int?
+  serviceRadiusKm   Int?
   // owner: the authenticated vendor user who created this listing.
   // Stored as a plain string (not a FK) because auth users live in Supabase's
   // auth.users table, not our User table — a FK constraint would fail.
-  userEmail        String?
+  userEmail         String?
   // Added by supabase_addon.sql — links to auth.users(id) for claim system.
   // Nullable because legacy vendors created before the claim system don't have it.
-  owner_user_id    String?
+  owner_user_id     String?
   // Tracks the listing lifecycle: unclaimed → pending → approved/rejected
-  ownership_status String?   @default("unclaimed")
+  ownership_status  String? @default("unclaimed")
   // How the vendor was onboarded: 'admin' (invited) or 'organic' (self-registered)
-  invite_type      String?   @default("organic")
+  invite_type       String? @default("organic")
 
   // ── Business Profile Management ──
-  businessType       String?  // "home" | "shop" | "studio" | "cloud_kitchen" | "event_company" | "freelancer"
+  businessType       String? // "home" | "shop" | "studio" | "cloud_kitchen" | "event_company" | "freelancer"
   yearStarted        Int?
   businessRegNumber  String?
   gstVatNumber       String?
-  languagesSpoken    String?  // comma-separated: "English, Hindi, Arabic"
-  hideAddress        Boolean  @default(false)
+  languagesSpoken    String? // comma-separated: "English, Hindi, Arabic"
+  hideAddress        Boolean              @default(false)
   pinterest          String?
   linkedin           String?
   telegram           String?
-  holidayMode        Boolean  @default(false)
-  vacationMode       Boolean  @default(false)
-  emergencyClosure   Boolean  @default(false)
-  homeService        Boolean  @default(false)
-  onlineConsultation Boolean  @default(false)
+  holidayMode        Boolean              @default(false)
+  vacationMode       Boolean              @default(false)
+  emergencyClosure   Boolean              @default(false)
+  homeService        Boolean              @default(false)
+  onlineConsultation Boolean              @default(false)
   maxOrder           Int?
-  responseRate       Int?     @default(0) // percentage
-  profileViews       Int      @default(0)
-  productViews       Int      @default(0)
-  galleryViews       Int      @default(0)
+  responseRate       Int?                 @default(0) // percentage
+  profileViews       Int                  @default(0)
+  productViews       Int                  @default(0)
+  galleryViews       Int                  @default(0)
   // Plan expiry — set when a Razorpay payment is verified.
   // Monthly → +30 days, Yearly → +365 days
-  planExpiresAt     DateTime?
-  createdAt        DateTime  @default(now())
-  reviews          Review[]
-  bookings         Booking[]
-  products         Product[]
-  availability     VendorAvailability[]
-  subscriptions    VendorSubscription[]
-  payments         PaymentHistory[]
-  bookingsV2       BookingV2[]
+  planExpiresAt      DateTime?
+  createdAt          DateTime             @default(now())
+  reviews            Review[]
+  bookings           Booking[]
+  products           Product[]
+  availability       VendorAvailability[]
+  subscriptions      VendorSubscription[]
+  payments           PaymentHistory[]
+  bookingsV2         BookingV2[]
+
+  // ── Marketing & Growth Center relations ──
+  growthScores       GrowthScore[]
+  marketingCampaigns MarketingCampaign[]
+  emailCampaigns     EmailCampaign[]
+  reviewRequests     ReviewRequest[]
+  referralsMade      Referral[]             @relation("ReferralReferrer")
+  referralsJoined    Referral[]             @relation("ReferralInvitee")
+  aiGenerationLogs   AiGenerationLog[]
+  analyticsDaily     VendorAnalyticsDaily[]
 
   @@index([ecosystem])
   @@index([category])
@@ -196,51 +205,40 @@ model Vendor {
   @@index([ecosystem, approved])
   @@index([ecosystem, city])
   @@index([approved, latitude, longitude])
-
-  // ── Marketing & Growth Center relations ──
-  growthScores       GrowthScore[]
-  marketingCampaigns MarketingCampaign[]
-  emailCampaigns     EmailCampaign[]
-  reviewRequests     ReviewRequest[]
-  referralsMade      Referral[] @relation("ReferralReferrer")
-  referralsJoined    Referral[] @relation("ReferralInvitee")
-  aiGenerationLogs   AiGenerationLog[]
-  analyticsDaily     VendorAnalyticsDaily[]
-
   @@map("vendor_listings")
 }
 
 model Review {
-  id          String   @id @default(cuid())
-  vendorId    String
-  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  author      String
-  avatar      String
-  rating      Int
-  comment     String
-  eventDate   String?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  author    String
+  avatar    String
+  rating    Int
+  comment   String
+  eventDate String?
+  createdAt DateTime @default(now())
 
   // ── Phase 5: Enhanced Reviews ──
   // Customer email (for verified purchase check)
-  reviewerEmail String?
+  reviewerEmail   String?
   // Photos uploaded with the review (JSON array of URLs)
-  photos      String?
+  photos          String?
   // Video URL (optional)
-  videoUrl    String?
+  videoUrl        String?
   // Verified purchase indicator (true if reviewer has a booking with this vendor)
-  verified    Boolean  @default(false)
+  verified        Boolean   @default(false)
   // Vendor reply (optional)
-  vendorReply String?
+  vendorReply     String?
   vendorRepliedAt DateTime?
   // Helpful votes count
-  helpfulCount Int     @default(0)
+  helpfulCount    Int       @default(0)
   // Report flags count
-  reportCount  Int     @default(0)
+  reportCount     Int       @default(0)
   // Product this review is about (if applicable)
-  productId   String?
+  productId       String?
 
-  votes       ReviewVote[]
+  votes ReviewVote[]
 
   @@index([vendorId])
   @@index([reviewerEmail])
@@ -249,44 +247,44 @@ model Review {
 }
 
 model Booking {
-  id          String   @id @default(cuid())
-  vendorId    String
-  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  name        String
-  email       String
-  eventType   String
-  eventDate   String
-  eventCity   String
-  guests      Int
-  budget      String
-  message     String
-  status      String   @default("new")
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  eventType String
+  eventDate String
+  eventCity String
+  guests    Int
+  budget    String
+  message   String
+  status    String   @default("new")
+  createdAt DateTime @default(now())
 
   // ── Phase 4: Smart Enquiry & Booking System ──
   // Pipeline: new → viewed → contacted → quote_sent → negotiating → deposit_paid → confirmed → completed | cancelled
-  phone       String?
-  eventTime   String?
-  address     String?
-  notes       String?
+  phone            String?
+  eventTime        String?
+  address          String?
+  notes            String?
   // Reference image uploaded by customer (URL)
-  referenceImage String?
+  referenceImage   String?
   // Preferred contact method: "email" | "whatsapp" | "phone"
   preferredContact String?
   // Product this enquiry is about (if from a product page)
-  productId   String?
+  productId        String?
   // AI-generated structured lead summary (e.g. "Wedding Cake · 150 guests · Chocolate · ₹15,000")
-  aiSummary   String?
+  aiSummary        String?
   // AI lead quality score (0-100)
-  leadScore   Int?
+  leadScore        Int?
   // AI-generated pre-qualification answers (JSON)
-  aiQualification String?
+  aiQualification  String?
   // Concierge: if this enquiry was converted to a managed event
   conciergeEventId String?
-  conciergeEvent ConciergeEvent? @relation(fields: [conciergeEventId], references: [id], onDelete: SetNull)
+  conciergeEvent   ConciergeEvent? @relation(fields: [conciergeEventId], references: [id], onDelete: SetNull)
 
   // Quotes sent to the customer for this enquiry
-  quotes      Quote[]
+  quotes Quote[]
 
   @@index([vendorId])
   @@index([status])
@@ -299,33 +297,33 @@ model Booking {
 // Vendors send quotes to customers for a specific enquiry/booking.
 // A quote can include line items, deposit, and payment status.
 model Quote {
-  id          String   @id @default(cuid())
-  bookingId   String
-  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  vendorId    String
+  id                String    @id @default(cuid())
+  bookingId         String
+  booking           Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  vendorId          String
   // Quote line items JSON: [{ label, qty, price }]
-  lineItems   String   @default("[]")
+  lineItems         String    @default("[]")
   // Total amount in minor units (paise/cents)
-  totalAmount Int
-  currency    String   @default("USD")
+  totalAmount       Int
+  currency          String    @default("USD")
   // Deposit required (percentage or fixed amount)
-  depositType String   @default("percentage") // "percentage" | "fixed"
-  depositValue Int     @default(50) // percentage (0-100) or fixed amount
+  depositType       String    @default("percentage") // "percentage" | "fixed"
+  depositValue      Int       @default(50) // percentage (0-100) or fixed amount
   // AI-generated quote notes/cover letter
-  aiNotes     String?
+  aiNotes           String?
   // Status: draft → sent → accepted → rejected → expired
-  status      String   @default("draft")
+  status            String    @default("draft")
   // Customer response
-  customerResponse String? // "accepted" | "rejected" | "changes_requested"
-  customerNotes String?
+  customerResponse  String? // "accepted" | "rejected" | "changes_requested"
+  customerNotes     String?
   // Razorpay payment for deposit
-  razorpayOrderId String?
+  razorpayOrderId   String?
   razorpayPaymentId String?
-  depositPaidAt DateTime?
+  depositPaidAt     DateTime?
   // Validity
-  validUntil  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  validUntil        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([bookingId])
   @@index([vendorId])
@@ -337,30 +335,30 @@ model Quote {
 // When a customer needs multiple vendors, Josh offers PimpMyParty Concierge
 // to manage the entire event. This tracks managed events with multiple vendors.
 model ConciergeEvent {
-  id          String   @id @default(cuid())
-  customerName String
-  customerEmail String
-  customerPhone String?
-  eventType   String
-  eventDate   String
-  eventCity   String
-  guests      Int
-  budget      String
-  notes       String?
+  id                 String   @id @default(cuid())
+  customerName       String
+  customerEmail      String
+  customerPhone      String?
+  eventType          String
+  eventDate          String
+  eventCity          String
+  guests             Int
+  budget             String
+  notes              String?
   // Assigned event manager (admin email)
-  eventManager String?
+  eventManager       String?
   // Multiple vendors assigned to this event (JSON: [{ vendorId, role, quote }])
-  assignedVendors String @default("[]")
+  assignedVendors    String   @default("[]")
   // Status: new → assigned → planning → confirmed → in_progress → completed
-  status      String   @default("new")
+  status             String   @default("new")
   // Management fee (percentage or fixed)
-  managementFeeType String @default("percentage")
-  managementFeeValue Int    @default(10)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  managementFeeType  String   @default("percentage")
+  managementFeeValue Int      @default(10)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   // Bookings linked to this concierge event
-  bookings    Booking[]
+  bookings Booking[]
 
   @@index([status])
   @@index([eventManager])
@@ -372,188 +370,192 @@ model ConciergeEvent {
 // FindMyBites products: cakes, cupcakes, cookies, chocolates, catering, etc.
 // PimpMyParty services: photography packages, DJ packages, decoration, venues.
 model Product {
-  id          String   @id @default(cuid())
-  vendorId    String
-  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  name        String
-  slug        String   @unique
-  description String?
-  price       Int
-  image       String?
-  productType String?
+  id                 String   @id @default(cuid())
+  vendorId           String
+  vendor             Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  name               String
+  slug               String   @unique
+  description        String?
+  price              Int
+  image              String?
+  productType        String?
   // FindMyBites-specific
-  sizes       String?
-  flavours    String?
-  weight      String?
-  prepTime    String?
-  deliveryAvailable Boolean @default(false)
-  minGuests   Int?
-  pricePerHead Int?
-  images      String?
+  sizes              String?
+  flavours           String?
+  weight             String?
+  prepTime           String?
+  deliveryAvailable  Boolean  @default(false)
+  minGuests          Int?
+  pricePerHead       Int?
+  images             String?
   // ── NEW: enhanced product fields ──
   // media
-  videoUrl    String?
+  videoUrl           String?
   // pricing tiers (JSON: [{"label":"Small","price":100},{"label":"Large","price":200}])
-  pricingTiers String?
+  pricingTiers       String?
   // food-specific
-  servings    String?
-  shape       String?
-  eggless     Boolean  @default(false)
+  servings           String?
+  shape              String?
+  eggless            Boolean  @default(false)
   // availability
-  sameDay     Boolean  @default(false)
-  customOrder Boolean  @default(false)
-  pickupAvailable Boolean @default(false)
+  sameDay            Boolean  @default(false)
+  customOrder        Boolean  @default(false)
+  pickupAvailable    Boolean  @default(false)
   // featured badge
-  featured    Boolean  @default(false)
+  featured           Boolean  @default(false)
   // SEO
-  metaTitle   String?
-  metaDescription String?
+  metaTitle          String?
+  metaDescription    String?
   // availability by location
   availableCountries String?
-  availableStates  String?
-  availableCities  String?
+  availableStates    String?
+  availableCities    String?
   // inventory
-  inStock     Boolean  @default(true)
-  stockCount  Int?
+  inStock            Boolean  @default(true)
+  stockCount         Int?
   // category-specific extra fields (JSON for flexibility)
-  extraFields String?
-  createdAt   DateTime @default(now())
+  extraFields        String?
+  createdAt          DateTime @default(now())
   // ── Package listing system fields ──
-  ecosystem   String?
-  category    String?
-  packageType String?  @default("standard")
-  comparePrice Int?
-  currency    String?  @default("USD")
-  duration    String?
-  capacity    Int?
-  includes    String?  // JSON array
-  dietaryTags String?  // JSON array
-  addOns      String?  // JSON array
-  leadTime    String?
-  isAvailable Boolean  @default(true)
-  isFeatured  Boolean  @default(false)
-  sortOrder   Int      @default(0)
-  updatedAt   DateTime @updatedAt
+  ecosystem          String?
+  category           String?
+  packageType        String?  @default("standard")
+  comparePrice       Int?
+  currency           String?  @default("USD")
+  duration           String?
+  capacity           Int?
+  includes           String? // JSON array
+  dietaryTags        String? // JSON array
+  addOns             String? // JSON array
+  leadTime           String?
+  isAvailable        Boolean  @default(true)
+  isFeatured         Boolean  @default(false)
+  sortOrder          Int      @default(0)
+  updatedAt          DateTime @updatedAt
 
   // ── Product Management System: extended fields ──
   // FindMyBites food-specific
-  subCategory       String?
-  shortDescription  String?
-  vegetarian        Boolean  @default(false)
-  vegan             Boolean  @default(false)
-  halal             Boolean  @default(false)
-  glutenFree        Boolean  @default(false)
-  sugarFree         Boolean  @default(false)
-  spicyLevel        String?  // "mild" | "medium" | "hot" | "extra_hot"
-  ingredients       String?  // long text
-  allergenInfo      String?  // long text
+  subCategory      String?
+  shortDescription String?
+  vegetarian       Boolean @default(false)
+  vegan            Boolean @default(false)
+  halal            Boolean @default(false)
+  glutenFree       Boolean @default(false)
+  sugarFree        Boolean @default(false)
+  spicyLevel       String? // "mild" | "medium" | "hot" | "extra_hot"
+  ingredients      String? // long text
+  allergenInfo     String? // long text
 
   // PimpMyParty package-specific
-  includedServices   String?  // JSON array
-  optionalServices   String?  // JSON array
-  equipmentIncluded  String?  // text
-  indoorOutdoor      String?  // "indoor" | "outdoor" | "both"
-  travelAvailable    Boolean  @default(false)
-  bookingNotice      String?  // e.g. "2 weeks"
-  cancellationPolicy String?  // text
+  includedServices   String? // JSON array
+  optionalServices   String? // JSON array
+  equipmentIncluded  String? // text
+  indoorOutdoor      String? // "indoor" | "outdoor" | "both"
+  travelAvailable    Boolean @default(false)
+  bookingNotice      String? // e.g. "2 weeks"
+  cancellationPolicy String? // text
 
   // Pricing options
-  offerPrice         Int?     // sale/discount price
-  startingFromPrice  Boolean  @default(false) // show "Starting from" prefix
-  hidePrice          Boolean  @default(false) // don't show price publicly
-  priceOnRequest     Boolean  @default(false) // "Price on request"
+  offerPrice        Int? // sale/discount price
+  startingFromPrice Boolean @default(false) // show "Starting from" prefix
+  hidePrice         Boolean @default(false) // don't show price publicly
+  priceOnRequest    Boolean @default(false) // "Price on request"
 
   // Availability modes
-  limitedTime        Boolean  @default(false)
-  customOrderOnly    Boolean  @default(false)
+  limitedTime     Boolean @default(false)
+  customOrderOnly Boolean @default(false)
 
   // Analytics
-  enquiryCount       Int      @default(0)
+  enquiryCount Int @default(0)
 
   // ── Variants, Inventory, Scheduling, Enhanced Analytics ──
   // Variants (JSON: [{name, price, offerPrice, sku, available, image}])
   variants           String?
   // Inventory
-  stockType          String?  @default("unlimited") // "unlimited" | "limited" | "out_of_stock"
-  lowStockThreshold  Int      @default(5)
+  stockType          String?   @default("unlimited") // "unlimited" | "limited" | "out_of_stock"
+  lowStockThreshold  Int       @default(5)
   // Scheduling
   scheduledPublishAt DateTime?
   scheduledExpiryAt  DateTime?
   // Enhanced analytics
-  whatsappClicks     Int      @default(0)
-  orderCount         Int      @default(0)
+  whatsappClicks     Int       @default(0)
+  orderCount         Int       @default(0)
   lastViewedAt       DateTime?
 
   // ── Food vendor enhanced fields ──
-  allergens           String?
-  customAllergen      String?
-  cuisineType         String?
-  customisationAvailable Boolean @default(true)
-  customisationNotes  String?
-  shelfLife           String?
-  storageMethod       String?
-  storageInstructions String?
-  recipePublic        Boolean  @default(false)
-  recipeText          String?
-  recipePdf           String?
+  allergens              String?
+  customAllergen         String?
+  cuisineType            String?
+  customisationAvailable Boolean   @default(true)
+  customisationNotes     String?
+  shelfLife              String?
+  storageMethod          String?
+  storageInstructions    String?
+  recipePublic           Boolean   @default(false)
+  recipeText             String?
+  recipePdf              String?
   // ── Marketing & deals ──
-  discountPercent       Int?
-  offerType             String?  @default("none")
-  offerLabel            String?
-  offerExpiresAt        DateTime?
-  freeItemDescription   String?
-  bundleDescription     String?
-  bundleDiscount        Int?
-  isFlashDeal           Boolean  @default(false)
-  flashDealEndsAt       DateTime?
-  minOrderForOffer      Int?
-  exclusiveMemberOffer  Boolean  @default(false)
+  discountPercent        Int?
+  offerType              String?   @default("none")
+  offerLabel             String?
+  offerExpiresAt         DateTime?
+  freeItemDescription    String?
+  bundleDescription      String?
+  bundleDiscount         Int?
+  isFlashDeal            Boolean   @default(false)
+  flashDealEndsAt        DateTime?
+  minOrderForOffer       Int?
+  exclusiveMemberOffer   Boolean   @default(false)
   // ── Phase 2.5: Product badges ──
   // badge: "featured" | "bestseller" | "new" | "seasonal" | "limited" | null
-  badge                 String?
+  badge                  String?
   // ── Template Engine v2: versioning ──
   // Stores which template version this product was created/last edited with.
   // Enables backward compatibility when templates evolve — old products
   // can still render with their original field structure.
-  templateSlug          String?
-  templateVersion       Int?
+  templateSlug           String?
+  templateVersion        Int?
 
   // ── Inventory & Availability Management System ──
   // Unified lifecycle status (works for food products AND event packages).
   // active | draft | out_of_stock | temporarily_unavailable | seasonal | archived
-  status                String   @default("active")
+  status                  String    @default("active")
   // Analytics: lifetime views (incremented on every public product page view)
-  views                 Int      @default(0)
+  views                   Int       @default(0)
   // Lifetime sales revenue in smallest currency unit
-  salesRevenue          Int      @default(0)
+  salesRevenue            Int       @default(0)
   // Maximum confirmed orders allowed per day (null = unlimited). Once the
   // daily confirmed-booking count reaches this, the product shows "Fully Booked".
-  maxOrdersPerDay       Int?
+  maxOrdersPerDay         Int?
   // Availability mode: "always" | "selected_days" | "date_range"
-  availabilityMode      String   @default("always")
+  availabilityMode        String    @default("always")
   // JSON array of weekday codes for "selected_days": ["MON","TUE",...,"SUN"]
-  availableDays         String?
+  availableDays           String?
   // Date range for seasonal / limited-time products (e.g. Christmas Cakes)
-  availabilityStart     DateTime?
-  availabilityEnd       DateTime?
+  availabilityStart       DateTime?
+  availabilityEnd         DateTime?
   // Structured preparation time category: same_day|24_hours|2_days|3_days|1_week|custom
   preparationTimeCategory String?
   // Custom preparation time label (when category = custom), e.g. "3-5 days"
-  preparationTimeCustom String?
+  preparationTimeCustom   String?
   // Required advance booking notice in HOURS (e.g. 2, 24, 48, 168).
   // Customers cannot book earlier than this. null = no minimum notice.
-  bookingNoticeHours    Int?
+  bookingNoticeHours      Int?
   // Service area scope for PimpMyParty packages: local|city|state|country|worldwide
-  serviceAreaType       String?
+  serviceAreaType         String?
   // JSON array of service cities (free-form, multiple allowed)
-  serviceCities         String?
+  serviceCities           String?
   // Admin override: when true the product is hidden from public marketplace
   // regardless of vendor status. Only admins can set this.
-  forceHidden           Boolean  @default(false)
+  forceHidden             Boolean   @default(false)
   // Internal admin notes (not visible to vendor or customer)
-  adminNotes            String?
+  adminNotes              String?
   // Season label for seasonal products, e.g. "Christmas 2025"
-  seasonLabel           String?
+  seasonLabel             String?
+
+  // ── Relations ──
+  blockedDates   ProductBlockedDate[]
+  analyticsDaily ProductAnalyticsDaily[]
 
   @@index([vendorId])
   @@index([productType])
@@ -568,10 +570,6 @@ model Product {
   @@index([availabilityStart])
   @@index([availabilityEnd])
   @@index([forceHidden])
-
-  // ── Relations ──
-  blockedDates    ProductBlockedDate[]
-  analyticsDaily  ProductAnalyticsDaily[]
 }
 
 // ── Product Calendar: Blocked Dates ───────────────────────────────────────
@@ -579,18 +577,18 @@ model Product {
 // holidays, vacations, fully-booked dates, or manual unavailability.
 // Distinct from VendorAvailability (which is per-vendor). This is per-product.
 model ProductBlockedDate {
-  id          String   @id @default(cuid())
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   // Block type: "holiday" | "vacation" | "fully_booked" | "manual" | "maintenance"
-  blockType   String   @default("manual")
+  blockType String   @default("manual")
   // Single date (always set). For ranges, startDate = first day, endDate = last day.
-  startDate   DateTime
-  endDate     DateTime
+  startDate DateTime
+  endDate   DateTime
   // Optional human note, e.g. "Diwali holiday" or "Family vacation"
-  note        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([productId])
   @@index([startDate])
@@ -603,18 +601,18 @@ model ProductBlockedDate {
 // One row per (product, day). Enables fast analytics charts + dashboards
 // without scanning the full bookings table. Upserted by the analytics service.
 model ProductAnalyticsDaily {
-  id          String   @id @default(cuid())
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   // Calendar day in YYYY-MM-DD (vendor-local date)
-  dateKey     String
-  views       Int      @default(0)
-  enquiries   Int      @default(0)
-  bookings    Int      @default(0)
+  dateKey   String
+  views     Int      @default(0)
+  enquiries Int      @default(0)
+  bookings  Int      @default(0)
   // Revenue booked that day (smallest currency unit)
-  revenue     Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  revenue   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([productId, dateKey])
   @@index([productId, dateKey])
@@ -629,13 +627,13 @@ model JoshConversation {
   userId              String
   userEmail           String?
   userType            String   @default("customer") // "customer" | "vendor"
-  vendorId            String?  // if userType = vendor, their vendor listing id
-  messages            String   @default("[]") // JSON: [{role, content, timestamp}]
-  conversationSummary String?  // AI-generated summary after 10+ messages
+  vendorId            String? // if userType = vendor, their vendor listing id
+  messages            Json     @default("[]") // [{role, content, timestamp}]
+  conversationSummary String? // AI-generated summary after 10+ messages
   // ── Phase 6: Structured Conversation State ──
   // Deterministic intent state — updated after every message, never reparsed.
   // This is the source of truth for marketplace search, slot filling, and mode.
-  state                String   @default("{}") // JSON: ConversationState
+  state               Json     @default("{}") // ConversationState JSON
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   lastMessageAt       DateTime @default(now())
@@ -647,18 +645,18 @@ model JoshConversation {
 
 // ── Dynamic pricing (admin-managed, multi-country) ────────────────────────
 model Pricing {
-  id              String   @id @default(cuid())
-  countryCode     String   @unique
-  countryLabel    String
-  symbol          String
-  proMonthly      Int
-  proYearlyTotal      Int      // Annual total (one-time, ~20% off 12×monthly)
+  id                  String   @id @default(cuid())
+  countryCode         String   @unique
+  countryLabel        String
+  symbol              String
+  proMonthly          Int
+  proYearlyTotal      Int // Annual total (one-time, ~20% off 12×monthly)
   businessMonthly     Int
-  businessYearlyTotal Int      // Annual total (one-time)
-  note            String   @default("")
-  active          Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  businessYearlyTotal Int // Annual total (one-time)
+  note                String   @default("")
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@index([countryCode])
   @@index([active])
@@ -671,30 +669,30 @@ model Pricing {
 // Vendors select values via VendorFilterValue.
 
 model FilterGroup {
-  id          String   @id @default(cuid())
-  name        String   @unique // e.g. "Cuisine", "Dietary", "Capacity"
-  type        String   @default("multi") // "multi" | "single" | "range"
-  unit        String?  // for range: "guests", "sq_ft", "km"
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String   @unique // e.g. "Cuisine", "Dietary", "Capacity"
+  type      String   @default("multi") // "multi" | "single" | "range"
+  unit      String? // for range: "guests", "sq_ft", "km"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  values      FilterValue[]
-  categories  CategoryFilter[]
+  values     FilterValue[]
+  categories CategoryFilter[]
 
   @@map("filter_groups")
 }
 
 model FilterValue {
-  id          String   @id @default(cuid())
-  groupId     String
-  value       String   // e.g. "Italian", "Vegetarian", "200"
-  sortOrder   Int      @default(0)
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  groupId   String
+  value     String // e.g. "Italian", "Vegetarian", "200"
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 
-  group       FilterGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  vendors     VendorFilterValue[]
+  group   FilterGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  vendors VendorFilterValue[]
 
   @@unique([groupId, value])
   @@index([groupId])
@@ -702,13 +700,13 @@ model FilterValue {
 }
 
 model CategoryFilter {
-  id           String   @id @default(cuid())
-  categoryId   String   // matches Vendor.category (e.g. "caterers", "venues")
+  id            String   @id @default(cuid())
+  categoryId    String // matches Vendor.category (e.g. "caterers", "venues")
   filterGroupId String
-  required     Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  required      Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
-  filterGroup  FilterGroup @relation(fields: [filterGroupId], references: [id], onDelete: Cascade)
+  filterGroup FilterGroup @relation(fields: [filterGroupId], references: [id], onDelete: Cascade)
 
   @@unique([categoryId, filterGroupId])
   @@index([categoryId])
@@ -721,7 +719,7 @@ model VendorFilterValue {
   filterValueId String
   createdAt     DateTime @default(now())
 
-  filterValue   FilterValue @relation(fields: [filterValueId], references: [id], onDelete: Cascade)
+  filterValue FilterValue @relation(fields: [filterValueId], references: [id], onDelete: Cascade)
 
   @@unique([vendorId, filterValueId])
   @@index([vendorId])
@@ -746,69 +744,69 @@ model VendorFilterValue {
 //   - Usage Statistics: counts products + vendors per template
 
 model ListingTemplate {
-  id          String   @id @default(cuid())
-  slug        String   @unique // e.g. "cake-bakery", "decoration", "photography"
-  name        String   // display name e.g. "Cake & Bakery Template"
-  description String   @default("")
-  ecosystem   String   @default("BOTH") // "FINDMYBITES" | "PIMPMYPARTY" | "BOTH"
-  icon        String?  // lucide icon name
-  active      Boolean  @default(true)
+  id          String  @id @default(cuid())
+  slug        String  @unique // e.g. "cake-bakery", "decoration", "photography"
+  name        String // display name e.g. "Cake & Bakery Template"
+  description String  @default("")
+  ecosystem   String  @default("BOTH") // "FINDMYBITES" | "PIMPMYPARTY" | "BOTH"
+  icon        String? // lucide icon name
+  active      Boolean @default(true)
   // Sections JSON: [{ name, icon, defaultOpen, sortOrder, step? }]
   // step: optional step number for multi-step wizard forms
-  sections    String   @default("[]")
+  sections    String  @default("[]")
 
   // ── Versioning ──
   // Current version number. When fields change structurally, bump version.
   // Existing products store the version they were created with in
   // Product.templateVersion, so old data never breaks.
-  version     Int      @default(1)
+  version  Int     @default(1)
   // Previous versions are stored as snapshots in TemplateVersionSnapshot
-  isLatest    Boolean  @default(true)
+  isLatest Boolean @default(true)
 
   // ── Inheritance ──
   // If set, this template inherits all fields from the parent template
   // and can add/override its own. Resolution merges parent + child fields.
   parentTemplateId String?
-  parent      ListingTemplate? @relation("TemplateInheritance", fields: [parentTemplateId], references: [id], onDelete: SetNull)
+  parent           ListingTemplate? @relation("TemplateInheritance", fields: [parentTemplateId], references: [id], onDelete: SetNull)
 
   // ── Global fields flag ──
   // Global templates are shared across all templates (Price, Gallery, etc.)
   // They're automatically merged into every resolved template.
-  isGlobal    Boolean  @default(false)
+  isGlobal Boolean @default(false)
 
   // ── Multi-step wizard config ──
   // JSON: [{ step, title, description, sections: ["Basic Information", ...] }]
   // When set, the form renders as a wizard with Next/Back buttons.
-  wizard      String   @default("[]")
+  wizard String @default("[]")
 
   // ── AI Readiness flags ──
   // Enable AI features for this template (description gen, SEO, tags)
-  aiEnabled   Boolean  @default(false)
-  aiConfig    String   @default("{}") // JSON: { descriptionPrompt, seoPrompt, tagPrompt }
+  aiEnabled Boolean @default(false)
+  aiConfig  String  @default("{}") // JSON: { descriptionPrompt, seoPrompt, tagPrompt }
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  fields      TemplateField[]
-  mappings    TemplateMapping[]
-  children    ListingTemplate[] @relation("TemplateInheritance")
-  versions    TemplateVersionSnapshot[]
-  auditLogs   TemplateAuditLog[]
+  fields    TemplateField[]
+  mappings  TemplateMapping[]
+  children  ListingTemplate[]         @relation("TemplateInheritance")
+  versions  TemplateVersionSnapshot[]
+  auditLogs TemplateAuditLog[]
 
   @@map("listing_templates")
 }
 
 // Snapshot of a template at a specific version — for versioning & rollback.
 model TemplateVersionSnapshot {
-  id          String   @id @default(cuid())
-  templateId  String
-  template    ListingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  version     Int
+  id         String          @id @default(cuid())
+  templateId String
+  template   ListingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version    Int
   // Full JSON snapshot of the template + fields at this version
-  snapshot    String   @default("{}")
-  createdBy   String?  // admin email
-  changeNote  String?  // what changed in this version
-  createdAt   DateTime @default(now())
+  snapshot   String          @default("{}")
+  createdBy  String? // admin email
+  changeNote String? // what changed in this version
+  createdAt  DateTime        @default(now())
 
   @@unique([templateId, version])
   @@index([templateId])
@@ -816,7 +814,7 @@ model TemplateVersionSnapshot {
 }
 
 model TemplateField {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   templateId  String
   template    ListingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   // The form-state key (e.g. "cakeShape", "price", "productType")
@@ -829,18 +827,18 @@ model TemplateField {
   //           address | phone | email | url | color | richtext | tags |
   //           gallery | videourl | fileupload | pdfupload | repeater |
   //           availability | bookingduration | radius
-  type        String   @default("text")
+  type        String          @default("text")
   // Which section this field belongs to (matches a section name in template.sections)
-  section     String   @default("Basic Information")
-  sortOrder   Int      @default(0)
-  required    Boolean  @default(false)
-  enabled     Boolean  @default(true)
+  section     String          @default("Basic Information")
+  sortOrder   Int             @default(0)
+  required    Boolean         @default(false)
+  enabled     Boolean         @default(true)
   placeholder String?
   helpText    String?
   // Suffix label e.g. "(kg)", "(g)", "(portions)"
   unit        String?
   // Grid column span: 1 = half width, 2 = full width (default 1)
-  span        Int      @default(1)
+  span        Int             @default(1)
 
   // ── Options ──
   // For select/chips/chips_single: load options from this FilterGroup name
@@ -848,64 +846,64 @@ model TemplateField {
   filterGroupName String?
   // For select/chips/chips_single/toggle_group: static options as JSON array
   // Used as fallback when filterGroupName is not set or filter group is empty
-  staticOptions String?  // JSON: ["Option1", "Option2"]
+  staticOptions   String? // JSON: ["Option1", "Option2"]
 
   // ── Conditional visibility ──
   // JSON: { "field": "productType", "values": ["Cakes", ""] }
   // Field is visible only when form[condition.field] is in condition.values.
   // Built visually in the Admin Panel (Visual Conditional Logic Builder).
-  condition   String?
+  condition String?
 
   // ── Section toggle ──
   // For section_toggle: keys of sub-fields revealed when toggle is on
   // JSON: ["nameOnCakeText", "nameOnCakeMaxChars"]
-  subFields   String?
+  subFields String?
 
   // ── Toggle group ──
   // For toggle_group: the option labels (default ["Yes", "No"])
   toggleOptions String?
 
   // ── Media limits ──
-  maxImages   Int?     // for images/gallery: max number of photos
-  maxFileSize Int?     // for fileupload/pdfupload: max size in KB
+  maxImages   Int? // for images/gallery: max number of photos
+  maxFileSize Int? // for fileupload/pdfupload: max size in KB
 
   // ── Number validation ──
-  minValue    Int?
-  maxValue    Int?
-  step        Float?
+  minValue Int?
+  maxValue Int?
+  step     Float?
 
   // ── Text validation (v2) ──
-  minLength   Int?     // min characters
-  maxLength   Int?     // max characters
-  pattern     String?  // regex pattern for validation
-  patternHint String?  // human-readable validation hint
+  minLength   Int? // min characters
+  maxLength   Int? // max characters
+  pattern     String? // regex pattern for validation
+  patternHint String? // human-readable validation hint
 
   // ── Repeatable fields (v2) ──
   // If true, vendors can add unlimited entries of this field.
   // The form state stores an array. minRepeats/maxRepeats control limits.
-  repeatable  Boolean  @default(false)
-  minRepeats  Int?
-  maxRepeats  Int?
+  repeatable   Boolean @default(false)
+  minRepeats   Int?
+  maxRepeats   Int?
   // For repeater: the label for each entry (e.g. "Flavour", "Size")
-  repeatLabel String?
+  repeatLabel  String?
   // For repeater with sub-fields: JSON array of field definitions
   // (enables grouped repeaters like multiple menu items with name+price+desc)
   repeatFields String?
 
   // ── Search / SEO / AI flags (v2) ──
   // searchable: field value is indexed for marketplace search & filtering
-  searchable  Boolean  @default(false)
+  searchable Boolean @default(false)
   // seoIndexed: field value is included in auto-generated SEO pages
-  seoIndexed  Boolean  @default(false)
+  seoIndexed Boolean @default(false)
   // aiEnabled: field is available for AI features (description gen, tag suggestions)
-  aiEnabled   Boolean  @default(false)
+  aiEnabled  Boolean @default(false)
 
   // ── Global field reference ──
   // If this field was inherited from a global template, this stores the
   // original global template slug so we can track provenance.
-  globalRef   String?
+  globalRef String?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([templateId])
   @@index([section])
@@ -919,12 +917,12 @@ model TemplateField {
 // Admins can change which template a category uses without touching code.
 // Resolution order: subcategory match → category match → ecosystem default.
 model TemplateMapping {
-  id            String   @id @default(cuid())
-  categoryId    String   // matches Vendor.category slug (e.g. "bakers-bakery")
-  subcategory   String?  // optional: matches Vendor.subcategory (e.g. "Wedding Cakes")
-  templateId    String
-  template      ListingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  createdAt     DateTime @default(now())
+  id          String          @id @default(cuid())
+  categoryId  String // matches Vendor.category slug (e.g. "bakers-bakery")
+  subcategory String? // optional: matches Vendor.subcategory (e.g. "Wedding Cakes")
+  templateId  String
+  template    ListingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  createdAt   DateTime        @default(now())
 
   @@unique([categoryId, subcategory])
   @@index([categoryId])
@@ -935,18 +933,18 @@ model TemplateMapping {
 // ── Template Audit Log ────────────────────────────────────────────────────
 // Tracks all template changes for troubleshooting and change management.
 model TemplateAuditLog {
-  id          String   @id @default(cuid())
-  templateId  String
-  template    ListingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  action      String   // "create" | "update" | "delete" | "duplicate" | "version_bump" | "field_add" | "field_update" | "field_delete" | "mapping_add" | "mapping_delete" | "seed" | "import" | "export"
-  entity      String   @default("template") // "template" | "field" | "mapping"
-  entityId    String?
-  fieldName   String?  // which field was changed (for field actions)
+  id            String          @id @default(cuid())
+  templateId    String
+  template      ListingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  action        String // "create" | "update" | "delete" | "duplicate" | "version_bump" | "field_add" | "field_update" | "field_delete" | "mapping_add" | "mapping_delete" | "seed" | "import" | "export"
+  entity        String          @default("template") // "template" | "field" | "mapping"
+  entityId      String?
+  fieldName     String? // which field was changed (for field actions)
   changeSummary String? // human-readable summary
   // JSON diff: { before: {...}, after: {...} }
-  changeData  String   @default("{}")
-  adminEmail  String?
-  createdAt   DateTime @default(now())
+  changeData    String          @default("{}")
+  adminEmail    String?
+  createdAt     DateTime        @default(now())
 
   @@index([templateId])
   @@index([action])
@@ -968,7 +966,7 @@ model VendorAnalytics {
   // Optional: which product/service was viewed/clicked
   productId   String?
   // Optional: visitor metadata (for deduplication, not for tracking individuals)
-  visitorHash String?  // hashed IP + user agent for unique visitor counting
+  visitorHash String? // hashed IP + user agent for unique visitor counting
   // Optional: referrer (where the visitor came from)
   referrer    String?
   createdAt   DateTime @default(now())
@@ -984,13 +982,13 @@ model VendorAnalytics {
 // Customers can follow vendors to receive updates on new products, seasonal
 // offers, festival collections, and promotions.
 model VendorFollow {
-  id          String   @id @default(cuid())
-  vendorId    String
+  id        String   @id @default(cuid())
+  vendorId  String
   // Customer identifier — supabase auth user ID (for logged-in customers)
   // or a visitor hash (for anonymous followers, stored in localStorage)
-  userId      String
-  userEmail   String?
-  createdAt   DateTime @default(now())
+  userId    String
+  userEmail String?
+  createdAt DateTime @default(now())
 
   @@unique([vendorId, userId])
   @@index([vendorId])
@@ -1002,13 +1000,13 @@ model VendorFollow {
 // Customers can save products, services, and vendors to their wishlist.
 // entityType: "product" | "service" | "vendor"
 model Wishlist {
-  id          String   @id @default(cuid())
-  userId      String
-  userEmail   String?
-  entityType  String   // "product" | "service" | "vendor"
-  entityId    String   // product ID or vendor ID
-  vendorId    String?  // for product/service wishlist items, the parent vendor
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  userEmail  String?
+  entityType String // "product" | "service" | "vendor"
+  entityId   String // product ID or vendor ID
+  vendorId   String? // for product/service wishlist items, the parent vendor
+  createdAt  DateTime @default(now())
 
   @@unique([userId, entityType, entityId])
   @@index([userId])
@@ -1021,26 +1019,26 @@ model Wishlist {
 // Supports: Customer↔Vendor, Admin↔Vendor, Admin↔Customer, Josh AI↔Customer
 // Conversations are threaded between two participants.
 model Conversation {
-  id          String   @id @default(cuid())
+  id               String    @id @default(cuid())
   // Participants: identified by type + id
-  participant1Type String  // "customer" | "vendor" | "admin" | "josh_ai"
-  participant1Id   String  // user ID or vendor ID
+  participant1Type String // "customer" | "vendor" | "admin" | "josh_ai"
+  participant1Id   String // user ID or vendor ID
   participant2Type String
   participant2Id   String
   // Optional context: which vendor/product is this conversation about?
-  vendorId    String?
-  productId   String?
-  bookingId   String?
+  vendorId         String?
+  productId        String?
+  bookingId        String?
   // Last message preview (for inbox display)
-  lastMessage String?
-  lastMessageAt DateTime?
+  lastMessage      String?
+  lastMessageAt    DateTime?
   // Unread counts per participant
-  unreadCount1 Int    @default(0)
-  unreadCount2 Int    @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  unreadCount1     Int       @default(0)
+  unreadCount2     Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  messages    Message[]
+  messages Message[]
 
   @@unique([participant1Type, participant1Id, participant2Type, participant2Id])
   @@index([participant1Type, participant1Id])
@@ -1051,23 +1049,23 @@ model Conversation {
 }
 
 model Message {
-  id            String   @id @default(cuid())
+  id             String       @id @default(cuid())
   conversationId String
-  conversation  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   // Sender info
-  senderType    String   // "customer" | "vendor" | "admin" | "josh_ai"
-  senderId      String
-  senderName    String
-  senderAvatar  String?
+  senderType     String // "customer" | "vendor" | "admin" | "josh_ai"
+  senderId       String
+  senderName     String
+  senderAvatar   String?
   // Message content
-  content       String
+  content        String
   // Attachments (JSON array of URLs for images/files)
-  attachments   String?  // JSON: [{ type: "image"|"file"|"quote", url, name }]
+  attachments    String? // JSON: [{ type: "image"|"file"|"quote", url, name }]
   // Quote attachment (if this message includes a quote)
-  quoteId       String?
+  quoteId        String?
   // Read receipt
-  readAt        DateTime?
-  createdAt     DateTime @default(now())
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
 
   @@index([conversationId])
   @@index([senderType, senderId])
@@ -1079,28 +1077,28 @@ model Message {
 // Central notification system for all user types.
 // One table serves customers, vendors, and admins.
 model Notification {
-  id          String   @id @default(cuid())
+  id             String    @id @default(cuid())
   // Recipient: identified by type + id
-  recipientType String  // "customer" | "vendor" | "admin"
-  recipientId   String  // user ID, vendor ID, or "admin" for all admins
+  recipientType  String // "customer" | "vendor" | "admin"
+  recipientId    String // user ID, vendor ID, or "admin" for all admins
   // Notification content
-  type        String   // "new_quote" | "vendor_replied" | "booking_confirmed" | "payment_received" |
-                       // "new_enquiry" | "new_message" | "quote_accepted" | "deposit_received" |
-                       // "concierge_assigned" | "new_signup" | "pending_approval" | "ai_flagged"
-  title       String
-  message     String
+  type           String // "new_quote" | "vendor_replied" | "booking_confirmed" | "payment_received" |
+  // "new_enquiry" | "new_message" | "quote_accepted" | "deposit_received" |
+  // "concierge_assigned" | "new_signup" | "pending_approval" | "ai_flagged"
+  title          String
+  message        String
   // Optional context links
-  vendorId    String?
-  productId   String?
-  bookingId   String?
-  quoteId     String?
+  vendorId       String?
+  productId      String?
+  bookingId      String?
+  quoteId        String?
   conversationId String?
   // Action URL (where clicking the notification should go)
-  actionUrl   String?
+  actionUrl      String?
   // Read status
-  read        Boolean  @default(false)
-  readAt      DateTime?
-  createdAt   DateTime @default(now())
+  read           Boolean   @default(false)
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
 
   @@index([recipientType, recipientId, read])
   @@index([recipientType, recipientId, createdAt])
@@ -1112,20 +1110,20 @@ model Notification {
 // Vendors mark dates as available, busy, booked, or holiday.
 // Josh AI uses this when recommending vendors.
 model VendorAvailability {
-  id          String   @id @default(cuid())
-  vendorId    String
-  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  date        DateTime
+  id        String   @id @default(cuid())
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  date      DateTime
   // Status: "available" | "busy" | "booked" | "holiday" | "partial"
-  status      String   @default("available")
+  status    String   @default("available")
   // For partial availability: time slots JSON [{ start, end, status }]
-  timeSlots   String?
+  timeSlots String?
   // Optional note (e.g. "Morning only", "Wedding booked")
-  note        String?
+  note      String?
   // If booked, link to the booking
-  bookingId   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  bookingId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([vendorId, date])
   @@index([vendorId, date])
@@ -1136,12 +1134,12 @@ model VendorAvailability {
 // ── Phase 5: Review Helpful Votes ─────────────────────────────────────────
 // Tracks who voted a review as helpful (to prevent duplicate votes)
 model ReviewVote {
-  id          String   @id @default(cuid())
-  reviewId    String
-  review      Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  userId      String   // customer ID or visitor hash
-  helpful     Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  reviewId  String
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  userId    String // customer ID or visitor hash
+  helpful   Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   @@unique([reviewId, userId])
   @@index([reviewId])
@@ -1163,35 +1161,35 @@ model ReviewVote {
 // expiry math, feature gating, and billing history stay the same.
 
 model VendorSubscription {
-  id                String   @id @default(cuid())
-  vendorId          String
-  vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
   // ── Plan details ──
-  planName          String   // "vendor-pro" | "business"
-  planTier          String   @default("pro") // "pro" | "business" (human label)
-  billingCycle      String   @default("monthly") // "monthly" | "yearly"
-  status            String   @default("active") // "active" | "expired" | "cancelled" | "past_due"
+  planName     String // "vendor-pro" | "business"
+  planTier     String @default("pro") // "pro" | "business" (human label)
+  billingCycle String @default("monthly") // "monthly" | "yearly"
+  status       String @default("active") // "active" | "expired" | "cancelled" | "past_due"
 
   // ── Billing window ──
-  planStartedAt     DateTime @default(now())
-  planExpiresAt     DateTime // 30 days (monthly) or 365 days (yearly) after start
-  nextRenewalDate   DateTime? // null for one-time orders; set for future AutoPay
-  cancelledAt       DateTime?
+  planStartedAt   DateTime  @default(now())
+  planExpiresAt   DateTime // 30 days (monthly) or 365 days (yearly) after start
+  nextRenewalDate DateTime? // null for one-time orders; set for future AutoPay
+  cancelledAt     DateTime?
 
   // ── Provider (modular — swap without touching expiry/gating logic) ──
-  provider          String   @default("razorpay_orders") // "razorpay_orders" | "razorpay_subscriptions" | "stripe"
+  provider               String  @default("razorpay_orders") // "razorpay_orders" | "razorpay_subscriptions" | "stripe"
   providerSubscriptionId String? // Razorpay subscription_id (future AutoPay) or stripe sub id
 
   // ── Pricing snapshot at activation (immutable record of what was paid) ──
-  amountPaid        Int      // in smallest currency unit (paise/cents/fils)
-  currency          String   @default("INR")
+  amountPaid Int // in smallest currency unit (paise/cents/fils)
+  currency   String @default("INR")
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // ── Relations ──
-  payments          PaymentHistory[]
+  payments PaymentHistory[]
 
   @@index([vendorId])
   @@index([status])
@@ -1205,33 +1203,33 @@ model VendorSubscription {
 // page and admin revenue reports. Never updated after creation (append-only).
 
 model PaymentHistory {
-  id                String   @id @default(cuid())
-  vendorId          String
-  vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  subscriptionId    String?
-  subscription      VendorSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  id             String              @id @default(cuid())
+  vendorId       String
+  vendor         Vendor              @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  subscription   VendorSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
   // ── Payment details ──
-  orderId           String   // Razorpay order_id
-  paymentId         String   @unique // Razorpay payment_id (prevent duplicate processing)
-  invoiceNumber     String?  // generated invoice number (e.g. FMB-INV-2024-00001)
-  signature         String?  // stored for audit (HMAC verified at activation)
+  orderId       String // Razorpay order_id
+  paymentId     String  @unique // Razorpay payment_id (prevent duplicate processing)
+  invoiceNumber String? // generated invoice number (e.g. FMB-INV-2024-00001)
+  signature     String? // stored for audit (HMAC verified at activation)
 
   // ── Plan + amount ──
-  planName          String   // "vendor-pro" | "business"
-  billingCycle      String   @default("monthly")
-  amount            Int      // smallest currency unit
-  currency          String   @default("INR")
-  paymentStatus     String   @default("captured") // "captured" | "failed" | "refunded"
+  planName      String // "vendor-pro" | "business"
+  billingCycle  String @default("monthly")
+  amount        Int // smallest currency unit
+  currency      String @default("INR")
+  paymentStatus String @default("captured") // "captured" | "failed" | "refunded"
 
   // ── Provider ──
-  provider          String   @default("razorpay_orders")
-  paymentMethod     String?  // "upi" | "card" | "netbanking" | "wallet" (from Razorpay)
+  provider      String  @default("razorpay_orders")
+  paymentMethod String? // "upi" | "card" | "netbanking" | "wallet" (from Razorpay)
 
   // ── Type ──
-  paymentType       String   @default("new") // "new" | "renewal"
+  paymentType String @default("new") // "new" | "renewal"
 
-  createdAt         DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([vendorId])
   @@index([subscriptionId])
@@ -1257,86 +1255,86 @@ model PaymentHistory {
 //   - provider-agnostic notification events (email/whatsapp/push-ready)
 
 model BookingV2 {
-  id              String   @id @default(cuid())
-  bookingNumber   String   @unique // human-readable: FMB-BKG-YYYY-NNNNN
-  vendorId        String
-  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  id            String @id @default(cuid())
+  bookingNumber String @unique // human-readable: FMB-BKG-YYYY-NNNNN
+  vendorId      String
+  vendor        Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
   // ── Customer info ──
-  customerName    String
-  customerPhone   String
-  customerEmail   String
+  customerName  String
+  customerPhone String
+  customerEmail String
   // Optional link to an authenticated User (if the customer is logged in)
-  customerId      String?
-  customer        User?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId    String?
+  customer      User?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   // ── Event details ──
-  eventType       String   // "Wedding", "Birthday", "Corporate", etc.
-  bookingDate     DateTime // the event date
-  bookingTime     String   // "14:00" (time of day)
-  address         String   // delivery / event address
-  city            String
-  guests          Int      @default(0)
-  budget          Int      @default(0) // in smallest currency unit (paise)
-  currency        String   @default("INR")
-  specialNotes    String?  // customer notes
+  eventType    String // "Wedding", "Birthday", "Corporate", etc.
+  bookingDate  DateTime // the event date
+  bookingTime  String // "14:00" (time of day)
+  address      String // delivery / event address
+  city         String
+  guests       Int      @default(0)
+  budget       Int      @default(0) // in smallest currency unit (paise)
+  currency     String   @default("INR")
+  specialNotes String? // customer notes
 
   // ── Products / Services ──
   // JSON array: [{ productId, name, qty, price }]
-  items           String   @default("[]")
-  totalAmount     Int      @default(0) // sum of items, in smallest currency unit
+  items       String @default("[]")
+  totalAmount Int    @default(0) // sum of items, in smallest currency unit
 
   // ── Status (booking lifecycle) ──
   // pending → confirmed → accepted → in_progress → completed
   //                    ↘ rejected
   //         → cancelled (at any point)
   //         → refunded (future)
-  status          String   @default("pending") // pending|confirmed|accepted|rejected|in_progress|completed|cancelled|refunded
+  status String @default("pending") // pending|confirmed|accepted|rejected|in_progress|completed|cancelled|refunded
 
   // ── Reference image (customer upload) ──
-  referenceImage  String?
+  referenceImage String?
 
   // ── Future-ready: payments ──
-  depositAmount   Int      @default(0) // deposit required (smallest unit)
-  depositStatus   String   @default("none") // none|required|paid|partial|refunded
-  paymentStatus   String   @default("unpaid") // unpaid|deposit_paid|partially_paid|paid|refunded
-  escrowStatus    String   @default("none") // none|held|released|refunded
-  commissionRate  Float    @default(0) // marketplace commission percentage (0-100)
+  depositAmount    Int     @default(0) // deposit required (smallest unit)
+  depositStatus    String  @default("none") // none|required|paid|partial|refunded
+  paymentStatus    String  @default("unpaid") // unpaid|deposit_paid|partially_paid|paid|refunded
+  escrowStatus     String  @default("none") // none|held|released|refunded
+  commissionRate   Float   @default(0) // marketplace commission percentage (0-100)
   commissionAmount Int     @default(0) // computed commission (smallest unit)
-  couponCode      String?
+  couponCode       String?
 
   // ── Future-ready: invoicing ──
-  invoiceNumber   String?
+  invoiceNumber String?
 
   // ── Future-ready: recurring services ──
-  recurrenceRule  String?  // iCal RRULE string (e.g. "FREQ=WEEKLY;BYDAY=MO")
+  recurrenceRule String? // iCal RRULE string (e.g. "FREQ=WEEKLY;BYDAY=MO")
 
   // ── Future-ready: calendar sync ──
   calendarSyncToken String? // Google/Outlook sync token
-  calendarEventId  String?  // external calendar event ID
+  calendarEventId   String? // external calendar event ID
 
   // ── Internal (vendor-only) notes ──
-  internalNotes   String?
+  internalNotes String?
 
   // ── Reassignment (admin) ──
-  reassignedFrom  String?  // previous vendorId if reassigned
-  reassignedAt    DateTime?
-  reassignedBy    String?  // admin user id
+  reassignedFrom String? // previous vendorId if reassigned
+  reassignedAt   DateTime?
+  reassignedBy   String? // admin user id
 
   // ── Audit ──
-  createdBy       String?  // user id or "guest"
+  createdBy       String? // user id or "guest"
   cancelledReason String?
   cancelledAt     DateTime?
   rejectedReason  String?
   rejectedAt      DateTime?
   completedAt     DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // ── Relations ──
-  notes           BookingNote[]
-  events          BookingEvent[]
+  notes  BookingNote[]
+  events BookingEvent[]
 
   // ── Scalable indexes (designed for millions of rows) ──
   @@index([vendorId])
@@ -1355,15 +1353,15 @@ model BookingV2 {
 
 // ── Booking Notes (internal vendor notes + customer-visible notes) ────────
 model BookingNote {
-  id          String   @id @default(cuid())
-  bookingId   String
-  booking     BookingV2 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  authorId    String?  // user id (vendor or admin)
-  authorName  String
-  authorRole  String   @default("vendor") // "vendor" | "admin" | "customer"
-  note        String
-  isInternal  Boolean  @default(true) // internal = vendor-only; false = customer-visible
-  createdAt   DateTime @default(now())
+  id         String    @id @default(cuid())
+  bookingId  String
+  booking    BookingV2 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  authorId   String? // user id (vendor or admin)
+  authorName String
+  authorRole String    @default("vendor") // "vendor" | "admin" | "customer"
+  note       String
+  isInternal Boolean   @default(true) // internal = vendor-only; false = customer-visible
+  createdAt  DateTime  @default(now())
 
   @@index([bookingId])
   @@index([createdAt])
@@ -1374,26 +1372,24 @@ model BookingNote {
 // Every status change + action creates an immutable event row.
 // This is the audit log (Step: Security) and the source for notifications.
 model BookingEvent {
-  id          String   @id @default(cuid())
-  bookingId   String
-  booking     BookingV2 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  eventType   String   // "created"|"accepted"|"rejected"|"rescheduled"|"completed"|"cancelled"|"reminder_24h"|"note_added"|"reassigned"
-  actorId     String?  // user id who performed the action
-  actorRole   String   @default("system") // "vendor"|"admin"|"customer"|"system"
-  metadata    String?  // JSON: { oldStatus, newStatus, oldDate, newDate, ... }
+  id                String    @id @default(cuid())
+  bookingId         String
+  booking           BookingV2 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  eventType         String // "created"|"accepted"|"rejected"|"rescheduled"|"completed"|"cancelled"|"reminder_24h"|"note_added"|"reassigned"
+  actorId           String? // user id who performed the action
+  actorRole         String    @default("system") // "vendor"|"admin"|"customer"|"system"
+  metadata          String? // JSON: { oldStatus, newStatus, oldDate, newDate, ... }
   // ── Notification delivery status (provider-agnostic) ──
-  notifEmailSent    Boolean @default(false)
-  notifWhatsappSent Boolean @default(false)
-  notifPushSent     Boolean @default(false)
-  createdAt   DateTime @default(now())
+  notifEmailSent    Boolean   @default(false)
+  notifWhatsappSent Boolean   @default(false)
+  notifPushSent     Boolean   @default(false)
+  createdAt         DateTime  @default(now())
 
   @@index([bookingId])
   @@index([eventType])
   @@index([createdAt])
   @@map("booking_events")
 }
-
-
 
 // ── Marketing & Growth Center ─────────────────────────────────────────────
 // Comprehensive marketing toolkit: campaigns, AI-generated social/email/
@@ -1402,18 +1398,18 @@ model BookingEvent {
 // Vendor's current growth score + breakdown (snapshot for trend tracking).
 // Recomputed on demand; latest row per vendor is the current score.
 model GrowthScore {
-  id              String   @id @default(cuid())
-  vendorId        String
-  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  vendorId   String
+  vendor     Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   // Overall 0-100
-  score           Int      @default(0)
+  score      Int      @default(0)
   // Star rating 0-5
-  stars           Int      @default(0)
+  stars      Int      @default(0)
   // Breakdown JSON: { profileComplete, products, seo, photos, responseRate, reviews, subscription }
-  breakdown       String?
+  breakdown  String?
   // Plain-text list of weak areas for the AI advisor
-  weakAreas       String?
-  computedAt      DateTime @default(now())
+  weakAreas  String?
+  computedAt DateTime @default(now())
 
   @@index([vendorId, computedAt])
   @@map("growth_scores")
@@ -1421,9 +1417,9 @@ model GrowthScore {
 
 // Marketing campaigns (coupons, festivals, flash sales, referral, etc.)
 model MarketingCampaign {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   vendorId        String
-  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendor          Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   // coupon | festival | weekend | birthday | wedding_season | referral | flash_sale | countdown
   type            String
   name            String
@@ -1432,7 +1428,7 @@ model MarketingCampaign {
   // discount percent (0-100) or flat amount in smallest currency unit
   discountPercent Int?
   discountAmount  Int?
-  currency        String   @default("INR")
+  currency        String    @default("INR")
   // AI-generated marketing copy
   headline        String?
   description     String?
@@ -1441,13 +1437,13 @@ model MarketingCampaign {
   startsAt        DateTime?
   endsAt          DateTime?
   // Status: draft | active | paused | expired
-  status          String   @default("draft")
+  status          String    @default("draft")
   // Engagement counters
-  views           Int      @default(0)
-  clicks          Int      @default(0)
-  redemptions     Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  views           Int       @default(0)
+  clicks          Int       @default(0)
+  redemptions     Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([vendorId])
   @@index([vendorId, status])
@@ -1458,23 +1454,23 @@ model MarketingCampaign {
 
 // Email campaigns / newsletters
 model EmailCampaign {
-  id              String   @id @default(cuid())
-  vendorId        String
-  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  vendorId       String
+  vendor         Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   // Template: new_product | festival | special_offer | thank_you | booking_reminder | re_engagement
-  template        String
-  subject         String
-  preheader       String?
-  body            String
+  template       String
+  subject        String
+  preheader      String?
+  body           String
   // Recipient list size snapshot
-  recipientCount  Int      @default(0)
+  recipientCount Int       @default(0)
   // Sent stats
-  sentAt          DateTime?
-  openedCount     Int      @default(0)
-  clickedCount    Int      @default(0)
-  status          String   @default("draft") // draft | sent | scheduled
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  sentAt         DateTime?
+  openedCount    Int       @default(0)
+  clickedCount   Int       @default(0)
+  status         String    @default("draft") // draft | sent | scheduled
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([vendorId])
   @@index([vendorId, status])
@@ -1483,19 +1479,19 @@ model EmailCampaign {
 
 // Review booster: track review requests sent and received
 model ReviewRequest {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   vendorId        String
-  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendor          Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   // channel: whatsapp | email | sms | qr
   channel         String
   // The customer this request was sent to (optional)
   customerName    String?
   customerContact String?
   // Token for the public review-landing link
-  token           String   @unique
+  token           String    @unique
   // Status: sent | opened | completed | ignored
-  status          String   @default("sent")
-  sentAt          DateTime @default(now())
+  status          String    @default("sent")
+  sentAt          DateTime  @default(now())
   openedAt        DateTime?
   completedAt     DateTime?
 
@@ -1507,24 +1503,24 @@ model ReviewRequest {
 
 // Referral program: track vendor-to-vendor referrals
 model Referral {
-  id              String   @id @default(cuid())
+  id               String    @id @default(cuid())
   referrerVendorId String
-  referrer        Vendor   @relation("ReferralReferrer", fields: [referrerVendorId], references: [id], onDelete: Cascade)
+  referrer         Vendor    @relation("ReferralReferrer", fields: [referrerVendorId], references: [id], onDelete: Cascade)
   // The invited vendor's email (used to match on signup)
-  inviteeEmail    String
+  inviteeEmail     String
   // The vendor that signed up (set when activated)
-  inviteeVendorId String?
-  invitee         Vendor?  @relation("ReferralInvitee", fields: [inviteeVendorId], references: [id], onDelete: SetNull)
+  inviteeVendorId  String?
+  invitee          Vendor?   @relation("ReferralInvitee", fields: [inviteeVendorId], references: [id], onDelete: SetNull)
   // Unique referral code
-  code            String   @unique
+  code             String    @unique
   // Status: sent | activated | rewarded
-  status          String   @default("sent")
+  status           String    @default("sent")
   // Reward tracking
-  creditsEarned   Int      @default(0)
-  commissionEarned Int     @default(0)
-  sentAt          DateTime @default(now())
-  activatedAt     DateTime?
-  rewardedAt      DateTime?
+  creditsEarned    Int       @default(0)
+  commissionEarned Int       @default(0)
+  sentAt           DateTime  @default(now())
+  activatedAt      DateTime?
+  rewardedAt       DateTime?
 
   @@index([referrerVendorId])
   @@index([inviteeEmail])
@@ -1534,15 +1530,15 @@ model Referral {
 
 // AI generation log — for admin analytics + rate limiting
 model AiGenerationLog {
-  id              String   @id @default(cuid())
-  vendorId        String?
-  vendor          Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  id        String   @id @default(cuid())
+  vendorId  String?
+  vendor    Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   // feature: growth_advisor | social_post | email_campaign | whatsapp_msg | seo | campaign_copy
-  feature         String
+  feature   String
   // tokens used (approx)
-  tokens          Int      @default(0)
-  success         Boolean  @default(true)
-  createdAt       DateTime @default(now())
+  tokens    Int      @default(0)
+  success   Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   @@index([vendorId])
   @@index([feature])
@@ -1553,19 +1549,19 @@ model AiGenerationLog {
 // Daily marketing analytics aggregate (per vendor, per day).
 // Mirrors ProductAnalyticsDaily but for the vendor profile as a whole.
 model VendorAnalyticsDaily {
-  id              String   @id @default(cuid())
-  vendorId        String
-  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  dateKey         String   // YYYY-MM-DD
-  profileViews    Int      @default(0)
-  productViews    Int      @default(0)
-  enquiries       Int      @default(0)
-  bookings        Int      @default(0)
-  revenue         Int      @default(0)
-  follows         Int      @default(0)
-  wishlistAdds    Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           String   @id @default(cuid())
+  vendorId     String
+  vendor       Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  dateKey      String // YYYY-MM-DD
+  profileViews Int      @default(0)
+  productViews Int      @default(0)
+  enquiries    Int      @default(0)
+  bookings     Int      @default(0)
+  revenue      Int      @default(0)
+  follows      Int      @default(0)
+  wishlistAdds Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@unique([vendorId, dateKey])
   @@index([vendorId, dateKey])

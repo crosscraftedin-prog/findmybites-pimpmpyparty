@@ -10,7 +10,7 @@ export interface ProductSearchParams {
   vendorId: string;
   search?: string;
   category?: string;
-  status?: "active" | "draft" | "hidden" | "unavailable";
+  status?: "all" | "active" | "draft" | "out_of_stock" | "temporarily_unavailable" | "seasonal" | "archived" | "hidden" | "unavailable";
   sortBy?: "newest" | "oldest" | "price_high" | "price_low" | "name" | "views";
   limit?: number;
   offset?: number;
@@ -134,11 +134,9 @@ function safeParseArr<T>(raw: string | null | undefined): T[] {
 export async function searchProducts(params: ProductSearchParams) {
   const where: any = { vendorId: params.vendorId };
   if (params.search) {
-    // NOTE: SQLite is case-insensitive by default for contains; the explicit
-    // mode:"insensitive" is postgres-only and errors on SQLite.
     where.OR = [
-      { name: { contains: params.search } },
-      { description: { contains: params.search } },
+      { name: { contains: params.search, mode: "insensitive" } },
+      { description: { contains: params.search, mode: "insensitive" } },
     ];
   }
   if (params.category) where.category = params.category;
