@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   Eye, Save, Loader2, Store, MapPin, Phone, Clock, Truck, Image as ImageIcon,
-  Search, Check, Plus, X, Star,
+  Search, Check, Plus, X, Star, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +45,7 @@ export function MyListing({ vendor }: MyListingProps) {
   const router = useRouter();
   const { data: fullVendor, isLoading } = useVendor(vendor.slug);
   const [saving, setSaving] = React.useState(false);
+  const [aiSeoLoading, setAiSeoLoading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState("business");
 
   // Form state
@@ -115,6 +116,37 @@ export function MyListing({ vendor }: MyListingProps) {
   }, [fullVendor]);
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  // ── One-click AI SEO generation ──
+  // Calls the existing /api/vendor/marketing/ai/seo endpoint which uses GLM
+  // to generate an SEO title + description based on the vendor's business
+  // name, category, city, and tagline. Fills the form fields (vendor still
+  // needs to click Save to persist).
+  const generateSeoWithAI = async () => {
+    setAiSeoLoading(true);
+    try {
+      const res = await fetch("/api/vendor/marketing/ai/seo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (res.ok && data.seo) {
+        set("metaTitle", data.seo.metaTitle || "");
+        set("metaDescription", data.seo.metaDescription || "");
+        if (data.seo.keywords?.length) {
+          set("tags", JSON.stringify(data.seo.keywords));
+        }
+        toast.success("AI generated SEO title & description!");
+      } else {
+        toast.error(data.error || "AI generation failed");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate SEO");
+    } finally {
+      setAiSeoLoading(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -362,6 +394,32 @@ export function MyListing({ vendor }: MyListingProps) {
 
         {/* SEO */}
         <TabsContent value="seo" className="space-y-4">
+          {/* One-click AI generation */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-brand-border bg-brand-soft/50 p-3">
+            <div className="flex items-center gap-2">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-brand text-brand-foreground">
+                <Sparkles className="size-4" />
+              </span>
+              <div>
+                <p className="text-xs font-semibold">Generate SEO with AI</p>
+                <p className="text-[10px] text-muted-foreground">One click — AI writes your title & description from your listing.</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              onClick={generateSeoWithAI}
+              disabled={aiSeoLoading}
+              className="shrink-0"
+            >
+              {aiSeoLoading ? (
+                <><Loader2 className="mr-1.5 size-3.5 animate-spin" /> Generating…</>
+              ) : (
+                <><Sparkles className="mr-1.5 size-3.5" /> Generate with AI</>
+              )}
+            </Button>
+          </div>
+
           <div>
             <Label>SEO Title</Label>
             <Input value={form.metaTitle} onChange={e => set("metaTitle", e.target.value)} maxLength={60} className="mt-1" />
@@ -379,6 +437,7 @@ export function MyListing({ vendor }: MyListingProps) {
               <li>Keep description between 120-160 characters</li>
               <li>Include your city and main service</li>
               <li>Structured data is auto-generated</li>
+              <li>Click "Generate with AI" for an instant optimized title & description</li>
             </ul>
           </div>
         </TabsContent>
