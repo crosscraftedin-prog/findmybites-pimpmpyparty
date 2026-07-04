@@ -25,7 +25,6 @@ import {
   ClipboardList,
   ShieldCheck,
   Boxes,
-  Megaphone,
 } from "lucide-react";
 import {
   BarChart,
@@ -346,6 +345,10 @@ function ReviewPanel({
   onAction: (id: string, status: string) => void;
   actionLoading: string | null;
 }) {
+  // Resolve DB-driven category labels via the existing client hook.
+  // (Parent AdminPanelPage does the same — ReviewPanel renders in a slide-over
+  // and needs its own lookup since the hook result isn't passed as a prop.)
+  const { getLabel: getCategoryLabel } = useCategoryLabels();
   if (!vendor) return null;
   const isFood = vendor.ecosystem === "FINDMYBITES";
   const tint = isFood ? CORAL_TINT : PURPLE_TINT;
