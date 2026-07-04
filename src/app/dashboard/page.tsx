@@ -9,6 +9,7 @@ import { SiteHeader } from "@/components/marketplace/site-header";
 import { LocationBanner } from "@/components/marketplace/location-banner";
 import { Sidebar, type DashboardTab } from "@/components/dashboard/Sidebar";
 import { Overview } from "@/components/dashboard/Overview";
+import { SuccessCenter } from "@/components/success-center/success-center";
 import { MyListing } from "@/components/dashboard/MyListing";
 import { Products } from "@/components/dashboard/Products";
 import { Enquiries } from "@/components/dashboard/Enquiries";
@@ -105,9 +106,9 @@ export default function DashboardPage() {
         {/* Main content */}
         <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
           {activeTab === "overview" && (
-            <div className="space-y-6 p-4 lg:p-6">
+            <div className="space-y-6">
               <VendorOnboarding vendorId={vendor.id} onNavigate={setActiveTab} />
-              <Overview vendor={vendor} bookings={bookings} onNavigate={setActiveTab} />
+              <SuccessCenter vendor={vendor} onNavigate={setActiveTab} />
             </div>
           )}
           {activeTab === "listing" && <MyListing vendor={vendor} />}
