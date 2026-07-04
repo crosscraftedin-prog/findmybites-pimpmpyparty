@@ -48,9 +48,10 @@ const COLUMNS = [
     links: [
       { label: "About us", href: "/about", active: true },
       { label: "How it works", href: "#how-it-works", active: true },
-      { label: "Careers", href: "/careers", active: true },
-      { label: "Blog", href: "/blog", active: true },
-      { label: "Contact", href: "/contact", active: true },
+      { label: "Careers", href: "/careers", active: false },
+      { label: "Blog", href: "/blog", active: false },
+      { label: "Press", href: "/press", active: false },
+      { label: "Investors", href: "/investors", active: false },
     ],
   },
   {
@@ -60,6 +61,19 @@ const COLUMNS = [
       { label: "Trust & safety", href: "/trust-safety", active: true },
       { label: "Terms", href: "/terms", active: true },
       { label: "Privacy", href: "/privacy", active: true },
+      { label: "Contact", href: "/contact", active: true },
+    ],
+  },
+  {
+    title: "Vendor",
+    links: [
+      { label: "List your business", href: "#", active: true },
+      { label: "Pricing", href: "#", active: true },
+      { label: "Academy", href: "/academy", active: false },
+      { label: "Success Stories", href: "/success-stories", active: false },
+      { label: "API", href: "/api", active: false },
+      { label: "Partners", href: "/partners", active: false },
+      { label: "Affiliate Program", href: "/affiliates", active: false },
     ],
   },
 ];
@@ -122,7 +136,7 @@ export function SiteFooter() {
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-6">
           {/* Brand */}
-          <div className="col-span-2">
+          <div className="col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2 font-bold">
               <span className="relative flex items-center gap-1">
                 <span className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-white">
@@ -230,13 +244,30 @@ export function SiteFooter() {
             © {new Date().getFullYear()} FindMyBites × PimpMyParty. All rights
             reserved.
           </p>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-4">
             <span className="inline-flex items-center gap-1">
               <Mail className="size-3.5" /> hello@findmybites.party
             </span>
             <span className="inline-flex items-center gap-1">
               <MapPin className="size-3.5" /> Worldwide
             </span>
+            {/* Language selector */}
+            <select aria-label="Language" className="rounded-md border border-border bg-background px-2 py-1 text-xs">
+              <option>English</option>
+              <option>Français</option>
+              <option>Español</option>
+              <option>Português</option>
+              <option>हिन्दी</option>
+              <option>العربية</option>
+            </select>
+            {/* Currency selector */}
+            <select aria-label="Currency" className="rounded-md border border-border bg-background px-2 py-1 text-xs">
+              <option>USD $</option>
+              <option>EUR €</option>
+              <option>GBP £</option>
+              <option>INR ₹</option>
+              <option>AED</option>
+            </select>
           </div>
         </div>
       </div>
