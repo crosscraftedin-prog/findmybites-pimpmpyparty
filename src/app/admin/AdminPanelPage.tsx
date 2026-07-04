@@ -25,6 +25,10 @@ import {
   ClipboardList,
   ShieldCheck,
   Boxes,
+  Trash2,
+  CheckSquare,
+  Square,
+  Sparkles,
 } from "lucide-react";
 import {
   BarChart,
@@ -54,6 +58,8 @@ const AdminVendorOnboarding = dynamic(() => import("@/components/admin/admin-ven
 const AdminSubscriptions = dynamic(() => import("@/components/admin/admin-subscriptions").then(m => ({ default: m.AdminSubscriptions })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminInventory = dynamic(() => import("@/components/admin/admin-inventory").then(m => ({ default: m.AdminInventory })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminMarketing = dynamic(() => import("@/components/admin/admin-marketing").then(m => ({ default: m.AdminMarketing })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
+const VendorDeleteModal = dynamic(() => import("@/components/admin/vendor-delete-modal").then(m => ({ default: m.VendorDeleteModal })), { ssr: false });
+const CleanupTestVendors = dynamic(() => import("@/components/admin/cleanup-test-vendors").then(m => ({ default: m.CleanupTestVendors })), { ssr: false });
 import { useCategoryLabels } from "@/hooks/use-category-labels";
 
 // ── Brand colors (matching HTML reference) ─────────────────────────────────
@@ -339,11 +345,13 @@ function ReviewPanel({
   onClose,
   onAction,
   actionLoading,
+  onDelete,
 }: {
   vendor: Vendor | null;
   onClose: () => void;
   onAction: (id: string, status: string) => void;
   actionLoading: string | null;
+  onDelete: (vendorId: string, vendorName: string) => void;
 }) {
   // Resolve DB-driven category labels via the existing client hook.
   // (Parent AdminPanelPage does the same — ReviewPanel renders in a slide-over
@@ -521,6 +529,15 @@ function ReviewPanel({
             Reject
           </button>
         </div>
+
+        {/* Danger zone: permanent delete */}
+        <button
+          onClick={() => onDelete(vendor.id, vendor.name)}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-300 py-2 text-[12px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
+        >
+          <Trash2 className="size-3.5" />
+          Delete vendor permanently
+        </button>
       </div>
     </>
   );
@@ -564,6 +581,11 @@ export function AdminPanelPage({
   const [partyPending, setPartyPending] = React.useState(0);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
   const [pendingTab, setPendingTab] = React.useState<"food" | "party">("food");
+
+  // ── Vendor delete + bulk select + cleanup ──
+  const [deleteTarget, setDeleteTarget] = React.useState<{ vendorId: string; vendorName: string } | { bulk: true; vendorIds: string[]; vendorNames: string[] } | null>(null);
+  const [selectedVendorIds, setSelectedVendorIds] = React.useState<Set<string>>(new Set());
+  const [showCleanup, setShowCleanup] = React.useState(false);
 
   // PERFORMANCE: Fetch stats, signups, vendors, and activity in PARALLEL
   // (previously these were sequential: stats → vendors → activity)
@@ -733,6 +755,61 @@ export function AdminPanelPage({
     } finally {
       setActionLoading(null);
     }
+  };
+
+  // ── Delete handler (single + bulk) ──
+  const handleDelete = async (reason: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    if (!deleteTarget) return { success: false, error: "No target" };
+    try {
+      if ("bulk" in deleteTarget) {
+        const res = await fetch("/api/admin/vendors/bulk-delete", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vendorIds: deleteTarget.vendorIds, reason }),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) return { success: true, message: json.message };
+        return { success: false, error: json.error || "Bulk delete failed" };
+      } else {
+        const res = await fetch(`/api/admin/vendors/${deleteTarget.vendorId}/delete`, {
+          method: "DELETE", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) return { success: true, message: json.message };
+        return { success: false, error: json.error || "Delete failed" };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const onDeleted = () => {
+    // Refresh the vendor list + clear selection
+    setSelectedVendorIds(new Set());
+    setReviewVendor(null);
+    fetchAllData();
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedVendorIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedVendorIds.size === filteredVendors.length) {
+      setSelectedVendorIds(new Set());
+    } else {
+      setSelectedVendorIds(new Set(filteredVendors.map((v) => v.id)));
+    }
+  };
+
+  const openBulkDelete = () => {
+    const ids = Array.from(selectedVendorIds);
+    const names = ids.map((id) => allVendors.find((v) => v.id === id)?.name || "Unknown");
+    setDeleteTarget({ bulk: true, vendorIds: ids, vendorNames: names });
   };
 
   const totalPending = foodPending + partyPending;
@@ -1090,6 +1167,23 @@ export function AdminPanelPage({
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-[13px] font-medium">All vendors</h2>
               <div className="flex flex-wrap items-center gap-2">
+                {selectedVendorIds.size > 0 && (
+                  <button
+                    onClick={openBulkDelete}
+                    className="flex items-center gap-1.5 rounded-lg border border-red-300 px-2.5 py-1.5 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete selected ({selectedVendorIds.size})
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowCleanup(true)}
+                  className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium text-amber-700 transition-colors hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                  style={{ borderColor: "rgba(0,0,0,0.12)" }}
+                >
+                  <Sparkles className="size-3.5" />
+                  Cleanup test vendors
+                </button>
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-black/30" />
                   <input
@@ -1156,7 +1250,14 @@ export function AdminPanelPage({
                       className="text-left text-[10px] uppercase tracking-wide text-black/40"
                       style={{ borderBottom: "0.5px solid rgba(0,0,0,0.12)" }}
                     >
-                      <th style={{ width: "26%" }} className="py-2 pl-3">
+                      <th style={{ width: "4%" }} className="py-2 pl-2">
+                        <button onClick={toggleSelectAll} className="text-black/40 hover:text-black/70" aria-label="Select all">
+                          {selectedVendorIds.size === filteredVendors.length && filteredVendors.length > 0
+                            ? <CheckSquare className="size-3.5 text-red-500" />
+                            : <Square className="size-3.5" />}
+                        </button>
+                      </th>
+                      <th style={{ width: "24%" }} className="py-2 pl-1">
                         Vendor
                       </th>
                       <th style={{ width: "13%" }}>Brand</th>
@@ -1177,7 +1278,14 @@ export function AdminPanelPage({
                           className="text-[12px] transition-colors hover:bg-black/[0.02]"
                           style={{ borderBottom: "0.5px solid rgba(0,0,0,0.06)" }}
                         >
-                          <td className="py-2.5 pl-3">
+                          <td className="py-2.5 pl-2">
+                            <button onClick={() => toggleSelect(v.id)} className="text-black/40 hover:text-black/70" aria-label={`Select ${v.name}`}>
+                              {selectedVendorIds.has(v.id)
+                                ? <CheckSquare className="size-3.5 text-red-500" />
+                                : <Square className="size-3.5" />}
+                            </button>
+                          </td>
+                          <td className="py-2.5 pl-1">
                             <div className="flex items-center gap-2">
                               <div
                                 className="grid size-7 shrink-0 place-items-center rounded-lg text-[10px] font-medium"
@@ -1327,7 +1435,29 @@ export function AdminPanelPage({
         onClose={() => setReviewVendor(null)}
         onAction={handleAction}
         actionLoading={actionLoading}
+        onDelete={(vendorId, vendorName) => {
+          setReviewVendor(null);
+          setDeleteTarget({ vendorId, vendorName });
+        }}
       />
+
+      {/* Delete confirmation modal (single + bulk) */}
+      <VendorDeleteModal
+        vendorName={"bulk" in (deleteTarget || {}) ? null : (deleteTarget as any)?.vendorName || null}
+        bulkCount={"bulk" in (deleteTarget || {}) ? (deleteTarget as any)?.vendorIds?.length : undefined}
+        vendorNames={"bulk" in (deleteTarget || {}) ? (deleteTarget as any)?.vendorNames : undefined}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={onDeleted}
+        deleteAction={handleDelete}
+      />
+
+      {/* Cleanup test vendors modal */}
+      {showCleanup && (
+        <CleanupTestVendors
+          onClose={() => setShowCleanup(false)}
+          onCleaned={onDeleted}
+        />
+      )}
     </div>
   );
 }

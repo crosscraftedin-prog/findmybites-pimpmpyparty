@@ -633,7 +633,7 @@ model JoshConversation {
   // ── Phase 6: Structured Conversation State ──
   // Deterministic intent state — updated after every message, never reparsed.
   // This is the source of truth for marketplace search, slot filling, and mode.
-  state               Json     @default("{}") // ConversationState JSON
+  state                Json     @default("{}") // ConversationState JSON
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   lastMessageAt       DateTime @default(now())
@@ -1567,4 +1567,29 @@ model VendorAnalyticsDaily {
   @@index([vendorId, dateKey])
   @@index([dateKey])
   @@map("vendor_analytics_daily")
+}
+
+// ── Admin Audit Log ────────────────────────────────────────────────────────
+// Immutable record of destructive admin actions (vendor deletion, force-hide,
+// bulk operations). Each entry captures who/what/when/why for compliance.
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  // "vendor_delete" | "vendor_bulk_delete" | "vendor_cleanup_test" | ...
+  action      String
+  // Admin's supabase user id (from session) or email
+  adminId     String
+  adminEmail  String?
+  // Target vendor id(s) — single id for vendor_delete, comma-separated for bulk
+  targetId    String
+  targetName  String?  // vendor name snapshot (for display after deletion)
+  // Free-form reason entered by the admin
+  reason      String?
+  // JSON blob with extra context (e.g. { vendorCount, storagePaths })
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  @@index([action])
+  @@index([adminId])
+  @@index([createdAt])
+  @@map("admin_audit_logs")
 }
