@@ -155,6 +155,9 @@ model Vendor {
   homeService        Boolean              @default(false)
   onlineConsultation Boolean              @default(false)
   maxOrder           Int?
+  // Vendor-level preparation time & booking notice (free text, e.g. "24 hours", "2 days advance")
+  prepTime           String?
+  bookingNotice      String?
   responseRate       Int?                 @default(0) // percentage
   profileViews       Int                  @default(0)
   productViews       Int                  @default(0)
