@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/payments/create-order
  * Creates a Razorpay order using plain fetch (no SDK import issues).
- * Body: { planName: "vendor-pro" | "business", vendorId?, userEmail? }
+ *
+ * Security: vendorId is resolved ONLY from the authenticated Supabase session.
+ * The frontend cannot specify vendorId — if no authenticated vendor exists,
+ * the route returns 401.
+ *
+ * Body: { planName: "vendor-pro" | "business", amount?, currency? }
  */
 const PLANS: Record<string, { amount: number; name: string }> = {
   "vendor-pro": { amount: 29900, name: "Vendor Pro" },   // ₹299
@@ -15,8 +21,8 @@ const PLANS: Record<string, { amount: number; name: string }> = {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { planName, vendorId, userEmail, amount: bodyAmount, currency: bodyCurrency } = body as {
-      planName: string; vendorId?: string; userEmail?: string; amount?: number; currency?: string;
+    const { planName, amount: bodyAmount, currency: bodyCurrency } = body as {
+      planName: string; amount?: number; currency?: string;
     };
 
     if (!planName || !PLANS[planName]) {
@@ -31,28 +37,38 @@ export async function POST(req: NextRequest) {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!keyId || !keySecret) return NextResponse.json({ error: "Razorpay not configured" }, { status: 503 });
 
-    // Get vendor info from auth (optional — falls back to body params)
-    let vendorName = "Vendor";
-    let actualVendorId = vendorId || "unknown";
-    let actualEmail = userEmail || "";
+    // ── Resolve vendor from authenticated session ONLY ──
+    // Never trust vendorId from the request body.
+    const supabase = await createSupabaseServerClient();
+    let userId: string | null = null;
+    let userEmail: string | null = null;
     try {
-      const supabase = await createSupabaseServerClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        actualEmail = actualEmail || user.email || "";
-        const vendor = await db.vendor.findFirst({
-          where: { OR: [{ owner_user_id: user.id }, { userEmail: user.email ?? "" }] },
-          select: { id: true, name: true, slug: true },
-        }).catch(() => null);
-        if (vendor) { vendorName = vendor.name; actualVendorId = vendor.id; }
-      }
-    } catch (e) { /* auth failed — proceed with body params */ }
-
-    if (!actualVendorId || actualVendorId === "unknown") {
-      return NextResponse.json({ error: "Vendor ID required. Sign in or provide vendorId." }, { status: 400 });
+      if (user) { userId = user.id; userEmail = user.email ?? null; }
+    } catch {}
+    if (!userId) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id) { userId = session.user.id; userEmail = session.user.email ?? null; }
+      } catch {}
+    }
+    if (!userId) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    console.log("[create-order] Creating order:", { planName, amount, vendorId: actualVendorId });
+    const vendor = await db.vendor.findFirst({
+      where: { OR: [{ owner_user_id: userId }, ...(userEmail ? [{ userEmail }] : [])] },
+      select: { id: true, name: true, slug: true },
+    }).catch(() => null);
+    if (!vendor) {
+      return NextResponse.json({ error: "No vendor listing found for this account" }, { status: 404 });
+    }
+
+    const vendorName = vendor.name;
+    const actualVendorId = vendor.id;
+    const actualEmail = userEmail || "";
+
+    logger.info("create-order", { planName, amount, vendorId: actualVendorId });
 
     const authHeader = "Basic " + Buffer.from(`${keyId}:${keySecret}`).toString("base64");
     const response = await fetch("https://api.razorpay.com/v1/orders", {
@@ -67,12 +83,12 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      console.error("[create-order] Razorpay API error:", response.status, error);
+      logger.error("create-order razorpay failed", { status: response.status, error });
       return NextResponse.json({ error: error?.error?.description || `Razorpay error: ${response.status}` }, { status: response.status });
     }
 
     const order = await response.json();
-    console.log("[create-order] Order created:", order.id);
+    logger.info("create-order success", { orderId: order.id });
 
     return NextResponse.json({
       orderId: order.id, amount: order.amount, currency: order.currency,
@@ -80,7 +96,7 @@ export async function POST(req: NextRequest) {
       planName, vendorName,
     });
   } catch (error: any) {
-    console.error("[create-order] Error:", error.message);
+    logger.error("create-order error", { message: error.message });
     return NextResponse.json({ error: `Internal server error: ${error.message}` }, { status: 500 });
   }
 }

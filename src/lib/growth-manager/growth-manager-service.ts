@@ -20,19 +20,39 @@ import { getZAI } from "@/lib/zai-server";
 import { db } from "@/lib/db";
 import { getSuccessCenterData } from "@/lib/success/success-service";
 import { getKpiComparison, getAnalyticsSeries, getCompetitorInsights } from "@/lib/marketing/growth-service";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 
-// ── LLM helper ───────────────────────────────────────────────────────────────
+// ── LLM helper (with timeout + prompt injection protection) ──────────────────
 async function callLLM(prompt: string): Promise<string | null> {
+  // Sanitize user-supplied content
+  const userContentMatch = prompt.match(/(?:sentence|Vendor context|Business name|Marketplace|Category|review|comment|message|question)[\s\S]*$/i);
+  if (userContentMatch) {
+    const sanitizeResult = sanitizePrompt(userContentMatch[0]);
+    if (sanitizeResult.blocked) {
+      logger.warn("growth-manager", "Prompt injection blocked", { reason: sanitizeResult.reason });
+      return null;
+    }
+  }
+
   const zai = await getZAI();
   if (!zai) return null;
   try {
-    const completion = await zai.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      thinking: { type: "disabled" },
-    });
-    return completion.choices[0]?.message?.content || "";
+    const { result, timedOut } = await callWithTimeout(async () => {
+      const completion = await zai.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        thinking: { type: "disabled" },
+      });
+      return completion.choices[0]?.message?.content || "";
+    }, 30_000);
+
+    if (timedOut) {
+      logger.warn("growth-manager", "LLM call timed out after 30s");
+      return null;
+    }
+    return result;
   } catch (err) {
-    console.error("[growth-manager] LLM failed:", err);
+    logger.error("growth-manager", "LLM call failed", { message: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }

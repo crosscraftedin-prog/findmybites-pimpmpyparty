@@ -18,22 +18,46 @@ import type {
   WritingStyle, VendorSetupInput, AiBusinessProfile, AiImageAnalysis,
   ProfileCompleteness, AiRecommendation,
 } from "./listing-types";
+import { sanitizePrompt, callWithTimeout } from "./security";
+import { logger } from "@/lib/logger";
 
 export type { WritingStyle, VendorSetupInput, AiBusinessProfile, AiImageAnalysis, ProfileCompleteness, AiRecommendation };
 export { WRITING_STYLES } from "./listing-types";
 
-// ── LLM helper ───────────────────────────────────────────────────────────────
+// ── LLM helper (with timeout + prompt injection protection) ──────────────────
 async function callLLM(prompt: string): Promise<string | null> {
+  // Extract user-supplied content from the prompt (everything after the last
+  // "Vendor context:" or "sentence:" marker) and sanitize it.
+  // The system instructions before that are trusted (written by us).
+  const userContentMatch = prompt.match(/(?:sentence|Vendor context|Business name|Marketplace|Category|Body|Analyze this|A vendor describes|A vendor asks)[\s\S]*$/i);
+  if (userContentMatch) {
+    const sanitizeResult = sanitizePrompt(userContentMatch[0]);
+    if (sanitizeResult.blocked) {
+      logger.warn("ai-listing", "Prompt injection blocked", { reason: sanitizeResult.reason });
+      return null;
+    }
+  }
+
   const zai = await getZAI();
   if (!zai) return null;
+
   try {
-    const completion = await zai.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      thinking: { type: "disabled" },
-    });
-    return completion.choices[0]?.message?.content || "";
+    const { result, timedOut } = await callWithTimeout(async (signal) => {
+      const completion = await zai.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        thinking: { type: "disabled" },
+      });
+      return completion.choices[0]?.message?.content || "";
+    }, 30_000);
+
+    if (timedOut) {
+      logger.warn("ai-listing", "LLM call timed out after 30s");
+      return null;
+    }
+
+    return result;
   } catch (err) {
-    console.error("[ai-setup] LLM call failed:", err);
+    logger.error("ai-listing", "LLM call failed", { message: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }

@@ -1,19 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { ensureCsrfCookie, validateCsrf } from "@/lib/security/csrf";
 
 /**
- * Middleware that refreshes the Supabase auth session on every request.
- *
- * Without this, the access token expires after ~1 hour and vendors get
- * silently logged out. The middleware calls supabase.auth.getUser() which
- * refreshes the token if it's close to expiry, then sets the updated
- * cookies on the response.
- *
- * Also protects /admin route (server-side guard happens in the page itself,
- * but this prevents unnecessary rendering for non-admins).
+ * Middleware that:
+ * 1. Refreshes the Supabase auth session on every request.
+ * 2. Enforces CSRF protection on mutation requests.
+ * 3. Sets CSRF cookie on GET requests if not present.
  */
 export async function middleware(request: NextRequest) {
-  // Skip middleware for static assets and API routes that don't need auth
   const { pathname } = request.nextUrl;
   if (
     pathname.startsWith("/_next/") ||
@@ -26,11 +21,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // ── CSRF validation for mutation requests ──
+  if (!validateCsrf(request)) {
+    return NextResponse.json(
+      { error: "CSRF token validation failed" },
+      { status: 403 }
+    );
+  }
+
   let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: request.headers },
   });
+
+  // ── Ensure CSRF cookie is set on GET requests ──
+  if (request.method === "GET") {
+    response = ensureCsrfCookie(request, response);
+  }
 
   try {
     const supabase = createServerClient(
@@ -38,9 +44,7 @@ export async function middleware(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
+          getAll() { return request.cookies.getAll(); },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value, options }) => {
               response.cookies.set(name, value, options);
@@ -49,11 +53,6 @@ export async function middleware(request: NextRequest) {
         },
       }
     );
-
-    // This call refreshes the session if needed (access token about to expire)
-    // and sets the updated cookies on the response via the setAll callback.
-    // IMPORTANT: getUser() validates the JWT server-side, unlike getSession()
-    // which just reads the cookie.
     await supabase.auth.getUser();
   } catch {
     // Non-fatal — continue without refreshing
