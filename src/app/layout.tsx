@@ -95,10 +95,31 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Register service worker for PWA offline support */}
+        {/* Service worker registration with stale-cache cleanup.
+         * On each load: register the latest SW, then immediately check for
+         * updates. If a new SW is found, it takes control via skipWaiting().
+         * The SW itself (v4) no longer intercepts /_next/static/ chunks,
+         * fixing ChunkLoadError after Vercel deploys. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(()=>{})})}`,
+            __html: `
+              if('serviceWorker' in navigator){
+                window.addEventListener('load', function(){
+                  navigator.serviceWorker.register('/sw.js').then(function(reg){
+                    // Force update check on every page load
+                    reg.update();
+                  }).catch(function(){});
+                  // If a new SW takes control, reload once to get fresh chunks
+                  var refreshing = false;
+                  navigator.serviceWorker.addEventListener('controllerchange', function(){
+                    if(!refreshing){
+                      refreshing = true;
+                      window.location.reload();
+                    }
+                  });
+                });
+              }
+            `,
           }}
         />
       </head>
