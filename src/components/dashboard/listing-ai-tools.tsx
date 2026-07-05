@@ -149,13 +149,19 @@ export function scoreBgColor(score: number): string {
 }
 
 export function BusinessScoreCard({ data }: { data: BusinessScoreData }) {
+  const missingItems = data.sections.filter((s) => s.score < 50);
+  const estimatedMinutes = Math.max(1, missingItems.length * 2);
+
   return (
     <div className="rounded-xl border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <BarChart3 className="size-4 text-primary" /> Business Score
         </h3>
-        <span className={cn("text-2xl font-extrabold", scoreColor(data.overall))}>{data.overall}</span>
+        <div className="text-right">
+          <span className={cn("text-2xl font-extrabold", scoreColor(data.overall))}>{data.overall}</span>
+          <span className="text-xs text-muted-foreground">/100</span>
+        </div>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
         <motion.div
@@ -177,6 +183,25 @@ export function BusinessScoreCard({ data }: { data: BusinessScoreData }) {
           );
         })}
       </div>
+      {/* Missing items + estimated time */}
+      {missingItems.length > 0 && (
+        <div className="border-t pt-2">
+          <p className="text-[11px] font-semibold text-muted-foreground">Missing:</p>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {missingItems.map((s) => (
+              <span key={s.key} className="inline-flex items-center gap-0.5 rounded-full bg-red-50 dark:bg-red-950/20 px-2 py-0.5 text-[10px] text-red-600 dark:text-red-400">
+                <XCircle className="size-2.5" /> {s.label}
+              </span>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[10px] text-muted-foreground">⏱ Est. {estimatedMinutes} min to complete</p>
+        </div>
+      )}
+      {missingItems.length === 0 && data.overall >= 80 && (
+        <div className="flex items-center gap-1.5 border-t pt-2 text-xs text-emerald-600">
+          <CheckCircle2 className="size-3.5" /> All sections look great!
+        </div>
+      )}
     </div>
   );
 }
@@ -361,6 +386,18 @@ export function QualityCheckCard({ checks, onFix }: { checks: QualityCheck[]; on
   const failed = checks.filter((c) => !c.passed);
   const passed = checks.filter((c) => c.passed);
 
+  // One-click fix suggestions for each failed check
+  const fixSuggestions: Record<string, { label: string; action: string }> = {
+    "Description length": { label: "✨ Generate with AI", action: "generate_description" },
+    "SEO Title": { label: "✨ Generate SEO", action: "generate_seo" },
+    "Meta Description": { label: "✨ Generate SEO", action: "generate_seo" },
+    "Tags (min 3)": { label: "Add: Wedding, Birthday, Custom", action: "add_tags" },
+    "WhatsApp/Phone": { label: "Add WhatsApp", action: "add_whatsapp" },
+    "Social media": { label: "Connect Instagram", action: "add_social" },
+    "Category set": { label: "Select category", action: "select_category" },
+    "Location (city)": { label: "Add city", action: "add_city" },
+  };
+
   return (
     <div className="rounded-xl border bg-card p-4 space-y-3">
       <h3 className="flex items-center gap-2 text-sm font-semibold">
@@ -375,11 +412,22 @@ export function QualityCheckCard({ checks, onFix }: { checks: QualityCheck[]; on
       ) : (
         <div className="space-y-1.5">
           {checks.map((c) => (
-            <div key={c.check} className={cn("flex items-center gap-2 rounded-lg border p-2 text-xs",
+            <div key={c.check} className={cn("rounded-lg border p-2 text-xs",
               c.passed ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/10" : "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20")}>
-              {c.passed ? <CheckCircle2 className="size-3.5 text-emerald-500" /> : <XCircle className="size-3.5 text-red-500" />}
-              <span className="font-medium">{c.check}</span>
-              <span className="ml-auto text-muted-foreground">{c.detail}</span>
+              <div className="flex items-center gap-2">
+                {c.passed ? <CheckCircle2 className="size-3.5 text-emerald-500" /> : <XCircle className="size-3.5 text-red-500" />}
+                <span className="font-medium">{c.check}</span>
+                <span className="ml-auto text-muted-foreground">{c.detail}</span>
+              </div>
+              {/* One-click fix for failed checks */}
+              {!c.passed && fixSuggestions[c.check] && (
+                <button
+                  onClick={() => onFix(fixSuggestions[c.check].action)}
+                  className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/20"
+                >
+                  {fixSuggestions[c.check].label}
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   Eye, Save, Loader2, Store, MapPin, Phone, Clock, Truck, Image as ImageIcon,
-  Search, Check, Plus, X, Star, Sparkles, Rocket,
+  Search, Check, Plus, X, Star, Sparkles, Rocket, Navigation, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Vendor } from "@/lib/types";
@@ -38,13 +41,93 @@ const COUNTRIES = [
   "Brazil", "Mexico", "Argentina", "Chile", "Colombia", "Peru",
 ];
 
-const BUSINESS_TYPES = [
+// Dynamic business types per category — vendors never have to guess
+const BUSINESS_TYPES_BY_CATEGORY: Record<string, { value: string; label: string }[]> = {
+  "bakers-bakery": [
+    { value: "home_baker", label: "Home Baker" },
+    { value: "cake_studio", label: "Cake Studio" },
+    { value: "bakery", label: "Bakery" },
+    { value: "commercial_bakery", label: "Commercial Bakery" },
+    { value: "cake_company", label: "Cake Company" },
+  ],
+  "caterers": [
+    { value: "home_catering", label: "Home Catering" },
+    { value: "catering_service", label: "Catering Service" },
+    { value: "restaurant", label: "Restaurant" },
+    { value: "hotel", label: "Hotel" },
+    { value: "catering_company", label: "Catering Company" },
+  ],
+  "photographers": [
+    { value: "freelancer", label: "Freelancer" },
+    { value: "photo_studio", label: "Photography Studio" },
+    { value: "photo_company", label: "Photography Company" },
+    { value: "event_photo_agency", label: "Event Photography Agency" },
+  ],
+  "decorators": [
+    { value: "freelancer", label: "Freelancer" },
+    { value: "event_decorator", label: "Event Decorator" },
+    { value: "decoration_company", label: "Decoration Company" },
+    { value: "event_agency", label: "Event Agency" },
+  ],
+  "djs": [
+    { value: "freelancer", label: "Freelancer DJ" },
+    { value: "dj_company", label: "DJ Company" },
+    { value: "entertainment_agency", label: "Entertainment Agency" },
+  ],
+  "event-planners": [
+    { value: "freelancer", label: "Freelance Planner" },
+    { value: "planning_company", label: "Planning Company" },
+    { value: "event_agency", label: "Event Agency" },
+  ],
+  "venues": [
+    { value: "banquet_hall", label: "Banquet Hall" },
+    { value: "hotel", label: "Hotel" },
+    { value: "resort", label: "Resort" },
+    { value: "outdoor_venue", label: "Outdoor Venue" },
+  ],
+  "florists": [
+    { value: "flower_shop", label: "Flower Shop" },
+    { value: "florist_company", label: "Florist Company" },
+    { value: "freelancer", label: "Freelance Florist" },
+  ],
+  "food-trucks": [
+    { value: "food_truck", label: "Food Truck" },
+    { value: "food_stall", label: "Food Stall" },
+    { value: "food_company", label: "Food Company" },
+  ],
+  "chef-staff": [
+    { value: "freelancer", label: "Freelance Chef" },
+    { value: "chef_company", label: "Chef Agency" },
+    { value: "private_chef", label: "Private Chef" },
+  ],
+  "dessert-makers": [
+    { value: "home_business", label: "Home Business" },
+    { value: "dessert_shop", label: "Dessert Shop" },
+    { value: "dessert_company", label: "Dessert Company" },
+  ],
+  "specialty-food": [
+    { value: "home_business", label: "Home Business" },
+    { value: "specialty_shop", label: "Specialty Shop" },
+    { value: "food_company", label: "Food Company" },
+  ],
+};
+const DEFAULT_BUSINESS_TYPES = [
   { value: "home", label: "Home Business" },
   { value: "shop", label: "Shop / Store" },
   { value: "studio", label: "Studio" },
-  { value: "cloud_kitchen", label: "Cloud Kitchen" },
-  { value: "event_company", label: "Event Company" },
   { value: "freelancer", label: "Freelancer" },
+  { value: "company", label: "Company" },
+];
+
+// Service radius friendly options (saves numeric internally)
+const SERVICE_RADIUS_OPTIONS = [
+  { value: "5", label: "5 km" },
+  { value: "10", label: "10 km" },
+  { value: "20", label: "20 km" },
+  { value: "50", label: "50 km" },
+  { value: "100", label: "Entire City" },
+  { value: "500", label: "Entire State" },
+  { value: "99999", label: "Nationwide" },
 ];
 
 export function MyListing({ vendor }: MyListingProps) {
@@ -61,6 +144,21 @@ export function MyListing({ vendor }: MyListingProps) {
   const formRef = React.useRef<any>({});
   const galleryRef = React.useRef<string[]>([]);
   const autoSaveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Categories & Subcategories (from DB) ──
+  const [categories, setCategories] = React.useState<{ id: string; label: string }[]>([]);
+  const [subcategories, setSubcategories] = React.useState<{ id: string; name: string }[]>([]);
+  const [catSearch, setCatSearch] = React.useState("");
+  const [subcatSearch, setSubcatSearch] = React.useState("");
+  const [showCatDropdown, setShowCatDropdown] = React.useState(false);
+  const [showSubcatDropdown, setShowSubcatDropdown] = React.useState(false);
+
+  // ── GST/Reg conditional visibility ──
+  const [hasGst, setHasGst] = React.useState(false);
+  const [hasReg, setHasReg] = React.useState(false);
+
+  // ── Geolocation ──
+  const [locating, setLocating] = React.useState(false);
 
   // Form state
   const [form, setForm] = React.useState<any>({});
@@ -126,10 +224,95 @@ export function MyListing({ vendor }: MyListingProps) {
         setGallery(typeof (fullVendor as any).gallery === "string"
           ? JSON.parse((fullVendor as any).gallery) : ((fullVendor as any).gallery || []));
       } catch { setGallery([]); }
+
+      // Set GST/Reg visibility based on existing values
+      setHasGst(!!(fullVendor as any).gstVatNumber);
+      setHasReg(!!(fullVendor as any).businessRegNumber);
     }
   }, [fullVendor]);
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  // ── Load categories from DB ──
+  React.useEffect(() => {
+    const eco = vendor.ecosystem || "FINDMYBITES";
+    fetch(`/api/categories?ecosystem=${eco}&t=${Date.now()}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (d?.categories) {
+          setCategories(d.categories.map((c: any) => ({ id: c.id, label: c.label || c.id })));
+        }
+      })
+      .catch(() => {});
+  }, [vendor.ecosystem]);
+
+  // ── Load subcategories when category changes ──
+  React.useEffect(() => {
+    if (!form.category) { setSubcategories([]); return; }
+    fetch(`/api/categories/subcategories?category=${encodeURIComponent(form.category)}&t=${Date.now()}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (d?.subcategories) {
+          setSubcategories(d.subcategories.map((s: any) => ({ id: s.id, name: s.name || s.label || s.id })));
+        }
+      })
+      .catch(() => {});
+  }, [form.category]);
+
+  // ── Geolocation helper ──
+  const useMyLocation = () => {
+    if (!navigator.geolocation) { toast.error("Geolocation not supported"); return; }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        set("latitude", latitude);
+        set("longitude", longitude);
+        // Reverse geocode using OpenStreetMap Nominatim (free, no API key)
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
+          const data = await res.json();
+          if (data?.address) {
+            const addr = data.address;
+            if (addr.country) set("country", addr.country);
+            if (addr.state) set("state", addr.state);
+            if (addr.city || addr.town || addr.village) set("city", addr.city || addr.town || addr.village);
+            if (addr.suburb || addr.neighbourhood) set("address", addr.suburb || addr.neighbourhood);
+            if (addr.postcode) set("zipCode", addr.postcode);
+          }
+          toast.success("Location detected!");
+        } catch {
+          toast.success("Coordinates saved (address lookup failed)");
+        } finally { setLocating(false); }
+      },
+      () => { toast.error("Location permission denied"); setLocating(false); },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
+  // ── Geocode address when country/state/city/zip change ──
+  const geocodeAddress = React.useCallback(async (addr: { country?: string; state?: string; city?: string; zipCode?: string; address?: string }) => {
+    const parts = [addr.address, addr.city, addr.state, addr.country, addr.zipCode].filter(Boolean);
+    if (parts.length < 2) return; // need at least city + country
+    try {
+      const q = encodeURIComponent(parts.join(", "));
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
+      const data = await res.json();
+      if (data?.[0]) {
+        set("latitude", parseFloat(data[0].lat));
+        set("longitude", parseFloat(data[0].lon));
+      }
+    } catch {}
+  }, []);
+
+  // Debounced geocoding when address fields change
+  React.useEffect(() => {
+    if (!form.city || !form.country) return;
+    const timer = setTimeout(() => {
+      geocodeAddress({ country: form.country, state: form.state, city: form.city, zipCode: form.zipCode, address: form.address });
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [form.country, form.state, form.city, form.zipCode, form.address, geocodeAddress]);
 
   // ── Fetch product count for Business Score ──
   React.useEffect(() => {
@@ -327,29 +510,133 @@ export function MyListing({ vendor }: MyListingProps) {
             <div><Label>Short Tagline</Label><Input value={form.tagline} onChange={e => set("tagline", e.target.value)} placeholder="Custom cakes since 2015" className="mt-1" /></div>
           </div>
           <div><Label>Description</Label><Textarea value={form.description} onChange={e => set("description", e.target.value)} className="mt-1 min-h-[100px]" /></div>
+
+          {/* Category — searchable dropdown from DB */}
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Category</Label><Input value={form.category} onChange={e => set("category", e.target.value)} className="mt-1" /></div>
-            <div><Label>Subcategory</Label><Input value={form.subcategory} onChange={e => set("subcategory", e.target.value)} className="mt-1" /></div>
+            <div className="relative">
+              <Label>Category *</Label>
+              <div className="relative mt-1">
+                <Input
+                  value={catSearch || form.category || ""}
+                  onChange={(e) => { setCatSearch(e.target.value); setShowCatDropdown(true); }}
+                  onFocus={() => { setCatSearch(form.category || ""); setShowCatDropdown(true); }}
+                  onBlur={() => setTimeout(() => setShowCatDropdown(false), 200)}
+                  placeholder="Search categories…"
+                  className="pr-8"
+                />
+                <ChevronDown className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              </div>
+              {showCatDropdown && (
+                <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border bg-popover shadow-lg">
+                  {categories
+                    .filter((c) => !catSearch || c.label.toLowerCase().includes(catSearch.toLowerCase()))
+                    .map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onMouseDown={() => { set("category", c.id); set("subcategory", ""); setCatSearch(c.label); setShowCatDropdown(false); }}
+                        className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent", form.category === c.id && "bg-accent")}
+                      >
+                        {form.category === c.id && <Check className="size-3.5 text-primary" />}
+                        {c.label}
+                      </button>
+                    ))}
+                  {categories.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">Loading categories…</div>}
+                </div>
+              )}
+            </div>
+
+            {/* Subcategory — searchable dropdown, filtered by category */}
+            <div className="relative">
+              <Label>Subcategory</Label>
+              <div className="relative mt-1">
+                <Input
+                  value={subcatSearch || form.subcategory || ""}
+                  onChange={(e) => { setSubcatSearch(e.target.value); setShowSubcatDropdown(true); }}
+                  onFocus={() => { setSubcatSearch(form.subcategory || ""); setShowSubcatDropdown(true); }}
+                  onBlur={() => setTimeout(() => setShowSubcatDropdown(false), 200)}
+                  placeholder={form.category ? "Search subcategories…" : "Select category first"}
+                  disabled={!form.category}
+                  className="pr-8"
+                />
+                <ChevronDown className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              </div>
+              {showSubcatDropdown && form.category && (
+                <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border bg-popover shadow-lg">
+                  {subcategories
+                    .filter((s) => !subcatSearch || s.name.toLowerCase().includes(subcatSearch.toLowerCase()))
+                    .map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onMouseDown={() => { set("subcategory", s.name); setSubcatSearch(s.name); setShowSubcatDropdown(false); }}
+                        className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent", form.subcategory === s.name && "bg-accent")}
+                      >
+                        {form.subcategory === s.name && <Check className="size-3.5 text-primary" />}
+                        {s.name}
+                      </button>
+                    ))}
+                  {subcategories.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">No subcategories</div>}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Business Type — dynamic per category */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Business Type</Label>
-              <select value={form.businessType} onChange={e => set("businessType", e.target.value)} className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <select
+                value={form.businessType}
+                onChange={e => set("businessType", e.target.value)}
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
                 <option value="">Select…</option>
-                {BUSINESS_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                {(BUSINESS_TYPES_BY_CATEGORY[form.category] || DEFAULT_BUSINESS_TYPES).map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
               </select>
             </div>
             <div><Label>Year Started</Label><Input type="number" value={form.yearStarted} onChange={e => set("yearStarted", e.target.value)} placeholder="2015" className="mt-1" /></div>
           </div>
+
+          {/* GST & Registration — conditional */}
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Business Reg. Number (optional)</Label><Input value={form.businessRegNumber} onChange={e => set("businessRegNumber", e.target.value)} className="mt-1" /></div>
-            <div><Label>GST/VAT Number (optional)</Label><Input value={form.gstVatNumber} onChange={e => set("gstVatNumber", e.target.value)} className="mt-1" /></div>
+            <div className="space-y-1.5">
+              <Label>Do you have a Business Registration?</Label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setHasReg(true); if (!form.businessRegNumber) set("businessRegNumber", ""); }} className={cn("rounded-lg border px-3 py-1.5 text-xs font-medium", hasReg ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent")}>Yes</button>
+                <button type="button" onClick={() => { setHasReg(false); set("businessRegNumber", ""); }} className={cn("rounded-lg border px-3 py-1.5 text-xs font-medium", !hasReg ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent")}>No</button>
+              </div>
+              {hasReg && <Input value={form.businessRegNumber} onChange={e => set("businessRegNumber", e.target.value)} placeholder="Reg. number" className="mt-1" />}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Do you have GST/VAT?</Label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setHasGst(true); if (!form.gstVatNumber) set("gstVatNumber", ""); }} className={cn("rounded-lg border px-3 py-1.5 text-xs font-medium", hasGst ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent")}>Yes</button>
+                <button type="button" onClick={() => { setHasGst(false); set("gstVatNumber", ""); }} className={cn("rounded-lg border px-3 py-1.5 text-xs font-medium", !hasGst ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent")}>No</button>
+              </div>
+              {hasGst && <Input value={form.gstVatNumber} onChange={e => set("gstVatNumber", e.target.value)} placeholder="GST number" className="mt-1" />}
+            </div>
           </div>
           <div><Label>Languages Spoken</Label><Input value={form.languagesSpoken} onChange={e => set("languagesSpoken", e.target.value)} placeholder="English, Hindi, Arabic" className="mt-1" /></div>
         </TabsContent>
 
-        {/* Location */}
+        {/* Location — simplified, no manual lat/long */}
         <TabsContent value="location" className="space-y-4">
+          {/* Use My Location button */}
+          <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20 p-3">
+            <Navigation className="size-5 text-blue-600 dark:text-blue-400" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Auto-detect your location</p>
+              <p className="text-xs text-blue-700 dark:text-blue-300">Fills country, state, city & coordinates automatically</p>
+            </div>
+            <Button type="button" size="sm" variant="outline" onClick={useMyLocation} disabled={locating}>
+              {locating ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Navigation className="mr-1.5 size-3.5" />}
+              {locating ? "Detecting…" : "Use My Location"}
+            </Button>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Country</Label>
@@ -364,20 +651,39 @@ export function MyListing({ vendor }: MyListingProps) {
             <div><Label>City</Label><Input value={form.city} onChange={e => set("city", e.target.value)} className="mt-1" /></div>
             <div><Label>Area / Neighborhood</Label><Input value={form.address} onChange={e => set("address", e.target.value)} placeholder="Bandra West" className="mt-1" /></div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div><Label>Postal Code</Label><Input value={form.zipCode} onChange={e => set("zipCode", e.target.value)} className="mt-1" /></div>
-            <div><Label>Latitude</Label><Input type="number" step="any" value={form.latitude} onChange={e => set("latitude", e.target.value)} className="mt-1" /></div>
-            <div><Label>Longitude</Label><Input type="number" step="any" value={form.longitude} onChange={e => set("longitude", e.target.value)} className="mt-1" /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Service Radius (km)</Label><Input type="number" value={form.serviceRadiusKm} onChange={e => set("serviceRadiusKm", e.target.value)} placeholder="10" className="mt-1" /></div>
-            <div className="flex items-end">
-              <label className="flex items-center gap-2 text-sm pb-2">
-                <input type="checkbox" checked={form.hideAddress} onChange={e => set("hideAddress", e.target.checked)} className="size-4 rounded border-border" />
-                Hide exact address (show "Serving {form.city}" instead)
-              </label>
+          <div><Label>Postal Code</Label><Input value={form.zipCode} onChange={e => set("zipCode", e.target.value)} className="mt-1 max-w-[200px]" /></div>
+
+          {/* Service Radius — friendly radio options */}
+          <div>
+            <Label>How far do you serve customers?</Label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {SERVICE_RADIUS_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => set("serviceRadiusKm", opt.value)}
+                  className={cn("rounded-full border px-3 py-1.5 text-xs font-medium transition",
+                    String(form.serviceRadiusKm) === opt.value ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent")}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
+
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={form.hideAddress} onChange={e => set("hideAddress", e.target.checked)} className="size-4 rounded border-border" />
+              Hide exact address (show "Serving {form.city || "your city"}" instead)
+            </label>
+          </div>
+
+          {/* Coordinates (auto-filled, hidden by default) */}
+          {(form.latitude || form.longitude) && (
+            <p className="text-[10px] text-muted-foreground">
+              📍 Coordinates: {form.latitude?.toFixed?.(4) || form.latitude}, {form.longitude?.toFixed?.(4) || form.longitude} (auto-detected)
+            </p>
+          )}
         </TabsContent>
 
         {/* Contact */}
@@ -546,7 +852,13 @@ export function MyListing({ vendor }: MyListingProps) {
         <div className="space-y-4">
           <BusinessScoreCard data={businessScore} />
           <MissingFieldsCard missing={missingFields} onNavigate={setActiveTab} />
-          <QualityCheckCard checks={qualityChecks} onFix={(c) => {}} />
+          <QualityCheckCard checks={qualityChecks} onFix={(action) => {
+            if (action === "generate_description" || action === "generate_seo") setActiveTab("seo");
+            else if (action === "add_tags") setActiveTab("business");
+            else if (action === "add_whatsapp" || action === "add_social") setActiveTab("contact");
+            else if (action === "select_category" || action === "add_city") setActiveTab("business");
+            else if (action === "add_city") setActiveTab("location");
+          }} />
           <PublishCard score={businessScore.overall} canPublish={businessScore.overall >= 80} onPublish={handlePublish} publishing={publishing} />
         </div>
       </div>
