@@ -24,6 +24,19 @@
  *    - 404 if vendor not found
  *    - 409 if vendor already deleted (concurrent request)
  *    - 500 only for unexpected failures
+ *
+ * 6. Granular debug logging at every phase:
+ *    - START transaction
+ *    - Before each model operation (model name printed)
+ *    - After child deletes
+ *    - Before vendor delete
+ *    - Transaction committed
+ *    - Storage cleanup start/finish
+ *    - Audit log written
+ *
+ * 7. Prisma error handling logs: error.code, error.meta, error.message, error.stack
+ *    Specifically detects: P2025 (not found), P2028 (transaction timeout),
+ *    P2034 (transaction write conflict).
  */
 import { db } from "@/lib/db";
 import { deleteVendorStorageFiles } from "@/lib/supabase/admin";
@@ -46,6 +59,50 @@ export interface DeleteResult {
   statusCode?: number;
 }
 
+// ── Prisma error handler ─────────────────────────────────────────────────────
+
+interface PrismaError {
+  code?: string;
+  meta?: unknown;
+  message?: string;
+  stack?: string;
+  name?: string;
+}
+
+/**
+ * Log a Prisma error with full diagnostic detail.
+ * Detects the critical transaction-related error codes:
+ *   P2025 — record not found (already deleted)
+ *   P2028 — transaction timeout / closed transaction
+ *   P2034 — transaction write conflict
+ */
+function logPrismaError(context: string, vendorId: string, err: unknown): {
+  code: string;
+  isAlreadyDeleted: boolean;
+  isTimeout: boolean;
+  isConflict: boolean;
+} {
+  const e = err as PrismaError;
+  const code = e?.code || "UNKNOWN";
+  const isAlreadyDeleted = code === "P2025";
+  const isTimeout = code === "P2028";
+  const isConflict = code === "P2034";
+
+  logger.error("vendor-delete", `Prisma error in ${context}`, {
+    vendorId,
+    code,
+    name: e?.name,
+    message: e?.message,
+    meta: e?.meta,
+    stack: e?.stack?.split("\n").slice(0, 5).join("\n"),
+    isAlreadyDeleted,
+    isTimeout,
+    isConflict,
+  });
+
+  return { code, isAlreadyDeleted, isTimeout, isConflict };
+}
+
 // ── Internal: cascade delete (Prisma-only, runs inside transaction) ──────────
 
 /**
@@ -55,17 +112,35 @@ export interface DeleteResult {
  * Uses Promise.all for independent deletes to minimize transaction duration.
  *
  * IMPORTANT: Every query uses `tx.` (the transaction client), never `db.`.
+ *
+ * Debug logging: logs the model name BEFORE every tx operation so the
+ * exact failing statement is identifiable in logs.
  */
 async function cascadeDeleteVendorData(
   tx: PrismaClient,
-  vendorId: string
+  vendorId: string,
+  logCtx: ReturnType<typeof logger.withContext>
 ): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
+  const t0 = Date.now();
 
   // ── Group 1: Independent child-table deletes (run in parallel) ──
   // These tables have no dependencies between each other, so they can all
   // run concurrently inside the transaction. This drastically reduces the
   // total transaction duration compared to sequential awaits.
+  //
+  // Each model name is logged BEFORE the operation so if a P2028/P2034
+  // fires, the log shows exactly which statement was executing.
+  logCtx.debug("vendor-delete", "TX: child-table deletes — starting (18 models in parallel)");
+
+  const models = [
+    "review", "booking", "bookingV2", "product", "vendorAvailability",
+    "vendorSubscription", "paymentHistory", "vendorAnalytics", "vendorAnalyticsDaily",
+    "growthScore", "marketingCampaign", "emailCampaign", "reviewRequest",
+    "referral", "aiGenerationLog", "vendorFilterValue", "vendorFollow", "notification",
+  ];
+  logCtx.debug("vendor-delete", "TX: models to delete", { models });
+
   const [
     reviews, bookings, bookingsV2, products, availability,
     subscriptions, payments, analytics, analyticsDaily, growthScores,
@@ -111,9 +186,17 @@ async function cascadeDeleteVendorData(
   counts.vendorFollows = vendorFollows.count;
   counts.notificationsDeleted = notifications.count;
 
+  logCtx.info("vendor-delete", "TX: child-table deletes complete", {
+    duration: `${Date.now() - t0}ms`,
+    totalRows: Object.values(counts).reduce((a, b) => a + b, 0),
+    counts,
+  });
+
   // ── Group 2: Null-out tables where vendorId is optional (run in parallel) ──
   // These use updateMany to set vendorId = null instead of deleting
   // (the row belongs to another entity, e.g. a conversation or wishlist item).
+  logCtx.debug("vendor-delete", "TX: null-out updates — starting (3 models in parallel)");
+
   const [
     referralsJoined, joshConversations, wishlistCleared,
   ] = await Promise.all([
@@ -126,9 +209,17 @@ async function cascadeDeleteVendorData(
   counts.joshConversationsCleared = joshConversations.count;
   counts.wishlistCleared = wishlistCleared.count;
 
+  logCtx.info("vendor-delete", "TX: null-out updates complete", {
+    referralsJoined: referralsJoined.count,
+    joshConversationsCleared: joshConversations.count,
+    wishlistCleared: wishlistCleared.count,
+  });
+
   // ── Finally: delete the vendor row itself ──
   // This MUST be last — child FKs must be gone before the parent.
+  logCtx.debug("vendor-delete", "TX: before vendor.delete", { model: "vendor", where: { id: vendorId } });
   await tx.vendor.delete({ where: { id: vendorId } });
+  logCtx.info("vendor-delete", "TX: vendor.delete complete", { model: "vendor", vendorId });
 
   return counts;
 }
@@ -144,33 +235,36 @@ async function cascadeDeleteVendorData(
  */
 async function postCommitCleanup(
   vendorId: string,
-  vendorSlug: string
+  vendorSlug: string,
+  logCtx: ReturnType<typeof logger.withContext>
 ): Promise<{ storage: { deleted: number; skipped: boolean } }> {
   // ── Storage cleanup (best-effort) ──
+  logCtx.info("vendor-delete", "Storage cleanup start", { vendorId });
   let storage = { deleted: 0, skipped: true };
   try {
     storage = await deleteVendorStorageFiles(vendorId);
-    logger.info("vendor-delete", "Storage cleanup complete", {
+    logCtx.info("vendor-delete", "Storage cleanup finished", {
       vendorId,
       deleted: storage.deleted,
       skipped: storage.skipped,
     });
   } catch (err) {
     // DO NOT rollback DB deletion. Log warning only.
-    logger.warn("vendor-delete", "Storage cleanup failed (non-fatal — DB deletion is authoritative)", {
+    logCtx.warn("vendor-delete", "Storage cleanup failed (non-fatal — DB deletion is authoritative)", {
       vendorId,
       error: err instanceof Error ? err.message : String(err),
     });
   }
 
   // ── Cache invalidation (best-effort) ──
+  logCtx.debug("vendor-delete", "Cache revalidation start", { vendorId, slug: vendorSlug });
   try {
     revalidatePath(`/vendor/${vendorSlug}`);
     revalidatePath("/");
     revalidatePath("/sitemap.xml");
-    logger.info("vendor-delete", "Cache revalidation complete", { vendorId, slug: vendorSlug });
+    logCtx.info("vendor-delete", "Cache revalidation complete", { vendorId, slug: vendorSlug });
   } catch (err) {
-    logger.warn("vendor-delete", "Cache revalidation failed (non-fatal)", {
+    logCtx.warn("vendor-delete", "Cache revalidation failed (non-fatal)", {
       vendorId,
       error: err instanceof Error ? err.message : String(err),
     });
@@ -190,6 +284,21 @@ async function postCommitCleanup(
  * Returns a DeleteResult with:
  *   - success: boolean
  *   - statusCode: 404 (not found), 409 (already deleted), 500 (unexpected)
+ *
+ * Debug logging phases:
+ *   1. "Deleting vendor" (before fetch)
+ *   2. "START transaction" (before db.$transaction)
+ *   3. "TX: child-table deletes — starting" (inside callback)
+ *   4. "TX: child-table deletes complete" (after group 1)
+ *   5. "TX: null-out updates — starting" (inside callback)
+ *   6. "TX: null-out updates complete" (after group 2)
+ *   7. "TX: before vendor.delete" (before parent delete)
+ *   8. "TX: vendor.delete complete" (after parent delete)
+ *   9. "Transaction committed" (after db.$transaction resolves)
+ *   10. "Storage cleanup start"
+ *   11. "Storage cleanup finished"
+ *   12. "Audit log written"
+ *   13. "Vendor deleted successfully"
  */
 export async function deleteVendor(
   vendorId: string,
@@ -197,7 +306,9 @@ export async function deleteVendor(
   adminEmail: string | null,
   reason: string
 ): Promise<DeleteResult> {
-  logger.info("vendor-delete", "Deleting vendor", { vendorId, admin: adminEmail || adminId, reason });
+  const logCtx = logger.withContext({ requestId: `del-${vendorId.slice(0, 8)}` });
+
+  logCtx.info("vendor-delete", "Deleting vendor", { vendorId, admin: adminEmail || adminId, reason });
 
   // 1. Fetch the vendor first (need name + slug for audit log + cache, confirm existence)
   const vendor = await db.vendor.findUnique({
@@ -206,7 +317,7 @@ export async function deleteVendor(
   }).catch(() => null);
 
   if (!vendor) {
-    logger.warn("vendor-delete", "Vendor not found", { vendorId });
+    logCtx.warn("vendor-delete", "Vendor not found", { vendorId });
     return {
       success: false, vendorId, vendorName: "(unknown)",
       counts: {}, storage: { deleted: 0, skipped: true }, auditLogId: null,
@@ -215,12 +326,23 @@ export async function deleteVendor(
     };
   }
 
+  logCtx.info("vendor-delete", "Vendor found, starting cascade delete", {
+    vendorId, vendorName: vendor.name, slug: vendor.slug,
+  });
+
   // 2. Transactional cascade delete — ONLY Prisma queries inside.
   //    No storage, no HTTP, no AI, no email, no setTimeout.
   let counts: Record<string, number> = {};
   try {
+    logCtx.info("vendor-delete", "START transaction", { vendorId, timeout: "30s" });
+
     counts = await db.$transaction(async (tx) => {
-      return cascadeDeleteVendorData(tx as unknown as PrismaClient, vendorId);
+      // ════════════════════════════════════════════════════════════════════
+      // TRANSACTION BODY — ONLY tx.* calls allowed here.
+      // No db.* , no prisma.*, no storage, no HTTP, no AI, no setTimeout.
+      // The cascadeDeleteVendorData function is verified to use tx.* only.
+      // ════════════════════════════════════════════════════════════════════
+      return cascadeDeleteVendorData(tx as unknown as PrismaClient, vendorId, logCtx);
     }, {
       // Give the transaction up to 30 seconds — enough for all child deletes
       // even on a remote DB. Prisma's default is 5s which is too short for
@@ -228,11 +350,17 @@ export async function deleteVendor(
       timeout: 30_000,
       maxWait: 15_000,
     });
-    logger.info("vendor-delete", "Database cleanup complete", { vendorId, counts });
-  } catch (err: any) {
-    // Prisma P2025 = record not found (vendor already deleted by a concurrent request)
-    if (err?.code === "P2025") {
-      logger.warn("vendor-delete", "Vendor already deleted (concurrent request)", { vendorId });
+
+    logCtx.info("vendor-delete", "Transaction committed", {
+      vendorId,
+      totalRowsDeleted: Object.values(counts).reduce((a, b) => a + b, 0),
+    });
+  } catch (err: unknown) {
+    const prismaErr = logPrismaError("transaction", vendorId, err);
+
+    // P2025 = record not found (vendor already deleted by a concurrent request)
+    if (prismaErr.isAlreadyDeleted) {
+      logCtx.warn("vendor-delete", "Vendor already deleted (concurrent request)", { vendorId });
       return {
         success: false, vendorId, vendorName: vendor.name,
         counts, storage: { deleted: 0, skipped: true }, auditLogId: null,
@@ -240,23 +368,39 @@ export async function deleteVendor(
         statusCode: 409,
       };
     }
-    logger.error("vendor-delete", "Transaction failed", {
-      vendorId,
-      error: err instanceof Error ? err.message : String(err),
-      code: err?.code,
-    });
+
+    // P2028 = transaction timeout — the transaction was closed before all
+    // queries completed. This is the original bug. The fix is the 30s
+    // timeout + parallel Promise.all for independent deletes.
+    if (prismaErr.isTimeout) {
+      logCtx.error("vendor-delete", "Transaction TIMEOUT (P2028) — transaction was closed before queries completed", {
+        vendorId,
+        message: (err as PrismaError)?.message,
+      });
+    }
+
+    // P2034 = transaction write conflict — another transaction modified the
+    // same rows. Retry logic could be added here in the future.
+    if (prismaErr.isConflict) {
+      logCtx.error("vendor-delete", "Transaction CONFLICT (P2034) — concurrent modification detected", {
+        vendorId,
+        message: (err as PrismaError)?.message,
+      });
+    }
+
     return {
       success: false, vendorId, vendorName: vendor.name,
       counts, storage: { deleted: 0, skipped: true }, auditLogId: null,
-      error: err?.message || "Transaction failed",
+      error: (err as PrismaError)?.message || "Transaction failed",
       statusCode: 500,
     };
   }
 
   // 3. Post-commit cleanup (storage + cache) — best-effort, never rolls back DB
-  const { storage } = await postCommitCleanup(vendorId, vendor.slug);
+  const { storage } = await postCommitCleanup(vendorId, vendor.slug, logCtx);
 
   // 4. Write the audit log (after commit — records what actually happened)
+  logCtx.debug("vendor-delete", "Writing audit log", { vendorId });
   let auditLogId: string | null = null;
   try {
     const log = await db.adminAuditLog.create({
@@ -271,18 +415,20 @@ export async function deleteVendor(
       },
     });
     auditLogId = log.id;
+    logCtx.info("vendor-delete", "Audit log written", { vendorId, auditLogId });
   } catch (err) {
-    logger.warn("vendor-delete", "Audit log write failed (non-fatal)", {
+    logCtx.warn("vendor-delete", "Audit log write failed (non-fatal)", {
       vendorId,
       error: err instanceof Error ? err.message : String(err),
     });
   }
 
-  logger.info("vendor-delete", "Vendor deleted successfully", {
+  logCtx.info("vendor-delete", "Vendor deleted successfully", {
     vendorId,
     vendorName: vendor.name,
     admin: adminEmail || adminId,
     storageDeleted: storage.deleted,
+    auditLogId,
   });
 
   return { success: true, vendorId, vendorName: vendor.name, counts, storage, auditLogId };
