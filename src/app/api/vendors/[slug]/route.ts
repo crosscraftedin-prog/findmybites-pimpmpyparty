@@ -388,8 +388,33 @@ export async function DELETE(
         { status: 404 }
       );
     }
-    // cascade deletes reviews + bookings via the schema relation onDelete
-    await db.vendor.delete({ where: { slug } });
+
+    // Resolve admin identity for the audit log
+    const supabase = await createSupabaseServerClient();
+    let adminId = "unknown";
+    let adminEmail: string | null = null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        adminId = user.id;
+        adminEmail = user.email ?? null;
+      }
+    } catch {}
+
+    // Use the full cascade delete service — it handles all child tables,
+    // storage cleanup, cache revalidation, and audit logging in a single
+    // safe transaction. Never call db.vendor.delete() directly here.
+    const { deleteVendor } = await import("@/lib/admin/vendor-delete-service");
+    const result = await deleteVendor(existing.id, adminId, adminEmail, `Deleted via slug route: ${slug}`);
+
+    if (!result.success) {
+      const status = result.statusCode ?? 500;
+      return NextResponse.json(
+        { error: result.error || "Failed to delete vendor" },
+        { status }
+      );
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[api/vendors/[slug]] DELETE failed:", err);
