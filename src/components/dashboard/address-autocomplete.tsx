@@ -258,6 +258,7 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
             className="h-12 w-full rounded-xl border border-input bg-background pl-10 pr-10 text-sm shadow-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             aria-label="Search address"
             aria-expanded={showDropdown}
+            aria-controls="address-suggestions"
             role="combobox"
           />
           {loading && (
@@ -281,6 +282,7 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
         {/* OSM Autocomplete dropdown (only when Google is not active) */}
         {!useGoogle && showDropdown && results.length > 0 && (
           <div
+            id="address-suggestions"
             role="listbox"
             className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border bg-popover shadow-xl"
           >
