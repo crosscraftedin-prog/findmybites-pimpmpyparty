@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     const reviews = await db.review.findMany({
       where: { vendorId },
       orderBy: { createdAt: "desc" },
+      take: 50,
     });
 
     return NextResponse.json({ reviews: reviews.map(transformReview) });
