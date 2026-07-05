@@ -42,15 +42,6 @@ const COUNTRIES = [
   "Brazil", "Mexico", "Argentina", "Chile", "Colombia", "Peru",
 ];
 
-// Default business types (fallback when DB has none for a category)
-const DEFAULT_BUSINESS_TYPES = [
-  { value: "home", label: "Home Business" },
-  { value: "shop", label: "Shop / Store" },
-  { value: "studio", label: "Studio" },
-  { value: "freelancer", label: "Freelancer" },
-  { value: "company", label: "Company" },
-];
-
 // Smart default business hours per category
 const DEFAULT_HOURS_BY_CATEGORY: Record<string, string> = {
   "bakers-bakery": "Mon-Sat: 9AM-8PM, Sun: 10AM-4PM",
@@ -119,6 +110,8 @@ export function MyListing({ vendor }: MyListingProps) {
 
   // ── DB-driven business types ──
   const [businessTypes, setBusinessTypes] = React.useState<{ value: string; label: string }[]>([]);
+  const [businessTypesLoading, setBusinessTypesLoading] = React.useState(false);
+  const [businessTypesError, setBusinessTypesError] = React.useState(false);
 
   // ── Wizard step (0-indexed) ──
   const [wizardStep, setWizardStep] = React.useState(0);
@@ -213,29 +206,49 @@ export function MyListing({ vendor }: MyListingProps) {
       .catch(() => {});
   }, [vendor.ecosystem]);
 
-  // ── Load subcategories when category changes ──
+  // ── Cascading: Category → Subcategory + Business Type ──
+  // When category changes: clear subcategory + business type, reload both
   React.useEffect(() => {
-    if (!form.category) { setSubcategories([]); return; }
+    if (!form.category) {
+      setSubcategories([]);
+      setBusinessTypes([]);
+      return;
+    }
+
+    // Clear dependent fields when category changes (but not on initial load)
+    // We detect "change" vs "initial load" by checking if subcategories are already loaded
+    // for this category — if the effect fires, it's a change or initial load.
+    // The clearing is handled by the category dropdown's onChange handler.
+
+    // Load subcategories
     fetch(`/api/categories/subcategories?category=${encodeURIComponent(form.category)}&t=${Date.now()}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
         if (d?.subcategories) {
           setSubcategories(d.subcategories.map((s: any) => ({ id: s.id, name: s.name || s.label || s.id })));
-        }
-      })
-      .catch(() => {});
-
-    // Load DB-driven business types for this category
-    fetch(`/api/business-types?category=${encodeURIComponent(form.category)}&t=${Date.now()}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => {
-        if (d?.businessTypes?.length > 0) {
-          setBusinessTypes(d.businessTypes.map((t: any) => ({ value: t.value, label: t.label })));
         } else {
-          setBusinessTypes(DEFAULT_BUSINESS_TYPES);
+          setSubcategories([]);
         }
       })
-      .catch(() => setBusinessTypes(DEFAULT_BUSINESS_TYPES));
+      .catch(() => setSubcategories([]));
+
+    // Load DB-driven business types
+    setBusinessTypesLoading(true);
+    setBusinessTypesError(false);
+    fetch(`/api/business-types?category=${encodeURIComponent(form.category)}&t=${Date.now()}`)
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load business types");
+        return r.json();
+      })
+      .then((d) => {
+        setBusinessTypes((d?.businessTypes || []).map((t: any) => ({ value: t.value, label: t.label })));
+        setBusinessTypesError(false);
+      })
+      .catch(() => {
+        setBusinessTypes([]);
+        setBusinessTypesError(true);
+      })
+      .finally(() => setBusinessTypesLoading(false));
 
     // Suggest default business hours if empty
     if (!form.openHours && DEFAULT_HOURS_BY_CATEGORY[form.category]) {
@@ -698,7 +711,16 @@ export function MyListing({ vendor }: MyListingProps) {
                       <button
                         key={c.id}
                         type="button"
-                        onMouseDown={() => { set("category", c.id); set("subcategory", ""); setCatSearch(c.label); setShowCatDropdown(false); }}
+                        onMouseDown={() => {
+                          // Cascading: clear subcategory + business type when category changes
+                          set("category", c.id);
+                          set("subcategory", "");
+                          set("businessType", "");
+                          setCatSearch(c.label);
+                          setShowCatDropdown(false);
+                          setSubcatSearch("");
+                          // Subcategories + business types will auto-load via the useEffect
+                        }}
                         className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent", form.category === c.id && "bg-accent")}
                       >
                         {form.category === c.id && <Check className="size-3.5 text-primary" />}
@@ -746,20 +768,35 @@ export function MyListing({ vendor }: MyListingProps) {
             </div>
           </div>
 
-          {/* Business Type — dynamic per category */}
+          {/* Business Type — DB-driven, cascading from category */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Business Type</Label>
-              <select
-                value={form.businessType}
-                onChange={e => set("businessType", e.target.value)}
-                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">Select…</option>
-                {(businessTypes.length > 0 ? businessTypes : DEFAULT_BUSINESS_TYPES).map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
+              {businessTypesLoading ? (
+                <div className="mt-1 flex h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground">
+                  <Loader2 className="size-3.5 animate-spin" /> Loading…
+                </div>
+              ) : businessTypesError ? (
+                <div className="mt-1 flex h-10 items-center gap-2 rounded-md border border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/20 px-3 text-xs text-red-600 dark:text-red-400">
+                  Failed to load. <button type="button" onClick={() => { setBusinessTypesError(false); setBusinessTypesLoading(true); fetch(`/api/business-types?category=${encodeURIComponent(form.category)}&t=${Date.now()}`).then(r => r.ok ? r.json() : null).then(d => setBusinessTypes((d?.businessTypes || []).map((t: any) => ({ value: t.value, label: t.label })))).catch(() => setBusinessTypesError(true)).finally(() => setBusinessTypesLoading(false)); }} className="underline font-medium">Retry</button>
+                </div>
+              ) : businessTypes.length === 0 && form.category ? (
+                <div className="mt-1 flex h-10 items-center rounded-md border border-input bg-muted/30 px-3 text-sm text-muted-foreground">
+                  No business types found.
+                </div>
+              ) : (
+                <select
+                  value={form.businessType}
+                  onChange={e => set("businessType", e.target.value)}
+                  disabled={!form.category}
+                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-50"
+                >
+                  <option value="">{form.category ? "Select…" : "Select category first"}</option>
+                  {businessTypes.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              )}
             </div>
             <div><Label>Year Started</Label><Input type="number" value={form.yearStarted} onChange={e => set("yearStarted", e.target.value)} placeholder="2015" className="mt-1" /></div>
           </div>
