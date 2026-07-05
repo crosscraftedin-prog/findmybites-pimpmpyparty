@@ -21,6 +21,7 @@ import type { Vendor } from "@/lib/types";
 import { CreateVendorForm } from "@/components/marketplace/create-vendor-form";
 import { useVendor } from "@/lib/queries";
 import { ImageUpload, GalleryUpload } from "./image-upload";
+import { AddressAutocomplete } from "./address-autocomplete";
 import {
   BusinessScoreCard, MissingFieldsCard, QualityCheckCard, PublishCard,
   SuccessScreen, AutoSaveIndicator, IntegratedAIPanel,
@@ -136,7 +137,7 @@ export function MyListing({ vendor }: MyListingProps) {
   const [saving, setSaving] = React.useState(false);
   const [aiSeoLoading, setAiSeoLoading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState("business");
-  const [autoSaveStatus, setAutoSaveStatus] = React.useState<"idle" | "saving" | "saved">("idle");
+  const [autoSaveStatus, setAutoSaveStatus] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
   const [lastSavedAt, setLastSavedAt] = React.useState<number | undefined>(undefined);
   const [productCount, setProductCount] = React.useState(0);
   const [publishing, setPublishing] = React.useState(false);
@@ -259,9 +260,19 @@ export function MyListing({ vendor }: MyListingProps) {
       .catch(() => {});
   }, [form.category]);
 
-  // ── Geolocation helper ──
+  // ── Geolocation helper (graceful error handling) ──
   const useMyLocation = () => {
-    if (!navigator.geolocation) { toast.error("Geolocation not supported"); return; }
+    // Check if geolocation is available
+    if (!("geolocation" in navigator)) {
+      toast.error("GPS not available", { description: "Your device doesn't support geolocation. Please search your address manually." });
+      return;
+    }
+    // Check HTTPS (geolocation requires HTTPS on most browsers)
+    if (typeof window !== "undefined" && window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
+      toast.error("HTTPS required", { description: "Location detection needs HTTPS. Please search your address manually." });
+      return;
+    }
+
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -270,30 +281,59 @@ export function MyListing({ vendor }: MyListingProps) {
         set("longitude", longitude);
         // Reverse geocode using OpenStreetMap Nominatim (free, no API key)
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`, {
+            headers: { "Accept-Language": "en" },
+          });
+          if (!res.ok) throw new Error("Geocoding service unavailable");
           const data = await res.json();
           if (data?.address) {
             const addr = data.address;
             if (addr.country) set("country", addr.country);
-            if (addr.state) set("state", addr.state);
-            if (addr.city || addr.town || addr.village) set("city", addr.city || addr.town || addr.village);
-            if (addr.suburb || addr.neighbourhood) set("address", addr.suburb || addr.neighbourhood);
+            if (addr.state || addr.region) set("state", addr.state || addr.region);
+            const city = addr.city || addr.town || addr.village || addr.municipality || addr.county || "";
+            if (city) set("city", city);
+            const area = addr.suburb || addr.neighbourhood || addr.road || addr.residential || "";
+            if (area) set("address", area);
             if (addr.postcode) set("zipCode", addr.postcode);
           }
-          toast.success("Location detected!");
-        } catch {
-          toast.success("Coordinates saved (address lookup failed)");
-        } finally { setLocating(false); }
+          toast.success("Location detected!", { description: "Address fields filled automatically." });
+        } catch (err) {
+          // Coordinates saved but address lookup failed — still useful
+          toast.success("Coordinates saved", { description: "We got your location but couldn't look up the address. Please fill the address fields manually." });
+        } finally {
+          setLocating(false);
+        }
       },
-      () => { toast.error("Location permission denied"); setLocating(false); },
-      { timeout: 10000, enableHighAccuracy: true }
+      (err) => {
+        setLocating(false);
+        // Graceful error handling for all failure modes
+        if (err.code === err.PERMISSION_DENIED) {
+          toast.error("Location permission denied", {
+            description: "Please allow location access in your browser settings, or search your address manually above.",
+            duration: 6000,
+          });
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          toast.error("GPS unavailable", {
+            description: "Your device couldn't determine its position. Please search your address manually.",
+            duration: 6000,
+          });
+        } else if (err.code === err.TIMEOUT) {
+          toast.error("Location timeout", {
+            description: "GPS took too long. Try again or search your address manually.",
+            duration: 6000,
+          });
+        } else {
+          toast.error("Location failed", { description: "Please search your address manually." });
+        }
+      },
+      { timeout: 15000, enableHighAccuracy: true, maximumAge: 60000 }
     );
   };
 
-  // ── Geocode address when country/state/city/zip change ──
+  // ── Geocode address when address fields change (debounced) ──
   const geocodeAddress = React.useCallback(async (addr: { country?: string; state?: string; city?: string; zipCode?: string; address?: string }) => {
     const parts = [addr.address, addr.city, addr.state, addr.country, addr.zipCode].filter(Boolean);
-    if (parts.length < 2) return; // need at least city + country
+    if (parts.length < 2) return;
     try {
       const q = encodeURIComponent(parts.join(", "));
       const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
@@ -338,7 +378,7 @@ export function MyListing({ vendor }: MyListingProps) {
           body: JSON.stringify({ ...formRef.current, gallery: galleryRef.current }),
         });
         if (res.ok) { setAutoSaveStatus("saved"); setLastSavedAt(Date.now()); setTimeout(() => setAutoSaveStatus("idle"), 3000); }
-        else setAutoSaveStatus("idle");
+        else { setAutoSaveStatus("error"); setTimeout(() => setAutoSaveStatus("idle"), 5000); }
       } catch { setAutoSaveStatus("idle"); }
     }, 2000);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
@@ -622,38 +662,24 @@ export function MyListing({ vendor }: MyListingProps) {
           <div><Label>Languages Spoken</Label><Input value={form.languagesSpoken} onChange={e => set("languagesSpoken", e.target.value)} placeholder="English, Hindi, Arabic" className="mt-1" /></div>
         </TabsContent>
 
-        {/* Location — simplified, no manual lat/long */}
+        {/* Location — address autocomplete + GPS + service radius */}
         <TabsContent value="location" className="space-y-4">
-          {/* Use My Location button */}
-          <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20 p-3">
-            <Navigation className="size-5 text-blue-600 dark:text-blue-400" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Auto-detect your location</p>
-              <p className="text-xs text-blue-700 dark:text-blue-300">Fills country, state, city & coordinates automatically</p>
-            </div>
-            <Button type="button" size="sm" variant="outline" onClick={useMyLocation} disabled={locating}>
-              {locating ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Navigation className="mr-1.5 size-3.5" />}
-              {locating ? "Detecting…" : "Use My Location"}
-            </Button>
-          </div>
+          <AddressAutocomplete
+            value={{
+              country: form.country || "",
+              state: form.state || "",
+              city: form.city || "",
+              address: form.address || "",
+              zipCode: form.zipCode || "",
+              latitude: form.latitude || "",
+              longitude: form.longitude || "",
+            }}
+            onChange={(field, val) => set(field, val)}
+            onUseLocation={useMyLocation}
+            locating={locating}
+          />
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Country</Label>
-              <select value={form.country} onChange={e => set("country", e.target.value)} className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                <option value="">Select…</option>
-                {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div><Label>State/Province</Label><Input value={form.state} onChange={e => set("state", e.target.value)} className="mt-1" /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>City</Label><Input value={form.city} onChange={e => set("city", e.target.value)} className="mt-1" /></div>
-            <div><Label>Area / Neighborhood</Label><Input value={form.address} onChange={e => set("address", e.target.value)} placeholder="Bandra West" className="mt-1" /></div>
-          </div>
-          <div><Label>Postal Code</Label><Input value={form.zipCode} onChange={e => set("zipCode", e.target.value)} className="mt-1 max-w-[200px]" /></div>
-
-          {/* Service Radius — friendly radio options */}
+          {/* Service Radius — friendly radio options + custom */}
           <div>
             <Label>How far do you serve customers?</Label>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -669,6 +695,27 @@ export function MyListing({ vendor }: MyListingProps) {
                 </button>
               ))}
             </div>
+            {/* Custom radius */}
+            {String(form.serviceRadiusKm) === "custom" || (form.serviceRadiusKm && !SERVICE_RADIUS_OPTIONS.find(o => o.value === String(form.serviceRadiusKm))) ? (
+              <div className="mt-2 flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={form.serviceRadiusKm}
+                  onChange={e => set("serviceRadiusKm", e.target.value)}
+                  className="w-32"
+                  placeholder="km"
+                />
+                <span className="text-xs text-muted-foreground">km</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => set("serviceRadiusKm", "custom")}
+                className={cn("mt-2 rounded-full border px-3 py-1.5 text-xs font-medium transition hover:bg-accent")}
+              >
+                Custom Radius
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -677,13 +724,6 @@ export function MyListing({ vendor }: MyListingProps) {
               Hide exact address (show "Serving {form.city || "your city"}" instead)
             </label>
           </div>
-
-          {/* Coordinates (auto-filled, hidden by default) */}
-          {(form.latitude || form.longitude) && (
-            <p className="text-[10px] text-muted-foreground">
-              📍 Coordinates: {form.latitude?.toFixed?.(4) || form.latitude}, {form.longitude?.toFixed?.(4) || form.longitude} (auto-detected)
-            </p>
-          )}
         </TabsContent>
 
         {/* Contact */}

@@ -243,10 +243,23 @@ export function MissingFieldsCard({ missing, onNavigate }: { missing: MissingFie
     );
   }
 
+  // Estimated time per task type
+  const estimatedTime: Record<string, string> = {
+    category: "30 sec",
+    description: "1 min",
+    avatarImage: "30 sec",
+    gallery: "2 min",
+    whatsapp: "30 sec",
+    city: "30 sec",
+    metaTitle: "1 min",
+    openHours: "1 min",
+  };
+
   return (
     <div className="rounded-xl border bg-card p-4 space-y-2">
       <h3 className="flex items-center gap-2 text-sm font-semibold">
         <AlertTriangle className="size-4 text-amber-500" /> Smart Suggestions
+        <span className="ml-auto text-xs font-normal text-muted-foreground">{missing.length} tasks</span>
       </h3>
       <div className="space-y-1.5">
         {missing.map((m) => (
@@ -256,7 +269,7 @@ export function MissingFieldsCard({ missing, onNavigate }: { missing: MissingFie
             className={cn("flex w-full items-center gap-2 rounded-lg border p-2 text-left transition-colors hover:bg-accent",
               m.severity === "critical" ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20" : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20")}
           >
-            <span className={cn("flex size-6 items-center justify-center rounded-full",
+            <span className={cn("flex size-6 items-center justify-center rounded-full shrink-0",
               m.severity === "critical" ? "bg-red-100 text-red-600 dark:bg-red-950/40" : "bg-amber-100 text-amber-600 dark:bg-amber-950/40")}>
               {m.severity === "critical" ? <XCircle className="size-3.5" /> : <AlertTriangle className="size-3.5" />}
             </span>
@@ -264,7 +277,12 @@ export function MissingFieldsCard({ missing, onNavigate }: { missing: MissingFie
               <p className="text-xs font-medium">{m.label}</p>
               <p className="text-[10px] text-muted-foreground">{m.suggestion}</p>
             </div>
-            <ArrowRight className="size-3.5 text-muted-foreground" />
+            {estimatedTime[m.field] && (
+              <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">
+                ⏱ {estimatedTime[m.field]}
+              </span>
+            )}
+            <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
           </button>
         ))}
       </div>
@@ -274,8 +292,21 @@ export function MissingFieldsCard({ missing, onNavigate }: { missing: MissingFie
 
 // ── Auto-save indicator ──────────────────────────────────────────────────────
 
-export function AutoSaveIndicator({ status, lastSavedAt }: { status: "idle" | "saving" | "saved"; lastSavedAt?: number }) {
+export function AutoSaveIndicator({ status, lastSavedAt }: { status: "idle" | "saving" | "saved" | "offline" | "error"; lastSavedAt?: number }) {
   const [, force] = React.useReducer((x) => x + 1, 0);
+  const [isOnline, setIsOnline] = React.useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
   // Re-render every 5s so "Last saved X seconds ago" stays fresh
   React.useEffect(() => {
     if (status !== "idle" || !lastSavedAt) return;
@@ -285,6 +316,16 @@ export function AutoSaveIndicator({ status, lastSavedAt }: { status: "idle" | "s
 
   const timeAgo = lastSavedAt ? formatTimeAgo(lastSavedAt) : "";
 
+  // If offline, show offline indicator regardless of status
+  if (!isOnline) {
+    return (
+      <div className="flex items-center gap-1.5 text-[11px]">
+        <span className="size-2.5 rounded-full bg-red-500" />
+        <span className="text-red-600 dark:text-red-400">Offline — changes will save when reconnected</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-1.5 text-[11px]">
       {status === "saving" && (
@@ -292,6 +333,9 @@ export function AutoSaveIndicator({ status, lastSavedAt }: { status: "idle" | "s
       )}
       {status === "saved" && (
         <><CheckCircle2 className="size-3 text-emerald-500" /> <span className="text-emerald-600 dark:text-emerald-400">Saved ✓</span></>
+      )}
+      {status === "error" && (
+        <><XCircle className="size-3 text-red-500" /> <span className="text-red-600 dark:text-red-400">Save failed — retrying…</span></>
       )}
       {status === "idle" && (
         <>
