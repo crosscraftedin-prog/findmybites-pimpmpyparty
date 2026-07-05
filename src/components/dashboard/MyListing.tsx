@@ -92,6 +92,7 @@ export function MyListing({ vendor }: MyListingProps) {
   const formRef = React.useRef<any>({});
   const galleryRef = React.useRef<string[]>([]);
   const autoSaveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Categories & Subcategories (from DB) ──
   const [categories, setCategories] = React.useState<{ id: string; label: string }[]>([]);
@@ -193,7 +194,7 @@ export function MyListing({ vendor }: MyListingProps) {
     }
   }, [fullVendor]);
 
-  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+  const set = React.useCallback((k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v })), []);
 
   // ── Load categories from DB ──
   React.useEffect(() => {
@@ -452,11 +453,22 @@ export function MyListing({ vendor }: MyListingProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...formRef.current, gallery: galleryRef.current }),
         });
-        if (res.ok) { setAutoSaveStatus("saved"); setLastSavedAt(Date.now()); setTimeout(() => setAutoSaveStatus("idle"), 3000); }
-        else { setAutoSaveStatus("error"); setTimeout(() => setAutoSaveStatus("idle"), 5000); }
+        if (res.ok) {
+          setAutoSaveStatus("saved"); setLastSavedAt(Date.now());
+          if (statusTimer.current) clearTimeout(statusTimer.current);
+          statusTimer.current = setTimeout(() => setAutoSaveStatus("idle"), 3000);
+        }
+        else {
+          setAutoSaveStatus("error");
+          if (statusTimer.current) clearTimeout(statusTimer.current);
+          statusTimer.current = setTimeout(() => setAutoSaveStatus("idle"), 5000);
+        }
       } catch { setAutoSaveStatus("idle"); }
     }, 2000);
-    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+      if (statusTimer.current) clearTimeout(statusTimer.current);
+    };
   }, [form, gallery]);
 
   // ── One-click AI SEO generation ──

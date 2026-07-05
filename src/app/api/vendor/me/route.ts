@@ -164,6 +164,31 @@ export async function GET(_req: NextRequest) {
       vendors = await db.vendor.findMany({
         where: { owner_user_id: userId },
         orderBy: { createdAt: "desc" },
+        // Only select fields needed by the dashboard (reduces payload)
+        select: {
+          id: true, name: true, slug: true, ecosystem: true, category: true,
+          tagline: true, description: true, city: true, country: true,
+          countryCode: true, continent: true, currency: true, priceRange: true,
+          basePrice: true, rating: true, reviewCount: true, heroImage: true,
+          avatarImage: true, gallery: true, tags: true, featured: true,
+          verified: true, approved: true, responseTime: true, yearsActive: true,
+          completedBookings: true, subcategory: true, state: true, address: true,
+          zipCode: true, instagram: true, website: true, whatsapp: true,
+          facebook: true, youtube: true, tiktok: true, twitter: true,
+          snapchat: true, pinterest: true, linkedin: true, telegram: true,
+          fssaiNumber: true, settingsLocked: true, openHours: true,
+          deliveryAvailable: true, pickupAvailable: true, serviceAreas: true,
+          metaTitle: true, metaDescription: true, latitude: true, longitude: true,
+          serviceRadiusKm: true, userEmail: true, owner_user_id: true,
+          ownership_status: true, planExpiresAt: true, createdAt: true,
+          businessType: true, yearStarted: true, businessRegNumber: true,
+          gstVatNumber: true, languagesSpoken: true, hideAddress: true,
+          holidayMode: true, vacationMode: true, emergencyClosure: true,
+          homeService: true, onlineConsultation: true, maxOrder: true,
+          prepTime: true, bookingNotice: true, responseRate: true,
+          profileViews: true, productViews: true, galleryViews: true,
+          invite_type: true,
+        },
       });
     } catch (vendorErr: any) {
       console.error("[api/vendor/me] db.vendor.findMany FAILED:", {
