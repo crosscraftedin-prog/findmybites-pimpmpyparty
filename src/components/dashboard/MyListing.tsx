@@ -119,6 +119,8 @@ export function MyListing({ vendor }: MyListingProps) {
   // ── AI one-sentence assistant ──
   const [aiSentence, setAiSentence] = React.useState("");
   const [aiSentenceLoading, setAiSentenceLoading] = React.useState(false);
+  const [aiClassifyLoading, setAiClassifyLoading] = React.useState(false);
+  const [aiClassifyResult, setAiClassifyResult] = React.useState<{ marketplace: string; category: string; subcategory: string; businessType: string; confidence: number } | null>(null);
 
   // Form state
   const [form, setForm] = React.useState<any>({});
@@ -260,14 +262,34 @@ export function MyListing({ vendor }: MyListingProps) {
   const generateFromSentence = async () => {
     if (!aiSentence.trim()) { toast.error("Describe your business in one sentence"); return; }
     setAiSentenceLoading(true);
+    setAiClassifyLoading(true);
     try {
+      // 1. Auto-classify: marketplace, category, subcategory, business type
+      const classifyRes = await fetch("/api/vendor/ai/classify", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sentence: aiSentence }),
+      });
+      if (classifyRes.ok) {
+        const classify = await classifyRes.json();
+        setAiClassifyResult(classify);
+        // Auto-fill the classification
+        if (classify.category) set("category", classify.category);
+        if (classify.subcategory) set("subcategory", classify.subcategory);
+        if (classify.businessType) set("businessType", classify.businessType);
+        if (classify.marketplace) {
+          // Note: marketplace (ecosystem) is set at vendor creation, can't change here
+        }
+        toast.success(`AI classified: ${classify.category?.replace(/-/g, " ")} (${classify.confidence}% confidence)`);
+      }
+
+      // 2. Generate description, SEO, tags
       const res = await fetch("/api/vendor/ai/setup-assistant", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "generate_profile", style: "professional",
           businessName: form.name || aiSentence.split(" ").slice(0, 3).join(" "),
           marketplace: vendor.ecosystem || "FINDMYBITES",
-          category: form.category || "",
+          category: form.category || aiClassifyResult?.category || "",
           city: form.city || "",
           specialities: aiSentence,
         }),
@@ -280,10 +302,8 @@ export function MyListing({ vendor }: MyListingProps) {
         if (data.metaDescription) set("metaDescription", data.metaDescription);
         if (data.tags?.length) set("tags", data.tags.join(", "));
         toast.success("AI generated your listing from your description!");
-      } else {
-        toast.error(data.error || "AI generation failed");
       }
-    } catch { toast.error("Failed"); } finally { setAiSentenceLoading(false); }
+    } catch { toast.error("Failed"); } finally { setAiSentenceLoading(false); setAiClassifyLoading(false); }
   };
 
   // ── Draft recovery (localStorage) ──
@@ -673,10 +693,28 @@ export function MyListing({ vendor }: MyListingProps) {
                 placeholder="e.g. I bake custom birthday cakes in Hyderabad"
                 className="text-sm"
               />
-              <Button onClick={generateFromSentence} disabled={aiSentenceLoading} size="sm" className="shrink-0">
-                {aiSentenceLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+              <Button onClick={generateFromSentence} disabled={aiSentenceLoading || aiClassifyLoading} size="sm" className="shrink-0">
+                {aiSentenceLoading || aiClassifyLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
               </Button>
             </div>
+
+            {/* AI classification result */}
+            {aiClassifyResult && (
+              <div className="rounded-lg border border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/20 p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="size-3.5 text-violet-500" />
+                  <p className="text-xs font-semibold text-violet-800 dark:text-violet-200">AI Auto-Classification</p>
+                  <Badge className="ml-auto text-[9px] bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">{aiClassifyResult.confidence}% confidence</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div><span className="text-muted-foreground">Marketplace:</span> <span className="font-medium">{aiClassifyResult.marketplace === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty"}</span></div>
+                  <div><span className="text-muted-foreground">Category:</span> <span className="font-medium">{aiClassifyResult.category?.replace(/-/g, " ") || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Subcategory:</span> <span className="font-medium">{aiClassifyResult.subcategory || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Business Type:</span> <span className="font-medium">{aiClassifyResult.businessType || "—"}</span></div>
+                </div>
+                <p className="text-[10px] text-violet-600 dark:text-violet-400">✓ Auto-filled into the form below. You can change any field.</p>
+              </div>
+            )}
           </div>
 
           {/* Integrated AI Business Profile Generator */}
