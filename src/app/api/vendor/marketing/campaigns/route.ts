@@ -13,6 +13,7 @@ export async function GET(_req: NextRequest) {
   const campaigns = await db.marketingCampaign.findMany({
     where: { vendorId: vendor.id },
     orderBy: { createdAt: "desc" },
+    take: 100,
   });
   return NextResponse.json({ campaigns });
 }

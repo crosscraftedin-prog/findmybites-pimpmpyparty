@@ -17,6 +17,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const blocks = await db.productBlockedDate.findMany({
     where: { productId: id },
     orderBy: { startDate: "asc" },
+    take: 365,
   });
   return NextResponse.json({ blocks });
 }

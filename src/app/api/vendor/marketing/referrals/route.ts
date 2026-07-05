@@ -13,6 +13,7 @@ export async function GET(_req: NextRequest) {
   const referrals = await db.referral.findMany({
     where: { referrerVendorId: vendor.id },
     orderBy: { sentAt: "desc" },
+    take: 100,
   });
   const stats = {
     invited: referrals.length,
