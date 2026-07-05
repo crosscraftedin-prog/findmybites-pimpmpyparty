@@ -184,6 +184,24 @@ export function CreateVendorForm({
     isEditing ? ecosystem : null
   );
 
+  // ── Reset category + subcategory when marketplace switches ──
+  // This prevents cross-marketplace leakage: if a vendor selected a
+  // FindMyBites category and then switches to PimpMyParty (or vice versa),
+  // the old category/subcategory are cleared so they don't leak into the
+  // new marketplace's form.
+  const prevEcosystemRef = React.useRef<Ecosystem | null>(selectedPlatform);
+  React.useEffect(() => {
+    if (prevEcosystemRef.current !== selectedPlatform) {
+      prevEcosystemRef.current = selectedPlatform;
+      if (!isEditing) {
+        setForm((f) => ({ ...f, category: "", subcategory: "" }));
+        setShowCustomSubcat(false);
+        setCustomSubcat("");
+        setApiSubcategories([]);
+      }
+    }
+  }, [selectedPlatform, isEditing]);
+
   // If the editingVendor prop changes, re-seed the form + platform.
   React.useEffect(() => {
     if (editingVendor) {
@@ -233,7 +251,7 @@ export function CreateVendorForm({
     }
     const fetchSubs = async () => {
       try {
-        const res = await fetch(`/api/categories/subcategories?category=${encodeURIComponent(form.category)}&t=${Date.now()}`);
+        const res = await fetch(`/api/categories/subcategories?category=${encodeURIComponent(form.category)}&ecosystem=${activeEcosystem}&t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           // If the API returns subcategories with {id, label} format,
