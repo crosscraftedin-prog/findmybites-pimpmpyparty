@@ -9,10 +9,27 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getZAI } from "@/lib/zai-server";
+import { resolveVendorFromSession } from "@/lib/vendor-session";
+import { checkAiRateLimit, incrementAiCount } from "@/lib/ai/rate-limiter";
 import { db } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
+    // ── Auth required: prevent anonymous AI abuse ──
+    const vendor = await resolveVendorFromSession();
+    if (!vendor) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
+    // ── Rate limiting ──
+    const rateLimit = await checkAiRateLimit(vendor.id);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: `Daily AI limit reached (${rateLimit.limit} requests/day). Upgrade your plan for more.`, limit: rateLimit.limit },
+        { status: 429 }
+      );
+    }
+
     const { sentence } = await req.json();
     if (!sentence?.trim()) {
       return NextResponse.json({ error: "Sentence is required" }, { status: 400 });
@@ -63,6 +80,7 @@ Rules:
       const m = text.match(/\{[\s\S]*\}/);
       if (m) {
         const result = JSON.parse(m[0]);
+        incrementAiCount(vendor.id);
         return NextResponse.json({
           marketplace: result.marketplace || "FINDMYBITES",
           category: result.category || "",
