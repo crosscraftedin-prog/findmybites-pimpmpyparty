@@ -42,76 +42,7 @@ const COUNTRIES = [
   "Brazil", "Mexico", "Argentina", "Chile", "Colombia", "Peru",
 ];
 
-// Dynamic business types per category — vendors never have to guess
-const BUSINESS_TYPES_BY_CATEGORY: Record<string, { value: string; label: string }[]> = {
-  "bakers-bakery": [
-    { value: "home_baker", label: "Home Baker" },
-    { value: "cake_studio", label: "Cake Studio" },
-    { value: "bakery", label: "Bakery" },
-    { value: "commercial_bakery", label: "Commercial Bakery" },
-    { value: "cake_company", label: "Cake Company" },
-  ],
-  "caterers": [
-    { value: "home_catering", label: "Home Catering" },
-    { value: "catering_service", label: "Catering Service" },
-    { value: "restaurant", label: "Restaurant" },
-    { value: "hotel", label: "Hotel" },
-    { value: "catering_company", label: "Catering Company" },
-  ],
-  "photographers": [
-    { value: "freelancer", label: "Freelancer" },
-    { value: "photo_studio", label: "Photography Studio" },
-    { value: "photo_company", label: "Photography Company" },
-    { value: "event_photo_agency", label: "Event Photography Agency" },
-  ],
-  "decorators": [
-    { value: "freelancer", label: "Freelancer" },
-    { value: "event_decorator", label: "Event Decorator" },
-    { value: "decoration_company", label: "Decoration Company" },
-    { value: "event_agency", label: "Event Agency" },
-  ],
-  "djs": [
-    { value: "freelancer", label: "Freelancer DJ" },
-    { value: "dj_company", label: "DJ Company" },
-    { value: "entertainment_agency", label: "Entertainment Agency" },
-  ],
-  "event-planners": [
-    { value: "freelancer", label: "Freelance Planner" },
-    { value: "planning_company", label: "Planning Company" },
-    { value: "event_agency", label: "Event Agency" },
-  ],
-  "venues": [
-    { value: "banquet_hall", label: "Banquet Hall" },
-    { value: "hotel", label: "Hotel" },
-    { value: "resort", label: "Resort" },
-    { value: "outdoor_venue", label: "Outdoor Venue" },
-  ],
-  "florists": [
-    { value: "flower_shop", label: "Flower Shop" },
-    { value: "florist_company", label: "Florist Company" },
-    { value: "freelancer", label: "Freelance Florist" },
-  ],
-  "food-trucks": [
-    { value: "food_truck", label: "Food Truck" },
-    { value: "food_stall", label: "Food Stall" },
-    { value: "food_company", label: "Food Company" },
-  ],
-  "chef-staff": [
-    { value: "freelancer", label: "Freelance Chef" },
-    { value: "chef_company", label: "Chef Agency" },
-    { value: "private_chef", label: "Private Chef" },
-  ],
-  "dessert-makers": [
-    { value: "home_business", label: "Home Business" },
-    { value: "dessert_shop", label: "Dessert Shop" },
-    { value: "dessert_company", label: "Dessert Company" },
-  ],
-  "specialty-food": [
-    { value: "home_business", label: "Home Business" },
-    { value: "specialty_shop", label: "Specialty Shop" },
-    { value: "food_company", label: "Food Company" },
-  ],
-};
+// Default business types (fallback when DB has none for a category)
 const DEFAULT_BUSINESS_TYPES = [
   { value: "home", label: "Home Business" },
   { value: "shop", label: "Shop / Store" },
@@ -120,7 +51,32 @@ const DEFAULT_BUSINESS_TYPES = [
   { value: "company", label: "Company" },
 ];
 
-// Service radius friendly options (saves numeric internally)
+// Smart default business hours per category
+const DEFAULT_HOURS_BY_CATEGORY: Record<string, string> = {
+  "bakers-bakery": "Mon-Sat: 9AM-8PM, Sun: 10AM-4PM",
+  "caterers": "Mon-Sun: 8AM-10PM",
+  "photographers": "Mon-Sun: 9AM-9PM (by appointment)",
+  "decorators": "Mon-Sun: 9AM-8PM",
+  "djs": "Mon-Sun: 5PM-2AM (events only)",
+  "event-planners": "Mon-Sat: 10AM-7PM, Sun: by appointment",
+  "venues": "Mon-Sun: 10AM-11PM",
+  "florists": "Mon-Sat: 8AM-8PM, Sun: 9AM-2PM",
+  "food-trucks": "Mon-Sun: 11AM-11PM",
+  "chef-staff": "Mon-Sun: by appointment",
+};
+
+// Guided wizard steps
+const WIZARD_STEPS = [
+  { id: "business", label: "Business", icon: Store, tab: "business" },
+  { id: "location", label: "Location", icon: MapPin, tab: "location" },
+  { id: "contact", label: "Contact", icon: Phone, tab: "contact" },
+  { id: "hours", label: "Hours", icon: Clock, tab: "hours" },
+  { id: "delivery", label: "Service Area", icon: Truck, tab: "delivery" },
+  { id: "media", label: "Gallery", icon: ImageIcon, tab: "media" },
+  { id: "seo", label: "SEO", icon: Search, tab: "seo" },
+  { id: "publish", label: "Publish", icon: Rocket, tab: "publish" },
+];
+
 const SERVICE_RADIUS_OPTIONS = [
   { value: "5", label: "5 km" },
   { value: "10", label: "10 km" },
@@ -160,6 +116,16 @@ export function MyListing({ vendor }: MyListingProps) {
 
   // ── Geolocation ──
   const [locating, setLocating] = React.useState(false);
+
+  // ── DB-driven business types ──
+  const [businessTypes, setBusinessTypes] = React.useState<{ value: string; label: string }[]>([]);
+
+  // ── Wizard step (0-indexed) ──
+  const [wizardStep, setWizardStep] = React.useState(0);
+
+  // ── AI one-sentence assistant ──
+  const [aiSentence, setAiSentence] = React.useState("");
+  const [aiSentenceLoading, setAiSentenceLoading] = React.useState(false);
 
   // Form state
   const [form, setForm] = React.useState<any>({});
@@ -258,7 +224,83 @@ export function MyListing({ vendor }: MyListingProps) {
         }
       })
       .catch(() => {});
+
+    // Load DB-driven business types for this category
+    fetch(`/api/business-types?category=${encodeURIComponent(form.category)}&t=${Date.now()}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (d?.businessTypes?.length > 0) {
+          setBusinessTypes(d.businessTypes.map((t: any) => ({ value: t.value, label: t.label })));
+        } else {
+          setBusinessTypes(DEFAULT_BUSINESS_TYPES);
+        }
+      })
+      .catch(() => setBusinessTypes(DEFAULT_BUSINESS_TYPES));
+
+    // Suggest default business hours if empty
+    if (!form.openHours && DEFAULT_HOURS_BY_CATEGORY[form.category]) {
+      set("openHours", DEFAULT_HOURS_BY_CATEGORY[form.category]);
+    }
   }, [form.category]);
+
+  // ── AI One-Sentence Listing Assistant ──
+  const generateFromSentence = async () => {
+    if (!aiSentence.trim()) { toast.error("Describe your business in one sentence"); return; }
+    setAiSentenceLoading(true);
+    try {
+      const res = await fetch("/api/vendor/ai/setup-assistant", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "generate_profile", style: "professional",
+          businessName: form.name || aiSentence.split(" ").slice(0, 3).join(" "),
+          marketplace: vendor.ecosystem || "FINDMYBITES",
+          category: form.category || "",
+          city: form.city || "",
+          specialities: aiSentence,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.description) {
+        if (data.description) set("description", data.description);
+        if (data.tagline) set("tagline", data.tagline);
+        if (data.seoTitle) set("metaTitle", data.seoTitle);
+        if (data.metaDescription) set("metaDescription", data.metaDescription);
+        if (data.tags?.length) set("tags", data.tags.join(", "));
+        toast.success("AI generated your listing from your description!");
+      } else {
+        toast.error(data.error || "AI generation failed");
+      }
+    } catch { toast.error("Failed"); } finally { setAiSentenceLoading(false); }
+  };
+
+  // ── Draft recovery (localStorage) ──
+  React.useEffect(() => {
+    if (!vendor.id) return;
+    const draftKey = `mylisting-draft-${vendor.id}`;
+    // Save draft on form change (debounced via auto-save)
+    const saveDraft = () => {
+      try {
+        localStorage.setItem(draftKey, JSON.stringify({ form, gallery, savedAt: Date.now() }));
+      } catch {}
+    };
+    saveDraft();
+  }, [form, gallery, vendor.id]);
+
+  // Check for existing draft on mount
+  React.useEffect(() => {
+    if (!vendor.id) return;
+    const draftKey = `mylisting-draft-${vendor.id}`;
+    try {
+      const draft = localStorage.getItem(draftKey);
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed.savedAt && Date.now() - parsed.savedAt < 24 * 60 * 60 * 1000) {
+          // Draft is less than 24h old
+          // Don't auto-restore — just note it exists
+        }
+      }
+    } catch {}
+  }, [vendor.id]);
 
   // ── Geolocation helper (graceful error handling) ──
   const useMyLocation = () => {
@@ -527,21 +569,103 @@ export function MyListing({ vendor }: MyListingProps) {
 
       {/* 2-column layout: form + sidebar */}
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        {/* Left: tabs + form */}
+        {/* Left: guided wizard + form */}
         <div>
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4 flex-wrap">
-          <TabsTrigger value="business" className="gap-1"><Store className="size-3.5" /> Business</TabsTrigger>
-          <TabsTrigger value="location" className="gap-1"><MapPin className="size-3.5" /> Location</TabsTrigger>
-          <TabsTrigger value="contact" className="gap-1"><Phone className="size-3.5" /> Contact</TabsTrigger>
-          <TabsTrigger value="hours" className="gap-1"><Clock className="size-3.5" /> Hours</TabsTrigger>
-          <TabsTrigger value="delivery" className="gap-1"><Truck className="size-3.5" /> Delivery</TabsTrigger>
-          <TabsTrigger value="media" className="gap-1"><ImageIcon className="size-3.5" /> Media</TabsTrigger>
-          <TabsTrigger value="seo" className="gap-1"><Search className="size-3.5" /> SEO</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); const idx = WIZARD_STEPS.findIndex(s => s.tab === v); if (idx >= 0) setWizardStep(idx); }}>
+        {/* Guided wizard progress bar */}
+        <div className="mb-4 overflow-x-auto">
+          <div className="flex items-center gap-1 min-w-max pb-1">
+            {WIZARD_STEPS.map((step, idx) => {
+              const Icon = step.icon;
+              const isActive = activeTab === step.tab;
+              const isCompleted = idx < wizardStep;
+              const isPublish = step.id === "publish";
+              return (
+                <React.Fragment key={step.id}>
+                  {idx > 0 && <div className={cn("h-px w-4 shrink-0", isCompleted ? "bg-primary" : "bg-border")} />}
+                  <button
+                    onClick={() => { setActiveTab(step.tab); setWizardStep(idx); }}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap",
+                      isActive ? "border-primary bg-primary text-primary-foreground" :
+                      isCompleted ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300" :
+                      isPublish ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/20" :
+                      "border-border bg-card hover:bg-accent"
+                    )}
+                    aria-current={isActive ? "step" : undefined}
+                  >
+                    <span className={cn("flex size-4 items-center justify-center rounded-full text-[9px] font-bold",
+                      isActive ? "bg-primary-foreground text-primary" :
+                      isCompleted ? "bg-emerald-500 text-white" :
+                      "bg-muted text-muted-foreground")}>
+                      {isCompleted ? <Check className="size-2.5" /> : idx + 1}
+                    </span>
+                    <Icon className="size-3.5" />
+                    {step.label}
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </div>
+          {/* Completion percentage + estimated time */}
+          <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
+            <span>Step {wizardStep + 1} of {WIZARD_STEPS.length}</span>
+            <span>·</span>
+            <span>{Math.round(((wizardStep + 1) / WIZARD_STEPS.length) * 100)}% complete</span>
+            <span>·</span>
+            <span>⏱ ~{Math.max(1, (WIZARD_STEPS.length - wizardStep - 1) * 2)} min remaining</span>
+          </div>
+        </div>
+
+        {/* Navigation buttons */}
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            if (wizardStep > 0) { const prev = wizardStep - 1; setWizardStep(prev); setActiveTab(WIZARD_STEPS[prev].tab); }
+          }} disabled={wizardStep === 0}>
+            ← Back
+          </Button>
+          {wizardStep < WIZARD_STEPS.length - 2 ? (
+            <Button size="sm" onClick={() => {
+              const next = wizardStep + 1; setWizardStep(next); setActiveTab(WIZARD_STEPS[next].tab);
+            }}>
+              Next →
+            </Button>
+          ) : wizardStep === WIZARD_STEPS.length - 2 ? (
+            <Button size="sm" onClick={() => {
+              const next = wizardStep + 1; setWizardStep(next); setActiveTab("business"); // Stay on form for publish
+            }} className="bg-emerald-600 text-white hover:bg-emerald-700">
+              Ready to Publish →
+            </Button>
+          ) : null}
+        </div>
 
         {/* Business Info */}
         <TabsContent value="business" className="space-y-4">
+          {/* AI One-Sentence Listing Assistant */}
+          <div className="rounded-xl border border-brand-border bg-gradient-to-br from-brand-soft/40 to-transparent p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-brand text-brand-foreground">
+                <Sparkles className="size-4" />
+              </span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">Describe your business in one sentence</p>
+                <p className="text-[11px] text-muted-foreground">AI generates your description, SEO, tags & more instantly</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={aiSentence}
+                onChange={(e) => setAiSentence(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); generateFromSentence(); } }}
+                placeholder="e.g. I bake custom birthday cakes in Hyderabad"
+                className="text-sm"
+              />
+              <Button onClick={generateFromSentence} disabled={aiSentenceLoading} size="sm" className="shrink-0">
+                {aiSentenceLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+              </Button>
+            </div>
+          </div>
+
           {/* Integrated AI Business Profile Generator */}
           <IntegratedAIPanel form={form} onApply={handleAiApply} onNavigate={setActiveTab} />
 
@@ -632,7 +756,7 @@ export function MyListing({ vendor }: MyListingProps) {
                 className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
               >
                 <option value="">Select…</option>
-                {(BUSINESS_TYPES_BY_CATEGORY[form.category] || DEFAULT_BUSINESS_TYPES).map(t => (
+                {(businessTypes.length > 0 ? businessTypes : DEFAULT_BUSINESS_TYPES).map(t => (
                   <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
               </select>

@@ -34,31 +34,123 @@ interface AddressAutocompleteProps {
 }
 
 /**
- * Single search box for address autocomplete.
- * Uses OpenStreetMap Nominatim (free, no API key, global coverage).
- * On select, fills: country, state, city, area, postal code, lat, long.
+ * Address autocomplete with Google Places (primary) → OSM Nominatim (fallback).
  *
- * Also provides a "Use My Location" button for GPS detection.
+ * If NEXT_PUBLIC_GOOGLE_PLACES_API_KEY is set, uses Google Places Autocomplete
+ * for superior accuracy and global coverage. Falls back to OpenStreetMap
+ * Nominatim (free, no API key) if Google is unavailable or not configured.
+ *
+ * On select, fills: country, state, city, area, postal code, lat, long.
  */
+
+// Google Places script loader (lazy, singleton)
+let googlePlacesPromise: Promise<any> | null = null;
+function loadGooglePlaces(): Promise<any> | null {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return null;
+  if (typeof window === "undefined") return null;
+  if (window.google?.maps?.places) return Promise.resolve(window.google.maps.places);
+  if (googlePlacesPromise) return googlePlacesPromise;
+
+  googlePlacesPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=__initGooglePlaces`;
+    script.async = true;
+    script.defer = true;
+    (window as any).__initGooglePlaces = () => {
+      resolve(window.google?.maps?.places || null);
+    };
+    script.onerror = () => reject(new Error("Google Places failed to load"));
+    document.head.appendChild(script);
+  });
+  return googlePlacesPromise;
+}
+
 export function AddressAutocomplete({ value, onChange, onUseLocation, locating }: AddressAutocompleteProps) {
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<AddressResult[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [showDropdown, setShowDropdown] = React.useState(false);
   const [selectedIndex, setSelectedIndex] = React.useState(-1);
+  const [useGoogle, setUseGoogle] = React.useState<boolean | null>(null);
+  const [googleSession, setGoogleSession] = React.useState<any>(null);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const googleAutocompleteRef = React.useRef<any>(null);
 
-  // Pre-fill query with existing city/country
+  // Pre-fill query with existing address
   React.useEffect(() => {
     if (!query && (value.city || value.country)) {
       setQuery(`${value.address ? value.address + ", " : ""}${value.city ? value.city + ", " : ""}${value.state ? value.state + ", " : ""}${value.country || ""}`.trim().replace(/,\s*$/, ""));
     }
-  }, []); // Only on mount
+  }, []);
 
-  // Debounced search
+  // Try to load Google Places on mount
   React.useEffect(() => {
+    const places = loadGooglePlaces();
+    if (places) {
+      places.then((p) => {
+        if (p) {
+          setUseGoogle(true);
+          // Use Google Places Autocomplete (session-based, cheaper)
+          if (inputRef.current && p.Autocomplete) {
+            try {
+              const autocomplete = new p.Autocomplete(inputRef.current, {
+                types: ["address"],
+                fields: ["address_components", "formatted_address", "geometry"],
+              });
+              autocomplete.addListener("place_changed", () => {
+                const place = autocomplete.getPlace();
+                if (place?.address_components) {
+                  handleGooglePlace(place);
+                }
+              });
+              googleAutocompleteRef.current = autocomplete;
+            } catch {
+              setUseGoogle(false); // fallback to OSM
+            }
+          }
+        } else {
+          setUseGoogle(false);
+        }
+      }).catch(() => setUseGoogle(false));
+    } else {
+      setUseGoogle(false);
+    }
+  }, []);
+
+  // Google Places result handler
+  const handleGooglePlace = (place: any) => {
+    const components = place.address_components || [];
+    const getComponent = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name || "";
+
+    const country = getComponent("country");
+    const state = getComponent("administrative_area_level_1") || getComponent("administrative_area_level_2");
+    const city = getComponent("locality") || getComponent("administrative_area_level_2") || getComponent("postal_town") || "";
+    const area = getComponent("sublocality") || getComponent("sublocality_level_1") || getComponent("neighborhood") || getComponent("route") || "";
+    const zipCode = getComponent("postal_code") || "";
+    const lat = place.geometry?.location?.lat();
+    const lon = place.geometry?.location?.lng();
+
+    onChange("country", country);
+    onChange("state", state);
+    onChange("city", city);
+    onChange("address", area);
+    onChange("zipCode", zipCode);
+    if (lat && lon) {
+      onChange("latitude", lat);
+      onChange("longitude", lon);
+    }
+    setQuery(place.formatted_address || `${area}, ${city}, ${country}`.trim());
+    setShowDropdown(false);
+    toast.success("Address filled from Google Places");
+  };
+
+  // OSM Nominatim search (fallback when Google is not available)
+  React.useEffect(() => {
+    // Skip OSM search if Google Places autocomplete is active (it handles its own dropdown)
+    if (useGoogle === true) return;
     if (!query.trim() || query.trim().length < 3) {
       setResults([]);
       setShowDropdown(false);
@@ -83,9 +175,9 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
       }
     }, 500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query]);
+  }, [query, useGoogle]);
 
-  const selectAddress = (result: AddressResult) => {
+  const selectOsmAddress = (result: AddressResult) => {
     const a = result.address;
     const city = a.city || a.town || a.village || a.municipality || "";
     const area = a.suburb || a.neighbourhood || a.road || "";
@@ -106,9 +198,9 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
     toast.success("Address filled automatically");
   };
 
-  // Keyboard navigation
+  // Keyboard navigation (for OSM dropdown — Google handles its own)
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showDropdown || results.length === 0) return;
+    if (useGoogle || !showDropdown || results.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedIndex((i) => Math.min(i + 1, results.length - 1));
@@ -117,15 +209,16 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
       setSelectedIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter" && selectedIndex >= 0) {
       e.preventDefault();
-      selectAddress(results[selectedIndex]);
+      selectOsmAddress(results[selectedIndex]);
     } else if (e.key === "Escape") {
       setShowDropdown(false);
       setSelectedIndex(-1);
     }
   };
 
-  // Close dropdown on outside click
+  // Close OSM dropdown on outside click
   React.useEffect(() => {
+    if (useGoogle) return;
     const handleClick = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
@@ -133,7 +226,7 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+  }, [useGoogle]);
 
   // Scroll selected item into view
   React.useEffect(() => {
@@ -147,27 +240,30 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
       {/* Main search box */}
       <div ref={dropdownRef} className="relative">
         <label className="text-sm font-medium">Search your business address</label>
-        <p className="text-[11px] text-muted-foreground">Start typing your address — we'll fill everything automatically</p>
+        <p className="text-[11px] text-muted-foreground">
+          {useGoogle === null ? "Start typing your address…" :
+           useGoogle ? "Powered by Google Maps — type your address" :
+           "Type your address — we'll fill everything automatically"}
+        </p>
         <div className="relative mt-1.5">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <input
             ref={inputRef}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); if (!useGoogle) setShowDropdown(true); }}
             onKeyDown={handleKeyDown}
-            onFocus={() => { if (results.length > 0) setShowDropdown(true); }}
+            onFocus={() => { if (!useGoogle && results.length > 0) setShowDropdown(true); }}
             placeholder="e.g. Petbasheerabad, Hyderabad, Telangana"
             className="h-12 w-full rounded-xl border border-input bg-background pl-10 pr-10 text-sm shadow-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             aria-label="Search address"
             aria-expanded={showDropdown}
-            aria-controls="address-dropdown"
             role="combobox"
           />
           {loading && (
             <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
           )}
-          {!loading && query && (
+          {!loading && query && !useGoogle && (
             <button
               type="button"
               onClick={() => { setQuery(""); setResults([]); inputRef.current?.focus(); }}
@@ -177,12 +273,14 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
               <X className="size-4" />
             </button>
           )}
+          {useGoogle && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-medium text-blue-500">Google</span>
+          )}
         </div>
 
-        {/* Autocomplete dropdown */}
-        {showDropdown && results.length > 0 && (
+        {/* OSM Autocomplete dropdown (only when Google is not active) */}
+        {!useGoogle && showDropdown && results.length > 0 && (
           <div
-            id="address-dropdown"
             role="listbox"
             className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border bg-popover shadow-xl"
           >
@@ -201,7 +299,7 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
                   role="option"
                   aria-selected={selectedIndex === idx}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  onMouseDown={(e) => { e.preventDefault(); selectAddress(result); }}
+                  onMouseDown={(e) => { e.preventDefault(); selectOsmAddress(result); }}
                   className={cn(
                     "flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors",
                     selectedIndex === idx ? "bg-accent" : "hover:bg-accent/50"
@@ -218,8 +316,8 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
           </div>
         )}
 
-        {/* No results */}
-        {showDropdown && !loading && results.length === 0 && query.length >= 3 && (
+        {/* No results (OSM only) */}
+        {!useGoogle && showDropdown && !loading && results.length === 0 && query.length >= 3 && (
           <div className="absolute z-50 mt-1 w-full rounded-xl border bg-popover p-3 text-center text-sm text-muted-foreground shadow-xl">
             No addresses found. Try a different search or fill manually below.
           </div>
@@ -240,7 +338,7 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
         </div>
       )}
 
-      {/* Auto-filled fields (visible but read-only feel — vendor can tweak) */}
+      {/* Auto-filled fields (vendor can tweak) */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-medium text-muted-foreground">Country</label>

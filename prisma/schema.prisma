@@ -1690,3 +1690,20 @@ model SupportMessage {
   @@index([createdAt])
   @@map("support_messages")
 }
+
+// ── Business Types (DB-driven, admin-managed) ──────────────────────────────
+// Each category can have its own set of business types.
+// Admins can add/remove business types without code changes.
+model BusinessType {
+  id          String   @id @default(cuid())
+  categoryId  String   // maps to Vendor.category (e.g. "bakers-bakery")
+  value       String   // e.g. "home_baker"
+  label       String   // e.g. "Home Baker"
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@unique([categoryId, value])
+  @@index([categoryId, active])
+  @@map("business_types")
+}
