@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getZAI } from "@/lib/zai-server";
 import { parseJsonArray } from "@/lib/format";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/ai/event-planner
@@ -21,6 +23,15 @@ export async function POST(req: NextRequest) {
     if (!eventType || !city) {
       return NextResponse.json({ error: "eventType and city required" }, { status: 400 });
     }
+
+    // ── Prompt injection check on user-supplied notes ──
+    const userNotes = notes || "";
+    const sanitizeResult = sanitizePrompt(userNotes);
+    if (sanitizeResult.blocked) {
+      logger.warn("ai-event-planner", "Prompt injection blocked", { reason: sanitizeResult.reason });
+      return NextResponse.json({ error: "Input rejected by security filter" }, { status: 400 });
+    }
+    const safeNotes = sanitizeResult.sanitized || userNotes;
 
     // Event type → categories mapping (from DB, but we need a base plan)
     const EVENT_PLANS: Record<string, { category: string; role: string; note: string }[]> = {
@@ -134,21 +145,31 @@ Event: ${eventType}
 City: ${city}
 Guests: ${guests || "not specified"}
 Budget: ${budget || "not specified"}
-Notes: ${notes || "none"}
+Notes: ${safeNotes || "none"}
 
 Vendors found:
 ${vendorSummary}
 
 Return only the summary text, no JSON.`;
 
-        const completion = await zai.chat.completions.create({
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.7,
-          max_tokens: 150,
-        });
-        const aiText = completion.choices[0]?.message?.content?.trim();
-        if (aiText) aiSummary = aiText;
-      } catch {}
+        // ── 30-second timeout ──
+        const { result: aiText, timedOut } = await callWithTimeout(async (_signal) => {
+          const completion = await zai.chat.completions.create({
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7,
+            max_tokens: 150,
+          });
+          return completion.choices[0]?.message?.content?.trim() || "";
+        }, 30_000);
+
+        if (timedOut) {
+          logger.warn("ai-event-planner", "LLM call timed out after 30s");
+        } else if (aiText) {
+          aiSummary = aiText;
+        }
+      } catch (e) {
+        logger.error("ai-event-planner", "AI summary call failed", { message: e instanceof Error ? e.message : String(e) });
+      }
     }
 
     return NextResponse.json({
@@ -160,7 +181,7 @@ Return only the summary text, no JSON.`;
       guests: guests || null,
     });
   } catch (err) {
-    console.error("[api/ai/event-planner] POST failed:", err);
+    logger.error("ai-event-planner", "POST failed", { message: err instanceof Error ? err.message : String(err) });
     return NextResponse.json({ error: "Event planning failed" }, { status: 500 });
   }
 }

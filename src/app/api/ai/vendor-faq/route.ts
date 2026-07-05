@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getZAI } from "@/lib/zai-server";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 
 /**
  * GET /api/ai/vendor-faq?vendorId=xxx
@@ -261,7 +263,7 @@ export async function GET(req: NextRequest) {
         },
       })) as VendorFaqRow | null;
     } catch (e) {
-      console.error("[api/ai/vendor-faq] vendor fetch failed:", (e as Error)?.message?.slice(0, 120));
+      logger.error("ai-vendor-faq", "vendor fetch failed", { message: (e as Error)?.message?.slice(0, 120) });
     }
 
     if (!vendor) {
@@ -290,7 +292,7 @@ export async function GET(req: NextRequest) {
         take: 20,
       })) as VendorProductRow[];
     } catch (e) {
-      console.error("[api/ai/vendor-faq] products fetch failed:", (e as Error)?.message?.slice(0, 120));
+      logger.error("ai-vendor-faq", "products fetch failed", { message: (e as Error)?.message?.slice(0, 120) });
     }
 
     const flags = aggregateProductFlags(products);
@@ -301,29 +303,44 @@ export async function GET(req: NextRequest) {
     // ── 4. Try AI enhancement ────────────────────────────────────────────
     const zai = await getZAI();
     if (zai) {
-      try {
-        const completion = await zai.chat.completions.create({
-          messages: [
-            {
-              role: "assistant",
-              content:
-                "You are a helpful storefront copywriter. You return ONLY JSON when asked.",
-            },
-            { role: "user", content: buildPrompt(vendor, flags, templateFaqs) },
-          ],
-          thinking: { type: "disabled" },
-        });
-        const content = completion.choices[0]?.message?.content || "";
-        const aiFaqs = parseAiFaqs(content, templateFaqs);
-        return NextResponse.json({ faqs: aiFaqs, source: "ai" as const });
-      } catch (e) {
-        console.error("[api/ai/vendor-faq] AI call failed, using template:", (e as Error)?.message?.slice(0, 120));
+      const prompt = buildPrompt(vendor, flags, templateFaqs);
+      // ── Prompt injection check (defense-in-depth: vendor DB data + template FAQs) ──
+      const sanitizeResult = sanitizePrompt(prompt);
+      if (sanitizeResult.blocked) {
+        logger.warn("ai-vendor-faq", "Prompt injection blocked", { reason: sanitizeResult.reason, vendorId });
+      } else {
+        try {
+          // ── 30-second timeout ──
+          const { result: content, timedOut } = await callWithTimeout(async (_signal) => {
+            const completion = await zai.chat.completions.create({
+              messages: [
+                {
+                  role: "assistant",
+                  content:
+                    "You are a helpful storefront copywriter. You return ONLY JSON when asked.",
+                },
+                { role: "user", content: sanitizeResult.sanitized },
+              ],
+              thinking: { type: "disabled" },
+            });
+            return completion.choices[0]?.message?.content || "";
+          }, 30_000);
+
+          if (timedOut) {
+            logger.warn("ai-vendor-faq", "LLM call timed out after 30s", { vendorId });
+          } else if (content) {
+            const aiFaqs = parseAiFaqs(content, templateFaqs);
+            return NextResponse.json({ faqs: aiFaqs, source: "ai" as const });
+          }
+        } catch (e) {
+          logger.error("ai-vendor-faq", "AI call failed, using template", { message: (e as Error)?.message?.slice(0, 120) });
+        }
       }
     }
 
     return NextResponse.json({ faqs: templateFaqs, source: "template" as const });
   } catch (err) {
-    console.error("[api/ai/vendor-faq] GET failed:", err);
+    logger.error("ai-vendor-faq", "GET failed", { message: err instanceof Error ? err.message : String(err) });
     return NextResponse.json(
       { faqs: [], source: "template" },
       { status: 200 }

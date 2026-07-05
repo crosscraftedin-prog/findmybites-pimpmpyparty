@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getZAI } from "@/lib/zai-server";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 
 /**
  * GET /api/ai/review-summary?vendorId=xxx
@@ -259,7 +261,7 @@ export async function GET(req: NextRequest) {
       });
       if (vendor?.name) vendorName = vendor.name;
     } catch (e) {
-      console.error("[api/ai/review-summary] vendor fetch failed:", (e as Error)?.message?.slice(0, 120));
+      logger.error("ai-review-summary", "vendor fetch failed", { message: (e as Error)?.message?.slice(0, 120) });
     }
 
     try {
@@ -276,7 +278,7 @@ export async function GET(req: NextRequest) {
         take: 50,
       })) as ReviewRow[];
     } catch (e) {
-      console.error("[api/ai/review-summary] reviews fetch failed:", (e as Error)?.message?.slice(0, 120));
+      logger.error("ai-review-summary", "reviews fetch failed", { message: (e as Error)?.message?.slice(0, 120) });
     }
 
     // ── 2. Build template summary (always available as fallback) ─────────
@@ -294,29 +296,44 @@ export async function GET(req: NextRequest) {
     // ── 3. Try AI summary ────────────────────────────────────────────────
     const zai = await getZAI();
     if (zai) {
-      try {
-        const completion = await zai.chat.completions.create({
-          messages: [
-            {
-              role: "assistant",
-              content:
-                "You are a sentiment analyst. You return ONLY JSON when asked.",
-            },
-            { role: "user", content: buildPrompt(vendorName, reviews) },
-          ],
-          thinking: { type: "disabled" },
-        });
-        const content = completion.choices[0]?.message?.content || "";
-        const aiSummary = parseAiSummary(content, templateSummary);
-        return NextResponse.json({ ...aiSummary, source: "ai" as const });
-      } catch (e) {
-        console.error("[api/ai/review-summary] AI call failed, using template:", (e as Error)?.message?.slice(0, 120));
+      const prompt = buildPrompt(vendorName, reviews);
+      // ── Prompt injection check (defense-in-depth: customer review text) ──
+      const sanitizeResult = sanitizePrompt(prompt);
+      if (sanitizeResult.blocked) {
+        logger.warn("ai-review-summary", "Prompt injection blocked", { reason: sanitizeResult.reason, vendorId });
+      } else {
+        try {
+          // ── 30-second timeout ──
+          const { result: content, timedOut } = await callWithTimeout(async (_signal) => {
+            const completion = await zai.chat.completions.create({
+              messages: [
+                {
+                  role: "assistant",
+                  content:
+                    "You are a sentiment analyst. You return ONLY JSON when asked.",
+                },
+                { role: "user", content: sanitizeResult.sanitized },
+              ],
+              thinking: { type: "disabled" },
+            });
+            return completion.choices[0]?.message?.content || "";
+          }, 30_000);
+
+          if (timedOut) {
+            logger.warn("ai-review-summary", "LLM call timed out after 30s", { vendorId });
+          } else if (content) {
+            const aiSummary = parseAiSummary(content, templateSummary);
+            return NextResponse.json({ ...aiSummary, source: "ai" as const });
+          }
+        } catch (e) {
+          logger.error("ai-review-summary", "AI call failed, using template", { message: (e as Error)?.message?.slice(0, 120) });
+        }
       }
     }
 
     return NextResponse.json({ ...templateSummary, source: "template" as const });
   } catch (err) {
-    console.error("[api/ai/review-summary] GET failed:", err);
+    logger.error("ai-review-summary", "GET failed", { message: err instanceof Error ? err.message : String(err) });
     return NextResponse.json({
       loved: [],
       mostMentioned: [],

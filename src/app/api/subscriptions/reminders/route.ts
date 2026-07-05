@@ -7,6 +7,10 @@ import { generateExpiryReminders } from "@/lib/subscription/subscription-service
  * Generates reminder events for subscriptions expiring within 7 days.
  * Returns events ready for Email/WhatsApp integration (future).
  *
+ * Protected by CRON_SECRET: the Authorization header must be
+ * `Bearer <CRON_SECRET>`. If CRON_SECRET is not set (dev), the endpoint
+ * is open but logs a warning.
+ *
  * Reminder schedule:
  *   - 7 days before expiry
  *   - 3 days before expiry
@@ -15,11 +19,16 @@ import { generateExpiryReminders } from "@/lib/subscription/subscription-service
  *
  * This endpoint is designed to be called by a cron job (Vercel Cron,
  * GitHub Actions, or any scheduler) once daily.
- *
- * Future: integrate with an email provider (Resend/SendGrid) and WhatsApp
- * Business API. The ReminderEvent structure is provider-agnostic.
  */
 export async function GET(req: NextRequest) {
+  // ── CRON_SECRET authorization ──
+  if (process.env.CRON_SECRET) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   try {
     const events = await generateExpiryReminders();
 

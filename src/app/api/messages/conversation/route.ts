@@ -31,6 +31,43 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
+    const conversation = await db.conversation.findUnique({
+      where: { id: conversationId },
+    });
+    if (!conversation) {
+      return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+
+    // ── Participant verification (BOLA fix) ──
+    const vendor = await db.vendor.findFirst({
+      where: { owner_user_id: userId },
+      select: { id: true },
+    });
+    const isAdmin = user?.email && ["bookingjosh@gmail.com"].includes(user.email.toLowerCase());
+
+    let isP1 = false;
+    let isP2 = false;
+    if (isAdmin) {
+      isP1 = conversation.participant1Type === "admin" && conversation.participant1Id === userId;
+      isP2 = conversation.participant2Type === "admin" && conversation.participant2Id === userId;
+    }
+    if (!isP1 && vendor && conversation.participant1Type === "vendor" && conversation.participant1Id === vendor.id) {
+      isP1 = true;
+    }
+    if (!isP2 && vendor && conversation.participant2Type === "vendor" && conversation.participant2Id === vendor.id) {
+      isP2 = true;
+    }
+    if (!isP1 && conversation.participant1Type === "customer" && conversation.participant1Id === userId) {
+      isP1 = true;
+    }
+    if (!isP2 && conversation.participant2Type === "customer" && conversation.participant2Id === userId) {
+      isP2 = true;
+    }
+
+    if (!isP1 && !isP2) {
+      return NextResponse.json({ error: "Not authorized to view this conversation" }, { status: 403 });
+    }
+
     const messages = await db.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: "asc" },
@@ -38,26 +75,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Mark messages from the other participant as read
-    const conversation = await db.conversation.findUnique({
-      where: { id: conversationId },
-    });
     if (conversation) {
-      // Determine which participant the current user is
-      const vendor = await db.vendor.findFirst({
-        where: { owner_user_id: userId },
-        select: { id: true },
-      });
-      const isAdmin = user?.email && ["bookingjosh@gmail.com"].includes(user.email.toLowerCase());
-
-      let isP1 = false;
-      if (isAdmin) {
-        isP1 = conversation.participant1Type === "admin" && conversation.participant1Id === userId;
-      } else if (vendor && conversation.participant1Type === "vendor" && conversation.participant1Id === vendor.id) {
-        isP1 = true;
-      } else if (conversation.participant1Type === "customer" && conversation.participant1Id === userId) {
-        isP1 = true;
-      }
-
       // Reset unread count for the current user
       await db.conversation.update({
         where: { id: conversationId },
@@ -131,6 +149,14 @@ export async function POST(req: NextRequest) {
       senderName = "Admin";
     }
 
+    // ── Participant verification (BOLA fix) ──
+    // Verify the sender is participant1 or participant2 of this conversation.
+    const isSenderP1 = conversation.participant1Type === senderType && conversation.participant1Id === senderId;
+    const isSenderP2 = conversation.participant2Type === senderType && conversation.participant2Id === senderId;
+    if (!isSenderP1 && !isSenderP2) {
+      return NextResponse.json({ error: "Not authorized to post in this conversation" }, { status: 403 });
+    }
+
     const message = await db.message.create({
       data: {
         conversationId,
@@ -143,8 +169,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Update conversation
-    const isSenderP1 = conversation.participant1Type === senderType && conversation.participant1Id === senderId;
+    // Update conversation — isSenderP1 already computed above for BOLA check
     await db.conversation.update({
       where: { id: conversationId },
       data: {

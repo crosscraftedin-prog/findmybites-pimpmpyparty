@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createBooking, type BookingItem } from "@/lib/bookings/booking-service";
+import { requireAdmin } from "@/lib/admin-guard";
+import { resolveVendorFromSession } from "@/lib/vendor-session";
 
 /**
  * POST /api/bookings
- * Create a new booking (customer-facing).
- * Body: CreateBookingInput
+ * Create a new booking (customer-facing, intentionally public).
  *
  * GET /api/bookings?search=...&status=...&city=...&vendorId=...&dateFrom=...&dateTo=...
- * Search bookings (vendor/admin).
+ * Search bookings (vendor/admin only — never public, exposes customer PII).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -40,11 +41,27 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    // ── Authorization: admin or vendor only ──
+    const adminGuard = await requireAdmin();
+    let scopedVendorId: string | undefined;
+
+    if (!adminGuard) {
+      // Admin — can search across all vendors
+    } else {
+      // Not admin — must be an authenticated vendor
+      const vendor = await resolveVendorFromSession();
+      if (!vendor) {
+        return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      }
+      // Force scope to the session vendor's own bookings (ignore query param)
+      scopedVendorId = vendor.id;
+    }
+
     const sp = req.nextUrl.searchParams;
     const { searchBookings } = await import("@/lib/bookings/booking-service");
 
     const bookings = await searchBookings({
-      vendorId: sp.get("vendorId") ?? undefined,
+      vendorId: scopedVendorId ?? sp.get("vendorId") ?? undefined,
       customerEmail: sp.get("customerEmail") ?? undefined,
       status: (sp.get("status") as any) ?? undefined,
       city: sp.get("city") ?? undefined,

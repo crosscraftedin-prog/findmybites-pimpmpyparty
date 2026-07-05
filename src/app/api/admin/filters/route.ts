@@ -18,6 +18,7 @@ export async function GET() {
         categories: true,
       },
       orderBy: { name: "asc" },
+      take: 200,
     });
 
     return NextResponse.json(groups);

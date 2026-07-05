@@ -53,9 +53,9 @@ export async function PATCH(req: NextRequest) {
         data: { read: true, readAt: now },
       });
     } else if (id) {
-      // Mark single as read
-      await db.notification.update({
-        where: { id },
+      // Mark single as read — scoped to the authenticated recipient (BOLA fix)
+      await db.notification.updateMany({
+        where: { id, recipientType: role, recipientId },
         data: { read: true, readAt: now },
       });
     }

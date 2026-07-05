@@ -200,18 +200,27 @@ export async function analyzeBusinessImage(imageUrl: string): Promise<AiImageAna
   const zai = await getZAI();
   if (!zai) return null;
   try {
-    const completion = await zai.chat.completions.createVision({
-      messages: [{
-        role: "user",
-        content: [
-          { type: "text", text: "Analyze this business logo/cover image. Return ONLY valid JSON with: {\"primaryColors\":[\"hex color codes\"],\"brandTheme\":\"one-word theme\",\"recommendedHomepageColors\":[\"hex codes for website\"],\"coverLayoutSuggestion\":\"brief suggestion\",\"brandPersonality\":[\"3-4 personality traits\"]}" },
-          { type: "image_url", image_url: { url: imageUrl } },
-        ],
-      }],
-      thinking: { type: "disabled" },
-    });
-    const text = completion.choices[0]?.message?.content || "";
-    const parsed = extractJson(text);
+    // ── 30-second timeout ──
+    const { result: text, timedOut } = await callWithTimeout(async (_signal) => {
+      const completion = await zai.chat.completions.createVision({
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: "Analyze this business logo/cover image. Return ONLY valid JSON with: {\"primaryColors\":[\"hex color codes\"],\"brandTheme\":\"one-word theme\",\"recommendedHomepageColors\":[\"hex codes for website\"],\"coverLayoutSuggestion\":\"brief suggestion\",\"brandPersonality\":[\"3-4 personality traits\"]}" },
+            { type: "image_url", image_url: { url: imageUrl } },
+          ],
+        }],
+        thinking: { type: "disabled" },
+      });
+      return completion.choices[0]?.message?.content || "";
+    }, 30_000);
+
+    if (timedOut) {
+      logger.warn("ai-listing", "Image analysis LLM call timed out after 30s");
+      return null;
+    }
+
+    const parsed = extractJson(text || "");
     if (parsed) {
       return {
         primaryColors: Array.isArray(parsed.primaryColors) ? parsed.primaryColors.slice(0, 5).map(String) : [],
@@ -223,7 +232,7 @@ export async function analyzeBusinessImage(imageUrl: string): Promise<AiImageAna
     }
     return null;
   } catch (err) {
-    console.error("[ai-setup] image analysis failed:", err);
+    logger.error("ai-listing", "Image analysis failed", { message: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }

@@ -11,6 +11,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getZAI } from "@/lib/zai-server";
 import { resolveVendorFromSession } from "@/lib/vendor-session";
 import { checkAiRateLimit, incrementAiCount } from "@/lib/ai/rate-limiter";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 import { db } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
@@ -35,6 +37,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sentence is required" }, { status: 400 });
     }
 
+    // ── Prompt injection check on user-supplied sentence ──
+    const sanitizeResult = sanitizePrompt(sentence);
+    if (sanitizeResult.blocked) {
+      logger.warn("ai-classify", "Prompt injection blocked", { reason: sanitizeResult.reason, vendorId: vendor.id });
+      return NextResponse.json({ error: "Input rejected by security filter" }, { status: 400 });
+    }
+    const safeSentence = sanitizeResult.sanitized;
+
     // Fetch all categories + business types from DB for the AI to choose from
     const [categories, businessTypes] = await Promise.all([
       db.category.findMany({ where: { active: true }, select: { slug: true, label: true, ecosystem: true } }).catch(() => []),
@@ -50,7 +60,7 @@ export async function POST(req: NextRequest) {
     }
 
     const prompt = `You are a business classification AI for a marketplace platform.
-A vendor describes their business: "${sentence}"
+A vendor describes their business: "${safeSentence}"
 
 Available categories: ${categoryList}
 Available business types: ${btList}
@@ -70,14 +80,22 @@ Rules:
 - businessType should match one of the available values for that category
 - confidence is your estimation of how accurate this classification is`;
 
-    const completion = await zai.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      thinking: { type: "disabled" },
-    });
+    // ── 30-second timeout ──
+    const { result: text, timedOut } = await callWithTimeout(async (_signal) => {
+      const completion = await zai.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        thinking: { type: "disabled" },
+      });
+      return completion.choices[0]?.message?.content || "";
+    }, 30_000);
 
-    const text = completion.choices[0]?.message?.content || "";
+    if (timedOut) {
+      logger.warn("ai-classify", "LLM call timed out after 30s", { vendorId: vendor.id });
+      return NextResponse.json({ error: "AI request timed out" }, { status: 504 });
+    }
+
     try {
-      const m = text.match(/\{[\s\S]*\}/);
+      const m = (text || "").match(/\{[\s\S]*\}/);
       if (m) {
         const result = JSON.parse(m[0]);
         incrementAiCount(vendor.id);
@@ -93,7 +111,7 @@ Rules:
 
     return NextResponse.json({ error: "AI classification failed" }, { status: 500 });
   } catch (err: any) {
-    console.error("[ai/classify] failed:", err);
+    logger.error("ai-classify", "Classification failed", { message: err.message });
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

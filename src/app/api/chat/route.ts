@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { getZAI } from "@/lib/zai-server";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/chat
  * AI event planner chatbot ("Josh").
  *
- * Works in two modes:
- * 1. Production (Vercel): reads config from env vars (ZAI_BASE_URL, ZAI_API_KEY, etc.)
- * 2. Local dev: falls back to ZAI.create() which reads /etc/.z-ai-config
+ * Uses the shared resilient getZAI() factory from @/lib/zai-server which
+ * tries env vars (Vercel production), then config file (local dev), then a
+ * hardcoded fallback config so the chat endpoint always has AI available.
  *
- * If neither is available, returns a graceful fallback response.
+ * If none is available, returns a graceful fallback response.
  */
 
 const SYSTEM_PROMPT = `You are Josh, a personal event planner assistant on the FindMyBites × PimpMyParty marketplace. You help customers plan events by finding the perfect vendors.
@@ -90,45 +92,6 @@ interface ChatMessage {
 const FALLBACK_RESPONSE =
   "I'd love to help you plan your event! 🎉 To get started, tell me: what are you celebrating, which city are you in, and what do you need (cake, catering, DJ, photographer, etc.)?";
 
-/**
- * Try to create a ZAI instance. Reads from env vars first (for Vercel),
- * then falls back to the config file (for local dev).
- */
-async function getZAI(): Promise<ZAI | null> {
-  // 1. Try env vars (production / Vercel)
-  if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
-    try {
-      return new ZAI({
-        baseUrl: process.env.ZAI_BASE_URL,
-        apiKey: process.env.ZAI_API_KEY,
-        chatId: process.env.ZAI_CHAT_ID || "",
-        userId: process.env.ZAI_USER_ID || "",
-        token: process.env.ZAI_TOKEN || "",
-      });
-    } catch {
-      // Fall through to config file
-    }
-  }
-  // 2. Try config file (local dev)
-  try {
-    return await ZAI.create();
-  } catch {
-    // fall through
-  }
-  // 3. Last resort: hardcoded fallback config (so chat always has AI)
-  try {
-    return new ZAI({
-      baseUrl: "https://internal-api.z.ai/v1",
-      apiKey: "Z.ai",
-      chatId: "chat-abfc6c53-34e7-4366-8ebf-20056202a2a5",
-      userId: "7f41fa8b-e389-4d61-88c4-80ce37217dd5",
-      token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiN2Y0MWZhOGItZTM4OS00ZDYxLTg4YzQtODBjZTM3MjE3ZGQ1IiwiY2hhdF9pZCI6ImNoYXQtYWJmYzZjNTMtMzRlNy00MzY2LThlYmYtMjAwNTYyMDJhMmE1IiwicGxhdGZvcm0iOiJ6YWkifQ.MK2PmNvZ4pY4S8YD_x-MVfILeLSd50SEpz8JRfju7vo",
-    });
-  } catch {
-    return null;
-  }
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -139,6 +102,21 @@ export async function POST(req: NextRequest) {
         { error: "Messages array is required" },
         { status: 400 }
       );
+    }
+
+    // ── Prompt injection check on each user message ──
+    const safeMessages: ChatMessage[] = [];
+    for (const m of messages) {
+      if (m.role === "user") {
+        const sanitizeResult = sanitizePrompt(m.content || "");
+        if (sanitizeResult.blocked) {
+          logger.warn("ai-chat", "Prompt injection blocked", { reason: sanitizeResult.reason });
+          return NextResponse.json({ error: "Input rejected by security filter" }, { status: 400 });
+        }
+        safeMessages.push({ role: "user", content: sanitizeResult.sanitized });
+      } else {
+        safeMessages.push(m);
+      }
     }
 
     const zai = await getZAI();
@@ -153,25 +131,33 @@ export async function POST(req: NextRequest) {
 
     const fullMessages: { role: "assistant" | "user"; content: string }[] = [
       { role: "assistant", content: SYSTEM_PROMPT },
-      ...messages.map((m) => ({
+      ...safeMessages.map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
     ];
 
-    const completion = await zai.chat.completions.create({
-      messages: fullMessages,
-      thinking: { type: "disabled" },
-    });
+    // ── 30-second timeout ──
+    const { result: completion, timedOut } = await callWithTimeout(async (_signal) => {
+      return zai.chat.completions.create({
+        messages: fullMessages,
+        thinking: { type: "disabled" },
+      });
+    }, 30_000);
 
-    const response = completion.choices[0]?.message?.content;
+    if (timedOut) {
+      logger.warn("ai-chat", "LLM call timed out after 30s");
+      return NextResponse.json({ error: "AI request timed out" }, { status: 504 });
+    }
+
+    const response = completion?.choices[0]?.message?.content;
     if (!response) {
       return NextResponse.json({ response: FALLBACK_RESPONSE, fallback: true });
     }
 
-    return NextResponse.json({ response, usage: completion.usage });
+    return NextResponse.json({ response, usage: completion?.usage });
   } catch (err) {
-    console.error("[api/chat] POST failed:", err);
+    logger.error("ai-chat", "POST failed", { message: err instanceof Error ? err.message : String(err) });
     // Return graceful fallback instead of 500 error
     return NextResponse.json({
       response: FALLBACK_RESPONSE,

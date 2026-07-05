@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getZAI } from "@/lib/zai-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/ai/quote-builder
@@ -114,8 +116,15 @@ export async function POST(req: NextRequest) {
 
     const zai = await getZAI();
     if (zai) {
-      try {
-        const prompt = `Write a professional, friendly quote cover letter from ${booking.vendor?.name} to a customer.
+      // ── Prompt injection check on customer-submitted notes/message ──
+      const customerNotes = booking.notes || booking.message || "";
+      const sanitizeResult = sanitizePrompt(customerNotes);
+      if (sanitizeResult.blocked) {
+        logger.warn("ai-quote-builder", "Prompt injection blocked", { reason: sanitizeResult.reason, bookingId });
+      } else {
+        const safeNotes = sanitizeResult.sanitized || customerNotes;
+        try {
+          const prompt = `Write a professional, friendly quote cover letter from ${booking.vendor?.name} to a customer.
 
 Enquiry details:
 - Event: ${booking.eventType}
@@ -123,21 +132,31 @@ Enquiry details:
 - Guests: ${booking.guests}
 - Budget: ${booking.budget}
 - City: ${booking.eventCity}
-- Notes: ${booking.notes || booking.message || "None"}
+- Notes: ${safeNotes || "None"}
 
 Quote total: ${symbol}${totalAmount.toLocaleString()}
 
 Keep it under 100 words. Professional but warm. Mention the total amount and that a deposit secures the booking. Do not use placeholders.`;
 
-        const completion = await zai.chat.completions.create({
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.7,
-          max_tokens: 150,
-        });
-        const aiText = completion.choices[0]?.message?.content?.trim();
-        if (aiText) aiNotes = aiText;
-      } catch {
-        // keep template notes
+          // ── 30-second timeout ──
+          const { result: aiText, timedOut } = await callWithTimeout(async (_signal) => {
+            const completion = await zai.chat.completions.create({
+              messages: [{ role: "user", content: prompt }],
+              temperature: 0.7,
+              max_tokens: 150,
+            });
+            return completion.choices[0]?.message?.content?.trim() || "";
+          }, 30_000);
+
+          if (timedOut) {
+            logger.warn("ai-quote-builder", "LLM call timed out after 30s", { bookingId });
+          } else if (aiText) {
+            aiNotes = aiText;
+          }
+        } catch (e) {
+          logger.error("ai-quote-builder", "AI cover letter failed", { message: e instanceof Error ? e.message : String(e), bookingId });
+          // keep template notes
+        }
       }
     }
 
@@ -159,7 +178,7 @@ Keep it under 100 words. Professional but warm. Mention the total amount and tha
       source: zai ? "ai" : "template",
     });
   } catch (err) {
-    console.error("[api/ai/quote-builder] POST failed:", err);
+    logger.error("ai-quote-builder", "POST failed", { message: err instanceof Error ? err.message : String(err) });
     return NextResponse.json({ error: "Failed to build quote" }, { status: 500 });
   }
 }

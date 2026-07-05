@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
 import { db } from "@/lib/db";
+import { getZAI } from "@/lib/zai-server";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 import { JOSH_SYSTEM_PROMPT_V4 } from "@/lib/josh-system-prompt-v4";
 import { parseJsonArray } from "@/lib/format";
 import {
@@ -65,7 +67,7 @@ interface RequestBody {
   conversationId?: string;
   userId: string;
   userEmail?: string;
-  userType?: "customer" | "vendor";
+  userType?: "customer" | "vendor" | "admin";
   vendorId?: string;
   vendorContext?: {
     vendorId: string;
@@ -77,38 +79,6 @@ interface RequestBody {
 
 const FALLBACK_RESPONSE =
   "I'm here to help! Tell me your city and what you need — cake, catering, DJ, photographer, decorator — and I'll find the best vendors for you.";
-
-// ── ZAI instance factory ──────────────────────────────────────────────────
-
-const ZAI_FALLBACK_CONFIG = {
-  baseUrl: "https://internal-api.z.ai/v1",
-  apiKey: "Z.ai",
-  chatId: "chat-abfc6c53-34e7-4366-8ebf-20056202a2a5",
-  userId: "7f41fa8b-e389-4d61-88c4-80ce37217dd5",
-  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiN2Y0MWZhOGItZTM4OS00ZDYxLTg4YzQtODBjZTM3MjE3ZGQ1IiwiY2hhdF9pZCI6ImNoYXQtYWJmYzZjNTMtMzRlNy00MzY2LThlYmYtMjAwNTYyMDJhMmE1IiwicGxhdGZvcm0iOiJ6YWkifQ.MK2PmNvZ4pY4S8YD_x-MVfILeLSd50SEpz8JRfju7vo",
-};
-
-async function getZAI(): Promise<ZAI | null> {
-  if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
-    try {
-      return new ZAI({
-        baseUrl: process.env.ZAI_BASE_URL,
-        apiKey: process.env.ZAI_API_KEY,
-        chatId: process.env.ZAI_CHAT_ID || "",
-        userId: process.env.ZAI_USER_ID || "",
-        token: process.env.ZAI_TOKEN || "",
-      });
-    } catch {}
-  }
-  try {
-    return await ZAI.create();
-  } catch {}
-  try {
-    return new ZAI(ZAI_FALLBACK_CONFIG);
-  } catch {
-    return null;
-  }
-}
 
 // ── Vendor profile context (for vendor users) ─────────────────────────────
 
@@ -159,6 +129,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing message or userId" }, { status: 400 });
     }
 
+    // ── Prompt injection check on user message ──
+    const sanitizeResult = sanitizePrompt(message);
+    if (sanitizeResult.blocked) {
+      logger.warn("josh-chat", "Prompt injection blocked", { reason: sanitizeResult.reason, userId });
+      return NextResponse.json({ error: "Message rejected by security filter" }, { status: 400 });
+    }
+    const safeMessage = sanitizeResult.sanitized;
+
     // ── STEP 1: Load or create conversation (DATABASE-ONLY, no memory fallback) ──
     // The database (PostgreSQL) is the single source of truth.
     // If the DB is unavailable, errors are logged and re-thrown — never swallowed.
@@ -184,7 +162,7 @@ export async function POST(req: NextRequest) {
     const trimmedHistory = history.slice(-20);
     const newMessages: ChatMessage[] = [
       ...trimmedHistory,
-      { role: "user", content: message, timestamp: new Date().toISOString() },
+      { role: "user", content: safeMessage, timestamp: new Date().toISOString() },
     ];
     console.log(`[josh/v4] ${requestId}   history length = ${trimmedHistory.length} | total = ${newMessages.length}`);
 
@@ -309,11 +287,20 @@ export async function POST(req: NextRequest) {
         ];
         const llmStart = Date.now();
         try {
-          const completion = await zai.chat.completions.create({ messages: llmMessages, thinking: { type: "disabled" } });
+          // ── 30-second timeout ──
+          const { result: completion, timedOut } = await callWithTimeout(async (_signal) => {
+            return zai.chat.completions.create({ messages: llmMessages, thinking: { type: "disabled" } });
+          }, 30_000);
           llmLatency = Date.now() - llmStart;
-          tokenUsage = completion.usage;
-          assistantMessage = completion.choices[0]?.message?.content || deterministicResponse(action, convState, vendors, products);
-          console.log(`[josh/v4] ${requestId}   LLM response (${llmLatency}ms, tokens=${tokenUsage?.total_tokens ?? "?"}): ${assistantMessage.slice(0, 120)}`);
+          if (timedOut) {
+            logger.warn("josh-chat", "LLM call timed out after 30s", { requestId });
+            assistantMessage = deterministicResponse(action, convState, vendors, products);
+            usedFallback = true;
+          } else {
+            tokenUsage = completion?.usage;
+            assistantMessage = completion?.choices[0]?.message?.content || deterministicResponse(action, convState, vendors, products);
+            console.log(`[josh/v4] ${requestId}   LLM response (${llmLatency}ms, tokens=${tokenUsage?.total_tokens ?? "?"}): ${assistantMessage.slice(0, 120)}`);
+          }
         } catch (llmErr) {
           llmLatency = Date.now() - llmStart;
           console.error(`[josh/v4] ${requestId}   LLM FAILED (${llmLatency}ms): ${(llmErr as Error)?.message?.slice(0, 200)}`);
@@ -366,14 +353,20 @@ export async function POST(req: NextRequest) {
       const zaiForSummary = await getZAI();
       if (zaiForSummary) {
         try {
-          const summaryRes = await zaiForSummary.chat.completions.create({
-            messages: [
-              { role: "assistant", content: "Summarize this conversation in 2-3 sentences:" },
-              ...savedMessages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-            ],
-            thinking: { type: "disabled" },
-          });
-          const summary = summaryRes.choices[0]?.message?.content;
+          // ── 30-second timeout ──
+          const { result: summaryRes, timedOut: summaryTimedOut } = await callWithTimeout(async (_signal) => {
+            return zaiForSummary.chat.completions.create({
+              messages: [
+                { role: "assistant", content: "Summarize this conversation in 2-3 sentences:" },
+                ...savedMessages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+              ],
+              thinking: { type: "disabled" },
+            });
+          }, 30_000);
+          if (summaryTimedOut) {
+            logger.warn("josh-chat", "Summary LLM call timed out after 30s", { requestId });
+          }
+          const summary = summaryRes?.choices[0]?.message?.content;
           if (summary && conversation) {
             await updateConversationSummary(conversation, summary);
           }

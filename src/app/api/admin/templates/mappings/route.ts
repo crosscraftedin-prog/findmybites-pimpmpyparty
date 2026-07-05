@@ -16,6 +16,7 @@ export async function GET() {
         template: { select: { slug: true, name: true } },
       },
       orderBy: { categoryId: "asc" },
+      take: 500,
     });
 
     return NextResponse.json(mappings ?? []);

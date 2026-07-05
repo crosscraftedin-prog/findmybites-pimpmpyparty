@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const guard = await requireAdmin();
   if (guard) return guard;
   try {
-    const types = await db.businessType.findMany({ orderBy: [{ categoryId: "asc" }, { sortOrder: "asc" }] });
+    const types = await db.businessType.findMany({ orderBy: [{ categoryId: "asc" }, { sortOrder: "asc" }], take: 500 });
     return NextResponse.json({ businessTypes: types });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

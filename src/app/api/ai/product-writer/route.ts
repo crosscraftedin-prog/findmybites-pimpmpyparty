@@ -1,33 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { getZAI } from "@/lib/zai-server";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/ai/product-writer
  * Generates product description, SEO, and tags from the product name.
  * Body: { name, category, ecosystem, city }
  */
-
-async function getZAI(): Promise<ZAI | null> {
-  if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
-    try {
-      return new ZAI({
-        baseUrl: process.env.ZAI_BASE_URL, apiKey: process.env.ZAI_API_KEY,
-        chatId: process.env.ZAI_CHAT_ID || "", userId: process.env.ZAI_USER_ID || "",
-        token: process.env.ZAI_TOKEN || "",
-      });
-    } catch {}
-  }
-  try { return await ZAI.create(); } catch {}
-  try {
-    return new ZAI({
-      baseUrl: "https://internal-api.z.ai/v1", apiKey: "Z.ai",
-      chatId: "chat-abfc6c53-34e7-4366-8ebf-20056202a2a5",
-      userId: "7f41fa8b-e389-4d61-88c4-80ce37217dd5",
-      token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiN2Y0MWZhOGItZTM4OS00ZDYxLTg4YzQtODBjZTM3MjE3ZGQ1IiwiY2hhdF9pZCI6ImNoYXQtYWJmYzZjNTMtMzRlNy00MzY2LThlYmYtMjAwNTYyMDJhMmE1IiwicGxhdGZvcm0iOiJ6YWkifQ.MK2PmNvZ4pY4S8YD_x-MVfILeLSd50SEpz8JRfju7vo",
-    });
-  } catch { return null; }
-}
-
 export async function POST(req: NextRequest) {
   try {
     const { name, category, ecosystem, city } = await req.json();
@@ -35,6 +15,17 @@ export async function POST(req: NextRequest) {
     if (!name?.trim()) {
       return NextResponse.json({ error: "Product name is required" }, { status: 400 });
     }
+
+    // ── Prompt injection check on user-supplied fields ──
+    const userInput = [name, category || "", city || ""].join("\n");
+    const sanitizeResult = sanitizePrompt(userInput);
+    if (sanitizeResult.blocked) {
+      logger.warn("ai-product-writer", "Prompt injection blocked", { reason: sanitizeResult.reason });
+      return NextResponse.json({ error: "Input rejected by security filter" }, { status: 400 });
+    }
+    const safeName = sanitizeResult.sanitized.split("\n")[0] || name;
+    const safeCategory = (sanitizeResult.sanitized.split("\n")[1] || category || "").trim();
+    const safeCity = (sanitizeResult.sanitized.split("\n")[2] || city || "").trim();
 
     const zai = await getZAI();
     if (!zai) {
@@ -44,9 +35,9 @@ export async function POST(req: NextRequest) {
     const platform = ecosystem === "FINDMYBITES" ? "FindMyBites (food marketplace)" : "PimpMyParty (event services marketplace)";
     const prompt = `You are a professional copywriter for ${platform}. Generate content for a product listing.
 
-Product Name: ${name}
-Category: ${category || "General"}
-City: ${city || "Global"}
+Product Name: ${safeName}
+Category: ${safeCategory || "General"}
+City: ${safeCity || "Global"}
 
 Generate a JSON response with these fields:
 - description: A compelling 2-3 sentence product description (50-100 words)
@@ -57,33 +48,40 @@ Generate a JSON response with these fields:
 
 Return ONLY valid JSON, no markdown.`;
 
-    const completion = await zai.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      thinking: { type: "disabled" },
-    });
+    // ── 30-second timeout ──
+    const { result: content, timedOut } = await callWithTimeout(async (_signal) => {
+      const completion = await zai.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        thinking: { type: "disabled" },
+      });
+      return completion.choices[0]?.message?.content || "";
+    }, 30_000);
 
-    const content = completion.choices[0]?.message?.content || "";
+    if (timedOut) {
+      logger.warn("ai-product-writer", "LLM call timed out after 30s");
+      return NextResponse.json({ error: "AI request timed out" }, { status: 504 });
+    }
 
     // Try to parse JSON from the response
     let parsed: any = null;
     try {
       // Remove markdown code fences if present
-      const jsonStr = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const jsonStr = (content || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       parsed = JSON.parse(jsonStr);
     } catch {
       // If JSON parse fails, return raw content as description
       parsed = {
-        description: content.slice(0, 200),
-        shortDescription: content.slice(0, 80),
-        metaTitle: name.slice(0, 60),
-        metaDescription: content.slice(0, 155),
-        tags: category || "",
+        description: (content || "").slice(0, 200),
+        shortDescription: (content || "").slice(0, 80),
+        metaTitle: safeName.slice(0, 60),
+        metaDescription: (content || "").slice(0, 155),
+        tags: safeCategory || "",
       };
     }
 
     return NextResponse.json(parsed);
   } catch (error: any) {
-    console.error("[ai/product-writer] POST failed:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    logger.error("ai-product-writer", "POST failed", { message: error?.message ?? String(error) });
+    return NextResponse.json({ error: error?.message ?? "Failed to generate product content" }, { status: 500 });
   }
 }

@@ -19,6 +19,7 @@ export async function GET() {
         mappings: true,
       },
       orderBy: { name: "asc" },
+      take: 100,
     });
 
     if (templates && templates.length > 0) {

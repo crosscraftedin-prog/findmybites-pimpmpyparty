@@ -397,7 +397,7 @@ export async function getAdminMarketingStats(): Promise<AdminMarketingStats> {
     }),
     db.marketingCampaign.groupBy({ by: ["type"], _count: true }),
     db.aiGenerationLog.groupBy({ by: ["feature"], _count: true, _sum: { tokens: true } }),
-    db.referral.findMany({ select: { status: true, creditsEarned: true } }),
+    db.referral.findMany({ select: { status: true, creditsEarned: true }, take: 10000 }),
     db.vendorSubscription.findMany({ where: { status: "active" }, select: { planTier: true, amountPaid: true } }),
   ]);
 

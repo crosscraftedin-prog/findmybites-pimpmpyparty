@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/admin-guard";
 
 /**
  * DELETE /api/reviews/[id]
- * Remove a review (admin moderation). Also decrements the vendor's reviewCount
+ * Remove a review (admin moderation only). Also decrements the vendor's reviewCount
  * and recomputes the weighted rating so public numbers stay consistent.
  */
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // ── Admin authorization required ──
+  const guard = await requireAdmin();
+  if (guard) return guard;
+
   try {
     const { id } = await params;
     const review = await db.review.findUnique({ where: { id } });

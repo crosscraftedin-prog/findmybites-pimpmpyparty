@@ -52,6 +52,10 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // ── Admin authorization required (returns all subcategories including inactive) ──
+  const guard = await requireAdmin();
+  if (guard) return guard;
+
   try {
     const { id: categoryId } = await params;
     const subcategories = await db.subcategory.findMany({

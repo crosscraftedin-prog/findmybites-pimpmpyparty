@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { getZAI } from "@/lib/zai-server";
 import { parseJsonArray } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/ai/vendor-assistant
@@ -37,6 +39,14 @@ export async function POST(req: NextRequest) {
     if (!message) {
       return NextResponse.json({ error: "message required" }, { status: 400 });
     }
+
+    // ── Prompt injection check on user-supplied message ──
+    const sanitizeResult = sanitizePrompt(message);
+    if (sanitizeResult.blocked) {
+      logger.warn("ai-vendor-assistant", "Prompt injection blocked", { reason: sanitizeResult.reason, userId });
+      return NextResponse.json({ error: "Input rejected by security filter" }, { status: 400 });
+    }
+    const safeMessage = sanitizeResult.sanitized || message;
 
     // Find vendor
     const vendor = await db.vendor.findFirst({
@@ -117,7 +127,6 @@ export async function POST(req: NextRequest) {
       category: vendor.category,
       city: vendor.city,
       rating: vendor.rating,
-      reviewCount: vendor.reviewCount,
       basePrice: vendor.basePrice,
       currency: vendor.currency,
       description: vendor.description,
@@ -158,7 +167,7 @@ export async function POST(req: NextRequest) {
 VENDOR DATA:
 ${JSON.stringify(vendorContext, null, 2)}
 
-VENDOR QUESTION: "${message}"
+VENDOR QUESTION: "${safeMessage}"
 
 Rules:
 - Be specific and data-driven (reference their actual numbers)
@@ -170,17 +179,26 @@ Rules:
 - If they ask about SEO, check metaTitle/metaDescription/gallery
 - If they ask about products, reference their actual product names`;
 
-    const completion = await zai.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.6,
-      max_tokens: 300,
-    });
+    // ── 30-second timeout ──
+    const { result: replyText, timedOut } = await callWithTimeout(async (_signal) => {
+      const completion = await zai.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.6,
+        max_tokens: 300,
+      });
+      return completion.choices[0]?.message?.content?.trim() || "";
+    }, 30_000);
 
-    const reply = completion.choices[0]?.message?.content?.trim() || "I'm not sure how to help with that, but you can always reach out to our support team!";
+    if (timedOut) {
+      logger.warn("ai-vendor-assistant", "LLM call timed out after 30s", { vendorId: vendor.id });
+      return NextResponse.json({ error: "AI request timed out" }, { status: 504 });
+    }
+
+    const reply = replyText || "I'm not sure how to help with that, but you can always reach out to our support team!";
 
     return NextResponse.json({ reply, data: vendorContext });
   } catch (err) {
-    console.error("[api/ai/vendor-assistant] POST failed:", err);
+    logger.error("ai-vendor-assistant", "POST failed", { message: err instanceof Error ? err.message : String(err) });
     return NextResponse.json({ error: "Assistant failed" }, { status: 500 });
   }
 }

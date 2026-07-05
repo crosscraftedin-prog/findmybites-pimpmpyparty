@@ -6,9 +6,11 @@
  * Note: Supabase Auth cookies are already httpOnly + SameSite=Lax,
  * which provides CSRF protection via the browser's SameSite policy.
  * This adds an explicit defense-in-depth layer.
+ *
+ * IMPORTANT: This file runs in the Edge Runtime (Next.js middleware).
+ * Do NOT use Node.js 'crypto' module — use the Web Crypto API instead.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
 
 const CSRF_COOKIE = "csrf-token";
 const CSRF_HEADER = "x-csrf-token";
@@ -21,7 +23,10 @@ const EXEMPT_PATHS = [
 ];
 
 export function generateCsrfToken(): string {
-  return randomBytes(32).toString("hex");
+  // Web Crypto API — works in both Edge Runtime and Node.js
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export function ensureCsrfCookie(req: NextRequest, res: NextResponse): NextResponse {

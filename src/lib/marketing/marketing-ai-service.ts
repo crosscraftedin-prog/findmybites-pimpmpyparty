@@ -9,6 +9,8 @@
  */
 import { getZAI } from "@/lib/zai-server";
 import { db } from "@/lib/db";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 
 async function logAi(vendorId: string | null, feature: string, tokens: number, success: boolean) {
   try {
@@ -17,18 +19,38 @@ async function logAi(vendorId: string | null, feature: string, tokens: number, s
 }
 
 async function generate(prompt: string, vendorId: string | null, feature: string, expectJson = false): Promise<string | null> {
+  // ── Prompt injection check ──
+  // The prompt contains trusted system instructions + vendor context (from DB).
+  // We check the full prompt for injection patterns as a defense-in-depth measure.
+  const sanitizeResult = sanitizePrompt(prompt);
+  if (sanitizeResult.blocked) {
+    logger.warn("marketing-ai", "Prompt injection blocked", { feature, reason: sanitizeResult.reason });
+    await logAi(vendorId, feature, 0, false);
+    return null;
+  }
+
   const zai = await getZAI();
   if (!zai) { await logAi(vendorId, feature, 0, false); return null; }
   try {
-    const completion = await zai.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      thinking: { type: "disabled" },
-    });
-    const text = completion.choices[0]?.message?.content || "";
-    await logAi(vendorId, feature, Math.ceil(text.length / 4), true);
+    // ── 30-second timeout ──
+    const { result: text, timedOut } = await callWithTimeout(async (_signal) => {
+      const completion = await zai.chat.completions.create({
+        messages: [{ role: "user", content: sanitizeResult.sanitized || prompt }],
+        thinking: { type: "disabled" },
+      });
+      return completion.choices[0]?.message?.content || "";
+    }, 30_000);
+
+    if (timedOut) {
+      logger.warn("marketing-ai", "LLM call timed out after 30s", { feature, vendorId });
+      await logAi(vendorId, feature, 0, false);
+      return null;
+    }
+
+    await logAi(vendorId, feature, Math.ceil((text || "").length / 4), true);
     return text;
   } catch (err) {
-    console.error(`[marketing-ai] ${feature} failed:`, err);
+    logger.error("marketing-ai", `${feature} failed`, { message: err instanceof Error ? err.message : String(err) });
     await logAi(vendorId, feature, 0, false);
     return null;
   }

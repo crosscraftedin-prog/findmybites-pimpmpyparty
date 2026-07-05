@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getZAI } from "@/lib/zai-server";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/bookings/smart
@@ -107,15 +109,32 @@ Enquiry details:
 
 Return ONLY the summary line, nothing else.`;
 
-    const completion = await zai.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-      max_tokens: 60,
-    });
-    const aiSummary = completion.choices[0]?.message?.content?.trim() || template;
-    return { summary: aiSummary.slice(0, 120), source: "ai" };
-  } catch {
-    return { summary: template, source: "template" };
+    // ── Prompt injection check (defense-in-depth: customer-submitted enquiry fields) ──
+    const sanitizeResult = sanitizePrompt(prompt);
+    if (sanitizeResult.blocked) {
+      logger.warn("ai-bookings-smart", "Prompt injection blocked, using template summary", { reason: sanitizeResult.reason });
+      return { summary: template, source: "template" as const };
+    }
+
+    // ── 30-second timeout ──
+    const { result: aiSummary, timedOut } = await callWithTimeout(async (_signal) => {
+      const completion = await zai.chat.completions.create({
+        messages: [{ role: "user", content: sanitizeResult.sanitized }],
+        temperature: 0.3,
+        max_tokens: 60,
+      });
+      return completion.choices[0]?.message?.content?.trim() || template;
+    }, 30_000);
+
+    if (timedOut) {
+      logger.warn("ai-bookings-smart", "LLM call timed out after 30s");
+      return { summary: template, source: "template" as const };
+    }
+
+    return { summary: (aiSummary || template).slice(0, 120), source: "ai" as const };
+  } catch (err) {
+    logger.error("ai-bookings-smart", "AI summary failed, using template", { message: err instanceof Error ? err.message : String(err) });
+    return { summary: template, source: "template" as const };
   }
 }
 
@@ -167,7 +186,7 @@ export async function POST(req: NextRequest) {
       aiSource: source,
     }, { status: 201 });
   } catch (err) {
-    console.error("[api/bookings/smart] POST failed:", err);
+    logger.error("ai-bookings-smart", "POST failed", { message: err instanceof Error ? err.message : String(err) });
     return NextResponse.json(
       { error: "Failed to create enquiry" },
       { status: 500 }

@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     const actualVendorId = vendor.id;
     const actualEmail = userEmail || "";
 
-    logger.info("create-order", { planName, amount, vendorId: actualVendorId });
+    logger.info("create-order", "Creating Razorpay order", { planName, amount, vendorId: actualVendorId });
 
     const authHeader = "Basic " + Buffer.from(`${keyId}:${keySecret}`).toString("base64");
     const response = await fetch("https://api.razorpay.com/v1/orders", {
@@ -83,12 +83,12 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      logger.error("create-order razorpay failed", { status: response.status, error });
+      logger.error("create-order", "Razorpay order creation failed", { status: response.status, error });
       return NextResponse.json({ error: error?.error?.description || `Razorpay error: ${response.status}` }, { status: response.status });
     }
 
     const order = await response.json();
-    logger.info("create-order success", { orderId: order.id });
+    logger.info("create-order", "Order created successfully", { orderId: order.id });
 
     return NextResponse.json({
       orderId: order.id, amount: order.amount, currency: order.currency,
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       planName, vendorName,
     });
   } catch (error: any) {
-    logger.error("create-order error", { message: error.message });
+    logger.error("create-order", "Unexpected error", { message: error.message });
     return NextResponse.json({ error: `Internal server error: ${error.message}` }, { status: 500 });
   }
 }

@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { migrateCategory } from "@/lib/constants";
 import { getZAI } from "@/lib/zai-server";
 import { parseJsonArray } from "@/lib/format";
+import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/ai/search
@@ -21,6 +23,14 @@ export async function POST(req: NextRequest) {
     if (!query) {
       return NextResponse.json({ error: "query required" }, { status: 400 });
     }
+
+    // ── Prompt injection check on user-supplied query ──
+    const sanitizeResult = sanitizePrompt(query);
+    if (sanitizeResult.blocked) {
+      logger.warn("ai-search", "Prompt injection blocked", { reason: sanitizeResult.reason });
+      return NextResponse.json({ error: "Input rejected by security filter" }, { status: 400 });
+    }
+    const safeQuery = sanitizeResult.sanitized || query;
 
     // 1. Fetch all categories + filters from DB for AI context
     let categories: any[] = [];
@@ -50,7 +60,7 @@ export async function POST(req: NextRequest) {
       try {
         const prompt = `Parse this customer search query into a JSON object. Available categories: ${JSON.stringify(categories.map(c => ({ slug: c.slug, label: c.label })))}. Available filters: ${JSON.stringify(filterGroups)}.
 
-Query: "${query}"
+Query: "${safeQuery}"
 
 Return ONLY a JSON object with this structure (no markdown, no explanation):
 {
@@ -62,20 +72,28 @@ Return ONLY a JSON object with this structure (no markdown, no explanation):
   "explanation": "1-sentence friendly explanation"
 }`;
 
-        const completion = await zai.chat.completions.create({
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.2,
-          max_tokens: 300,
-        });
-        const response = completion.choices[0]?.message?.content?.trim() || "";
-        // Extract JSON from response
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsedIntent = JSON.parse(jsonMatch[0]);
-          aiExplanation = parsedIntent.explanation || "";
+        // ── 30-second timeout ──
+        const { result: response, timedOut } = await callWithTimeout(async (_signal) => {
+          const completion = await zai.chat.completions.create({
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.2,
+            max_tokens: 300,
+          });
+          return completion.choices[0]?.message?.content?.trim() || "";
+        }, 30_000);
+
+        if (timedOut) {
+          logger.warn("ai-search", "LLM call timed out after 30s");
+        } else {
+          // Extract JSON from response
+          const jsonMatch = response.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            parsedIntent = JSON.parse(jsonMatch[0]);
+            aiExplanation = parsedIntent.explanation || "";
+          }
         }
       } catch (err) {
-        console.error("[ai/search] AI parsing failed:", err);
+        logger.error("ai-search", "AI parsing failed", { message: err instanceof Error ? err.message : String(err) });
       }
     }
 
@@ -144,7 +162,7 @@ Return ONLY a JSON object with this structure (no markdown, no explanation):
       count: vendors.length,
     });
   } catch (err) {
-    console.error("[api/ai/search] POST failed:", err);
+    logger.error("ai-search", "POST failed", { message: err instanceof Error ? err.message : String(err) });
     return NextResponse.json({ error: "Search failed" }, { status: 500 });
   }
 }
