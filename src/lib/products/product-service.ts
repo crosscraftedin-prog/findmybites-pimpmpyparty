@@ -174,7 +174,34 @@ export async function getProduct(productId: string, vendorId: string): Promise<P
   return p ? toDetail(p) : null;
 }
 
+// ── Subscription-based product limits ────────────────────────────────────────
+const PRODUCT_LIMITS: Record<string, number> = {
+  free: 5,
+  pro: 25,
+  business: Infinity,
+};
+
+export async function getProductLimit(vendorId: string): Promise<{ limit: number; current: number; canCreate: boolean }> {
+  const [subscription, currentCount] = await Promise.all([
+    db.vendorSubscription.findFirst({
+      where: { vendorId, status: "active" },
+      orderBy: { createdAt: "desc" },
+      select: { planTier: true },
+    }).catch(() => null),
+    db.product.count({ where: { vendorId, status: { notIn: ["archived", "draft"] } } }),
+  ]);
+  const tier = subscription?.planTier || "free";
+  const limit = PRODUCT_LIMITS[tier] ?? PRODUCT_LIMITS.free;
+  return { limit, current: currentCount, canCreate: currentCount < limit };
+}
+
 export async function createProduct(vendorId: string, data: any): Promise<ProductDetail> {
+  // ── Enforce subscription limit ──
+  const { canCreate, limit, current } = await getProductLimit(vendorId);
+  if (!canCreate) {
+    throw new Error(`Product limit reached (${current}/${limit}). Upgrade your subscription to add more products.`);
+  }
+
   const slug = `${(data.name || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-${Date.now().toString(36)}`;
   const p = await db.product.create({ data: {
     vendorId, name: data.name || "Untitled", slug,

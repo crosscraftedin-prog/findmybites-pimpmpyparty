@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { activateSubscription, type PlanName, type BillingCycle } from "@/lib/subscription/subscription-service";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
  * POST /api/payments/verify-payment
@@ -9,25 +10,50 @@ import { activateSubscription, type PlanName, type BillingCycle } from "@/lib/su
  * Verifies the Razorpay payment signature (HMAC-SHA256) and activates the
  * vendor's subscription via the provider-agnostic SubscriptionService.
  *
- * Security (Step 9):
- *   - Never trusts the frontend — signature is ALWAYS verified server-side
+ * Security:
+ *   - NEVER trusts frontend vendorId — resolves from Supabase session
+ *   - Signature is ALWAYS verified server-side
  *   - Idempotent: duplicate paymentId returns the existing subscription
  *   - Plan activation ONLY happens after successful signature verification
+ *   - Vendor ownership verified: the authenticated user MUST own the vendor
  *
- * The existing Razorpay Orders flow is preserved. When Razorpay Subscriptions
- * (AutoPay) are added later, only the order-creation + webhook modules change;
- * this verification + activation logic stays the same.
- *
- * Body: { razorpay_order_id, razorpay_payment_id, razorpay_signature, vendorId, planName, billingCycle?, amount, currency? }
+ * Body: { razorpay_order_id, razorpay_payment_id, razorpay_signature, planName, billingCycle?, amount, currency? }
+ * Note: vendorId is NO LONGER accepted from the body — resolved from session.
  */
 export async function POST(req: NextRequest) {
   try {
+    // ── 0. Authenticate the user and resolve vendor ownership ──
+    const supabase = await createSupabaseServerClient();
+    let userId: string | null = null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) userId = user.id;
+    } catch {}
+    if (!userId) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id) userId = session.user.id;
+      } catch {}
+    }
+    if (!userId) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
+    // Resolve vendor from session — NEVER trust frontend vendorId
+    const vendor = await db.vendor.findFirst({
+      where: { owner_user_id: userId },
+      select: { id: true, name: true },
+    }).catch(() => null);
+    if (!vendor) {
+      return NextResponse.json({ error: "No vendor listing found for this account" }, { status: 404 });
+    }
+    const vendorId = vendor.id;
+
     const body = await req.json();
     const {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      vendorId,
       planName,
       billingCycle = "monthly",
       amount,
@@ -36,7 +62,6 @@ export async function POST(req: NextRequest) {
       razorpay_order_id: string;
       razorpay_payment_id: string;
       razorpay_signature: string;
-      vendorId: string;
       planName: string;
       billingCycle?: string;
       amount?: number;
@@ -46,9 +71,6 @@ export async function POST(req: NextRequest) {
     // ── 1. Validate required fields ──
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return NextResponse.json({ error: "Missing payment fields" }, { status: 400 });
-    }
-    if (!vendorId) {
-      return NextResponse.json({ error: "Vendor ID required" }, { status: 400 });
     }
     if (planName !== "vendor-pro" && planName !== "business") {
       return NextResponse.json({ error: `Invalid plan: '${planName}'. Choose 'vendor-pro' or 'business'.` }, { status: 400 });
@@ -78,25 +100,7 @@ export async function POST(req: NextRequest) {
 
     console.log("[verify-payment] Signature valid for vendor:", vendorId, "plan:", planName);
 
-    // ── 4. Verify the vendor exists (don't create duplicates) ──
-    const vendor = await db.vendor.findUnique({
-      where: { id: vendorId },
-      select: { id: true, name: true },
-    }).catch(() => null);
-
-    if (!vendor) {
-      console.error("[verify-payment] Vendor not found:", vendorId);
-      return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
-    }
-
-    // ── 5. Activate the subscription (idempotent — prevents duplicate processing) ──
-    // The SubscriptionService handles:
-    //   - Idempotency (if paymentId already processed, returns existing)
-    //   - New vs renewal detection
-    //   - Expiry computation (30 days monthly / 365 days yearly)
-    //   - Payment history recording (immutable, append-only)
-    //   - Vendor.planExpiresAt sync (backward compat)
-    //   - Premium feature flags (featured/verified)
+    // ── 4. Activate the subscription (idempotent — prevents duplicate processing) ──
     const result = await activateSubscription({
       vendorId,
       planName: planName as PlanName,

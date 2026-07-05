@@ -18,11 +18,23 @@ import {
   generateBusinessProfile, analyzeBusinessImage, getAiRecommendations,
   getVendorContext, type WritingStyle, type VendorSetupInput,
 } from "@/lib/ai/listing-generator";
+import { checkAiRateLimit, incrementAiCount } from "@/lib/ai/rate-limiter";
 import { db } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   const vendor = await resolveVendorFromSession();
   // Allow both authenticated vendors AND guests (guests must provide context in body)
+
+  // ── Rate limiting for authenticated vendors ──
+  if (vendor) {
+    const rateLimit = await checkAiRateLimit(vendor.id);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: `Daily AI limit reached (${rateLimit.limit} requests/day). Upgrade your plan for more.`, limit: rateLimit.limit },
+        { status: 429 }
+      );
+    }
+  }
 
   try {
     const body = await req.json();
@@ -32,6 +44,7 @@ export async function POST(req: NextRequest) {
       const imageUrl = body.imageUrl;
       if (!imageUrl) return NextResponse.json({ error: "imageUrl required" }, { status: 400 });
       const analysis = await analyzeBusinessImage(imageUrl);
+      if (vendor) incrementAiCount(vendor.id);
       return NextResponse.json({ analysis });
     }
 
@@ -78,6 +91,7 @@ export async function POST(req: NextRequest) {
     }
 
     const profile = await generateBusinessProfile(input, style);
+    if (vendor) incrementAiCount(vendor.id);
 
     // Log AI usage
     try {
