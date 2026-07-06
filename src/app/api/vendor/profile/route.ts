@@ -10,14 +10,38 @@ import { logger } from "@/lib/logger";
  * PUT /api/vendor/profile
  * Updates the authenticated vendor's profile.
  * Ownership is ALWAYS resolved from the Supabase session — never from frontend.
+ *
+ * Session resolution uses getUser() first (verifies JWT with Supabase server,
+ * more reliable on Vercel serverless), then falls back to getSession().
  */
 
 async function getVendorFromSession() {
   const supabase = await createSupabaseServerClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user?.id) return null;
+
+  // Step 1: Try getUser() — verifies the JWT with Supabase's auth server.
+  // This is more reliable on Vercel serverless where cookies may not propagate.
+  let userId: string | null = null;
+  try {
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    if (!userErr && user?.id) {
+      userId = user.id;
+    }
+  } catch {}
+
+  // Step 2: Fallback to getSession() if getUser() didn't return a user
+  if (!userId) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        userId = session.user.id;
+      }
+    } catch {}
+  }
+
+  if (!userId) return null;
+
   const vendor = await db.vendor.findFirst({
-    where: { owner_user_id: session.user.id },
+    where: { owner_user_id: userId },
   });
   return vendor;
 }

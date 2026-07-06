@@ -64,10 +64,48 @@ async function callLLM(prompt: string): Promise<string | null> {
 
 function extractJson(text: string): any | null {
   try {
-    const m = text.match(/\{[\s\S]*\}/);
+    // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+    const cleaned = text.replace(/```(?:json)?\s*/gi, "").replace(/```\s*/g, "");
+    const m = cleaned.match(/\{[\s\S]*\}/);
     if (m) return JSON.parse(m[0]);
   } catch {}
   return null;
+}
+
+/**
+ * Deduplicate text that may have been repeated by the LLM.
+ * If the second half of the text equals the first half, return only the first half.
+ * Also handles paragraph-level duplication.
+ */
+function deduplicateText(text: string): string {
+  if (!text || text.length < 20) return text;
+  const trimmed = text.trim();
+
+  // Check if the text is exactly doubled (first half === second half)
+  const half = Math.floor(trimmed.length / 2);
+  if (half >= 20) {
+    const firstHalf = trimmed.slice(0, half).trim();
+    const secondHalf = trimmed.slice(half).trim();
+    if (firstHalf === secondHalf) return firstHalf;
+  }
+
+  // Check paragraph-level duplication (split by double-newline)
+  const paragraphs = trimmed.split(/\n\n+/).filter((p) => p.trim().length > 0);
+  if (paragraphs.length >= 2) {
+    const unique = [paragraphs[0]];
+    for (let i = 1; i < paragraphs.length; i++) {
+      // If this paragraph is the same as the first, or a substring of the combined previous ones, skip it
+      const isDuplicate = paragraphs.some((p, j) => j < i && p.trim() === paragraphs[i].trim());
+      if (!isDuplicate) {
+        unique.push(paragraphs[i]);
+      }
+    }
+    if (unique.length < paragraphs.length) {
+      return unique.join("\n\n");
+    }
+  }
+
+  return trimmed;
 }
 
 function categoryLabel(cat: string): string {
@@ -159,11 +197,11 @@ Requirements:
 
   if (parsed) {
     return {
-      description: String(parsed.description || "").slice(0, 800),
-      shortDescription: String(parsed.shortDescription || "").slice(0, 160),
+      description: deduplicateText(String(parsed.description || "")).slice(0, 800),
+      shortDescription: deduplicateText(String(parsed.shortDescription || "")).slice(0, 160),
       tagline: String(parsed.tagline || "").slice(0, 60),
       seoTitle: String(parsed.seoTitle || "").slice(0, 60),
-      metaDescription: String(parsed.metaDescription || "").slice(0, 160),
+      metaDescription: deduplicateText(String(parsed.metaDescription || "")).slice(0, 160),
       keywords: Array.isArray(parsed.keywords) ? parsed.keywords.slice(0, 10).map(String) : [],
       tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 8).map(String) : [],
       services: Array.isArray(parsed.services) ? parsed.services.slice(0, 6).map(String) : [],
