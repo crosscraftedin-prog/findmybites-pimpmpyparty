@@ -132,14 +132,18 @@ export async function GET(req: NextRequest) {
     });
 
     // Compute exact distance + apply radius + service-radius filters.
+    // ALSO reject vendors with invalid coordinates (0,0 or null despite the WHERE).
     const withDistance = rows
       .map((v) => {
-        const distance =
-          v.latitude != null && v.longitude != null
-            ? haversineKm(lat, lng, v.latitude, v.longitude)
-            : Infinity;
+        // Reject invalid coordinates: null, 0,0 (Atlantic Ocean), or non-finite
+        if (v.latitude == null || v.longitude == null) return null;
+        if (v.latitude === 0 && v.longitude === 0) return null;
+        if (!Number.isFinite(v.latitude) || !Number.isFinite(v.longitude)) return null;
+
+        const distance = haversineKm(lat, lng, v.latitude, v.longitude);
         return { v, distance };
       })
+      .filter((entry): entry is { v: typeof rows[0]; distance: number } => entry !== null)
       .filter(({ v, distance }) => {
         // customer's search radius (0 = global, no distance cap)
         if (radius > 0 && distance > radius) return false;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { parseJsonArray } from "@/lib/format";
+import { logger } from "@/lib/logger";
 
 /**
  * GET /api/vendor/profile
@@ -83,9 +83,16 @@ export async function PUT(req: NextRequest) {
       data: updateData,
     });
 
+    logger.info("vendor-profile", "Profile updated successfully", {
+      vendorId: vendor.id,
+      fieldsUpdated: Object.keys(updateData).length,
+    });
+
     return NextResponse.json({ success: true, vendor: updated });
   } catch (error: any) {
-    console.error("[vendor/profile] PUT failed:", error.message);
+    logger.error("vendor-profile", "PUT failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

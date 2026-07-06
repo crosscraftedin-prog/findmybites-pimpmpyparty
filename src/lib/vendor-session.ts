@@ -2,16 +2,20 @@
  * Vendor session resolver.
  * Resolves the authenticated vendor from the Supabase session — never trusts
  * a frontend-supplied vendorId. All vendor inventory routes use this.
+ *
+ * Uses getUser() first (verifies JWT with Supabase server-side, more reliable
+ * on Vercel), then falls back to getSession() (reads from cookies).
  */
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 export interface ResolvedVendor {
   id: string;
   ecosystem: string | null;
   category: string | null;
   currency: string | null;
-  businessName: string | null;
+  name: string | null;
 }
 
 /**
@@ -21,15 +25,39 @@ export interface ResolvedVendor {
 export async function resolveVendorFromSession(): Promise<ResolvedVendor | null> {
   try {
     const supabase = await createSupabaseServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) return null;
 
+    // Step 1: Try getUser() — verifies the JWT with Supabase's auth server.
+    // This is more reliable on Vercel serverless where cookies may not propagate.
+    let userId: string | null = null;
+    try {
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      if (!userErr && user?.id) {
+        userId = user.id;
+      }
+    } catch {}
+
+    // Step 2: Fallback to getSession() if getUser() didn't return a user
+    if (!userId) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id) {
+          userId = session.user.id;
+        }
+      } catch {}
+    }
+
+    if (!userId) return null;
+
+    // Step 3: Look up the vendor owned by this user
     const vendor = await db.vendor.findFirst({
-      where: { owner_user_id: session.user.id },
-      select: { id: true, ecosystem: true, category: true, currency: true, businessName: true },
+      where: { owner_user_id: userId },
+      select: { id: true, ecosystem: true, category: true, currency: true, name: true },
     });
     return vendor ?? null;
-  } catch {
+  } catch (err) {
+    logger.warn("vendor-session", "Failed to resolve vendor from session", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }
