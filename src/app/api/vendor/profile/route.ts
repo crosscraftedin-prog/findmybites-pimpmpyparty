@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
+import { resolveVendorFromSession } from "@/lib/vendor-session";
 import { logger } from "@/lib/logger";
 
 /**
@@ -9,75 +9,47 @@ import { logger } from "@/lib/logger";
  *
  * PUT /api/vendor/profile
  * Updates the authenticated vendor's profile.
- * Ownership is ALWAYS resolved from the Supabase session — never from frontend.
  *
- * Session resolution uses getUser() first (verifies JWT with Supabase server,
- * more reliable on Vercel serverless), then falls back to getSession().
+ * Authentication is handled by the SHARED resolveVendorFromSession() helper
+ * in @/lib/vendor-session — no duplicate auth logic here. That helper uses
+ * getUser() (JWT verification) first, then falls back to getSession() (cookie).
  */
-
-async function getVendorFromSession() {
-  const supabase = await createSupabaseServerClient();
-
-  // Step 1: Try getUser() — verifies the JWT with Supabase's auth server.
-  // This is more reliable on Vercel serverless where cookies may not propagate.
-  let userId: string | null = null;
-  try {
-    const { data: { user }, error: userErr } = await supabase.auth.getUser();
-    if (!userErr && user?.id) {
-      userId = user.id;
-    }
-  } catch {}
-
-  // Step 2: Fallback to getSession() if getUser() didn't return a user
-  if (!userId) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.id) {
-        userId = session.user.id;
-      }
-    } catch {}
-  }
-
-  if (!userId) return null;
-
-  const vendor = await db.vendor.findFirst({
-    where: { owner_user_id: userId },
-  });
-  return vendor;
-}
 
 export async function GET() {
   try {
-    const vendor = await getVendorFromSession();
+    const session = await resolveVendorFromSession();
+    if (!session) {
+      return NextResponse.json({ error: "No vendor listing found" }, { status: 404 });
+    }
+    // Fetch the full vendor row (resolveVendorFromSession returns only id+name+ecosystem+category+currency)
+    const vendor = await db.vendor.findUnique({ where: { id: session.id } });
     if (!vendor) {
       return NextResponse.json({ error: "No vendor listing found" }, { status: 404 });
     }
     return NextResponse.json({ vendor });
   } catch (error: any) {
-    console.error("[vendor/profile] GET failed:", error.message);
+    logger.error("vendor-profile", "GET failed", { error: error.message });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
 export async function PUT(req: NextRequest) {
   const ts = () => new Date().toISOString();
-  console.log(`[PROFILE-PUT] ${ts()} ═══════════════════════════════════════════════`);
-  console.log(`[PROFILE-PUT] ${ts()} PUT /api/vendor/profile called`);
+  logger.info("vendor-profile", "PUT called", { timestamp: ts() });
 
   try {
-    console.log(`[PROFILE-PUT] ${ts()} Step 1: Resolving vendor from session`);
-    const vendor = await getVendorFromSession();
-    if (!vendor) {
-      console.error(`[PROFILE-PUT] ${ts()} ❌ No vendor found for session — returning 404`);
+    // Step 1: Resolve vendor from session (shared helper — no duplicate auth)
+    const session = await resolveVendorFromSession();
+    if (!session) {
+      logger.warn("vendor-profile", "PUT failed — no vendor session", { timestamp: ts() });
       return NextResponse.json({ error: "No vendor listing found" }, { status: 404 });
     }
-    console.log(`[PROFILE-PUT] ${ts()} ✅ Vendor resolved: ID=${vendor.id}, name="${vendor.name}"`);
+    logger.info("vendor-profile", "Vendor resolved", { vendorId: session.id, name: session.name });
 
-    console.log(`[PROFILE-PUT] ${ts()} Step 2: Parsing request body`);
+    // Step 2: Parse body
     const body = await req.json();
-    console.log(`[PROFILE-PUT] ${ts()} Body keys:`, Object.keys(body));
 
-    // Build update data — only include provided fields
+    // Step 3: Build update data — only include provided fields
     const updateData: any = {};
     const fields = [
       "name", "tagline", "description", "category", "subcategory",
@@ -111,26 +83,26 @@ export async function PUT(req: NextRequest) {
     if (body.longitude !== undefined) updateData.longitude = body.longitude ? Number(body.longitude) : null;
     if (body.serviceRadiusKm !== undefined) updateData.serviceRadiusKm = body.serviceRadiusKm ? Number(body.serviceRadiusKm) : null;
 
-    console.log(`[PROFILE-PUT] ${ts()} Step 3: Updating vendor in database (fields: ${Object.keys(updateData).length})`);
-    const updated = await db.vendor.update({
-      where: { id: vendor.id },
-      data: updateData,
-    });
-    console.log(`[PROFILE-PUT] ${ts()} ✅ Database commit successful. Vendor ID: ${updated.id}`);
-
-    logger.info("vendor-profile", "Profile updated successfully", {
-      vendorId: vendor.id,
+    // Step 4: Database commit — THIS IS THE ONLY STEP THAT CAN FAIL PUBLISHING
+    logger.info("vendor-profile", "Updating vendor in database", {
+      vendorId: session.id,
       fieldsUpdated: Object.keys(updateData).length,
     });
+    const updated = await db.vendor.update({
+      where: { id: session.id },
+      data: updateData,
+    });
+    logger.info("vendor-profile", "✅ Database commit successful", { vendorId: updated.id });
 
-    console.log(`[PROFILE-PUT] ${ts()} Returning success JSON`);
+    // Step 5: Return success — vendor is saved, publishing is COMPLETE
+    // Background jobs (AI SEO, cache, notifications) run in the frontend
+    // and NEVER affect the publish status.
     return NextResponse.json({ success: true, vendor: updated });
   } catch (error: any) {
-    console.error(`[PROFILE-PUT] ${ts()} ❌ PUT FAILED:`, error.message);
-    console.error(`[PROFILE-PUT] ${ts()} Error code:`, error.code);
-    console.error(`[PROFILE-PUT] ${ts()} Stack:`, error.stack);
     logger.error("vendor-profile", "PUT failed", {
-      error: error instanceof Error ? error.message : String(error),
+      error: error.message,
+      code: error.code,
+      stack: error.stack?.split("\n").slice(0, 3).join("\n"),
     });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
