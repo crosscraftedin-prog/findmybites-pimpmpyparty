@@ -22,7 +22,13 @@ export async function GET(req: NextRequest) {
         { status: 404 }
       );
     }
-    return NextResponse.json(result);
+    // Return in the format the frontend expects: { lat, lng, formattedAddress }
+    return NextResponse.json({
+      lat: result.lat,
+      lng: result.lng,
+      formattedAddress: result.displayName ?? address,
+      displayName: result.displayName,
+    });
   } catch (err) {
     console.error("[api/geocode] GET failed:", err);
     return NextResponse.json(

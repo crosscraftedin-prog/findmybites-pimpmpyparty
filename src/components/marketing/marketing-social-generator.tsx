@@ -128,9 +128,9 @@ export function SocialMediaGenerator({ vendor }: { vendor: Vendor }) {
             </Button>
           </div>
           <Textarea readOnly rows={6} value={result.caption} className="resize-none text-sm" />
-          {result.hashtags.length > 0 && (
+          {result.hashtags && result.hashtags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {result.hashtags.map((h) => (
+              {(Array.isArray(result.hashtags) ? result.hashtags : []).map((h) => (
                 <Badge key={h} variant="secondary" className="text-[11px] text-blue-600 dark:text-blue-400">{h}</Badge>
               ))}
             </div>

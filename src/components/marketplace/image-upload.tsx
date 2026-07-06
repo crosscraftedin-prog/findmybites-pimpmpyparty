@@ -77,6 +77,7 @@ export function ImageUpload({
         xhr.onload = () => {
           try {
             const body = JSON.parse(xhr.responseText) as {
+              success?: boolean;
               url?: string;
               error?: string;
             };
@@ -86,6 +87,8 @@ export function ImageUpload({
               reject(new Error(body.error ?? `Upload failed (${xhr.status})`));
             }
           } catch {
+            // Response was not JSON — log the raw response for debugging
+            console.error("[ImageUpload] Non-JSON response:", xhr.status, xhr.responseText?.slice(0, 200));
             reject(new Error("Upload failed: invalid response."));
           }
         };

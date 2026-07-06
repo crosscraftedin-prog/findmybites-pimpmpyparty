@@ -115,11 +115,11 @@ export function SeoCenter() {
         <div className="space-y-3 rounded-xl border bg-card p-4">
           <h4 className="text-sm font-semibold">Meta Tags</h4>
           <div className="space-y-1.5">
-            <Label className="text-xs">Meta Title ({draft?.metaTitle.length || 0}/60)</Label>
+            <Label className="text-xs">Meta Title ({draft?.metaTitle?.length || 0}/60)</Label>
             <Input value={draft?.metaTitle || ""} onChange={(e) => setDraft((d) => d ? { ...d, metaTitle: e.target.value.slice(0, 60) } : d)} placeholder="e.g. Sweet Bakes — Best Cakes in Mumbai" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Meta Description ({draft?.metaDescription.length || 0}/160)</Label>
+            <Label className="text-xs">Meta Description ({draft?.metaDescription?.length || 0}/160)</Label>
             <Textarea rows={3} value={draft?.metaDescription || ""} onChange={(e) => setDraft((d) => d ? { ...d, metaDescription: e.target.value.slice(0, 160) } : d)} placeholder="Short, persuasive description with a call-to-action…" />
           </div>
           <div className="space-y-1.5">

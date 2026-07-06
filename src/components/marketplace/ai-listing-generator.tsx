@@ -75,8 +75,16 @@ export function AiListingGenerator({ context, onApply, currentDescription }: AiL
       });
       const data = await res.json();
       if (res.ok && data.description) {
-        setResult(data);
-        setEditText(data.description);
+        // ── Defensive: ensure all array fields are arrays ──
+        const normalized: AiListingResult = {
+          description: String(data.description || ""),
+          tagline: String(data.tagline || ""),
+          keywords: Array.isArray(data.keywords) ? data.keywords : [],
+          businessTags: Array.isArray(data.businessTags) ? data.businessTags : (Array.isArray(data.tags) ? data.tags : []),
+          services: Array.isArray(data.services) ? data.services : [],
+        };
+        setResult(normalized);
+        setEditText(normalized.description);
         toast.success(`Generated ${WRITING_STYLES.find((s) => s.value === useStyle)?.label} description`);
       } else {
         toast.error(data.error || "AI generation failed");
@@ -218,7 +226,7 @@ export function AiListingGenerator({ context, onApply, currentDescription }: AiL
           )}
 
           {/* Keywords */}
-          {result.keywords.length > 0 && (
+          {result.keywords && result.keywords.length > 0 && (
             <div className="rounded-lg border bg-background p-3">
               <span className="text-[10px] font-semibold uppercase text-muted-foreground">SEO Keywords ({result.keywords.length})</span>
               <div className="mt-1.5 flex flex-wrap gap-1">
@@ -230,7 +238,7 @@ export function AiListingGenerator({ context, onApply, currentDescription }: AiL
           )}
 
           {/* Business Tags */}
-          {result.businessTags.length > 0 && (
+          {result.businessTags && result.businessTags.length > 0 && (
             <div className="rounded-lg border bg-background p-3">
               <span className="text-[10px] font-semibold uppercase text-muted-foreground">Business Tags ({result.businessTags.length})</span>
               <div className="mt-1.5 flex flex-wrap gap-1">
@@ -242,7 +250,7 @@ export function AiListingGenerator({ context, onApply, currentDescription }: AiL
           )}
 
           {/* Services */}
-          {result.services.length > 0 && (
+          {result.services && result.services.length > 0 && (
             <div className="rounded-lg border bg-background p-3">
               <span className="text-[10px] font-semibold uppercase text-muted-foreground">Suggested Services ({result.services.length})</span>
               <div className="mt-1.5 flex flex-wrap gap-1">

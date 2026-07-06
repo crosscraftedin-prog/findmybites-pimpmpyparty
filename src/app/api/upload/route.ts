@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
       duration: `${Date.now() - startTime}ms`,
     });
 
-    return NextResponse.json({ url: urlData.publicUrl });
+    return NextResponse.json({ success: true, url: urlData.publicUrl });
 
   } catch (err: any) {
     logger.error("upload", "Unexpected upload failure", {
