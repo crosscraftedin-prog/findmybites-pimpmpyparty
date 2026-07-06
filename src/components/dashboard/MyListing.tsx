@@ -555,53 +555,64 @@ export function MyListing({ vendor }: MyListingProps) {
   //   3. Background jobs (AI SEO, AI summary, search indexing, cache) run async
   //      and NEVER affect the publish status — if they fail, we just log.
   const handlePublish = async () => {
+    const ts = () => new Date().toISOString();
+    console.log(`[PUBLISH] ${ts()} ═══════════════════════════════════════════════`);
+    console.log(`[PUBLISH] ${ts()} Publish button clicked`);
+    console.log(`[PUBLISH] ${ts()} Form fields:`, Object.keys(form).length, "fields");
+    console.log(`[PUBLISH] ${ts()} Gallery images:`, gallery.length);
+
     setPublishing(true);
     try {
       // Step 1: Save the vendor (this is the only step that can fail publishing)
+      console.log(`[PUBLISH] ${ts()} Step 1: Calling PUT /api/vendor/profile`);
       const res = await fetch("/api/vendor/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, gallery }),
       });
-      const data = await res.json().catch(() => ({}));
+      console.log(`[PUBLISH] ${ts()} API response status:`, res.status, res.statusText);
+      console.log(`[PUBLISH] ${ts()} API response content-type:`, res.headers.get("content-type"));
+
+      const data = await res.json().catch((e) => {
+        console.error(`[PUBLISH] ${ts()} JSON parse failed:`, e);
+        return {};
+      });
+      console.log(`[PUBLISH] ${ts()} API response body:`, JSON.stringify(data).slice(0, 200));
+
       if (!res.ok) {
-        throw new Error(data.error || "Failed to save vendor profile");
+        console.error(`[PUBLISH] ${ts()} ❌ API returned error ${res.status}:`, data.error);
+        throw new Error(data.error || `Failed to save vendor profile (HTTP ${res.status})`);
       }
 
       // Step 2: Vendor saved successfully — publish is COMPLETE.
-      // The vendor is now live in the database. Show success immediately.
+      console.log(`[PUBLISH] ${ts()} ✅ Database committed. Vendor ID:`, data.vendor?.id);
+      console.log(`[PUBLISH] ${ts()} ✅ Publishing SUCCESS — showing success toast`);
       setPublished(true);
       toast.success("🎉 Your business profile is now live!");
 
       // Step 3: Background jobs (best-effort, never affect publish status)
-      // These run asynchronously after the success toast. If any fail,
-      // the vendor is still published — we just log the error silently.
+      console.log(`[PUBLISH] ${ts()} Starting background jobs (fire-and-forget)`);
       (async () => {
         // 3a. AI SEO generation (best-effort)
+        console.log(`[PUBLISH] ${ts()} Background: AI SEO generation starting`);
         try {
-          await fetch("/api/vendor/marketing/ai/seo", {
+          const seoRes = await fetch("/api/vendor/marketing/ai/seo", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ save: false }),
-          }).catch(() => {});
-        } catch {
-          // Silent — AI SEO is optional, vendor is already published
+          });
+          console.log(`[PUBLISH] ${ts()} Background: AI SEO response:`, seoRes.status);
+        } catch (seoErr) {
+          console.warn(`[PUBLISH] ${ts()} Background: AI SEO failed (non-fatal):`, seoErr instanceof Error ? seoErr.message : String(seoErr));
         }
-
-        // 3b. Invalidate React Query cache so lists refresh
-        try {
-          // The useUpdateVendor mutation's onSuccess handles this for PATCH,
-          // but for the profile PUT we need to manually invalidate
-          // queryClient is not available here, but the page will refresh
-          // on next navigation anyway.
-        } catch {
-          // Silent
-        }
+        console.log(`[PUBLISH] ${ts()} Background jobs complete`);
       })();
     } catch (err: any) {
-      // Only show failure if the actual database save failed
+      console.error(`[PUBLISH] ${ts()} ❌ PUBLISH FAILED:`, err.message);
+      console.error(`[PUBLISH] ${ts()} Stack:`, err.stack);
       toast.error(err.message || "Publish failed — please try again");
     } finally {
+      console.log(`[PUBLISH] ${ts()} Publishing state reset to false`);
       setPublishing(false);
     }
   };

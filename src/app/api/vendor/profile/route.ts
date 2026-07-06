@@ -60,13 +60,22 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  const ts = () => new Date().toISOString();
+  console.log(`[PROFILE-PUT] ${ts()} ═══════════════════════════════════════════════`);
+  console.log(`[PROFILE-PUT] ${ts()} PUT /api/vendor/profile called`);
+
   try {
+    console.log(`[PROFILE-PUT] ${ts()} Step 1: Resolving vendor from session`);
     const vendor = await getVendorFromSession();
     if (!vendor) {
+      console.error(`[PROFILE-PUT] ${ts()} ❌ No vendor found for session — returning 404`);
       return NextResponse.json({ error: "No vendor listing found" }, { status: 404 });
     }
+    console.log(`[PROFILE-PUT] ${ts()} ✅ Vendor resolved: ID=${vendor.id}, name="${vendor.name}"`);
 
+    console.log(`[PROFILE-PUT] ${ts()} Step 2: Parsing request body`);
     const body = await req.json();
+    console.log(`[PROFILE-PUT] ${ts()} Body keys:`, Object.keys(body));
 
     // Build update data — only include provided fields
     const updateData: any = {};
@@ -102,18 +111,24 @@ export async function PUT(req: NextRequest) {
     if (body.longitude !== undefined) updateData.longitude = body.longitude ? Number(body.longitude) : null;
     if (body.serviceRadiusKm !== undefined) updateData.serviceRadiusKm = body.serviceRadiusKm ? Number(body.serviceRadiusKm) : null;
 
+    console.log(`[PROFILE-PUT] ${ts()} Step 3: Updating vendor in database (fields: ${Object.keys(updateData).length})`);
     const updated = await db.vendor.update({
       where: { id: vendor.id },
       data: updateData,
     });
+    console.log(`[PROFILE-PUT] ${ts()} ✅ Database commit successful. Vendor ID: ${updated.id}`);
 
     logger.info("vendor-profile", "Profile updated successfully", {
       vendorId: vendor.id,
       fieldsUpdated: Object.keys(updateData).length,
     });
 
+    console.log(`[PROFILE-PUT] ${ts()} Returning success JSON`);
     return NextResponse.json({ success: true, vendor: updated });
   } catch (error: any) {
+    console.error(`[PROFILE-PUT] ${ts()} ❌ PUT FAILED:`, error.message);
+    console.error(`[PROFILE-PUT] ${ts()} Error code:`, error.code);
+    console.error(`[PROFILE-PUT] ${ts()} Stack:`, error.stack);
     logger.error("vendor-profile", "PUT failed", {
       error: error instanceof Error ? error.message : String(error),
     });

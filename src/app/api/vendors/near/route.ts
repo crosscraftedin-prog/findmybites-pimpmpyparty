@@ -131,22 +131,42 @@ export async function GET(req: NextRequest) {
       take: radius > 0 ? 500 : limit,
     });
 
+    // ── DIAGNOSTIC LOGGING: print every vendor evaluated ──
+    console.log(`[NEAR-ME] ═══════════════════════════════════════════════`);
+    console.log(`[NEAR-ME] User coords: lat=${lat}, lng=${lng}, radius=${radius}km, ecosystem=${ecosystem || "all"}`);
+    console.log(`[NEAR-ME] DB returned ${rows.length} candidate rows (after bounding-box filter)`);
+    console.log(`[NEAR-ME] Evaluating each vendor:`);
+
     // Compute exact distance + apply radius + service-radius filters.
     // ALSO reject vendors with invalid coordinates (0,0 or null despite the WHERE).
     const withDistance = rows
       .map((v) => {
         // Reject invalid coordinates: null, 0,0 (Atlantic Ocean), or non-finite
-        if (v.latitude == null || v.longitude == null) return null;
-        if (v.latitude === 0 && v.longitude === 0) return null;
-        if (!Number.isFinite(v.latitude) || !Number.isFinite(v.longitude)) return null;
+        if (v.latitude == null || v.longitude == null) {
+          console.log(`[NEAR-ME]   EXCLUDED: "${v.name}" (${v.city}, ${v.country}) — null coordinates`);
+          return null;
+        }
+        if (v.latitude === 0 && v.longitude === 0) {
+          console.log(`[NEAR-ME]   EXCLUDED: "${v.name}" (${v.city}, ${v.country}) — (0,0) invalid coordinates`);
+          return null;
+        }
+        if (!Number.isFinite(v.latitude) || !Number.isFinite(v.longitude)) {
+          console.log(`[NEAR-ME]   EXCLUDED: "${v.name}" (${v.city}, ${v.country}) — non-finite coordinates`);
+          return null;
+        }
 
         const distance = haversineKm(lat, lng, v.latitude, v.longitude);
+        console.log(`[NEAR-ME]   EVAL: "${v.name}" (${v.city}, ${v.country}) lat=${v.latitude} lng=${v.longitude} → distance=${distance.toFixed(2)}km (radius=${radius}km)`);
+
         return { v, distance };
       })
       .filter((entry): entry is { v: typeof rows[0]; distance: number } => entry !== null)
       .filter(({ v, distance }) => {
         // customer's search radius (0 = global, no distance cap)
-        if (radius > 0 && distance > radius) return false;
+        if (radius > 0 && distance > radius) {
+          console.log(`[NEAR-ME]     → EXCLUDED: distance ${distance.toFixed(2)}km > radius ${radius}km`);
+          return false;
+        }
         // vendor's travel radius: only applies in radius mode (the vendor
         // would actually travel to the customer). In global mode the customer
         // is just browsing, so we show everyone regardless of travel radius.
@@ -154,10 +174,16 @@ export async function GET(req: NextRequest) {
           radius > 0 &&
           v.serviceRadiusKm != null &&
           distance > v.serviceRadiusKm
-        )
+        ) {
+          console.log(`[NEAR-ME]     → EXCLUDED: distance ${distance.toFixed(2)}km > vendor serviceRadius ${v.serviceRadiusKm}km`);
           return false;
+        }
+        console.log(`[NEAR-ME]     → ✅ INCLUDED: distance ${distance.toFixed(2)}km <= radius ${radius}km`);
         return true;
       });
+
+    console.log(`[NEAR-ME] Final result: ${withDistance.length} vendors included`);
+    console.log(`[NEAR-ME] ═══════════════════════════════════════════════`);
 
     // Sort: nearest first (when radius>0), tie-break by rating then reviews
     // for a "popular near you" boost. Global mode is already sorted by rating.
