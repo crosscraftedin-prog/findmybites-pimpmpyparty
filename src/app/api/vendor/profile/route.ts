@@ -35,21 +35,27 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   const ts = () => new Date().toISOString();
-  logger.info("vendor-profile", "PUT called", { timestamp: ts() });
+  console.log(`[TRACE] ${ts()} ═══════════════════════════════════════════════`);
+  console.log(`[TRACE] ${ts()} PUT /api/vendor/profile — API ENTERED`);
 
   try {
-    // Step 1: Resolve vendor from session (shared helper — no duplicate auth)
+    // Step 1: Authentication
+    console.log(`[TRACE] ${ts()} PUT — Step 1: Authentication (resolveVendorFromSession)`);
     const session = await resolveVendorFromSession();
     if (!session) {
-      logger.warn("vendor-profile", "PUT failed — no vendor session", { timestamp: ts() });
+      console.log(`[TRACE] ${ts()} PUT — ❌ AUTH FAILED: no vendor session — returning 404`);
+      console.log(`[TRACE] ${ts()} PUT — FIRST EXCEPTION: Auth session missing — user not authenticated`);
       return NextResponse.json({ error: "No vendor listing found" }, { status: 404 });
     }
-    logger.info("vendor-profile", "Vendor resolved", { vendorId: session.id, name: session.name });
+    console.log(`[TRACE] ${ts()} PUT — ✅ AUTH SUCCESS: vendorId=${session.id}, name="${session.name}"`);
 
     // Step 2: Parse body
+    console.log(`[TRACE] ${ts()} PUT — Step 2: Parsing request body`);
     const body = await req.json();
+    console.log(`[TRACE] ${ts()} PUT — Body parsed: ${Object.keys(body).length} fields`);
 
-    // Step 3: Build update data — only include provided fields
+    // Step 3: Build update data
+    console.log(`[TRACE] ${ts()} PUT — Step 3: Building update data`);
     const updateData: any = {};
     const fields = [
       "name", "tagline", "description", "category", "subcategory",
@@ -70,12 +76,10 @@ export async function PUT(req: NextRequest) {
       if (body[f] !== undefined) updateData[f] = body[f];
     }
 
-    // Gallery (JSON array)
     if (body.gallery !== undefined) {
       updateData.gallery = Array.isArray(body.gallery) ? JSON.stringify(body.gallery) : body.gallery;
     }
 
-    // Numeric fields
     if (body.yearStarted !== undefined) updateData.yearStarted = body.yearStarted ? Number(body.yearStarted) : null;
     if (body.basePrice !== undefined) updateData.basePrice = Number(body.basePrice) || 0;
     if (body.maxOrder !== undefined) updateData.maxOrder = body.maxOrder ? Number(body.maxOrder) : null;
@@ -83,22 +87,40 @@ export async function PUT(req: NextRequest) {
     if (body.longitude !== undefined) updateData.longitude = body.longitude ? Number(body.longitude) : null;
     if (body.serviceRadiusKm !== undefined) updateData.serviceRadiusKm = body.serviceRadiusKm ? Number(body.serviceRadiusKm) : null;
 
-    // Step 4: Database commit — THIS IS THE ONLY STEP THAT CAN FAIL PUBLISHING
-    logger.info("vendor-profile", "Updating vendor in database", {
-      vendorId: session.id,
-      fieldsUpdated: Object.keys(updateData).length,
-    });
+    console.log(`[TRACE] ${ts()} PUT — Update data built: ${Object.keys(updateData).length} fields`);
+
+    // Step 4: Database transaction
+    console.log(`[TRACE] ${ts()} PUT — Step 4: Database transaction BEGIN`);
+    console.log(`[TRACE] ${ts()} PUT — Calling db.vendor.update() for vendorId=${session.id}`);
     const updated = await db.vendor.update({
       where: { id: session.id },
       data: updateData,
     });
-    logger.info("vendor-profile", "✅ Database commit successful", { vendorId: updated.id });
+    console.log(`[TRACE] ${ts()} PUT — ✅ DATABASE COMMIT SUCCESS — vendorId=${updated.id}, name="${updated.name}"`);
 
-    // Step 5: Return success — vendor is saved, publishing is COMPLETE
-    // Background jobs (AI SEO, cache, notifications) run in the frontend
-    // and NEVER affect the publish status.
+    // Step 5: Cache invalidation (revalidatePath)
+    console.log(`[TRACE] ${ts()} PUT — Step 5: Cache invalidation (revalidatePath)`);
+    try {
+      const { revalidatePath } = await import("next/cache");
+      revalidatePath(`/vendor/${updated.slug}`);
+      revalidatePath("/");
+      revalidatePath("/sitemap.xml");
+      console.log(`[TRACE] ${ts()} PUT — ✅ revalidatePath() completed`);
+    } catch (revalErr: any) {
+      console.log(`[TRACE] ${ts()} PUT — ⚠️ revalidatePath() failed (non-fatal): ${revalErr?.message}`);
+    }
+
+    // Step 6: Response
+    console.log(`[TRACE] ${ts()} PUT — Step 6: Returning success response`);
+    console.log(`[TRACE] ${ts()} PUT — ✅ RESPONSE SENT: { success: true, vendor: { id: ${updated.id} } }`);
+    console.log(`[TRACE] ${ts()} ═══════════════════════════════════════════════`);
     return NextResponse.json({ success: true, vendor: updated });
   } catch (error: any) {
+    console.log(`[TRACE] ${ts()} PUT — ❌ EXCEPTION: ${error.message}`);
+    console.log(`[TRACE] ${ts()} PUT — Error code: ${error.code}`);
+    console.log(`[TRACE] ${ts()} PUT — Stack: ${error.stack?.split('\n').slice(0, 5).join(' | ')}`);
+    console.log(`[TRACE] ${ts()} PUT — FIRST EXCEPTION: ${error.message}`);
+    console.log(`[TRACE] ${ts()} ═══════════════════════════════════════════════`);
     logger.error("vendor-profile", "PUT failed", {
       error: error.message,
       code: error.code,

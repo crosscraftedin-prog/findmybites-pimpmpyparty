@@ -549,82 +549,99 @@ export function MyListing({ vendor }: MyListingProps) {
   };
 
   // ── Publish handler ──
-  // Publishing flow:
-  //   1. Save vendor to DB (the actual transaction)
-  //   2. If save succeeds → immediately show SUCCESS (vendor is live)
-  //   3. If save fails BUT vendor already exists in DB → show SUCCESS anyway
-  //      (the vendor was saved by auto-save; the publish PUT just failed to
-  //      update the latest changes, but the vendor IS published)
-  //   4. Background jobs (AI SEO, AI summary, search indexing, cache) run async
-  //      and NEVER affect the publish status — if they fail, we just log.
   const handlePublish = async () => {
     const ts = () => new Date().toISOString();
-    console.log(`[PUBLISH] ${ts()} ═══════════════════════════════════════════════`);
-    console.log(`[PUBLISH] ${ts()} Publish button clicked`);
+    console.log(`[TRACE-FE] ${ts()} ═══════════════════════════════════════════════`);
+    console.log(`[TRACE-FE] ${ts()} Publish button CLICKED`);
 
     setPublishing(true);
+    console.log(`[TRACE-FE] ${ts()} setPublishing(true) — publishing state set`);
+
     try {
-      // Step 1: Save the vendor (this is the only step that can fail publishing)
-      console.log(`[PUBLISH] ${ts()} Step 1: Calling PUT /api/vendor/profile`);
+      // Step 1: HTTP request starts
+      console.log(`[TRACE-FE] ${ts()} Step 1: Building fetch request to PUT /api/vendor/profile`);
+      const requestBody = JSON.stringify({ ...form, gallery });
+      console.log(`[TRACE-FE] ${ts()} Request body size: ${requestBody.length} chars`);
+
+      console.log(`[TRACE-FE] ${ts()} HTTP request STARTING — fetch() called`);
+      const fetchStart = Date.now();
       const res = await fetch("/api/vendor/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, gallery }),
+        body: requestBody,
       });
-      console.log(`[PUBLISH] ${ts()} API response status:`, res.status);
+      const fetchEnd = Date.now();
+      console.log(`[TRACE-FE] ${ts()} HTTP response RECEIVED — status: ${res.status} ${res.statusText} (took ${fetchEnd - fetchStart}ms)`);
+      console.log(`[TRACE-FE] ${ts()} Response content-type: ${res.headers.get("content-type")}`);
 
-      const data = await res.json().catch(() => ({}));
+      // Step 2: Parse response
+      console.log(`[TRACE-FE] ${ts()} Step 2: Parsing JSON response`);
+      const data = await res.json().catch((e) => {
+        console.log(`[TRACE-FE] ${ts()} ❌ JSON parse FAILED: ${e.message}`);
+        return {};
+      });
+      console.log(`[TRACE-FE] ${ts()} JSON parsed: keys=${Object.keys(data)}`);
 
       if (res.ok) {
-        // Step 2: Vendor saved successfully — publish is COMPLETE.
-        console.log(`[PUBLISH] ${ts()} ✅ Database committed. Vendor ID:`, data.vendor?.id);
+        // Database commit succeeded
+        console.log(`[TRACE-FE] ${ts()} ✅ DATABASE COMMIT SUCCESS — vendor saved`);
+        console.log(`[TRACE-FE] ${ts()} ✅ PUBLISH SUCCESS — setting published=true`);
         setPublished(true);
+        console.log(`[TRACE-FE] ${ts()} Displaying success toast`);
         toast.success("🎉 Your business profile is now live!");
+        console.log(`[TRACE-FE] ${ts()} Success toast displayed`);
       } else if (res.status === 404 || res.status === 401) {
-        // Step 3: Auth/session issue — but the vendor may already be saved
-        // (via auto-save). Check if the vendor exists by fetching the profile.
-        console.log(`[PUBLISH] ${ts()} Auth issue (${res.status}) — checking if vendor already exists`);
+        // Auth issue — check if vendor already exists
+        console.log(`[TRACE-FE] ${ts()} ⚠️ Auth issue (${res.status}) — checking if vendor already exists via GET /api/vendor/me`);
         const checkRes = await fetch("/api/vendor/me");
+        console.log(`[TRACE-FE] ${ts()} GET /api/vendor/me response: ${checkRes.status}`);
         if (checkRes.ok) {
           const checkData = await checkRes.json().catch(() => ({}));
           if (checkData.vendor) {
-            console.log(`[PUBLISH] ${ts()} ✅ Vendor already exists in DB — publishing SUCCESS`);
+            console.log(`[TRACE-FE] ${ts()} ✅ Vendor already exists in DB — PUBLISH SUCCESS`);
             setPublished(true);
             toast.success("🎉 Your business profile is now live!");
+            console.log(`[TRACE-FE] ${ts()} Success toast displayed (vendor existed)`);
           } else {
-            console.error(`[PUBLISH] ${ts()} ❌ Vendor not found in DB`);
+            console.log(`[TRACE-FE] ${ts()} ❌ FIRST EXCEPTION: Vendor not found in DB — auth required`);
             throw new Error(data.error || "Please sign in to publish your listing");
           }
         } else {
-          console.error(`[PUBLISH] ${ts()} ❌ Cannot verify vendor — auth required`);
+          console.log(`[TRACE-FE] ${ts()} ❌ FIRST EXCEPTION: Cannot verify vendor — GET /api/vendor/me returned ${checkRes.status}`);
           throw new Error(data.error || "Please sign in to publish your listing");
         }
       } else {
-        // Actual server error
-        console.error(`[PUBLISH] ${ts()} ❌ API returned error ${res.status}:`, data.error);
+        console.log(`[TRACE-FE] ${ts()} ❌ FIRST EXCEPTION: API returned HTTP ${res.status}: ${data.error}`);
         throw new Error(data.error || `Failed to save vendor profile (HTTP ${res.status})`);
       }
 
-      // Step 4: Background jobs (best-effort, never affect publish status)
-      console.log(`[PUBLISH] ${ts()} Starting background jobs (fire-and-forget)`);
+      // Step 3: Background jobs (fire-and-forget)
+      console.log(`[TRACE-FE] ${ts()} Step 3: Background jobs starting (fire-and-forget)`);
       (async () => {
+        console.log(`[TRACE-FE] ${ts()} Background: AI SEO generation starting`);
         try {
           const seoRes = await fetch("/api/vendor/marketing/ai/seo", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ save: false }),
           });
-          console.log(`[PUBLISH] ${ts()} Background: AI SEO response:`, seoRes.status);
-        } catch (seoErr) {
-          console.warn(`[PUBLISH] ${ts()} Background: AI SEO failed (non-fatal)`);
+          console.log(`[TRACE-FE] ${ts()} Background: AI SEO response: ${seoRes.status}`);
+        } catch (seoErr: any) {
+          console.log(`[TRACE-FE] ${ts()} Background: AI SEO FAILED (non-fatal): ${seoErr?.message}`);
         }
+        console.log(`[TRACE-FE] ${ts()} Background jobs complete`);
       })();
     } catch (err: any) {
-      console.error(`[PUBLISH] ${ts()} ❌ PUBLISH FAILED:`, err.message);
+      console.log(`[TRACE-FE] ${ts()} ❌ PUBLISH FAILED — catch block entered`);
+      console.log(`[TRACE-FE] ${ts()} ❌ Error message: ${err.message}`);
+      console.log(`[TRACE-FE] ${ts()} ❌ Stack: ${err.stack?.split('\n').slice(0, 3).join(' | ')}`);
+      console.log(`[TRACE-FE] ${ts()} Displaying error toast`);
       toast.error(err.message || "Publish failed — please try again");
+      console.log(`[TRACE-FE] ${ts()} Error toast displayed`);
     } finally {
-      console.log(`[PUBLISH] ${ts()} Publishing state reset`);
+      console.log(`[TRACE-FE] ${ts()} finally block — setPublishing(false)`);
       setPublishing(false);
+      console.log(`[TRACE-FE] ${ts()} ═══════════════════════════════════════════════`);
     }
   };
 
