@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -73,6 +74,10 @@ export function AIChatWidget() {
   const [open, setOpen] = React.useState(false);
   const [showTooltip, setShowTooltip] = React.useState(false);
 
+  // ── Route-aware: hide on vendor/product pages (Vendor AI shows there instead) ──
+  const pathname = usePathname();
+  const isVendorPage = pathname?.startsWith("/vendor/") || pathname?.startsWith("/product/");
+
   React.useEffect(() => {
     const t = setTimeout(() => setShowTooltip(true), 3000);
     const hide = setTimeout(() => setShowTooltip(false), 10000);
@@ -83,9 +88,6 @@ export function AIChatWidget() {
   }, []);
 
   // ── Listen for external "open Josh chat" triggers ──
-  // This lets the dashboard sidebar's "Chat with Josh" button (and any other
-  // component) open the chat widget by dispatching a custom event:
-  //   window.dispatchEvent(new CustomEvent("open-josh-chat"))
   React.useEffect(() => {
     const handleOpen = () => {
       setOpen(true);
@@ -94,6 +96,9 @@ export function AIChatWidget() {
     window.addEventListener("open-josh-chat", handleOpen as EventListener);
     return () => window.removeEventListener("open-josh-chat", handleOpen as EventListener);
   }, []);
+
+  // ── Don't render on vendor/product pages — Vendor AI handles those ──
+  if (isVendorPage) return null;
 
   return (
     <>

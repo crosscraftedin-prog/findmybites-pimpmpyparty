@@ -94,7 +94,7 @@ export function VendorAIChat({ vendorId, vendorName, vendorCategory, vendorCity 
             className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-bold text-brand-foreground shadow-xl transition-transform hover:scale-105"
           >
             <Sparkles className="size-5" />
-            Ask Josh AI
+            Ask this Vendor
           </motion.button>
         )}
       </AnimatePresence>
@@ -133,9 +133,9 @@ export function VendorAIChat({ vendorId, vendorName, vendorCategory, vendorCity 
               {messages.length === 0 && (
                 <div className="space-y-3">
                   <div className="rounded-xl bg-muted p-3 text-sm">
-                    <p className="font-semibold">Hi! I'm Josh, your AI assistant. 🎉</p>
+                    <p className="font-semibold">Hi! I'm Josh AI for {vendorName}. 🎉</p>
                     <p className="mt-1 text-muted-foreground">
-                      I can answer questions about {vendorName}'s products, services, pricing, and availability.
+                      I can answer questions about {vendorName}'s products, services, pricing, and availability. How can I help?
                     </p>
                   </div>
                   <div className="space-y-2">
