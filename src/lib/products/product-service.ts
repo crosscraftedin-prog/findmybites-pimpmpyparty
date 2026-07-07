@@ -202,7 +202,8 @@ export async function createProduct(vendorId: string, data: any): Promise<Produc
     throw new Error(`Product limit reached (${current}/${limit}). Upgrade your subscription to add more products.`);
   }
 
-  const slug = `${(data.name || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-${Date.now().toString(36)}`;
+  const nameSlug = (data.name || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "product";
+  const slug = `${nameSlug}-${Date.now().toString(36)}`;
   const p = await db.product.create({ data: {
     vendorId, name: data.name || "Untitled", slug,
     description: data.description || null, shortDescription: data.shortDescription || null,
@@ -293,7 +294,8 @@ export async function deleteProduct(productId: string, vendorId: string): Promis
 export async function duplicateProduct(productId: string, vendorId: string): Promise<ProductDetail> {
   const existing = await db.product.findFirst({ where: { id: productId, vendorId } });
   if (!existing) throw new Error("Product not found or not owned by this vendor");
-  const slug = `${existing.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-copy-${Date.now().toString(36)}`;
+  const nameSlug = existing.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "product";
+  const slug = `${nameSlug}-copy-${Date.now().toString(36)}`;
   const { id, createdAt, updatedAt, ...rest } = existing;
   const p = await db.product.create({ data: { ...rest, name: `${existing.name} (Copy)`, slug, status: "draft", views: 0 } });
   return toDetail(p);

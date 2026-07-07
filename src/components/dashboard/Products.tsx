@@ -533,21 +533,33 @@ export function Products({ vendor }: ProductsProps) {
                 const res = await fetch(`/api/vendor/products/${editingProduct.id}`, {
                   method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
                 });
-                if (!res.ok) throw new Error("Update failed");
+                if (!res.ok) {
+                  const errBody = await res.json().catch(() => ({}));
+                  throw new Error(errBody.error || `Update failed (HTTP ${res.status})`);
+                }
                 toast.success("Product updated!");
+                return { slug: editingProduct.slug, id: editingProduct.id };
               } else {
                 const res = await fetch("/api/vendor/products", {
                   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
                 });
-                if (!res.ok) throw new Error("Create failed");
+                if (!res.ok) {
+                  const errBody = await res.json().catch(() => ({}));
+                  throw new Error(errBody.error || `Create failed (HTTP ${res.status})`);
+                }
+                const body = await res.json();
                 toast.success("Product created!");
+                return { slug: body.product?.slug, id: body.product?.id };
               }
-              setShowModal(false);
-              reload();
             } catch (e: any) {
               toast.error(e.message || "Failed to save");
+              // Re-throw so the wizard's handlePublish catch block can show the error
+              // and NOT display the fake success screen.
+              throw e;
+            } finally {
+              setSaving(false);
+              reload();
             }
-            setSaving(false);
           }}
           onClose={() => setShowModal(false)}
           saving={saving}
