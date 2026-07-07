@@ -110,13 +110,13 @@ export async function getSuccessCenterData(vendorId: string): Promise<SuccessCen
 
   const kpi = kpiWeek?.current;
   const buildMetrics = (): PerformanceMetric[] => [
-    { label: "Profile Views", value: k?.profileViews ?? 0, unit: "", trend: kpiWeek?.delta?.profileViews ?? 0 },
-    { label: "Product Views", value: k?.productViews ?? 0, unit: "", trend: kpiWeek?.delta?.productViews ?? 0 },
-    { label: "Search Appearances", value: Math.round((k?.profileViews ?? 0) * 3.5), unit: "", trend: 0 },
-    { label: "WhatsApp Clicks", value: Math.round((k?.profileViews ?? 0) * 0.15), unit: "", trend: 0 },
-    { label: "Bookings", value: k?.bookings ?? 0, unit: "", trend: kpiWeek?.delta?.bookings ?? 0 },
-    { label: "Revenue", value: k?.revenue ?? 0, unit: "₹", trend: kpiWeek?.delta?.revenue ?? 0 },
-    { label: "Conversion Rate", value: k?.conversionRate ?? 0, unit: "%", trend: 0 },
+    { label: "Profile Views", value: kpi?.profileViews ?? 0, unit: "", trend: kpiWeek?.delta?.profileViews ?? 0 },
+    { label: "Product Views", value: kpi?.productViews ?? 0, unit: "", trend: kpiWeek?.delta?.productViews ?? 0 },
+    { label: "Search Appearances", value: Math.round((kpi?.profileViews ?? 0) * 3.5), unit: "", trend: 0 },
+    { label: "WhatsApp Clicks", value: Math.round((kpi?.profileViews ?? 0) * 0.15), unit: "", trend: 0 },
+    { label: "Bookings", value: kpi?.bookings ?? 0, unit: "", trend: kpiWeek?.delta?.bookings ?? 0 },
+    { label: "Revenue", value: kpi?.revenue ?? 0, unit: "₹", trend: kpiWeek?.delta?.revenue ?? 0 },
+    { label: "Conversion Rate", value: kpi?.conversionRate ?? 0, unit: "%", trend: 0 },
   ];
 
   const competitorComparisons: CompetitorComparison[] = [];
