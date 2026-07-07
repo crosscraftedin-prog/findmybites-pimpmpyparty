@@ -21,16 +21,16 @@ const PLANS: Record<string, { amount: number; name: string }> = {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { planName, amount: bodyAmount, currency: bodyCurrency } = body as {
-      planName: string; amount?: number; currency?: string;
-    };
+    const { planName } = body as { planName: string };
 
     if (!planName || !PLANS[planName]) {
       return NextResponse.json({ error: `Invalid plan: '${planName}'. Choose 'vendor-pro' or 'business'.` }, { status: 400 });
     }
 
-    // Use amount from body if provided (dynamic pricing), else fall back to PLANS default
-    const amount = bodyAmount && bodyAmount >= 100 ? bodyAmount : PLANS[planName].amount;
+    // SECURITY: Always use the server-defined plan amount — NEVER trust client-supplied amount.
+    // Previously: const amount = bodyAmount && bodyAmount >= 100 ? bodyAmount : PLANS[planName].amount;
+    // This allowed vendors to pay ₹1 for a ₹499 plan.
+    const amount = PLANS[planName].amount;
     if (amount < 100) return NextResponse.json({ error: "Amount too small" }, { status: 400 });
 
     const keyId = process.env.RAZORPAY_KEY_ID;

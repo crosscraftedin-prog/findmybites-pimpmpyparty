@@ -75,8 +75,7 @@ async function getVendor(slug: string): Promise<VendorWithRelations | null> {
       latitude: v.latitude,
       longitude: v.longitude,
       serviceRadiusKm: v.serviceRadiusKm,
-      userEmail: v.userEmail,
-      owner_user_id: v.owner_user_id,
+      // SECURITY: Do NOT pass userEmail or owner_user_id to the client component
       createdAt: v.createdAt.toISOString(),
       reviews: v.reviews.map((r) => ({
         id: r.id,
@@ -118,13 +117,13 @@ export async function generateMetadata({
     title,
     description,
     alternates: {
-      canonical: `https://findmybites.com/vendor/${vendor.slug}`,
+      canonical: `https://www.findmybites.com/vendor/${vendor.slug}`,
     },
     openGraph: {
       title,
       description,
       type: "website",
-      url: `https://findmybites.com/vendor/${vendor.slug}`,
+      url: `https://www.findmybites.com/vendor/${vendor.slug}`,
       images: ogImage ? [{ url: ogImage }] : undefined,
     },
     twitter: {
@@ -148,11 +147,11 @@ export default async function VendorProfilePage({ params }: PageProps) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": vendor.ecosystem === "FINDMYBITES" ? "Bakery" : "LocalBusiness",
-    "@id": `https://findmybites.com/vendor/${vendor.slug}`,
+    "@id": `https://www.findmybites.com/vendor/${vendor.slug}`,
     name: vendor.name,
     description: vendor.metaDescription || vendor.tagline || vendor.description,
     image: vendor.heroImage || vendor.avatarImage,
-    url: `https://findmybites.com/vendor/${vendor.slug}`,
+    url: `https://www.findmybites.com/vendor/${vendor.slug}`,
     telephone: vendor.whatsapp || undefined,
     address: {
       "@type": "PostalAddress",
@@ -192,19 +191,19 @@ export default async function VendorProfilePage({ params }: PageProps) {
         "@type": "ListItem",
         position: 1,
         name: vendor.ecosystem === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty",
-        item: `https://findmybites.com/#${vendor.ecosystem === "FINDMYBITES" ? "food" : "party"}`,
+        item: `https://www.findmybites.com/#${vendor.ecosystem === "FINDMYBITES" ? "food" : "party"}`,
       },
       {
         "@type": "ListItem",
         position: 2,
         name: cat?.label || "Vendors",
-        item: `https://findmybites.com/?category=${vendor.category}`,
+        item: `https://www.findmybites.com/?category=${vendor.category}`,
       },
       {
         "@type": "ListItem",
         position: 3,
         name: vendor.name,
-        item: `https://findmybites.com/vendor/${vendor.slug}`,
+        item: `https://www.findmybites.com/vendor/${vendor.slug}`,
       },
     ],
   };

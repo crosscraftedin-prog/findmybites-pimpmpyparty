@@ -26,7 +26,7 @@ function slugify(s: string): string {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://findmybites.com";
+  const baseUrl = "https://www.findmybites.com";
   const entries: MetadataRoute.Sitemap = [];
 
   // Static pages

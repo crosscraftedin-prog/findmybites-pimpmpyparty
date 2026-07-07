@@ -76,6 +76,9 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 4. Resolve vendor ID from session (never trust client) ──
+    // SECURITY: Require authentication — anonymous uploads are NOT allowed.
+    // Previously: unauthenticated users got vendorId="temp" and could upload
+    // unlimited files to Supabase Storage.
     const supabase = await createSupabaseServerClient();
     let userId: string | null = null;
     try {
@@ -83,15 +86,31 @@ export async function POST(req: NextRequest) {
       userId = user?.id ?? null;
     } catch {}
 
-    let vendorId = "temp";
-    if (userId) {
-      try {
-        const vendor = await db.vendor.findFirst({
-          where: { owner_user_id: userId },
-          select: { id: true },
-        }).catch(() => null);
-        if (vendor) vendorId = vendor.id;
-      } catch {}
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Authentication required to upload files." },
+        { status: 401 }
+      );
+    }
+
+    let vendorId: string;
+    try {
+      const vendor = await db.vendor.findFirst({
+        where: { owner_user_id: userId },
+        select: { id: true },
+      }).catch(() => null);
+      if (!vendor) {
+        return NextResponse.json(
+          { error: "No vendor listing found. Complete your vendor profile first." },
+          { status: 403 }
+        );
+      }
+      vendorId = vendor.id;
+    } catch {
+      return NextResponse.json(
+        { error: "Failed to verify vendor account." },
+        { status: 500 }
+      );
     }
 
     // ── 5. Check Supabase Storage is configured ──

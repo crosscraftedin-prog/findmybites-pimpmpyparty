@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
 import { getBooking, getBookingNotes, getBookingTimeline } from "@/lib/bookings/booking-service";
 import { requireAdmin } from "@/lib/admin-guard";
 
@@ -50,16 +51,13 @@ export async function GET(
     const isCustomer = booking.customerEmail.toLowerCase() === userEmail;
 
     if (!isCustomer) {
-      // Check if vendor owns this booking
-      // The booking has vendorId — check if this user owns that vendor
+      // Check if vendor owns this booking using the shared db client
+      // (previously created a new PrismaClient per request — connection pool exhaustion risk)
       try {
-        const { PrismaClient } = await import("@prisma/client");
-        const prisma = new PrismaClient();
-        const vendor = await prisma.vendor.findFirst({
+        const vendor = await db.vendor.findFirst({
           where: { id: booking.vendorId, owner_user_id: session.user.id },
           select: { id: true },
         });
-        await prisma.$disconnect();
         if (!vendor) {
           return NextResponse.json({ error: "Not authorized to view this booking" }, { status: 403 });
         }

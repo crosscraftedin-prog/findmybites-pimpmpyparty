@@ -57,7 +57,7 @@ export function generateSEOMetadata(ctx: SEOContext, resolvedCatLabel?: string):
   }
 
   const path = buildPath(ctx);
-  const url = `https://findmybites.com${path}`;
+  const url = `https://www.findmybites.com${path}`;
 
   return {
     title,
@@ -106,7 +106,7 @@ export function generateJsonLd(ctx: SEOContext, vendors: any[] = [], resolvedCat
   const ecoLabel = ECOSYSTEM_LABEL[ecosystem];
   const catLabel = resolvedCatLabel ?? (category ? category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : undefined);
   const path = buildPath(ctx);
-  const url = `https://findmybites.com${path}`;
+  const url = `https://www.findmybites.com${path}`;
 
   const jsonLd: Record<string, any>[] = [];
 
@@ -115,10 +115,10 @@ export function generateJsonLd(ctx: SEOContext, vendors: any[] = [], resolvedCat
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: ecoLabel,
-    url: `https://findmybites.com/${ecosystem === "FINDMYBITES" ? "findmybites" : "pimpmyparty"}`,
+    url: `https://www.findmybites.com/${ecosystem === "FINDMYBITES" ? "findmybites" : "pimpmyparty"}`,
     potentialAction: {
       "@type": "SearchAction",
-      target: `https://findmybites.com/search?q={search_term_string}`,
+      target: `https://www.findmybites.com/search?q={search_term_string}`,
       "query-input": "required name=search_term_string",
     },
   });
@@ -132,7 +132,7 @@ export function generateJsonLd(ctx: SEOContext, vendors: any[] = [], resolvedCat
       "@type": "ListItem",
       position: i + 1,
       name: b.label,
-      item: `https://findmybites.com${b.path}`,
+      item: `https://www.findmybites.com${b.path}`,
     })),
   });
 
@@ -147,7 +147,7 @@ export function generateJsonLd(ctx: SEOContext, vendors: any[] = [], resolvedCat
         item: {
           "@type": "LocalBusiness",
           name: v.name,
-          url: `https://findmybites.com/vendor/${v.slug}`,
+          url: `https://www.findmybites.com/vendor/${v.slug}`,
           telephone: v.whatsapp ?? undefined,
           address: {
             "@type": "PostalAddress",
