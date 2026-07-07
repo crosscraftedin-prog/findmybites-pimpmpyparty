@@ -122,7 +122,9 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
 
   // ── Auto-save draft (every 15s) ──
   const formRef = React.useRef(form);
-  formRef.current = form;
+  React.useEffect(() => {
+    formRef.current = form;
+  }, [form]);
 
   const autoSave = React.useCallback(async () => {
     if (!formRef.current.name?.trim()) return; // don't save empty
