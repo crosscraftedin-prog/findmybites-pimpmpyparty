@@ -299,7 +299,16 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     if (data.metaTitle) set("metaTitle", data.metaTitle);
     if (data.metaDescription) set("metaDescription", data.metaDescription);
     if (data.tags) set("tags", data.tags);
-    console.log(`[AI-WRITER] ${ts()} ✅ Content applied to form (fallback: ${data._fallback ?? false})`);
+
+    // ── Log ai_source metric ──
+    const source = data.ai_source || (data._fallback ? "Fallback" : "LLM");
+    console.log(`[AI-WRITER] ${ts()} ✅ Content applied to form (ai_source: ${source})`);
+
+    // ── Dev-only warning when fallback is used (never shown to production users) ──
+    if (process.env.NODE_ENV !== "production" && source === "Fallback") {
+      console.warn(`[AI-WRITER] ⚠️ Template fallback was used — LLM was unavailable or timed out`);
+    }
+
     toast.success("AI generated content — review and edit!");
     setAiGenerating(false);
   };
