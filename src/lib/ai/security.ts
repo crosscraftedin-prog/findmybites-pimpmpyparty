@@ -7,6 +7,8 @@
  *    AbortController. Returns null on timeout with logged warning.
  */
 
+import { logger } from "@/lib/logger";
+
 // ── Prompt injection patterns ────────────────────────────────────────────────
 const INJECTION_PATTERNS = [
   /ignore\s+(previous|prior|above|all)\s+instructions/i,
@@ -66,8 +68,9 @@ export function sanitizePrompt(userInput: string): SanitizeResult {
 const AI_TIMEOUT_MS = 30_000; // 30 seconds
 
 /**
- * Wraps an LLM call with a 30-second timeout.
- * Returns null if the timeout is reached.
+ * Wraps an LLM call with a timeout.
+ * Returns { result: null, timedOut: true } if the timeout is reached.
+ * Re-throws all other errors with full diagnostic logging.
  */
 export async function callWithTimeout<T>(
   fn: (signal: AbortSignal) => Promise<T>,
@@ -75,6 +78,7 @@ export async function callWithTimeout<T>(
 ): Promise<{ result: T | null; timedOut: boolean }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const startTime = Date.now();
 
   try {
     const result = await fn(controller.signal);
@@ -82,9 +86,26 @@ export async function callWithTimeout<T>(
     return { result, timedOut: false };
   } catch (err: any) {
     clearTimeout(timeout);
+    const elapsed = Date.now() - startTime;
+
     if (err.name === "AbortError" || controller.signal.aborted) {
+      logger.warn("ai-security", "LLM call timed out", {
+        timeoutMs,
+        elapsedMs: elapsed,
+      });
       return { result: null, timedOut: true };
     }
+
+    // Log the FULL exception details for production debugging
+    logger.error("ai-security", "LLM call threw exception (NOT timeout)", {
+      errorName: err?.name,
+      errorMessage: err?.message,
+      errorCode: err?.code,
+      errorCause: err?.cause?.message ?? (typeof err?.cause === "string" ? err.cause : undefined),
+      elapsedMs: elapsed,
+      stack: err?.stack?.split("\n").slice(0, 8).join("\n"),
+    });
+
     throw err;
   }
 }

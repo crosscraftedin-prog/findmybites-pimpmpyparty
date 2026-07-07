@@ -1,4 +1,5 @@
 import ZAI from "z-ai-web-dev-sdk";
+import { logger } from "@/lib/logger";
 
 /**
  * Server-side ZAI instance factory.
@@ -8,9 +9,8 @@ import ZAI from "z-ai-web-dev-sdk";
  * in every environment. Returns `null` only when no ZAI instance can be
  * constructed at all (extremely rare).
  *
- * Extracted from `/api/josh/chat/route.ts` so all AI endpoints
- * (vendor-summary, vendor-faq, review-summary, josh/chat) share the same
- * resilient factory.
+ * PRODUCTION DIAGNOSTICS: Logs which config path is used and all env var
+ * availability so we can trace exactly which ZAI instance is created.
  */
 
 const ZAI_FALLBACK_CONFIG = {
@@ -22,30 +22,79 @@ const ZAI_FALLBACK_CONFIG = {
 };
 
 export async function getZAI(): Promise<ZAI | null> {
+  const hasEnvUrl = !!process.env.ZAI_BASE_URL;
+  const hasEnvKey = !!process.env.ZAI_API_KEY;
+  const hasEnvChatId = !!process.env.ZAI_CHAT_ID;
+  const hasEnvUserId = !!process.env.ZAI_USER_ID;
+  const hasEnvToken = !!process.env.ZAI_TOKEN;
+  const nodeVersion = process.version;
+  const runtime = process.env.NEXT_RUNTIME || "nodejs";
+  const isVercel = !!process.env.VERCEL;
+
+  logger.info("zai-server", "getZAI() called — env var check", {
+    hasEnvUrl,
+    hasEnvKey,
+    hasEnvChatId,
+    hasEnvUserId,
+    hasEnvToken,
+    nodeVersion,
+    runtime,
+    isVercel,
+    vercelRegion: process.env.VERCEL_REGION || "unknown",
+  });
+
   // 1. Try env vars (production / Vercel)
-  if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
+  if (hasEnvUrl && hasEnvKey) {
     try {
-      return new ZAI({
-        baseUrl: process.env.ZAI_BASE_URL,
-        apiKey: process.env.ZAI_API_KEY,
+      const instance = new ZAI({
+        baseUrl: process.env.ZAI_BASE_URL!,
+        apiKey: process.env.ZAI_API_KEY!,
         chatId: process.env.ZAI_CHAT_ID || "",
         userId: process.env.ZAI_USER_ID || "",
         token: process.env.ZAI_TOKEN || "",
       });
-    } catch {
-      // fall through
+      logger.info("zai-server", "✅ ZAI instance created via ENV VARS", {
+        baseUrl: process.env.ZAI_BASE_URL,
+        hasChatId: !!process.env.ZAI_CHAT_ID,
+        hasUserId: !!process.env.ZAI_USER_ID,
+        hasToken: !!process.env.ZAI_TOKEN,
+      });
+      return instance;
+    } catch (err: any) {
+      logger.error("zai-server", "❌ ENV VAR path failed", {
+        error: err?.message,
+        name: err?.name,
+      });
     }
+  } else {
+    logger.warn("zai-server", "ENV VARS not set — skipping env path", {
+      hasEnvUrl,
+      hasEnvKey,
+    });
   }
+
   // 2. Try config file (local dev sandbox)
   try {
-    return await ZAI.create();
-  } catch {
-    // fall through
+    const instance = await ZAI.create();
+    logger.info("zai-server", "✅ ZAI instance created via ZAI.create() (config file)");
+    return instance;
+  } catch (err: any) {
+    logger.warn("zai-server", "ZAI.create() failed — config file not found", {
+      error: err?.message?.slice(0, 100),
+    });
   }
+
   // 3. Last resort: hardcoded fallback config
   try {
-    return new ZAI(ZAI_FALLBACK_CONFIG);
-  } catch {
+    const instance = new ZAI(ZAI_FALLBACK_CONFIG);
+    logger.info("zai-server", "✅ ZAI instance created via FALLBACK CONFIG", {
+      baseUrl: ZAI_FALLBACK_CONFIG.baseUrl,
+    });
+    return instance;
+  } catch (err: any) {
+    logger.error("zai-server", "❌ FALLBACK config failed — returning null", {
+      error: err?.message,
+    });
     return null;
   }
 }
