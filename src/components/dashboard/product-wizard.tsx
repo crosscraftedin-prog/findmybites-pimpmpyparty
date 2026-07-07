@@ -226,27 +226,48 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       return;
     }
     setAiGenerating(true);
+    const ts = () => new Date().toISOString();
+    console.log(`[AI-WRITER] ${ts()} Generate with AI clicked — name="${form.name}", category="${form.category}"`);
     try {
+      const requestBody = {
+        name: form.name,
+        category: form.category,
+        ecosystem: vendor.ecosystem,
+        city: vendor.city,
+      };
+      console.log(`[AI-WRITER] ${ts()} Request body:`, JSON.stringify(requestBody));
+
+      console.log(`[AI-WRITER] ${ts()} fetch() starting — POST /api/ai/product-writer`);
+      const fetchStart = Date.now();
       const res = await fetch("/api/ai/product-writer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name,
-          category: form.category,
-          ecosystem: vendor.ecosystem,
-          city: vendor.city,
-        }),
+        body: JSON.stringify(requestBody),
       });
+      const fetchEnd = Date.now();
+      console.log(`[AI-WRITER] ${ts()} fetch() completed — status: ${res.status} ${res.statusText} (${fetchEnd - fetchStart}ms)`);
+      console.log(`[AI-WRITER] ${ts()} Response content-type: ${res.headers.get("content-type")}`);
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "AI generation failed");
+      console.log(`[AI-WRITER] ${ts()} JSON parsed — keys: ${Object.keys(data)}`);
+
+      if (!res.ok) {
+        console.error(`[AI-WRITER] ${ts()} ❌ API returned error ${res.status}:`, data.error);
+        throw new Error(data.error || "AI generation failed");
+      }
 
       if (data.description) set("description", data.description);
       if (data.shortDescription) set("shortDescription", data.shortDescription);
       if (data.metaTitle) set("metaTitle", data.metaTitle);
       if (data.metaDescription) set("metaDescription", data.metaDescription);
       if (data.tags) set("tags", data.tags);
+      console.log(`[AI-WRITER] ${ts()} ✅ Content applied to form`);
       toast.success("AI generated content — review and edit!");
     } catch (err: any) {
+      console.error(`[AI-WRITER] ${ts()} ❌ EXCEPTION:`, err);
+      console.error(`[AI-WRITER] ${ts()} Error name: ${err.name}`);
+      console.error(`[AI-WRITER] ${ts()} Error message: ${err.message}`);
+      console.error(`[AI-WRITER] ${ts()} Stack: ${err.stack?.split('\n').slice(0, 3).join(' | ')}`);
       toast.error(err.message || "AI generation failed");
     }
     setAiGenerating(false);
