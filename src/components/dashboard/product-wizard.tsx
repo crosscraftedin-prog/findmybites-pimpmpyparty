@@ -227,49 +227,80 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     }
     setAiGenerating(true);
     const ts = () => new Date().toISOString();
-    console.log(`[AI-WRITER] ${ts()} Generate with AI clicked — name="${form.name}", category="${form.category}"`);
-    try {
-      const requestBody = {
-        name: form.name,
-        category: form.category,
-        ecosystem: vendor.ecosystem,
-        city: vendor.city,
-      };
-      console.log(`[AI-WRITER] ${ts()} Request body:`, JSON.stringify(requestBody));
+    console.log(`[AI-WRITER] ${ts()} ═══════════════════════════════════════`);
+    console.log(`[AI-WRITER] ${ts()} Button clicked — name="${form.name}"`);
 
-      console.log(`[AI-WRITER] ${ts()} fetch() starting — POST /api/ai/product-writer`);
-      const fetchStart = Date.now();
-      const res = await fetch("/api/ai/product-writer", {
+    const requestBody = {
+      name: form.name,
+      category: form.category,
+      ecosystem: vendor.ecosystem,
+      city: vendor.city,
+    };
+    console.log(`[AI-WRITER] ${ts()} Request body:`, JSON.stringify(requestBody));
+
+    // ── FETCH START ──
+    console.log(`[AI-WRITER] ${ts()} fetch() STARTING — POST /api/ai/product-writer`);
+    const fetchStart = Date.now();
+
+    let res: Response;
+    try {
+      res = await fetch("/api/ai/product-writer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
+    } catch (fetchErr: any) {
+      // ── SCENARIO A: Browser fetch() itself threw — never received a response ──
       const fetchEnd = Date.now();
-      console.log(`[AI-WRITER] ${ts()} fetch() completed — status: ${res.status} ${res.statusText} (${fetchEnd - fetchStart}ms)`);
-      console.log(`[AI-WRITER] ${ts()} Response content-type: ${res.headers.get("content-type")}`);
-
-      const data = await res.json();
-      console.log(`[AI-WRITER] ${ts()} JSON parsed — keys: ${Object.keys(data)}`);
-
-      if (!res.ok) {
-        console.error(`[AI-WRITER] ${ts()} ❌ API returned error ${res.status}:`, data.error);
-        throw new Error(data.error || "AI generation failed");
-      }
-
-      if (data.description) set("description", data.description);
-      if (data.shortDescription) set("shortDescription", data.shortDescription);
-      if (data.metaTitle) set("metaTitle", data.metaTitle);
-      if (data.metaDescription) set("metaDescription", data.metaDescription);
-      if (data.tags) set("tags", data.tags);
-      console.log(`[AI-WRITER] ${ts()} ✅ Content applied to form`);
-      toast.success("AI generated content — review and edit!");
-    } catch (err: any) {
-      console.error(`[AI-WRITER] ${ts()} ❌ EXCEPTION:`, err);
-      console.error(`[AI-WRITER] ${ts()} Error name: ${err.name}`);
-      console.error(`[AI-WRITER] ${ts()} Error message: ${err.message}`);
-      console.error(`[AI-WRITER] ${ts()} Stack: ${err.stack?.split('\n').slice(0, 3).join(' | ')}`);
-      toast.error(err.message || "AI generation failed");
+      console.error(`[AI-WRITER] ${ts()} ❌❌❌ FETCH ITSELF THREW (${fetchEnd - fetchStart}ms)`);
+      console.error(`[AI-WRITER] ${ts()} error.name: ${fetchErr?.name}`);
+      console.error(`[AI-WRITER] ${ts()} error.message: ${fetchErr?.message}`);
+      console.error(`[AI-WRITER] ${ts()} error.cause: ${fetchErr?.cause?.message ?? fetchErr?.cause}`);
+      console.error(`[AI-WRITER] ${ts()} error.stack: ${fetchErr?.stack?.split('\n').slice(0, 5).join('\n')}`);
+      console.error(`[AI-WRITER] ${ts()} THIS IS SCENARIO A — browser never received a response`);
+      toast.error(fetchErr?.message || "Network error — could not reach server");
+      setAiGenerating(false);
+      return;
     }
+
+    // ── FETCH COMPLETED — browser received a response ──
+    const fetchEnd = Date.now();
+    console.log(`[AI-WRITER] ${ts()} fetch() COMPLETED — status: ${res.status} ${res.statusText} (${fetchEnd - fetchStart}ms)`);
+    console.log(`[AI-WRITER] ${ts()} Response content-type: ${res.headers.get("content-type")}`);
+
+    // ── Read raw text BEFORE parsing JSON ──
+    const rawText = await res.text();
+    console.log(`[AI-WRITER] ${ts()} Raw response text (${rawText.length} chars): ${rawText.slice(0, 300)}`);
+
+    // ── Parse JSON ──
+    let data: any;
+    try {
+      data = JSON.parse(rawText);
+      console.log(`[AI-WRITER] ${ts()} JSON parsed — keys: ${Object.keys(data)}`);
+    } catch (parseErr: any) {
+      console.error(`[AI-WRITER] ${ts()} ❌ JSON PARSE FAILED: ${parseErr.message}`);
+      console.error(`[AI-WRITER] ${ts()} Raw text was: ${rawText.slice(0, 200)}`);
+      toast.error("Server returned non-JSON response");
+      setAiGenerating(false);
+      return;
+    }
+
+    // ── Check HTTP status ──
+    if (!res.ok) {
+      console.error(`[AI-WRITER] ${ts()} ❌ API returned HTTP ${res.status}: ${data.error}`);
+      toast.error(data.error || `AI generation failed (HTTP ${res.status})`);
+      setAiGenerating(false);
+      return;
+    }
+
+    // ── Success — apply content ──
+    if (data.description) set("description", data.description);
+    if (data.shortDescription) set("shortDescription", data.shortDescription);
+    if (data.metaTitle) set("metaTitle", data.metaTitle);
+    if (data.metaDescription) set("metaDescription", data.metaDescription);
+    if (data.tags) set("tags", data.tags);
+    console.log(`[AI-WRITER] ${ts()} ✅ Content applied to form (fallback: ${data._fallback ?? false})`);
+    toast.success("AI generated content — review and edit!");
     setAiGenerating(false);
   };
 
