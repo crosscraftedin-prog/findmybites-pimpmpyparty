@@ -11,6 +11,15 @@ import { logger } from "@/lib/logger";
  *
  * PRODUCTION DIAGNOSTICS: Logs which config path is used and all env var
  * availability so we can trace exactly which ZAI instance is created.
+ *
+ * PRODUCTION FIX: The fallback config uses `internal-api.z.ai` which has
+ * connectivity issues from Vercel's network (TCP connect timeout > 10s).
+ * Node.js's built-in fetch() has a default connect timeout of 10s, which
+ * causes `TypeError: fetch failed` with `cause: connect ETIMEDOUT`.
+ *
+ * The env vars ZAI_BASE_URL, ZAI_API_KEY, ZAI_CHAT_ID, ZAI_USER_ID, and
+ * ZAI_TOKEN should be set on Vercel to use the same endpoint explicitly.
+ * When set, the env var path is used (step 1) instead of the fallback.
  */
 
 const ZAI_FALLBACK_CONFIG = {
@@ -24,9 +33,6 @@ const ZAI_FALLBACK_CONFIG = {
 export async function getZAI(): Promise<ZAI | null> {
   const hasEnvUrl = !!process.env.ZAI_BASE_URL;
   const hasEnvKey = !!process.env.ZAI_API_KEY;
-  const hasEnvChatId = !!process.env.ZAI_CHAT_ID;
-  const hasEnvUserId = !!process.env.ZAI_USER_ID;
-  const hasEnvToken = !!process.env.ZAI_TOKEN;
   const nodeVersion = process.version;
   const runtime = process.env.NEXT_RUNTIME || "nodejs";
   const isVercel = !!process.env.VERCEL;
@@ -34,9 +40,6 @@ export async function getZAI(): Promise<ZAI | null> {
   logger.info("zai-server", "getZAI() called — env var check", {
     hasEnvUrl,
     hasEnvKey,
-    hasEnvChatId,
-    hasEnvUserId,
-    hasEnvToken,
     nodeVersion,
     runtime,
     isVercel,
@@ -55,16 +58,10 @@ export async function getZAI(): Promise<ZAI | null> {
       });
       logger.info("zai-server", "✅ ZAI instance created via ENV VARS", {
         baseUrl: process.env.ZAI_BASE_URL,
-        hasChatId: !!process.env.ZAI_CHAT_ID,
-        hasUserId: !!process.env.ZAI_USER_ID,
-        hasToken: !!process.env.ZAI_TOKEN,
       });
       return instance;
     } catch (err: any) {
-      logger.error("zai-server", "❌ ENV VAR path failed", {
-        error: err?.message,
-        name: err?.name,
-      });
+      logger.error("zai-server", "❌ ENV VAR path failed", { error: err?.message });
     }
   } else {
     logger.warn("zai-server", "ENV VARS not set — skipping env path", {
@@ -89,12 +86,11 @@ export async function getZAI(): Promise<ZAI | null> {
     const instance = new ZAI(ZAI_FALLBACK_CONFIG);
     logger.info("zai-server", "✅ ZAI instance created via FALLBACK CONFIG", {
       baseUrl: ZAI_FALLBACK_CONFIG.baseUrl,
+      note: "This endpoint may have connectivity issues from Vercel — set ZAI_BASE_URL env var if AI calls fail",
     });
     return instance;
   } catch (err: any) {
-    logger.error("zai-server", "❌ FALLBACK config failed — returning null", {
-      error: err?.message,
-    });
+    logger.error("zai-server", "❌ FALLBACK config failed — returning null", { error: err?.message });
     return null;
   }
 }
