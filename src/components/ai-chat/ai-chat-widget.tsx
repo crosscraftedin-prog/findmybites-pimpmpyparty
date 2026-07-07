@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
+import { isMarketplacePage } from "@/lib/ai-route-helper";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -74,9 +75,9 @@ export function AIChatWidget() {
   const [open, setOpen] = React.useState(false);
   const [showTooltip, setShowTooltip] = React.useState(false);
 
-  // ── Route-aware: hide on vendor/product pages (Vendor AI shows there instead) ──
+  // ── Route-aware: only show on marketplace pages (not vendor/product/dashboard) ──
   const pathname = usePathname();
-  const isVendorPage = pathname?.startsWith("/vendor/") || pathname?.startsWith("/product/");
+  const showWidget = isMarketplacePage(pathname);
 
   React.useEffect(() => {
     const t = setTimeout(() => setShowTooltip(true), 3000);
@@ -97,8 +98,8 @@ export function AIChatWidget() {
     return () => window.removeEventListener("open-josh-chat", handleOpen as EventListener);
   }, []);
 
-  // ── Don't render on vendor/product pages — Vendor AI handles those ──
-  if (isVendorPage) return null;
+  // ── Don't render on vendor/product/dashboard pages ──
+  if (!showWidget) return null;
 
   return (
     <>
