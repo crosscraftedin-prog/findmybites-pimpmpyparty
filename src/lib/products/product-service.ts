@@ -88,7 +88,7 @@ function toDetail(p: any): ProductDetail {
     isAvailable: p.isAvailable ?? true, inStock: p.inStock ?? true,
     limitedTime: p.limitedTime ?? false, customOrderOnly: p.customOrderOnly ?? false,
     featured: p.featured ?? false, isFeatured: p.isFeatured ?? false,
-    tags: p.tags ? parseJsonArray<string>(p.tags) : [],
+    tags: (p as any).tags ? parseJsonArray<string>((p as any).tags) : [],
     metaTitle: p.metaTitle ?? null, metaDescription: p.metaDescription ?? null,
     duration: p.duration ?? null, capacity: p.capacity ?? null,
     includes: p.includes ? parseJsonArray<string>(p.includes) : [],
@@ -222,11 +222,9 @@ export async function createProduct(vendorId: string, data: any): Promise<Produc
     priceOnRequest: data.priceOnRequest ?? false, isAvailable: data.isAvailable ?? true,
     inStock: data.inStock ?? true, limitedTime: data.limitedTime ?? false,
     customOrderOnly: data.customOrderOnly ?? false, featured: data.featured ?? false,
-    tags: data.tags ? JSON.stringify(data.tags) : null,
     metaTitle: data.metaTitle || null, metaDescription: data.metaDescription || null,
     duration: data.duration || null, capacity: data.capacity ?? null,
     includes: data.includes ? JSON.stringify(data.includes) : null,
-    serviceAreas: data.serviceAreas || null,
     includedServices: data.includedServices ? JSON.stringify(data.includedServices) : null,
     optionalServices: data.optionalServices ? JSON.stringify(data.optionalServices) : null,
     equipmentIncluded: data.equipmentIncluded || null, indoorOutdoor: data.indoorOutdoor || null,
@@ -264,14 +262,13 @@ export async function updateProduct(productId: string, vendorId: string, data: a
     "ingredients","allergenInfo","spicyLevel","eggless","vegetarian","vegan","halal","glutenFree","sugarFree",
     "deliveryAvailable","pickupAvailable","customOrder","sameDay","startingFromPrice","hidePrice","priceOnRequest",
     "isAvailable","inStock","limitedTime","customOrderOnly","featured","metaTitle","metaDescription",
-    "duration","capacity","serviceAreas","equipmentIncluded","indoorOutdoor","travelAvailable",
+    "duration","capacity","equipmentIncluded","indoorOutdoor","travelAvailable",
     "bookingNotice","cancellationPolicy","leadTime","status",
     "maxOrdersPerDay","availabilityMode","availabilityStart","availabilityEnd",
     "preparationTimeCategory","preparationTimeCustom","bookingNoticeHours","serviceAreaType",
     "seasonLabel","stockType","stockCount","lowStockThreshold"];
   for (const f of fields) { if (data[f] !== undefined) updateData[f] = data[f]; }
   if (data.images !== undefined) updateData.images = data.images ? JSON.stringify(data.images) : null;
-  if (data.tags !== undefined) updateData.tags = data.tags ? JSON.stringify(data.tags) : null;
   if (data.includes !== undefined) updateData.includes = data.includes ? JSON.stringify(data.includes) : null;
   if (data.includedServices !== undefined) updateData.includedServices = data.includedServices ? JSON.stringify(data.includedServices) : null;
   if (data.optionalServices !== undefined) updateData.optionalServices = data.optionalServices ? JSON.stringify(data.optionalServices) : null;
