@@ -31,7 +31,7 @@ export async function GET(_req: NextRequest) {
         rating: true,
         reviewCount: true,
       },
-      orderBy: [{ sortOrder: "asc" }, { rating: "desc" }],
+      orderBy: [{ rating: "desc" }, { reviewCount: "desc" }],
       take: MAX_SLOTS,
     });
 

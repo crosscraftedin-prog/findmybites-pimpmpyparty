@@ -1007,7 +1007,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     ].map(d => {
                       const Icon = d.icon;
                       return (
-                        <button key={d.id} onClick={() => setPreviewDevice(d.id)}
+                        <button key={d.id} onClick={() => setPreviewDevice(d.id as "desktop" | "tablet" | "mobile")}
                           className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium",
                             previewDevice === d.id ? "border-brand bg-brand/10 text-brand" : "border-border text-muted-foreground")}>
                           <Icon className="size-3.5" /> {d.label}

@@ -593,7 +593,7 @@ export function VendorDashboardPage({
                     axisLine={false}
                     tickLine={false}
                     interval={4}
-                    maxTicksLimit={7}
+                    
                   />
                   <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                   <Tooltip
@@ -617,7 +617,7 @@ export function VendorDashboardPage({
                     strokeWidth={2}
                     fill="url(#viewsGrad)"
                     dot={false}
-                    tension={0.4}
+                    
                   />
                   <Line
                     type="monotone"
@@ -627,7 +627,7 @@ export function VendorDashboardPage({
                     strokeDasharray="4 3"
                     fill="url(#tapsGrad)"
                     dot={false}
-                    tension={0.4}
+                    
                   />
                 </ComposedChart>
               </ResponsiveContainer>

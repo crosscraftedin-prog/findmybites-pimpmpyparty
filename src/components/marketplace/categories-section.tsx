@@ -61,15 +61,15 @@ export function CategoriesSection() {
                 >
                   <div className="relative aspect-[4/5] overflow-hidden">
                     <VendorImage
-                      src={cat.image}
-                      alt={cat.label}
+                      src={cat.image || ""}
+                      alt={cat.label || ""}
                       accent={cat.accent}
                       className="h-full w-full transition-transform duration-500 group-hover:scale-105"
-                      categoryIcon={<CategoryIcon name={cat.icon} className="size-12" />}
+                      categoryIcon={<CategoryIcon name={cat.icon || ""} className="size-12" />}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                     <div className="absolute left-3 top-3 grid size-9 place-items-center rounded-xl bg-white/20 text-white backdrop-blur-md">
-                      <CategoryIcon name={cat.icon} className="size-5" />
+                      <CategoryIcon name={cat.icon || ""} className="size-5" />
                     </div>
                     <div className="absolute right-3 top-3 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md">
                       {cat.count} {cat.count === 1 ? "vendor" : "vendors"}

@@ -293,7 +293,7 @@ export function AdminPricing() {
                           />
                           <input
                             type="number"
-                            defaultValue={p.proYearly}
+                            defaultValue={p.proYearlyTotal}
                             onChange={(e) => setEditForm({ ...editForm, proYearlyTotal: Number(e.target.value) })}
                             className="w-20 rounded border border-black/15 px-2 py-1 text-[13px]"
                           />
@@ -301,7 +301,7 @@ export function AdminPricing() {
                       ) : (
                         <span className="font-medium">{p.symbol}{p.proMonthly}</span>
                       )}
-                      {editingId !== p.id && <span className="text-black/40"> / {p.symbol}{p.proYearly}</span>}
+                      {editingId !== p.id && <span className="text-black/40"> / {p.symbol}{p.proYearlyTotal}</span>}
                     </td>
                     <td className="px-4 py-3">
                       {editingId === p.id ? (
@@ -314,7 +314,7 @@ export function AdminPricing() {
                           />
                           <input
                             type="number"
-                            defaultValue={p.businessYearly}
+                            defaultValue={p.businessYearlyTotal}
                             onChange={(e) => setEditForm({ ...editForm, businessYearlyTotal: Number(e.target.value) })}
                             className="w-20 rounded border border-black/15 px-2 py-1 text-[13px]"
                           />
@@ -322,7 +322,7 @@ export function AdminPricing() {
                       ) : (
                         <span className="font-medium">{p.symbol}{p.businessMonthly}</span>
                       )}
-                      {editingId !== p.id && <span className="text-black/40"> / {p.symbol}{p.businessYearly}</span>}
+                      {editingId !== p.id && <span className="text-black/40"> / {p.symbol}{p.businessYearlyTotal}</span>}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">

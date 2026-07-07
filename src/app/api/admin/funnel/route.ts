@@ -20,7 +20,7 @@ export async function GET() {
       withCover,           // heroImage is not empty
       withDescription,     // description length > 30
       withProducts,        // has at least 1 product
-      withFiveProducts,    // has at least 5 products
+      withFiveProductsRaw, // has at least 5 products (raw query result)
       withSubscription,    // active subscription
       withWhatsApp,        // whatsapp is not empty
     ] = await Promise.all([
@@ -30,11 +30,19 @@ export async function GET() {
       db.vendor.count({ where: { approved: true, avatarImage: { not: "" } } }),
       db.vendor.count({ where: { approved: true, heroImage: { not: "" } } }),
       db.vendor.count({ where: { approved: true, description: { not: "" } } }),
-      db.vendor.count({ where: { approved: true, _count: { products: { gt: 0 } } } }),
-      db.vendor.count({ where: { approved: true, _count: { products: { gte: 5 } } } }),
+      // Vendors with at least 1 product — use products: { some: {} } relation filter
+      db.vendor.count({ where: { approved: true, products: { some: {} } } }),
+      // Vendors with 5+ products — can't express "gte 5" directly in count,
+      // so fetch vendors with 5+ products via a grouped query
+      db.$queryRaw`SELECT COUNT(*)::int as cnt FROM (SELECT vendor_id FROM "Product" WHERE status != 'archived' GROUP BY vendor_id HAVING COUNT(*) >= 5) t`,
       db.vendorSubscription.count({ where: { status: "active" } }),
       db.vendor.count({ where: { approved: true, whatsapp: { not: "" } } }),
     ]);
+
+    // Extract count from raw query result (returns [{cnt: number}])
+    const withFiveProducts = Array.isArray(withFiveProductsRaw)
+      ? Number((withFiveProductsRaw[0] as any)?.cnt ?? 0)
+      : Number(withFiveProductsRaw ?? 0);
 
     const stages = [
       { name: "Imported", count: totalImported, color: "#3b82f6" },

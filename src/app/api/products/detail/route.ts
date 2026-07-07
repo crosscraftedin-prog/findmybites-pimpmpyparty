@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
             },
           },
           take: 4 - relatedProducts.length,
-          orderBy: [{ isFeatured: "desc" }, { rating: "desc" }],
+          orderBy: [{ isFeatured: "desc" }, { views: "desc" }],
           select: {
             id: true,
             name: true,

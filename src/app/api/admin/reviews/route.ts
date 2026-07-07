@@ -1,9 +1,10 @@
 import { requireAdmin } from "@/lib/admin-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import type { Review as DbReview } from "@prisma/client";
 import type { Review } from "@/lib/types";
 
-function transformReview(r: typeof db.review): Review {
+function transformReview(r: DbReview): Review {
   return {
     id: r.id,
     vendorId: r.vendorId,

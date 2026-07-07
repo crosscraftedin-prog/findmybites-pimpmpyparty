@@ -83,7 +83,7 @@ export function DynamicFilters({ vendorId, category }: DynamicFiltersProps) {
   }, [vendorId]);
 
   // Save selections to DB (debounced)
-  const saveTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const saveTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
   const saveSelections = React.useCallback(
     (newSelectedIds: Set<string>, newRangeValues: Record<string, string>) => {
       if (!vendorId) return;

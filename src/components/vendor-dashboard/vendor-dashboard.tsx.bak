@@ -704,7 +704,7 @@ export function VendorDashboard() {
                             tick={{ fontSize: 10, fill: "#888780" }}
                             axisLine={false}
                             tickLine={false}
-                            maxTicksLimit={8}
+                            
                           />
                           <YAxis
                             tick={{ fontSize: 10, fill: "#888780" }}

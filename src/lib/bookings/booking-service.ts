@@ -916,6 +916,10 @@ export async function generateBookingNotification(
     reminder_24h: `Reminder: Your ${booking.eventType} with ${booking.vendor.name} is tomorrow at ${booking.bookingTime}`,
     note_added: `A note was added to your booking ${booking.bookingNumber}`,
     reassigned: `Your booking ${booking.bookingNumber} has been reassigned to a new vendor`,
+    quote_sent: `A quote was sent for booking ${booking.bookingNumber}`,
+    archived: `Booking ${booking.bookingNumber} has been archived`,
+    status_changed: `Status updated for booking ${booking.bookingNumber}`,
+    payment_updated: `Payment updated for booking ${booking.bookingNumber}`,
   };
 
   return {

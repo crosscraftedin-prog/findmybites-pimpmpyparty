@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import type { Ecosystem } from "@/lib/types";
 import { toast } from "sonner";
 import {
   WRITING_STYLES, type WritingStyle, type AiBusinessProfile,
@@ -152,7 +153,7 @@ export function SetupAssistant({ vendor, onSaved }: SetupAssistantProps) {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Marketplace *</Label>
-                  <Select value={minFields.marketplace} onValueChange={(v) => setMinFields((f) => ({ ...f, marketplace: v }))}>
+                  <Select value={minFields.marketplace} onValueChange={(v) => setMinFields((f) => ({ ...f, marketplace: v as Ecosystem }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="FINDMYBITES">FindMyBites (Food)</SelectItem>

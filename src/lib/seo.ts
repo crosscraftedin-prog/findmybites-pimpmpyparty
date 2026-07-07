@@ -62,7 +62,6 @@ export function generateSEOMetadata(ctx: SEOContext, resolvedCatLabel?: string):
   return {
     title,
     description: desc,
-    canonical: url,
     alternates: { canonical: url },
     openGraph: {
       title,
@@ -209,7 +208,7 @@ export function generateBreadcrumbs(ctx: SEOContext) {
     if (city) {
       crumbs.push({ label: city, path: `/${ecoSlug}/${slugify(country)}/${slugify(city)}` });
       if (category) {
-        crumbs.push({ label: catLabel ?? category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), path: `/${ecoSlug}/${slugify(country)}/${slugify(city)}/${category}` });
+        crumbs.push({ label: category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), path: `/${ecoSlug}/${slugify(country)}/${slugify(city)}/${category}` });
       }
     } else if (state) {
       crumbs.push({ label: state, path: `/${ecoSlug}/${slugify(country)}/${slugify(state)}` });

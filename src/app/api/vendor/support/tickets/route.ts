@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     // Fetch vendor contact info
     const fullVendor = await db.vendor.findUnique({
       where: { id: vendor.id },
-      select: { name: true, userEmail: true, whatsapp: true, phone: true },
+      select: { name: true, userEmail: true, whatsapp: true },
     });
 
     // Auto-capture browser info + dashboard URL from headers
@@ -50,9 +50,9 @@ export async function POST(req: NextRequest) {
 
     const ticket = await createTicket({
       vendorId: vendor.id,
-      vendorName: fullVendor?.name || vendor.businessName || "Unknown",
+      vendorName: fullVendor?.name || "Unknown",
       vendorEmail: fullVendor?.userEmail || "",
-      vendorPhone: fullVendor?.whatsapp || fullVendor?.phone || "",
+      vendorPhone: fullVendor?.whatsapp || "",
       subject, category, priority: priority || "medium",
       description, attachments,
       browserInfo: userAgent, dashboardUrl,

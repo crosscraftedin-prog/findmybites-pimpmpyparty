@@ -49,7 +49,7 @@ function loadGooglePlaces(): Promise<any> | null {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
   if (!apiKey) return null;
   if (typeof window === "undefined") return null;
-  if (window.google?.maps?.places) return Promise.resolve(window.google.maps.places);
+  if ((window as any).google?.maps?.places) return Promise.resolve((window as any).google.maps.places);
   if (googlePlacesPromise) return googlePlacesPromise;
 
   googlePlacesPromise = new Promise((resolve, reject) => {
@@ -58,7 +58,7 @@ function loadGooglePlaces(): Promise<any> | null {
     script.async = true;
     script.defer = true;
     (window as any).__initGooglePlaces = () => {
-      resolve(window.google?.maps?.places || null);
+      resolve((window as any).google?.maps?.places || null);
     };
     script.onerror = () => reject(new Error("Google Places failed to load"));
     document.head.appendChild(script);
@@ -179,7 +179,7 @@ export function AddressAutocomplete({ value, onChange, onUseLocation, locating }
 
   const selectOsmAddress = (result: AddressResult) => {
     const a = result.address;
-    const city = a.city || a.town || a.village || a.municipality || "";
+    const city = a.city || a.town || a.village || (a as any).municipality || "";
     const area = a.suburb || a.neighbourhood || a.road || "";
     const state = a.state || a.region || "";
     const fullAddress = result.display_name.split(",").slice(0, 3).join(", ").trim();

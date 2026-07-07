@@ -169,7 +169,7 @@ export async function verifySavedState(
     }
     let reloadedState: ConversationState | null = null;
     try {
-      reloadedState = typeof row.state === "string" ? JSON.parse(row.state) : (row.state as ConversationState);
+      reloadedState = typeof row.state === "string" ? JSON.parse(row.state) : (row.state as unknown as ConversationState);
     } catch { reloadedState = null; }
     const verified = stateMatches(reloadedState, expectedState);
     if (verified) {

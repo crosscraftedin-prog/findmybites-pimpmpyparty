@@ -796,7 +796,7 @@ function FieldRenderer({
               <div className="aspect-video">
                 <ImageUpload
                   label=""
-                  aspect="video"
+                  aspect="banner"
                   value=""
                   onChange={(url) =>
                     url && set(field.key, [...images, url])

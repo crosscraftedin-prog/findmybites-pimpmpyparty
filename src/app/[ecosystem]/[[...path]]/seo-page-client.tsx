@@ -289,7 +289,7 @@ function VendorCard({ vendor, ecoColor, ecoTint }: { vendor: Vendor; ecoColor: s
 function buildH1(ctx: SEOContext, vendorCount: number, dbCategories: {id: string; label: string}[]): string {
   const ecoLabel = ctx.ecosystem === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty";
   const cat = ctx.category ? getCategoryLabel(ctx.category, dbCategories) : null;
-  const location = [ctx.city, ctx.state, ctx.country].filter(Boolean).map(s => s.replace(/-/g, " ")).join(", ");
+  const location = ([ctx.city, ctx.state, ctx.country].filter(Boolean) as string[]).map(s => s.replace(/-/g, " ")).join(", ");
 
   if (cat && ctx.city) {
     return `Best ${cat} in ${ctx.city.replace(/-/g, " ")}`;

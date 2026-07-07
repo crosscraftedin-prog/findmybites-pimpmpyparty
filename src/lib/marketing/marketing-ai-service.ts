@@ -159,7 +159,7 @@ export async function generateSocialPost(
   const vendor = await db.vendor.findUnique({
     where: { id: vendorId },
     select: { name: true, category: true, city: true, ecosystem: true, tagline: true },
-  });
+  }) as any;
   if (!vendor) throw new Error("Vendor not found");
 
   const p = SOCIAL_PLATFORMS[platform] || SOCIAL_PLATFORMS.instagram;
@@ -206,7 +206,7 @@ export async function generateCampaignCopy(
 ): Promise<CampaignCopy> {
   const vendor = await db.vendor.findUnique({
     where: { id: vendorId },
-    select: { name: true, category: true, city: true, ecosystem: true },
+    select: { name: true, category: true, city: true, ecosystem: true, tagline: true },
   });
   if (!vendor) throw new Error("Vendor not found");
 
@@ -258,7 +258,7 @@ export async function generateEmailCampaign(
 ): Promise<EmailContent> {
   const vendor = await db.vendor.findUnique({
     where: { id: vendorId },
-    select: { name: true, category: true, city: true, ecosystem: true },
+    select: { name: true, category: true, city: true, ecosystem: true, tagline: true },
   });
   if (!vendor) throw new Error("Vendor not found");
 
@@ -296,7 +296,7 @@ export async function generateWhatsAppMessage(
 ): Promise<WhatsAppMessage> {
   const vendor = await db.vendor.findUnique({
     where: { id: vendorId },
-    select: { name: true, category: true, city: true, ecosystem: true },
+    select: { name: true, category: true, city: true, ecosystem: true, tagline: true },
   });
   if (!vendor) throw new Error("Vendor not found");
 

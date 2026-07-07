@@ -37,7 +37,7 @@ export function FilterSidebar({ category, onResults, onLoadingChange }: FilterSi
   const [loading, setLoading] = React.useState(true);
   const [searching, setSearching] = React.useState(false);
   const [hasSearched, setHasSearched] = React.useState(false);
-  const searchTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const searchTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Fetch filters when category changes
   React.useEffect(() => {

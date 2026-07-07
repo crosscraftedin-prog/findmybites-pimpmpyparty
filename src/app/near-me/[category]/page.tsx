@@ -25,6 +25,7 @@ import {
   generateFAQJsonLd,
 } from "@/lib/seo-content";
 import { getCategoryInfo } from "@/lib/category-server";
+import { db } from "@/lib/db";
 
 /**
  * /near-me/[category] — "category near me" landing pages.
