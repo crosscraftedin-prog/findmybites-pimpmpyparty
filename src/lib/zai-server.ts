@@ -1,3 +1,4 @@
+import https from "https";
 import { logger } from "@/lib/logger";
 
 /**
@@ -33,10 +34,11 @@ export interface ZAICompletionResponse {
 }
 
 /**
- * Call the ZAI (GLM) chat completions API directly using fetch.
+ * Call the ZAI (GLM) chat completions API directly using node:https.
  *
- * This bypasses the ZAI SDK's internal fetch (which has a 10s connect timeout
- * that fails on Vercel) and uses our own fetch with a 25s overall timeout.
+ * This bypasses Node.js's built-in fetch() (which has a 10s connect timeout
+ * via undici that fails on Vercel production) and uses the https module
+ * directly with a custom 25s connect timeout.
  *
  * @param messages - Array of { role, content } messages
  * @param timeoutMs - Overall timeout (default 25s, within Vercel's 30s limit)
@@ -46,7 +48,7 @@ export async function callZAIChat(
   messages: Array<{ role: string; content: string }>,
   timeoutMs: number = 25_000
 ): Promise<ZAICompletionResponse | null> {
-  const url = `${ZAI_CONFIG.baseUrl}/chat/completions`;
+  const url = new URL(`${ZAI_CONFIG.baseUrl}/chat/completions`);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "Authorization": `Bearer ${ZAI_CONFIG.apiKey}`,
@@ -62,53 +64,85 @@ export async function callZAIChat(
   });
 
   const startTime = Date.now();
-  logger.info("zai-server", "callZAIChat — fetch starting", {
-    url,
+  logger.info("zai-server", "callZAIChat — https request starting", {
+    url: url.toString(),
     timeoutMs,
     messageCount: messages.length,
   });
 
-  try {
-    // Use AbortSignal.timeout for the overall timeout (25s)
-    // This gives the TCP connection up to 25s to establish + response to arrive
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body,
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+  return new Promise((resolve) => {
+    const req = https.request(
+      {
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: url.pathname,
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Length": Buffer.byteLength(body),
+        },
+        // Custom connect timeout — 20 seconds (overrides undici's 10s default)
+        timeout: timeoutMs,
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          const elapsed = Date.now() - startTime;
 
-    const elapsed = Date.now() - startTime;
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            try {
+              const parsed = JSON.parse(data) as ZAICompletionResponse;
+              logger.info("zai-server", "✅ ZAI API call successful", {
+                elapsedMs: elapsed,
+                contentLength: parsed.choices?.[0]?.message?.content?.length ?? 0,
+              });
+              resolve(parsed);
+            } catch (e: any) {
+              logger.error("zai-server", "❌ JSON parse failed", {
+                elapsedMs: elapsed,
+                error: e?.message,
+                rawData: data.slice(0, 200),
+              });
+              resolve(null);
+            }
+          } else {
+            logger.error("zai-server", "❌ ZAI API returned non-200", {
+              status: res.statusCode,
+              statusText: res.statusMessage,
+              elapsedMs: elapsed,
+              errorBody: data.slice(0, 200),
+            });
+            resolve(null);
+          }
+        });
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      logger.error("zai-server", "ZAI API returned non-200", {
-        status: response.status,
-        statusText: response.statusText,
+    req.on("error", (err: any) => {
+      const elapsed = Date.now() - startTime;
+      logger.error("zai-server", "❌ ZAI API request error", {
+        errorName: err?.name,
+        errorMessage: err?.message,
+        errorCode: err?.code,
         elapsedMs: elapsed,
-        errorBody: errorText.slice(0, 200),
       });
-      return null;
-    }
+      resolve(null);
+    });
 
-    const data = (await response.json()) as ZAICompletionResponse;
-    logger.info("zai-server", "✅ ZAI API call successful", {
-      elapsedMs: elapsed,
-      contentLength: data.choices?.[0]?.message?.content?.length ?? 0,
-      tokens: data.usage?.total_tokens,
+    req.on("timeout", () => {
+      const elapsed = Date.now() - startTime;
+      logger.error("zai-server", "❌ ZAI API request timeout", {
+        elapsedMs: elapsed,
+        timeoutMs,
+      });
+      req.destroy();
+      resolve(null);
     });
-    return data;
-  } catch (err: any) {
-    const elapsed = Date.now() - startTime;
-    logger.error("zai-server", "❌ ZAI API call failed", {
-      errorName: err?.name,
-      errorMessage: err?.message,
-      errorCause: err?.cause?.message ?? (typeof err?.cause === "string" ? err.cause : undefined),
-      elapsedMs: elapsed,
-      stack: err?.stack?.split("\n").slice(0, 5).join("\n"),
-    });
-    return null;
-  }
+
+    req.write(body);
+    req.end();
+  });
 }
 
 /**
