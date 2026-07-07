@@ -26,6 +26,7 @@ const FILTERS = [
 interface VendorRow {
   id: string;
   name: string;
+  slug: string;
   ecosystem: string;
   country: string;
   countryCode: string;
@@ -153,7 +154,7 @@ export function AdminVendorOnboarding() {
                   className="border-b border-border/50 hover:bg-muted/30"
                 >
                   <td className="py-3 px-2">
-                    <a href={`/vendor/${v.id}`} className="font-medium text-foreground hover:underline">
+                    <a href={`/vendor/${v.slug}`} className="font-medium text-foreground hover:underline">
                       {v.name}
                     </a>
                   </td>

@@ -23,6 +23,7 @@ export async function POST(
 
   try {
     const { id } = await params;
+    const body = await req.json().catch(() => ({}));
 
     // Fetch the vendor
     const vendor = await db.vendor.findUnique({ where: { id } });
@@ -30,6 +31,32 @@ export async function POST(
       return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
     }
 
+    // ── Reject path ──
+    if (body?.reject === true) {
+      await db.vendor.update({
+        where: { id },
+        data: {
+          approved: false,
+          verified: false,
+          ownership_status: "rejected",
+        },
+      });
+
+      // Audit log
+      const supabaseR = await createSupabaseServerClient();
+      const { data: { session: sessR } } = await supabaseR.auth.getSession();
+      const adminIdR = sessR?.user?.id ?? null;
+      await db.$executeRaw`
+        INSERT INTO public.audit_logs (actor_id, action, target_table, target_id, metadata)
+        VALUES (${adminIdR}::uuid, 'vendor.reject', 'vendor_listings', ${id},
+          jsonb_build_object('name', ${vendor.name}))
+      `;
+
+      console.log(`[admin/vendors/approve] Rejected vendor ${id} (${vendor.name})`);
+      return NextResponse.json({ success: true, vendor: { id: vendor.id, name: vendor.name, approved: false } });
+    }
+
+    // ── Approve path ──
     if (vendor.approved) {
       return NextResponse.json({ error: "Vendor is already approved" }, { status: 400 });
     }

@@ -141,7 +141,7 @@ export async function getAdminOnboardingOverview() {
   const vendors = await db.vendor.findMany({
     where: { approved: true },
     select: {
-      id: true, name: true, ecosystem: true, country: true, countryCode: true,
+      id: true, name: true, slug: true, ecosystem: true, country: true, countryCode: true,
       city: true, avatarImage: true, heroImage: true, description: true,
       address: true, whatsapp: true, userEmail: true, website: true,
       instagram: true, latitude: true, longitude: true, category: true,
@@ -173,7 +173,7 @@ export async function getAdminOnboardingOverview() {
     else { status = "Incomplete"; statusColor = "red"; }
 
     return {
-      id: v.id, name: v.name, ecosystem: v.ecosystem, country: v.country,
+      id: v.id, name: v.name, slug: v.slug, ecosystem: v.ecosystem, country: v.country,
       countryCode: v.countryCode, completion, status, statusColor,
       productCount, invite_type: v.invite_type, createdAt: v.createdAt,
     };

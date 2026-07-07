@@ -36,8 +36,9 @@ export async function POST(req: NextRequest) {
     }
 
     const countryName = country?.trim() || "India";
-    const countryEntry = Object.entries(COUNTRIES).find(([, c]) => c.name === countryName);
-    const countryCode = countryEntry?.[0] ?? "IN";
+    // COUNTRIES is an array (CountryDef[]), not a Record — use .find() directly
+    const countryEntry = COUNTRIES.find((c) => c.name === countryName);
+    const countryCode = countryEntry?.code ?? "IN";
     const isIndia = countryName === "India";
     const currency = isIndia ? "INR" : "USD";
 

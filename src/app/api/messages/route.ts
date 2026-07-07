@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/constants";
 
 /**
  * Messages API
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if admin
-    const isAdmin = user?.email && ["bookingjosh@gmail.com"].includes(user.email.toLowerCase());
+    const isAdmin = isAdminEmail(user?.email);
     if (isAdmin) {
       senderType = "admin";
       senderId = userId;
