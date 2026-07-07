@@ -1,0 +1,40 @@
+{
+  "cookies": [
+    {
+      "name": "csrf-token",
+      "value": "55cd8ab47ead7bedfae453dfce4f5c1a0f051aadc40affd27a7e85e98fb76a54",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1784038515.877946,
+      "size": 74,
+      "httpOnly": true,
+      "secure": false,
+      "session": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "sb-kcqygvzxgkvwlupoyzzw-auth-token",
+      "value": "%7B%22access_token%22%3A%22eyJhbGciOiJFUzI1NiIsImtpZCI6IjdmNDA4MjViLTRiMmEtNGI1ZC1hMWVhLTQwNDcyYWZlMGI1OSIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2tjcXlndnp4Z2t2d2x1cG95enp3LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiIwZTMzZjM1MC05ZGU3LTQyNzUtYjkxNC1iY2ZlODNhMDc2ZjYiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzgzNDM3NDIyLCJpYXQiOjE3ODM0MzM4MjIsImVtYWlsIjoicWFAZmluZG15Yml0ZXMuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJlbWFpbF92ZXJpZmllZCI6dHJ1ZX0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoib3RwIiwidGltZXN0YW1wIjoxNzgzNDMzODIyfV0sInNlc3Npb25faWQiOiJkMDNhMTEyNC0xYjI4LTQ3ZjktODU0NS1jOTI4NzkyYzFkNWEiLCJpc19hbm9ueW1vdXMiOmZhbHNlfQ.glCGSKqT3P-XsjsCTpKt4Xj--AlDRAj-Mxk8KC4oOf38BrLxeSnss7LR3fkS8dDpxuPd_bQppO3BC1W4sJGFWA%22%2C%22refresh_token%22%3A%222o224vfm2mg7%22%2C%22expires_in%22%3A3600%2C%22expires_at%22%3A1783437447%2C%22token_type%22%3A%22bearer%22%2C%22user%22%3A%7B%22id%22%3A%220e33f350-9de7-4275-b914-bcfe83a076f6%22%2C%22email%22%3A%22qa%40findmybites.com%22%2C%22aud%22%3A%22authenticated%22%2C%22role%22%3A%22authenticated%22%2C%22app_metadata%22%3A%7B%22provider%22%3A%22email%22%2C%22providers%22%3A%5B%22email%22%5D%7D%2C%22user_metadata%22%3A%7B%22email_verified%22%3Atrue%7D%2C%22created_at%22%3A%222026-07-07T14%3A17%3A27.727Z%22%7D%7D",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1783437462.840921,
+      "size": 1389,
+      "httpOnly": false,
+      "secure": false,
+      "session": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "fmb-pmp:auth-intent",
+          "value": "vendor-login"
+        }
+      ],
+      "sessionStorage": []
+    }
+  ]
+}

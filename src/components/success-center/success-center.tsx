@@ -54,7 +54,28 @@ export function SuccessCenter({ vendor, onNavigate }: SuccessCenterProps) {
   React.useEffect(() => {
     fetch("/api/vendor/success-center")
       .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d) setData(d); })
+      .then((d) => {
+        if (d) {
+          // Defensive: ensure all required nested fields exist to prevent
+          // "Cannot read properties of undefined (reading 'map')" crashes
+          const safe: SuccessData = {
+            scores: d.scores ?? [],
+            overallHealth: d.overallHealth ?? 0,
+            checklist: d.checklist ?? { items: [], completed: 0, total: 0 },
+            recommendations: d.recommendations ?? [],
+            performance: d.performance ?? { daily: [], weekly: [], monthly: [], yearly: [] },
+            competitors: d.competitors ?? [],
+            reviews: d.reviews ?? { averageRating: 0, totalReviews: 0, recentReviews: [], pendingRequests: 0 },
+            customers: d.customers ?? { totalCustomers: 0, repeatCustomers: 0, recentCustomers: [], avgOrderValue: 0 },
+            financial: d.financial ?? { totalRevenue: 0, pendingPayments: 0, completedOrders: 0, cancelledOrders: 0, avgOrderValue: 0, monthlyRevenue: 0 },
+            goals: d.goals ?? [],
+            achievements: d.achievements ?? [],
+            series: d.series ?? [],
+            topProducts: d.topProducts ?? [],
+          };
+          setData(safe);
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
