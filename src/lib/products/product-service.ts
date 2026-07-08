@@ -88,7 +88,7 @@ function toDetail(p: any): ProductDetail {
     isAvailable: p.isAvailable ?? true, inStock: p.inStock ?? true,
     limitedTime: p.limitedTime ?? false, customOrderOnly: p.customOrderOnly ?? false,
     featured: p.featured ?? false, isFeatured: p.isFeatured ?? false,
-    tags: p.tags ? parseJsonArray<string>(p.tags) : [],
+    tags: (p as any).tags ? parseJsonArray<string>((p as any).tags) : [],
     metaTitle: p.metaTitle ?? null, metaDescription: p.metaDescription ?? null,
     duration: p.duration ?? null, capacity: p.capacity ?? null,
     includes: p.includes ? parseJsonArray<string>(p.includes) : [],
@@ -202,7 +202,8 @@ export async function createProduct(vendorId: string, data: any): Promise<Produc
     throw new Error(`Product limit reached (${current}/${limit}). Upgrade your subscription to add more products.`);
   }
 
-  const slug = `${(data.name || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-${Date.now().toString(36)}`;
+  const nameSlug = (data.name || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "product";
+  const slug = `${nameSlug}-${Date.now().toString(36)}`;
   const p = await db.product.create({ data: {
     vendorId, name: data.name || "Untitled", slug,
     description: data.description || null, shortDescription: data.shortDescription || null,
@@ -261,14 +262,13 @@ export async function updateProduct(productId: string, vendorId: string, data: a
     "ingredients","allergenInfo","spicyLevel","eggless","vegetarian","vegan","halal","glutenFree","sugarFree",
     "deliveryAvailable","pickupAvailable","customOrder","sameDay","startingFromPrice","hidePrice","priceOnRequest",
     "isAvailable","inStock","limitedTime","customOrderOnly","featured","metaTitle","metaDescription",
-    "duration","capacity","serviceAreas","equipmentIncluded","indoorOutdoor","travelAvailable",
+    "duration","capacity","equipmentIncluded","indoorOutdoor","travelAvailable",
     "bookingNotice","cancellationPolicy","leadTime","status",
     "maxOrdersPerDay","availabilityMode","availabilityStart","availabilityEnd",
     "preparationTimeCategory","preparationTimeCustom","bookingNoticeHours","serviceAreaType",
     "seasonLabel","stockType","stockCount","lowStockThreshold"];
   for (const f of fields) { if (data[f] !== undefined) updateData[f] = data[f]; }
   if (data.images !== undefined) updateData.images = data.images ? JSON.stringify(data.images) : null;
-  if (data.tags !== undefined) updateData.tags = data.tags ? JSON.stringify(data.tags) : null;
   if (data.includes !== undefined) updateData.includes = data.includes ? JSON.stringify(data.includes) : null;
   if (data.includedServices !== undefined) updateData.includedServices = data.includedServices ? JSON.stringify(data.includedServices) : null;
   if (data.optionalServices !== undefined) updateData.optionalServices = data.optionalServices ? JSON.stringify(data.optionalServices) : null;
@@ -291,7 +291,8 @@ export async function deleteProduct(productId: string, vendorId: string): Promis
 export async function duplicateProduct(productId: string, vendorId: string): Promise<ProductDetail> {
   const existing = await db.product.findFirst({ where: { id: productId, vendorId } });
   if (!existing) throw new Error("Product not found or not owned by this vendor");
-  const slug = `${existing.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-copy-${Date.now().toString(36)}`;
+  const nameSlug = existing.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "product";
+  const slug = `${nameSlug}-copy-${Date.now().toString(36)}`;
   const { id, createdAt, updatedAt, ...rest } = existing;
   const p = await db.product.create({ data: { ...rest, name: `${existing.name} (Copy)`, slug, status: "draft", views: 0 } });
   return toDetail(p);

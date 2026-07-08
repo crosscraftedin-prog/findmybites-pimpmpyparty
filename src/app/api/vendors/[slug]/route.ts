@@ -66,9 +66,8 @@ function transformVendor(v: DbVendorWithReviews): VendorWithRelations {
     latitude: v.latitude,
     longitude: v.longitude,
     serviceRadiusKm: v.serviceRadiusKm,
-    userEmail: v.userEmail,
-    owner_user_id: v.owner_user_id,
-    ownership_status: v.ownership_status,
+    // SECURITY: Do NOT expose userEmail, owner_user_id, or ownership_status
+    // in public API responses — these are PII / credential-leak vectors.
     createdAt: v.createdAt.toISOString(),
     reviews: v.reviews.map<ApiReview>((r) => ({
       id: r.id,

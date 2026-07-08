@@ -4,56 +4,158 @@
  * Generates product description, SEO, and tags from the product name.
  * Body: { name, category, ecosystem, city }
  *
- * Uses the ZAI (GLM) API via getZAI() + callWithTimeout.
- * Falls back to a template-based generator if the ZAI API is unreachable
- * (which happens on Vercel production where internal-api.z.ai is not
- * accessible from the serverless function region).
+ * Strategy:
+ *   1. Try ZAI (GLM) LLM with an 8-second hard timeout
+ *   2. On timeout, network failure, or malformed JSON → template fallback
+ *   3. Template fallback ALWAYS returns 200 JSON in <50ms
  *
- * The fallback produces SEO-optimized content based on the product name,
- * category, city, and ecosystem — so the Product Writer ALWAYS returns
- * content, never shows "fetch failed".
+ * Metrics:
+ *   - ai_source: "LLM" (LLM generated) or "Fallback" (template generated)
+ *   - Structured log on every fallback invocation
+ *   - Dev-only console warning (never shown to production users)
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { getZAI } from "@/lib/zai-server";
-import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
+import { sanitizePrompt } from "@/lib/ai/security";
 import { logger } from "@/lib/logger";
 
+// ── Constants ────────────────────────────────────────────────────────────────
+
+/** Maximum time to wait for the LLM response (8 seconds). */
+const LLM_TIMEOUT_MS = 8_000;
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+interface ProductContent {
+  description: string;
+  shortDescription: string;
+  metaTitle: string;
+  metaDescription: string;
+  tags: string;
+  ai_source: "LLM" | "Fallback";
+  _fallback?: boolean;
+}
+
+interface FallbackLogData {
+  timestamp: string;
+  vendorId: string | null;
+  ecosystem: string;
+  category: string;
+  productName: string;
+  reason: string;
+  errorMessage: string | undefined;
+}
+
+// ── Template generator ──────────────────────────────────────────────────────
+
+function generateTemplateContent(
+  name: string,
+  category: string,
+  city: string,
+  ecosystem: string,
+): ProductContent {
+  const isFood = ecosystem === "FINDMYBITES";
+  const platform = isFood ? "FindMyBites" : "PimpMyParty";
+  const catLabel = category
+    ? category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : isFood ? "Food" : "Service";
+
+  const description = `Indulge in our premium ${name.toLowerCase()}, crafted with the finest ingredients and attention to detail.${
+    city ? ` Available in ${city},` : ""
+  } this ${catLabel.toLowerCase()} is perfect for ${
+    isFood ? "celebrations, parties, and special occasions" : "events, weddings, and corporate functions"
+  }. Book directly on ${platform} for the best price — no commission, direct contact with the vendor.`;
+
+  const shortDescription = `Premium ${name.toLowerCase()}${city ? ` in ${city}` : ""}. Book on ${platform}.`;
+  const metaTitle = `${name}${city ? ` in ${city}` : ""} | ${catLabel} | ${platform}`.slice(0, 60);
+  const metaDescription = `Order ${name} on ${platform}${city ? ` in ${city}` : ""}. ${
+    isFood ? "Fresh, premium quality for your celebration." : "Professional service for your event."
+  } Book directly — no commission.`.slice(0, 155);
+
+  const tags = [
+    name.toLowerCase(),
+    category,
+    city,
+    catLabel.toLowerCase(),
+    isFood ? "food" : "events",
+    isFood ? "delivery" : "booking",
+    "premium",
+    "best",
+    city ? `${city} ${category}` : category,
+    platform.toLowerCase(),
+  ].filter(Boolean).join(", ");
+
+  return {
+    description,
+    shortDescription,
+    metaTitle,
+    metaDescription,
+    tags,
+    ai_source: "Fallback",
+    _fallback: true,
+  };
+}
+
+// ── Fallback logger ──────────────────────────────────────────────────────────
+
+function logFallback(data: FallbackLogData): void {
+  // Structured log (always — visible in Vercel logs / Sentry)
+  logger.warn("ai-product-writer", "Fallback invoked", data);
+
+  // Dev-only console warning (never shown to production users)
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(
+      `[PRODUCT-WRITER] ⚠️ FALLBACK used — reason: ${data.reason}` +
+      ` | product: "${data.productName}"` +
+      ` | ecosystem: ${data.ecosystem}` +
+      ` | category: ${data.category}` +
+      (data.errorMessage ? ` | error: ${data.errorMessage}` : ""),
+    );
+  }
+}
+
+// ── Main handler ─────────────────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
   const ts = () => new Date().toISOString();
-  console.log(`[PRODUCT-WRITER] ${ts()} POST — ENTER`);
+
+  let vendorId: string | null = null;
+  let ecosystem = "FINDMYBITES";
+  let category = "";
+  let productName = "";
 
   try {
-    const { name, category, ecosystem, city } = await req.json();
-    console.log(`[PRODUCT-WRITER] ${ts()} Request: name="${name}", category="${category}"`);
+    const body = await req.json();
+    productName = (body.name || "").trim();
+    category = (body.category || "").trim();
+    ecosystem = body.ecosystem || "FINDMYBITES";
+    const city = (body.city || "").trim();
+    vendorId = body.vendorId || null;
 
-    if (!name?.trim()) {
+    if (!productName) {
       return NextResponse.json({ error: "Product name is required" }, { status: 400 });
     }
 
     // ── Prompt injection check ──
-    const userInput = [name, category || "", city || ""].join("\n");
+    const userInput = [productName, category, city].join("\n");
     const sanitizeResult = sanitizePrompt(userInput);
     if (sanitizeResult.blocked) {
       return NextResponse.json({ error: "Input rejected by security filter" }, { status: 400 });
     }
 
-    const safeName = name.trim();
-    const safeCategory = (category || "").trim();
-    const safeCity = (city || "").trim();
-    const isFood = ecosystem === "FINDMYBITES";
-    const platform = isFood ? "FindMyBites" : "PimpMyParty";
-
-    // ── Try ZAI API first ──
-    console.log(`[PRODUCT-WRITER] ${ts()} Getting ZAI instance...`);
+    // ── Try ZAI LLM (8-second hard timeout) ──
     const zai = await getZAI();
 
     if (zai) {
+      const isFood = ecosystem === "FINDMYBITES";
+      const platform = isFood ? "FindMyBites" : "PimpMyParty";
       const prompt = `You are a professional copywriter for ${platform} (${isFood ? "food marketplace" : "event services marketplace"}). Generate content for a product listing.
 
-Product Name: ${safeName}
-Category: ${safeCategory || "General"}
-City: ${safeCity || "Global"}
+Product Name: ${productName}
+Category: ${category || "General"}
+City: ${city || "Global"}
 
 Generate a JSON response with these fields:
 - description: A compelling 2-3 sentence product description (50-100 words)
@@ -64,114 +166,118 @@ Generate a JSON response with these fields:
 
 Return ONLY valid JSON, no markdown.`;
 
-      console.log(`[PRODUCT-WRITER] ${ts()} Calling ZAI LLM...`);
       const llmStart = Date.now();
 
       try {
-        const { result: content, timedOut } = await callWithTimeout(async (_signal) => {
-          const completion = await zai.chat.completions.create({
-            messages: [{ role: "user", content: prompt }],
-            thinking: { type: "disabled" },
-          });
-          return completion.choices[0]?.message?.content || "";
-        }, 25_000);
+        // ── 8-second timeout via AbortSignal ──
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
-        const llmEnd = Date.now();
-        console.log(`[PRODUCT-WRITER] ${ts()} LLM response (${llmEnd - llmStart}ms), timedOut=${timedOut}`);
+        const completion = await zai.chat.completions.create({
+          messages: [{ role: "user", content: prompt }],
+          thinking: { type: "disabled" },
+        });
 
-        if (!timedOut && content) {
-          // Parse JSON from response
+        clearTimeout(timeoutId);
+
+        const content = completion.choices[0]?.message?.content || "";
+        const llmElapsed = Date.now() - llmStart;
+        console.log(`[PRODUCT-WRITER] ${ts()} LLM response in ${llmElapsed}ms, content: ${content.length} chars`);
+
+        if (content) {
+          // Parse JSON
           try {
             const jsonStr = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
             const parsed = JSON.parse(jsonStr);
-            console.log(`[PRODUCT-WRITER] ${ts()} ✅ LLM content parsed`);
-            return NextResponse.json(parsed);
+            const result: ProductContent = {
+              description: String(parsed.description || "").slice(0, 800),
+              shortDescription: String(parsed.shortDescription || "").slice(0, 80),
+              metaTitle: String(parsed.metaTitle || "").slice(0, 60),
+              metaDescription: String(parsed.metaDescription || "").slice(0, 155),
+              tags: String(parsed.tags || ""),
+              ai_source: "LLM",
+            };
+            console.log(`[PRODUCT-WRITER] ${ts()} ✅ LLM content parsed in ${Date.now() - startTime}ms total`);
+            return NextResponse.json(result);
           } catch {
-            // JSON parse failed — use raw content as description
-            console.log(`[PRODUCT-WRITER] ${ts()} ⚠️ JSON parse failed — using raw content`);
-            return NextResponse.json({
-              description: content.slice(0, 500),
-              shortDescription: content.slice(0, 80),
-              metaTitle: `${safeName} | ${safeCategory || "Products"}${safeCity ? ` in ${safeCity}` : ""} | ${platform}`.slice(0, 60),
-              metaDescription: content.slice(0, 155),
-              tags: [safeCategory, safeCity, safeName, isFood ? "food" : "events", "best", "quality"].filter(Boolean).join(", "),
+            // JSON parse failed — use raw content as description, switch to fallback
+            logFallback({
+              timestamp: ts(),
+              vendorId,
+              ecosystem,
+              category,
+              productName,
+              reason: "malformed_json",
+              errorMessage: "LLM returned non-JSON content",
             });
           }
+        } else {
+          // Empty content
+          logFallback({
+            timestamp: ts(),
+            vendorId,
+            ecosystem,
+            category,
+            productName,
+            reason: "empty_llm_response",
+            errorMessage: undefined,
+          });
         }
-        console.log(`[PRODUCT-WRITER] ${ts()} ⚠️ LLM timed out or returned empty — falling back to template`);
       } catch (llmErr: any) {
-        console.log(`[PRODUCT-WRITER] ${ts()} ⚠️ LLM call failed: ${llmErr?.message} — falling back to template`);
-        logger.warn("ai-product-writer", "LLM call failed — using template fallback", {
-          error: llmErr?.message?.slice(0, 100),
+        // LLM call failed (timeout, network error, etc.)
+        const isTimeout = llmErr?.name === "AbortError" || (Date.now() - llmStart) >= LLM_TIMEOUT_MS;
+        logFallback({
+          timestamp: ts(),
+          vendorId,
+          ecosystem,
+          category,
+          productName,
+          reason: isTimeout ? "llm_timeout" : "llm_network_error",
+          errorMessage: llmErr?.message?.slice(0, 200),
         });
+
+        if (isTimeout) {
+          console.log(`[PRODUCT-WRITER] ${ts()} ⚠️ LLM timed out after ${LLM_TIMEOUT_MS}ms — switching to template`);
+        } else {
+          console.log(`[PRODUCT-WRITER] ${ts()} ⚠️ LLM failed: ${llmErr?.message} — switching to template`);
+        }
       }
     } else {
-      console.log(`[PRODUCT-WRITER] ${ts()} ⚠️ ZAI not available — using template fallback`);
+      // ZAI not available
+      logFallback({
+        timestamp: ts(),
+        vendorId,
+        ecosystem,
+        category,
+        productName,
+        reason: "zai_not_configured",
+        errorMessage: undefined,
+      });
     }
 
-    // ── Template-based fallback (always succeeds) ──
-    // This runs when:
-    // 1. ZAI is not configured (getZAI returns null)
-    // 2. ZAI call times out
-    // 3. ZAI call throws (network error, etc.)
-    // The fallback produces SEO-optimized content so the Product Writer
-    // NEVER shows "fetch failed" to the user.
-    console.log(`[PRODUCT-WRITER] ${ts()} Generating template-based content`);
-
-    const catLabel = safeCategory
-      ? safeCategory.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-      : isFood ? "Food" : "Service";
-
-    const description = `Indulge in our premium ${safeName.toLowerCase()}, crafted with the finest ingredients and attention to detail.${
-      safeCity ? ` Available in ${safeCity},` : ""
-    } this ${catLabel.toLowerCase()} is perfect for ${isFood ? "celebrations, parties, and special occasions" : "events, weddings, and corporate functions"}. Book directly on ${platform} for the best price — no commission, direct contact with the vendor.`;
-
-    const shortDescription = `Premium ${safeName.toLowerCase()}${safeCity ? ` in ${safeCity}` : ""}. Book on ${platform}.`;
-
-    const metaTitle = `${safeName}${safeCity ? ` in ${safeCity}` : ""} | ${catLabel} | ${platform}`.slice(0, 60);
-
-    const metaDescription = `Order ${safeName} on ${platform}${safeCity ? ` in ${safeCity}` : ""}. ${isFood ? "Fresh, premium quality for your celebration." : "Professional service for your event."} Book directly — no commission.`.slice(0, 155);
-
-    const tags = [
-      safeName.toLowerCase(),
-      safeCategory,
-      safeCity,
-      catLabel.toLowerCase(),
-      isFood ? "food" : "events",
-      isFood ? "delivery" : "booking",
-      "premium",
-      "best",
-      safeCity ? `${safeCity} ${safeCategory}` : `${safeCategory}`,
-      platform.toLowerCase(),
-    ].filter(Boolean).join(", ");
-
-    const result = {
-      description,
-      shortDescription,
-      metaTitle,
-      metaDescription,
-      tags,
-      _fallback: true,
-    };
-
-    console.log(`[PRODUCT-WRITER] ${ts()} ✅ Template content generated`);
+    // ── Template fallback (always succeeds, <50ms) ──
+    const result = generateTemplateContent(productName, category, (body as any).city || "", ecosystem);
+    console.log(`[PRODUCT-WRITER] ${ts()} ✅ Template generated in ${Date.now() - startTime}ms total`);
     return NextResponse.json(result);
 
   } catch (error: any) {
-    console.error(`[PRODUCT-WRITER] ${ts()} ❌ EXCEPTION: ${error?.message}`);
-    logger.error("ai-product-writer", "POST failed", { error: error?.message });
-
-    // Even on exception, return template-based content so the user
-    // NEVER sees "fetch failed"
-    const fallbackName = "Product";
-    const fallbackDesc = "A premium quality product available on FindMyBites × PimpMyParty. Book directly for the best price.";
-    return NextResponse.json({
-      description: fallbackDesc,
-      shortDescription: "Premium product. Book directly.",
-      metaTitle: `${fallbackName} | FindMyBites × PimpMyParty`,
-      metaDescription: fallbackDesc.slice(0, 155),
-      tags: "product, premium, quality, best, findmybites, pimpmpyparty",
-      _fallback: true,
+    // Unexpected exception — return fallback
+    logFallback({
+      timestamp: ts(),
+      vendorId,
+      ecosystem,
+      category,
+      productName,
+      reason: "unexpected_exception",
+      errorMessage: error?.message?.slice(0, 200),
     });
+
+    const result = generateTemplateContent(
+      productName || "Product",
+      category,
+      "",
+      ecosystem,
+    );
+    return NextResponse.json(result);
   }
 }

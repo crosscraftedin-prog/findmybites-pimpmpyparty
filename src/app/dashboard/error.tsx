@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 /**
  * Dashboard Error Boundary — catches runtime errors in the vendor dashboard
  * and shows a friendly recovery screen instead of a blank white page.
+ *
+ * INSTRUMENTED: Logs the FULL exception details to identify the exact
+ * root cause of the "Application error: A client-side exception" crash.
  */
 export default function DashboardError({
   error,
@@ -16,7 +19,32 @@ export default function DashboardError({
   reset: () => void;
 }) {
   React.useEffect(() => {
-    console.error("[dashboard/error] Runtime error:", error);
+    // ── FULL EXCEPTION CAPTURE ──
+    console.error("[dashboard/error] ═══════════════════════════════════════");
+    console.error("[dashboard/error] CRASH CAPTURED — full details:");
+    console.error("[dashboard/error] error.name:", error?.name);
+    console.error("[dashboard/error] error.message:", error?.message);
+    console.error("[dashboard/error] error.digest:", error?.digest);
+    console.error("[dashboard/error] error.stack:", error?.stack);
+    console.error("[dashboard/error] error.cause:", error?.cause);
+
+    // Log to server for production debugging
+    fetch("/api/analytics/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "dashboard_crash",
+        properties: {
+          name: error?.name,
+          message: error?.message?.slice(0, 500),
+          digest: error?.digest,
+          stack: error?.stack?.slice(0, 1000),
+          url: typeof window !== "undefined" ? window.location.href : "unknown",
+          timestamp: new Date().toISOString(),
+        },
+      }),
+    }).catch(() => {});
+    console.error("[dashboard/error] ═══════════════════════════════════════");
   }, [error]);
 
   return (
@@ -28,6 +56,10 @@ export default function DashboardError({
         <h2 className="text-xl font-bold">Something went wrong</h2>
         <p className="mt-1 max-w-md text-sm text-muted-foreground">
           An unexpected error occurred while loading your dashboard. Your data is safe — try refreshing.
+        </p>
+        {/* Show the error message for debugging */}
+        <p className="mt-2 rounded-lg bg-muted p-2 text-xs font-mono text-muted-foreground">
+          {error?.message || "Unknown error"}
         </p>
       </div>
       <Button onClick={reset} className="gap-2">

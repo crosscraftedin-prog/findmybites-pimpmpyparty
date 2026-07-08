@@ -65,8 +65,8 @@ function transformVendor(v: DbVendor): ApiVendor {
     latitude: v.latitude,
     longitude: v.longitude,
     serviceRadiusKm: v.serviceRadiusKm,
-    userEmail: v.userEmail,
-    ownership_status: v.ownership_status,
+    // SECURITY: Do NOT expose userEmail, owner_user_id, or ownership_status
+    // in public API responses — these are PII / credential-leak vectors.
     createdAt: v.createdAt.toISOString(),
   };
 }
@@ -484,7 +484,7 @@ export async function POST(req: NextRequest) {
         ),
         tags: JSON.stringify(tags),
         featured: false,
-        verified: true,
+        verified: false, // Only admin approval should grant verified badge
         approved: false, // pending admin approval — hidden from public until approved
         responseTime,
         yearsActive,

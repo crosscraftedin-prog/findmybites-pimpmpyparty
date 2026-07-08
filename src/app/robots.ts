@@ -8,8 +8,17 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/", "/admin", "/vendor/dashboard"],
+      disallow: [
+        "/api/",
+        "/admin",
+        "/dashboard",
+        "/account",
+        "/vendor/dashboard",
+        "/activate/",
+        "/claim-token/",
+        "/auth/callback",
+      ],
     },
-    sitemap: "https://findmybites.com/sitemap.xml",
+    sitemap: "https://www.findmybites.com/sitemap.xml",
   };
 }

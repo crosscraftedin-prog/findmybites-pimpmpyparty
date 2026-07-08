@@ -728,19 +728,27 @@ export function AdminPanelPage({
     try {
       const vendor = allVendors.find((v) => v.id === id);
       if (!vendor) return;
-      // Only `approved` is persisted via the existing API. Flagged/rejected
-      // are visual-only states for the current session.
+      // For approved/rejected, use the dedicated admin approve endpoint which
+      // generates an activation token + WhatsApp share URL for the vendor.
+      // Flagged is visual-only for the current session.
       if (status === "approved") {
-        await fetch(`/api/vendors/${vendor.slug}`, {
-          method: "PUT",
+        const resp = await fetch(`/api/admin/vendors/${id}/approve`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ approved: true }),
         });
+        if (resp.ok) {
+          const data = await resp.json().catch(() => null);
+          // Show the activation link to the admin if one was generated
+          if (data?.activateUrl || data?.whatsappShareUrl) {
+            console.log("[admin] Vendor approved. Activation URL:", data.activateUrl);
+            // Could surface via toast/alert in the future
+          }
+        }
       } else if (status === "rejected") {
-        await fetch(`/api/vendors/${vendor.slug}`, {
-          method: "PUT",
+        await fetch(`/api/admin/vendors/${id}/approve`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ approved: false }),
+          body: JSON.stringify({ reject: true }),
         });
       }
 

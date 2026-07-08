@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { type Review as DbReview } from "@prisma/client";
 import { db } from "@/lib/db";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Review as ApiReview } from "@/lib/types";
 
 function transformReview(r: DbReview): ApiReview {
@@ -78,10 +79,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verified booking check: only allow reviews from customers who have a
-    // completed booking with this vendor. This prevents fake reviews.
-    // If a reviewerEmail is provided, check BookingsV2 for a completed booking.
-    const reviewerEmail = (body as any).reviewerEmail;
+    // SECURITY: Require either (a) an authenticated Supabase session, or
+    // (b) a reviewerEmail that matches a completed booking with this vendor.
+    // Previously: the booking check only ran if the client *chose* to include
+    // reviewerEmail — omitting it bypassed verification entirely, allowing
+    // unlimited anonymous review spam.
+    const supabase = await createSupabaseServerClient();
+    let sessionUserId: string | null = null;
+    let sessionEmail: string | null = null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      sessionUserId = user?.id ?? null;
+      sessionEmail = user?.email ?? null;
+    } catch {}
+
+    // Resolve reviewer email: prefer session email, fall back to body
+    const reviewerEmail = sessionEmail || (body as any).reviewerEmail;
+
+    let hasVerifiedBooking = false;
     if (reviewerEmail) {
       try {
         const completedBooking = await db.bookingV2.findFirst({
@@ -92,15 +107,18 @@ export async function POST(req: NextRequest) {
           },
           select: { id: true },
         });
-        if (!completedBooking) {
-          return NextResponse.json(
-            { error: "You can only review a vendor after completing a booking with them." },
-            { status: 403 }
-          );
-        }
+        hasVerifiedBooking = !!completedBooking;
       } catch {
-        // If bookingV2 table doesn't exist, allow the review (graceful degradation)
+        // If bookingV2 table doesn't exist, fall through to auth check
       }
+    }
+
+    // Block if no auth AND no verified booking
+    if (!sessionUserId && !hasVerifiedBooking) {
+      return NextResponse.json(
+        { error: "Please sign in or complete a booking with this vendor before leaving a review." },
+        { status: 401 }
+      );
     }
 
     const created = await db.review.create({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/constants";
 
 /**
  * GET /api/messages/conversation?id=xxx
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
       where: { owner_user_id: userId },
       select: { id: true },
     });
-    const isAdmin = user?.email && ["bookingjosh@gmail.com"].includes(user.email.toLowerCase());
+    const isAdmin = isAdminEmail(user?.email);
 
     let isP1 = false;
     let isP2 = false;
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
       senderAvatar = vendor.avatarImage;
     }
 
-    const isAdmin = user?.email && ["bookingjosh@gmail.com"].includes(user.email.toLowerCase());
+    const isAdmin = isAdminEmail(user?.email);
     if (isAdmin) {
       senderType = "admin";
       senderId = userId;

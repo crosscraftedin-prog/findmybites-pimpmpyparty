@@ -159,7 +159,7 @@ export async function generateSocialPost(
   const vendor = await db.vendor.findUnique({
     where: { id: vendorId },
     select: { name: true, category: true, city: true, ecosystem: true, tagline: true },
-  });
+  }) as any;
   if (!vendor) throw new Error("Vendor not found");
 
   const p = SOCIAL_PLATFORMS[platform] || SOCIAL_PLATFORMS.instagram;

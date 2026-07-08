@@ -4,7 +4,7 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, ChevronLeft, ChevronRight, Loader2, Sparkles, Upload, X,
-  Image as ImageIcon, Eye, Star, AlertCircle, Wand2, Plus, PartyPopper, Monitor, Tablet, Smartphone,
+  Image as ImageIcon, Eye, Star, AlertCircle, AlertTriangle, Wand2, Plus, PartyPopper, Monitor, Tablet, Smartphone,
   Boxes, Clock, CalendarDays, Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,8 @@ import { GalleryUpload } from "./image-upload";
 interface ProductWizardProps {
   vendor: Vendor;
   initialData?: any;
-  onSave: (data: any) => Promise<void>;
+  /** Returns the saved product (with slug) on success, or null/throws on failure. */
+  onSave: (data: any) => Promise<{ slug?: string; id?: string } | null | void>;
   onClose: () => void;
   saving: boolean;
 }
@@ -45,6 +46,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const [aiGenerating, setAiGenerating] = React.useState(false);
   const [lastSaved, setLastSaved] = React.useState<string | null>(null);
   const [autoSaving, setAutoSaving] = React.useState(false);
+  const [publishError, setPublishError] = React.useState<string | null>(null);
+  const [savedProductSlug, setSavedProductSlug] = React.useState<string | null>(null);
 
   const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
   const isFood = vendor.ecosystem === "FINDMYBITES";
@@ -122,7 +125,9 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
 
   // ── Auto-save draft (every 15s) ──
   const formRef = React.useRef(form);
-  formRef.current = form;
+  React.useEffect(() => {
+    formRef.current = form;
+  }, [form]);
 
   const autoSave = React.useCallback(async () => {
     if (!formRef.current.name?.trim()) return; // don't save empty
@@ -299,7 +304,16 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     if (data.metaTitle) set("metaTitle", data.metaTitle);
     if (data.metaDescription) set("metaDescription", data.metaDescription);
     if (data.tags) set("tags", data.tags);
-    console.log(`[AI-WRITER] ${ts()} ✅ Content applied to form (fallback: ${data._fallback ?? false})`);
+
+    // ── Log ai_source metric ──
+    const source = data.ai_source || (data._fallback ? "Fallback" : "LLM");
+    console.log(`[AI-WRITER] ${ts()} ✅ Content applied to form (ai_source: ${source})`);
+
+    // ── Dev-only warning when fallback is used (never shown to production users) ──
+    if (process.env.NODE_ENV !== "production" && source === "Fallback") {
+      console.warn(`[AI-WRITER] ⚠️ Template fallback was used — LLM was unavailable or timed out`);
+    }
+
     toast.success("AI generated content — review and edit!");
     setAiGenerating(false);
   };
@@ -337,8 +351,21 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       availabilityEnd: form.availabilityEnd ? new Date(form.availabilityEnd).toISOString() : null,
     };
     localStorage.removeItem(`product-draft-${vendor.id}`);
-    await onSave(payload);
-    setPublished(true);
+    setPublishError(null);
+    try {
+      const result = await onSave(payload);
+      // Only show success if onSave returned a product with a slug (or didn't throw)
+      // If onSave returns null/undefined without throwing, assume void and check indirectly
+      if (result && typeof result === "object" && result.slug) {
+        setSavedProductSlug(result.slug);
+      }
+      setPublished(true);
+    } catch (e: any) {
+      const msg = e?.message || "Failed to publish product. Please try again.";
+      setPublishError(msg);
+      toast.error(msg);
+      // Do NOT set published=true — stay on the form so the user can retry
+    }
   };
 
   const handleSaveDraft = async () => {
@@ -920,8 +947,22 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
               {/* Step 8: Preview & Publish */}
               {step === 8 && (
                 <div className="space-y-4">
-                  {/* Success Animation */}
-                  {published ? (
+                  {/* Publish Error (never show fake success) */}
+                  {publishError ? (
+                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="py-12 text-center">
+                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring" }}
+                        className="mx-auto mb-4 grid size-16 place-items-center rounded-full bg-red-500">
+                        <AlertTriangle className="size-8 text-white" />
+                      </motion.div>
+                      <h3 className="text-xl font-bold text-red-700">Publish failed</h3>
+                      <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">{publishError}</p>
+                      <div className="mt-6 flex flex-wrap justify-center gap-2">
+                        <Button onClick={() => setPublishError(null)} className="bg-brand text-brand-foreground hover:bg-brand/90">
+                          Try Again
+                        </Button>
+                      </div>
+                    </motion.div>
+                  ) : published ? (
                     <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="py-12 text-center">
                       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring" }}
                         className="mx-auto mb-4 grid size-16 place-items-center rounded-full bg-emerald-500">
@@ -930,14 +971,28 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                       <h3 className="text-xl font-bold text-emerald-700">Your product is now live!</h3>
                       <p className="mt-2 text-sm text-muted-foreground">Customers can now find and order this product.</p>
                       <div className="mt-6 flex flex-wrap justify-center gap-2">
-                        <Button onClick={() => window.open(`/product/${form.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, "_blank")} variant="outline" className="gap-1.5">
+                        <Button
+                          onClick={() => {
+                            // Use the slug returned from the API (savedProductSlug).
+                            // Fall back to a slug derived from form.name ONLY if the API
+                            // didn't return one (shouldn't happen with the fixed onSave).
+                            const slug = savedProductSlug || form.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+                            if (slug) window.open(`/product/${slug}`, "_blank");
+                          }}
+                          variant="outline"
+                          className="gap-1.5"
+                          disabled={!savedProductSlug}
+                        >
                           <Eye className="size-4" /> View Product
                         </Button>
-                        <Button onClick={() => { setPublished(false); setStep(1); setForm({ ...form, name: "", description: "", images: [] }); }} variant="outline" className="gap-1.5">
+                        <Button onClick={() => { setPublished(false); setSavedProductSlug(null); setStep(1); setForm({ ...form, name: "", description: "", images: [] }); }} variant="outline" className="gap-1.5">
                           <Plus className="size-4" /> Add Another
                         </Button>
                         <Button onClick={onClose} className="bg-brand text-brand-foreground hover:bg-brand/90">Go to Dashboard</Button>
                       </div>
+                      {!savedProductSlug && (
+                        <p className="mt-3 text-xs text-amber-600">Product saved, but the view link is unavailable. Refresh My Products to find it.</p>
+                      )}
                     </motion.div>
                   ) : (
                     <>
