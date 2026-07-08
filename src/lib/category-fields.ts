@@ -186,6 +186,12 @@ export const CATEGORY_FIELDS: Record<string, CategoryFieldConfig> = {
       { key: "cuisine", label: "Cuisine", placeholder: "French, Japanese, Modern Indian" },
     ],
   },
+  "specialty-foods": {
+    noun: "Product",
+    types: ["Organic", "Vegan", "Gluten-Free", "Keto", "Halal", "Kosher", "Other"],
+    show: { ...ALL_OFF, sizes: true, weight: true, prepTime: true, servings: true, inventory: true, pricingTiers: true },
+    extraFields: [{ key: "certification", label: "Certification", placeholder: "USDA Organic, Halal-certified" }],
+  },
 
   // ── PimpMyParty ──
   "event-planners": {
@@ -285,6 +291,7 @@ export const CATEGORY_FIELDS: Record<string, CategoryFieldConfig> = {
   // NOTE: beverage-specialists is defined above at line 122 with the new
   // 6-category architecture config. The old duplicate was removed to prevent
   // the last-definition-wins behavior from overriding the new config.
+  // NOTE: specialty-foods is also defined above at line 189 — removed duplicate here.
   videographers: {
     noun: "Package",
     types: ["Wedding Film", "Event Coverage", "Drone Video", "Promo Video", "Other"],

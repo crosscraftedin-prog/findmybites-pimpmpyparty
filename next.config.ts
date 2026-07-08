@@ -4,9 +4,8 @@ const nextConfig: NextConfig = {
   /* Vercel manages the build output automatically — do NOT set `output:
    * "standalone"` here, it's only for self-hosted/Docker deployments and
    * conflicts with Vercel's build pipeline. */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // NOTE: typescript.ignoreBuildErrors removed — type errors must fail the
+  // build to prevent broken code from shipping to production.
   reactStrictMode: false,
 
   // ── ZAI (GLM AI) configuration ──────────────────────────────────────────

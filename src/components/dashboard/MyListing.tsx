@@ -648,7 +648,15 @@ export function MyListing({ vendor }: MyListingProps) {
   const handleSuccessAction = (action: string) => {
     if (action === "products") setActiveTab("products");
     else if (action === "gallery") setActiveTab("media");
-    else if (action === "share") router.push(`/vendor/${vendor.slug}`);
+    else if (action === "share") {
+      // Guard: if slug is missing, redirect to dashboard instead of crashing
+      const slug = vendor?.slug || fullVendor?.slug;
+      if (slug) {
+        router.push(`/vendor/${slug}`);
+      } else {
+        router.push("/dashboard");
+      }
+    }
     else if (action === "upgrade") router.push("/dashboard");
     setPublished(false);
   };

@@ -214,7 +214,12 @@ function AdminTicketDetail({ ticket, onBack }: { ticket: TicketDetail; onBack: (
     } catch { toast.error("Failed to add note"); }
   };
 
-  const internalNotes: { note: string; adminEmail: string; timestamp: string }[] = ticket.internalNotes ? JSON.parse(ticket.internalNotes) : [];
+  let internalNotes: { note: string; adminEmail: string; timestamp: string }[] = [];
+  try {
+    internalNotes = ticket.internalNotes ? JSON.parse(ticket.internalNotes) : [];
+  } catch {
+    internalNotes = [];
+  }
 
   return (
     <div className="space-y-3">

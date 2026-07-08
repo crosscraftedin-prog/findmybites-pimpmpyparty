@@ -85,13 +85,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title,
     description,
     alternates: {
-      canonical: `https://findmybites.com/product/${product.slug}`,
+      canonical: `https://www.findmybites.com/product/${product.slug}`,
     },
     openGraph: {
       title,
       description,
       type: "website",
-      url: `https://findmybites.com/product/${product.slug}`,
+      url: `https://www.findmybites.com/product/${product.slug}`,
       images: ogImage ? [{ url: ogImage }] : undefined,
     },
     twitter: {
@@ -118,11 +118,11 @@ export default async function ProductPage({ params }: PageProps) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
-    "@id": `https://findmybites.com/product/${product.slug}`,
+    "@id": `https://www.findmybites.com/product/${product.slug}`,
     name: product.name,
     description: product.metaDescription || product.description || "",
     image: product.image || (product.images ? parseJsonArray<string>(product.images) : []),
-    url: `https://findmybites.com/product/${product.slug}`,
+    url: `https://www.findmybites.com/product/${product.slug}`,
     sku: product.id,
     brand: product.vendor
       ? { "@type": "Brand", name: product.vendor.name }
@@ -134,7 +134,7 @@ export default async function ProductPage({ params }: PageProps) {
       availability: product.isAvailable
         ? "https://schema.org/InStock"
         : "https://schema.org/OutOfStock",
-      url: `https://findmybites.com/product/${product.slug}`,
+      url: `https://www.findmybites.com/product/${product.slug}`,
       seller: product.vendor
         ? { "@type": "Organization", name: product.vendor.name }
         : undefined,
@@ -160,19 +160,19 @@ export default async function ProductPage({ params }: PageProps) {
         "@type": "ListItem",
         position: 1,
         name: isFood ? "FindMyBites" : "PimpMyParty",
-        item: `https://findmybites.com/`,
+        item: `https://www.findmybites.com/`,
       },
       {
         "@type": "ListItem",
         position: 2,
         name: cat?.label || "Vendors",
-        item: `https://findmybites.com/vendor/${product.vendor?.slug}`,
+        item: `https://www.findmybites.com/vendor/${product.vendor?.slug}`,
       },
       {
         "@type": "ListItem",
         position: 3,
         name: product.name,
-        item: `https://findmybites.com/product/${product.slug}`,
+        item: `https://www.findmybites.com/product/${product.slug}`,
       },
     ],
   };

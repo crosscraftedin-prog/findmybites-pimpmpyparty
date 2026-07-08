@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/constants";
 
 /**
  * Notifications API
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
     }
 
     // For admin role, also get admin notifications
-    const isAdmin = user?.email && ["bookingjosh@gmail.com"].includes(user.email.toLowerCase());
+    const isAdmin = isAdminEmail(user?.email);
 
     const where = isAdmin && role === "admin"
       ? { recipientType: "admin" }

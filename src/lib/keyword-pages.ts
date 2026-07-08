@@ -478,7 +478,7 @@ export function getKeywordPage(slug: string): KeywordPage | undefined {
 export function generateKeywordMetadata(page: KeywordPage): Metadata {
   const title = `${page.keyword} in ${page.location} | FindMyBites`;
   const description = `Find the best ${page.keyword.toLowerCase()} in ${page.location}. Compare prices, read reviews and book directly. Free to enquire — no commission.`;
-  const url = `https://findmybites.com/${page.slug}`;
+  const url = `https://www.findmybites.com/${page.slug}`;
 
   return {
     title,
@@ -504,7 +504,7 @@ export function buildKeywordJsonLd(
   page: KeywordPage,
   vendors: any[]
 ): Record<string, any>[] {
-  const url = `https://findmybites.com/${page.slug}`;
+  const url = `https://www.findmybites.com/${page.slug}`;
   const ecoLabel = page.ecosystem === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty";
   const ecoSlug = page.ecosystem === "FINDMYBITES" ? "findmybites" : "pimpmyparty";
 
@@ -515,8 +515,8 @@ export function buildKeywordJsonLd(
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: "https://findmybites.com" },
-      { "@type": "ListItem", position: 2, name: ecoLabel, item: `https://findmybites.com/${ecoSlug}` },
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://www.findmybites.com" },
+      { "@type": "ListItem", position: 2, name: ecoLabel, item: `https://www.findmybites.com/${ecoSlug}` },
       { "@type": "ListItem", position: 3, name: `${page.keyword} in ${page.location}`, item: url },
     ],
   });
@@ -533,7 +533,7 @@ export function buildKeywordJsonLd(
         item: {
           "@type": "LocalBusiness",
           name: v.name,
-          url: `https://findmybites.com/vendor/${v.slug}`,
+          url: `https://www.findmybites.com/vendor/${v.slug}`,
           telephone: v.whatsapp ?? undefined,
           image: v.heroImage ?? undefined,
           address: {

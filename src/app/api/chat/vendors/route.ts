@@ -58,8 +58,7 @@ function transformVendor(v: any, distance: number | null): ApiVendor & { distanc
     latitude: v.latitude,
     longitude: v.longitude,
     serviceRadiusKm: v.serviceRadiusKm,
-    userEmail: v.userEmail,
-    ownership_status: v.ownership_status,
+    // SECURITY: Do NOT expose userEmail or ownership_status in public API
     createdAt: v.createdAt.toISOString(),
     distance,
   };

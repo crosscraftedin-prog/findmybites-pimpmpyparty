@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin-guard";
 import { COUNTRIES } from "@/lib/constants";
 import { geocodeAddress } from "@/lib/geocode";
+import crypto from "crypto";
 
 /**
  * POST /api/admin/create-business
@@ -36,8 +37,9 @@ export async function POST(req: NextRequest) {
     }
 
     const countryName = country?.trim() || "India";
-    const countryEntry = Object.entries(COUNTRIES).find(([, c]) => c.name === countryName);
-    const countryCode = countryEntry?.[0] ?? "IN";
+    // COUNTRIES is an array (CountryDef[]), not a Record — use .find() directly
+    const countryEntry = COUNTRIES.find((c) => c.name === countryName);
+    const countryCode = countryEntry?.code ?? "IN";
     const isIndia = countryName === "India";
     const currency = isIndia ? "INR" : "USD";
 
@@ -95,7 +97,7 @@ export async function POST(req: NextRequest) {
     // client doesn't have the admin's auth session, so is_admin() returns false.
     const ttlHours = 168;
     const expiresAt = new Date(Date.now() + ttlHours * 3600 * 1000);
-    const token = Math.random().toString(36).slice(2) + Date.now().toString(36) + Math.random().toString(36).slice(2);
+    const token = crypto.randomBytes(24).toString("hex");
 
     // Insert directly into vendor_invite_tokens via raw SQL (Prisma bypasses RLS)
     try {

@@ -46,7 +46,6 @@ async function callLLM(prompt: string): Promise<string | null> {
       const completion = await zai.chat.completions.create({
         messages: [{ role: "user", content: prompt }],
         thinking: { type: "disabled" },
-      model: "glm-4v",
       });
       return completion.choices[0]?.message?.content || "";
     }, 30_000);
@@ -242,6 +241,7 @@ export async function analyzeBusinessImage(imageUrl: string): Promise<AiImageAna
     // ── 30-second timeout ──
     const { result: text, timedOut } = await callWithTimeout(async (_signal) => {
       const completion = await zai.chat.completions.createVision({
+        model: "glm-4v",
         messages: [{
           role: "user",
           content: [
@@ -250,8 +250,7 @@ export async function analyzeBusinessImage(imageUrl: string): Promise<AiImageAna
           ],
         }],
         thinking: { type: "disabled" },
-      model: "glm-4v",
-      });
+      } as any);
       return completion.choices[0]?.message?.content || "";
     }, 30_000);
 
