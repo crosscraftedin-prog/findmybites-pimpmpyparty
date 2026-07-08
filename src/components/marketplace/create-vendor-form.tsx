@@ -40,7 +40,7 @@ import {
 import { countryCodeToFlag } from "@/lib/format";
 import { ImageUpload } from "./image-upload";
 import { AiListingGenerator, type AiListingResult } from "./ai-listing-generator";
-import type { AiListingResult as AiResult } from "@/lib/ai/listing-types";
+import type { AiBusinessProfile as AiResult } from "@/lib/ai/listing-types";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { DynamicFilters } from "@/components/dashboard/DynamicFilters";
 import type { Ecosystem, Vendor } from "@/lib/types";
@@ -154,6 +154,11 @@ function formStateFromVendor(v: Vendor): FormState {
     snapchat: (v as any).snapchat ?? "",
     fssaiNumber: (v as any).fssaiNumber ?? "",
     serviceRadiusKm: v.serviceRadiusKm ? String(v.serviceRadiusKm) : "",
+    seoKeywords: "",
+    deliveryOptions: "",
+    specialities: "",
+    languages: "",
+    customOrders: true,
   };
 }
 
@@ -1075,7 +1080,7 @@ export function CreateVendorSuccess({
           📍 {countryCodeToFlag(vendor.countryCode)} {vendor.continent}
         </span>
         <span className="rounded-md bg-background px-2 py-1 text-xs font-medium">
-          {dbCategories.find((c) => c.id === vendor.category)?.label ?? vendor.category}
+          {vendor.category}
         </span>
         <span className="rounded-md bg-background px-2 py-1 text-xs font-medium">
           {vendor.priceRange} pricing

@@ -394,7 +394,7 @@ export function AdminClaimsSection() {
                   >
                     <div className="min-w-0">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">
-                        {ECOSYSTEM_NAME[c.vendor?.ecosystem] || "—"} ·{" "}
+                        {ECOSYSTEM_NAME[c.vendor?.ecosystem ?? ""] || "—"} ·{" "}
                         {c.vendor?.category || "—"}
                       </p>
                       <p className="truncate text-sm font-bold">
@@ -500,7 +500,7 @@ export function AdminClaimsSection() {
                   >
                     <div className="min-w-0">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">
-                        {ECOSYSTEM_NAME[t.vendor?.ecosystem] || "—"} ·{" "}
+                        {ECOSYSTEM_NAME[t.vendor?.ecosystem ?? ""] || "—"} ·{" "}
                         {t.vendor?.category || "—"} · {t.vendor?.city || ""}
                       </p>
                       <p className="truncate text-sm font-bold">

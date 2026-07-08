@@ -349,7 +349,7 @@ export function ProductPageClient({ slug }: Props) {
                           onClick={() => setLightboxIndex(i + 1)}
                           className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted sm:aspect-[4/3]"
                         >
-                          <img src={img} alt={`${product.name} ${i + 2}`} className="h-full w-full object-cover" />
+                          <img src={img ?? undefined} alt={`${product.name} ${i + 2}`} className="h-full w-full object-cover" />
                         </button>
                       ))}
                     </div>
@@ -450,10 +450,10 @@ export function ProductPageClient({ slug }: Props) {
                       productId={product.id}
                       preparationTimeCategory={(product as any).preparationTimeCategory}
                       preparationTimeCustom={(product as any).preparationTimeCustom}
-                      prepTime={product.prepTime}
+                      prepTime={(product as any).prepTime}
                       bookingNoticeHours={(product as any).bookingNoticeHours}
                       serviceAreaType={(product as any).serviceAreaType}
-                      deliveryAvailable={product.deliveryAvailable}
+                      deliveryAvailable={(product as any).deliveryAvailable}
                       stockType={(product as any).stockType}
                       stockCount={(product as any).stockCount}
                       lowStockThreshold={(product as any).lowStockThreshold}

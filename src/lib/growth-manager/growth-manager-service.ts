@@ -80,7 +80,7 @@ export async function getDailyReport(vendorId: string): Promise<DailyReport> {
   });
   if (!vendor) throw new Error("Vendor not found");
 
-  const kpi = await getKpiComparison(vendorId, "daily").catch(() => null);
+  const kpi = await getKpiComparison(vendorId, "today" as any).catch(() => null);
   const series = await getAnalyticsSeries(vendorId, 7).catch(() => []);
   const topProducts = await db.product.findMany({
     where: { vendorId },
@@ -161,12 +161,12 @@ export interface SeoIssue {
 export async function getSeoScan(vendorId: string): Promise<{ score: number; issues: SeoIssue[] }> {
   const vendor = await db.vendor.findUnique({
     where: { id: vendorId },
-    select: { metaTitle: true, metaDescription: true, description: true, tags: true, name: true, category: true, city: true },
+    select: { metaTitle: true, metaDescription: true, description: true, name: true, category: true, city: true },
   });
   if (!vendor) throw new Error("Vendor not found");
 
   let tags: string[] = [];
-  try { tags = JSON.parse(vendor.tags || "[]"); } catch {}
+  try { tags = JSON.parse((vendor as any).tags || "[]"); } catch {}
 
   const issues: SeoIssue[] = [];
 
@@ -198,14 +198,14 @@ export interface ProductOptimization {
 export async function optimizeProduct(productId: string, vendorId: string): Promise<ProductOptimization> {
   const product = await db.product.findFirst({
     where: { id: productId, vendorId },
-    select: { id: true, name: true, description: true, price: true, image: true, images: true, weight: true, flavours: true, tags: true, views: true, orderCount: true, enquiryCount: true },
+    select: { id: true, name: true, description: true, price: true, image: true, images: true, weight: true, flavours: true, views: true, orderCount: true, enquiryCount: true },
   });
   if (!product) throw new Error("Product not found");
 
   let images: string[] = [];
   try { images = product.images ? JSON.parse(product.images) : []; } catch {}
   let tags: string[] = [];
-  try { tags = product.tags ? JSON.parse(product.tags) : []; } catch {}
+  try { tags = (product as any).tags ? JSON.parse((product as any).tags) : []; } catch {}
 
   // Calculate score
   let score = 40;

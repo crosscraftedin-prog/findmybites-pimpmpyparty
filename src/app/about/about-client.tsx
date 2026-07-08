@@ -159,7 +159,7 @@ export function AboutClient() {
                 { emoji: "🚀", year: "2026", title: "AI Meets Events", desc: "Josh, our AI event planning assistant, launches — helping customers plan entire events through a single conversation." },
               ].map((item, i) => (
                 <motion.div key={i} {...fadeUp} className="relative flex gap-5">
-                  {!i === 4 && <div className="absolute left-[26px] top-14 h-full w-px bg-border" />}
+                  {i !== 4 && <div className="absolute left-[26px] top-14 h-full w-px bg-border" />}
                   <div className="grid size-[54px] shrink-0 place-items-center rounded-full border-2 border-brand/30 bg-brand-soft text-2xl">{item.emoji}</div>
                   <div className="flex-1 pb-2">
                     <div className="flex items-center gap-2">

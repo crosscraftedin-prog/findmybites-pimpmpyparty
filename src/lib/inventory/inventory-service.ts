@@ -744,14 +744,14 @@ export async function getAdminInventoryOverview(filters?: {
   // Attach vendor names in one query
   const vendorIds = [...new Set(products.map((p) => p.vendorId))];
   const vendors = vendorIds.length
-    ? await db.vendor.findMany({ where: { id: { in: vendorIds } }, select: { id: true, businessName: true, ecosystem: true } })
+    ? await db.vendor.findMany({ where: { id: { in: vendorIds } }, select: { id: true, name: true, ecosystem: true } })
     : [];
   const vendorMap = new Map(vendors.map((v) => [v.id, v]));
 
   return {
     products: products.map((p) => ({
       ...p,
-      vendorName: vendorMap.get(p.vendorId)?.businessName ?? "Unknown",
+      vendorName: vendorMap.get(p.vendorId)?.name ?? "Unknown",
       vendorEcosystem: vendorMap.get(p.vendorId)?.ecosystem ?? null,
     })),
     stats: {

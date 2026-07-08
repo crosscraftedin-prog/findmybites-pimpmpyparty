@@ -65,5 +65,6 @@ export function getPlaceholderVendors(ecosystem: Ecosystem): Vendor[] {
     yearsActive: 3,
     completedBookings: p.reviewCount,
     subcategory: p.subcategory,
-  }));
+    createdAt: new Date().toISOString(),
+  } as Vendor));
 }

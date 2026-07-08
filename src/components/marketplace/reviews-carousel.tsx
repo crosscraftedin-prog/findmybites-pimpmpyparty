@@ -105,7 +105,7 @@ export function ReviewsCarousel() {
                 </div>
 
                 <div className="mt-3">
-                  <StarRating rating={r.rating} size="sm" />
+                  <StarRating rating={r.rating} size={16} />
                 </div>
 
                 <p className="mt-2 line-clamp-3 flex-1 text-sm text-muted-foreground">

@@ -118,7 +118,7 @@ export function MarketingOverview({ vendor, onNavigate }: MarketingOverviewProps
     <div className="space-y-6">
       {/* Growth Score + Period selector */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <GrowthScoreCard score={g} onRefresh={() => fetch("/api/vendor/marketing/growth", { method: "POST" }).then(load)} />
+        <GrowthScoreCard score={g ?? null} onRefresh={() => fetch("/api/vendor/marketing/growth", { method: "POST" }).then(load)} />
 
         <div className="lg:col-span-2">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

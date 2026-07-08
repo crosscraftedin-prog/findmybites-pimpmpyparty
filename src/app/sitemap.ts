@@ -113,7 +113,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }).catch(() => []),
       db.vendor.findMany({
         where: { approved: true },
-        select: { slug: true, updatedAt: true },
+        select: { slug: true, createdAt: true },
         take: 5000,
       }).catch(() => []),
     ]);
@@ -185,7 +185,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const v of vendors) {
       entries.push({
         url: `${baseUrl}/vendor/${v.slug}`,
-        lastModified: v.updatedAt,
+        lastModified: v.createdAt,
         changeFrequency: "weekly",
         priority: 0.5,
       });

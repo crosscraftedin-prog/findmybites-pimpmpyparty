@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
     // ── 1. Try DB resolution (admin-managed mappings + template fields) ──
     try {
       // Subcategory-specific mapping
-      let mapping = null;
+      let mapping: any = null;
       if (subcategory) {
         mapping = await db.templateMapping.findFirst({
           where: { categoryId: category, subcategory },

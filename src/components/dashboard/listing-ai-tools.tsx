@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   Store, Image as ImageIcon, Package, Search, Share2, ShieldCheck,
   Heart, BarChart3, CheckCircle2, AlertTriangle, XCircle, Rocket,
-  Sparkles, Loader2, PartyPopper, ArrowRight, Copy, Clock, Truck,
+  Sparkles, Loader2, PartyPopper, ArrowRight, Copy, Clock, Truck, Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";

@@ -46,6 +46,7 @@ async function callLLM(prompt: string): Promise<string | null> {
       const completion = await zai.chat.completions.create({
         messages: [{ role: "user", content: prompt }],
         thinking: { type: "disabled" },
+      model: "glm-4v",
       });
       return completion.choices[0]?.message?.content || "";
     }, 30_000);
@@ -221,8 +222,8 @@ Requirements:
     tagline: `${catLabel} in ${input.city || "your city"}`.slice(0, 60),
     seoTitle: `${input.businessName} — ${catLabel} in ${input.city || "your city"}`.slice(0, 60),
     metaDescription: `${input.businessName} is a ${catLabel.toLowerCase()}${input.city ? ` in ${input.city}` : ""}. ${input.specialities || "Quality service."} Book directly.`.slice(0, 160),
-    keywords: [input.category, input.city, isFood ? "food" : "events", catLabel.toLowerCase(), input.subcategory].filter(Boolean).slice(0, 10),
-    tags: [input.category, catLabel.toLowerCase(), input.subcategory].filter(Boolean).slice(0, 8),
+    keywords: [input.category, input.city, isFood ? "food" : "events", catLabel.toLowerCase(), input.subcategory].filter((s): s is string => Boolean(s)).slice(0, 10),
+    tags: [input.category, catLabel.toLowerCase(), input.subcategory].filter((s): s is string => Boolean(s)).slice(0, 8),
     services: isFood ? ["Custom orders", "Delivery", "Catering"] : ["Event planning", "Consultation", "Custom packages"],
     whyChooseUs: ["Experienced team", "Quality guaranteed", "Direct communication", "Competitive pricing"],
     highlights: ["Professional service", "Customer-focused", "Reliable execution"],
@@ -249,6 +250,7 @@ export async function analyzeBusinessImage(imageUrl: string): Promise<AiImageAna
           ],
         }],
         thinking: { type: "disabled" },
+      model: "glm-4v",
       });
       return completion.choices[0]?.message?.content || "";
     }, 30_000);
@@ -316,7 +318,7 @@ export function computeProfileCompleteness(vendor: any): ProfileCompleteness {
 export async function getAiRecommendations(vendorId: string): Promise<AiRecommendation[]> {
   const v = await db.vendor.findUnique({
     where: { id: vendorId },
-    select: { id: true, name: true, avatarImage: true, heroImage: true, gallery: true, description: true, metaTitle: true, metaDescription: true, tags: true, whatsapp: true, openHours: true, approved: true, ecosystem: true },
+    select: { id: true, name: true, avatarImage: true, heroImage: true, gallery: true, description: true, metaTitle: true, metaDescription: true, tags: true, whatsapp: true, openHours: true, approved: true, ecosystem: true, instagram: true, facebook: true, youtube: true },
   });
   if (!v) return [];
 

@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMarketplace } from "@/lib/store";
 import { useNearVendors } from "@/lib/queries";
-import { clearCachedLocation } from "@/lib/geo";
+import { clearCachedLocation, type UserLocation } from "@/lib/geo";
 import { countryCodeToFlag } from "@/lib/format";
 import { useCategoryLabels } from "@/hooks/use-category-labels";
 import { CategoryIcon } from "./icon";

@@ -108,8 +108,8 @@ export default function DashboardPage() {
         <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
           {activeTab === "overview" && (
             <div className="space-y-6">
-              <VendorOnboarding vendorId={vendor.id} onNavigate={setActiveTab} />
-              <SuccessCenter vendor={vendor} onNavigate={setActiveTab} />
+              <VendorOnboarding vendorId={vendor.id} onNavigate={(tab: string) => setActiveTab(tab as DashboardTab)} />
+              <SuccessCenter vendor={vendor} onNavigate={(tab: string) => setActiveTab(tab as DashboardTab)} />
             </div>
           )}
           {activeTab === "listing" && <MyListing vendor={vendor} />}
@@ -118,7 +118,7 @@ export default function DashboardPage() {
           {activeTab === "messages" && <Messages vendorId={vendor.id} />}
           {activeTab === "availability" && <Availability vendorId={vendor.id} />}
           {activeTab === "analytics" && <Analytics vendor={vendor} />}
-          {activeTab === "growth-manager" && <GrowthManager vendor={vendor} onNavigate={setActiveTab} />}
+          {activeTab === "growth-manager" && <GrowthManager vendor={vendor} onNavigate={(tab: string) => setActiveTab(tab as DashboardTab)} />}
           {activeTab === "marketing" && <MarketingCenter vendor={vendor} />}
           {activeTab === "billing" && <PlanBilling vendor={vendor} />}
           {activeTab === "support" && <SupportCenter vendor={vendor} />}

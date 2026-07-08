@@ -46,6 +46,7 @@ interface PendingVendor {
 interface InviteResult {
   vendor: { id: string; name: string };
   inviteUrl: string;
+  activateUrl?: string;
   token: string;
   whatsappShareUrl: string;
   expiresAt: string;

@@ -305,7 +305,7 @@ export interface CompetitorInsights {
 export async function getCompetitorInsights(vendorId: string): Promise<CompetitorInsights> {
   const vendor = await db.vendor.findUnique({
     where: { id: vendorId },
-    select: { id: true, ecosystem: true, category: true, city: true, country: true,
+    select: { id: true, name: true, ecosystem: true, category: true, city: true, country: true,
       rating: true, responseTime: true, tagline: true, description: true,
       heroImage: true, avatarImage: true, gallery: true, tags: true, profileViews: true },
   });
@@ -316,7 +316,7 @@ export async function getCompetitorInsights(vendorId: string): Promise<Competito
   // Peers: same ecosystem + category, exclude self
   const peers = await db.vendor.findMany({
     where: { ecosystem: vendor.ecosystem, category: vendor.category, id: { not: vendorId }, approved: true },
-    select: { rating: true, responseTime: true, tagline: true, description: true,
+    select: { id: true, rating: true, responseTime: true, tagline: true, description: true,
       heroImage: true, avatarImage: true, gallery: true, tags: true, profileViews: true },
     take: 200,
   });

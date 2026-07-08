@@ -37,6 +37,10 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "prisma",
+    "scripts",
+    "skills",
+    "seed_categories2.cjs"
   ]
 }
