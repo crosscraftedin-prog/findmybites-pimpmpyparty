@@ -59,7 +59,7 @@ export function FeaturedSection({ vendors: serverVendors }: { vendors?: any[] } 
           </div>
         </div>
 
-        {isLoading ? (
+        {(isLoading && !serverVendors?.length) ? (
           <div className="mt-8 flex gap-5 overflow-hidden">
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="aspect-[3/4] w-72 shrink-0 rounded-2xl" />

@@ -40,14 +40,15 @@ function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string
 
 export function AnimatedCounters({ stats: serverStats }: { stats?: any } = {}) {
   const { data, isLoading } = useStats();
-  const continents = data?.continents ?? [];
+  const stats = serverStats || data;
+  const continents = stats?.continents ?? [];
   const max = Math.max(1, ...continents.map((c) => c.count));
 
   const counters = [
-    { icon: Users, label: "Verified Vendors", value: data?.totalVendors ?? 0, suffix: "+", color: "from-amber-400 to-orange-500" },
-    { icon: Globe2, label: "Countries", value: data?.countries ?? 0, suffix: "", color: "from-fuchsia-400 to-purple-500" },
-    { icon: MapPin, label: "Cities", value: Math.round((data?.totalVendors ?? 0) / 8), suffix: "+", color: "from-emerald-400 to-teal-500" },
-    { icon: Star, label: "Reviews", value: data?.totalReviews ?? 0, suffix: "+", color: "from-sky-400 to-indigo-500" },
+    { icon: Users, label: "Verified Vendors", value: stats?.totalVendors ?? 0, suffix: "+", color: "from-amber-400 to-orange-500" },
+    { icon: Globe2, label: "Countries", value: stats?.countries ?? 0, suffix: "", color: "from-fuchsia-400 to-purple-500" },
+    { icon: MapPin, label: "Cities", value: Math.round((stats?.totalVendors ?? 0) / 8), suffix: "+", color: "from-emerald-400 to-teal-500" },
+    { icon: Star, label: "Reviews", value: stats?.totalReviews ?? 0, suffix: "+", color: "from-sky-400 to-indigo-500" },
   ];
 
   return (
@@ -82,7 +83,7 @@ export function AnimatedCounters({ stats: serverStats }: { stats?: any } = {}) {
                 <div className={cn("mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-gradient-to-br text-white shadow-lg", c.color)}>
                   <Icon className="size-6" />
                 </div>
-                {isLoading ? (
+                {(isLoading && !serverStats) ? (
                   <Skeleton className="mx-auto h-8 w-20" />
                 ) : (
                   <p className="text-3xl font-extrabold tracking-tight tabular-nums sm:text-4xl">
