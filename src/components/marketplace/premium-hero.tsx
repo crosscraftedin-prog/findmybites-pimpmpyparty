@@ -32,7 +32,7 @@ const HERO_CONTENT = {
   },
 };
 
-export function PremiumHero({ stats: serverStats, categories: serverCats }: { stats?: any; categories?: any[] } = {}) {
+export function PremiumHero() {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const search = useMarketplace((s) => s.search);
   const setSearch = useMarketplace((s) => s.setSearch);
@@ -42,8 +42,8 @@ export function PremiumHero({ stats: serverStats, categories: serverCats }: { st
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
   const { user: session } = useSupabaseSession();
   const content = HERO_CONTENT[ecosystem];
-  const { data: stats } = useStats(); const finalStats = serverStats || stats;
-  const { data: catData } = useCategories(ecosystem); const finalCats = serverCats || catData;
+  const { data: stats } = useStats();
+  const { data: catData } = useCategories(ecosystem);
 
   const foodCount = stats?.findmybitesCount ?? 0;
   const partyCount = stats?.pimpmpypartyCount ?? 0;

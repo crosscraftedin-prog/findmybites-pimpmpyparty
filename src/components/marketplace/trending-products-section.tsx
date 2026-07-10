@@ -30,7 +30,7 @@ interface TrendingProduct {
   } | null;
 }
 
-export function TrendingProductsSection({ products: serverProducts }: { products?: any[] } = {}) {
+export function TrendingProductsSection() {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const [products, setProducts] = React.useState<TrendingProduct[]>([]);
   const [loading, setLoading] = React.useState(true);

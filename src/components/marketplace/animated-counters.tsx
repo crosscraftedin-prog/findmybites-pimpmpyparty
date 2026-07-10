@@ -38,7 +38,7 @@ function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string
   return <span ref={ref}>{displayValue.toLocaleString()}{suffix}</span>;
 }
 
-export function AnimatedCounters({ stats: serverStats }: { stats?: any } = {}) {
+export function AnimatedCounters() {
   const { data, isLoading } = useStats();
   const continents = data?.continents ?? [];
   const max = Math.max(1, ...continents.map((c) => c.count));

@@ -7,14 +7,13 @@ import { VendorCard } from "./vendor-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Vendor } from "@/lib/types";
 
-export function RecentVendorsSection({ vendors: serverVendors }: { vendors?: any[] } = {}) {
+export function RecentVendorsSection() {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const [vendors, setVendors] = React.useState<Vendor[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     setLoading(true);
-  const vendors = serverVendors;
     fetch(`/api/vendors?ecosystem=${ecosystem}&sort=newest&limit=8`)
       .then((r) => r.json())
       .then((d) => {

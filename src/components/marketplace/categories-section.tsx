@@ -9,12 +9,13 @@ import { VendorImage } from "./vendor-image";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CategoryDef } from "@/lib/constants";
 
-export function CategoriesSection({ categories: serverCats }: { categories?: any[] } = {}) {
+export function CategoriesSection() {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const setSelectedCategory = useMarketplace((s) => s.setSelectedCategory);
   const { data, isLoading } = useCategories(ecosystem);
 
-  const cats = serverCats ?? data?.categories ?? [];
+  const cats: (CategoryDef & { count: number })[] =
+    data?.categories ?? [];
 
   const handlePick = (id: string) => {
     setSelectedCategory(id);

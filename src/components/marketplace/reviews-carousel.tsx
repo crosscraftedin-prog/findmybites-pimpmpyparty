@@ -26,7 +26,7 @@ interface ReviewWithVendor {
   };
 }
 
-export function ReviewsCarousel({ reviews: serverReviews }: { reviews?: any[] } = {}) {
+export function ReviewsCarousel() {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const [reviews, setReviews] = React.useState<ReviewWithVendor[]>([]);
   const [loading, setLoading] = React.useState(true);
