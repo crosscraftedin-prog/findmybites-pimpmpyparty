@@ -169,7 +169,7 @@ export function VendorComparison({ vendorIds, onClose }: VendorComparisonProps) 
                             {p.image && <img src={p.image} alt={p.name} className="size-8 rounded object-cover" />}
                             <div className="min-w-0">
                               <p className="truncate text-xs font-medium">{p.name}</p>
-                              <p className="text-xs font-bold text-brand">{v.currencySymbol}{(p.offerPrice || p.price).toLocaleString()}</p>
+                              <p className="text-xs font-bold text-brand">{v.currencySymbol}{((p as any).offerPrice || p.price).toLocaleString()}</p>
                             </div>
                           </Link>
                         ))}
