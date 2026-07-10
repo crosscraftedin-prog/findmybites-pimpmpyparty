@@ -114,6 +114,7 @@ function toDetail(p: any): ProductDetail {
     travelAvailable: p.travelAvailable ?? false, bookingNotice: p.bookingNotice ?? null,
     cancellationPolicy: p.cancellationPolicy ?? null, leadTime: p.leadTime ?? null,
     pricingTiers: p.pricingTiers ? JSON.parse(p.pricingTiers) : null,
+    variants: (p as any).variants ? (typeof (p as any).variants === "string" ? JSON.parse((p as any).variants) : (p as any).variants) : [],
     views: p.views ?? 0, enquiryCount: p.enquiryCount ?? 0, sortOrder: p.sortOrder ?? 0,
     createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
     updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
@@ -246,6 +247,7 @@ export async function createProduct(vendorId: string, data: any): Promise<Produc
     travelAvailable: data.travelAvailable ?? false, bookingNotice: data.bookingNotice || null,
     cancellationPolicy: data.cancellationPolicy || null, leadTime: data.leadTime || null,
     pricingTiers: data.pricingTiers ? JSON.stringify(data.pricingTiers) : null,
+    variants: data.variants ? (typeof data.variants === "string" ? data.variants : JSON.stringify(data.variants)) : null,
     status: data.status || "active",
     // ── Inventory & Availability Management defaults ──
     stockType: data.stockType || "unlimited",
@@ -301,6 +303,7 @@ export async function updateProduct(productId: string, vendorId: string, data: a
   if (data.includedServices !== undefined) updateData.includedServices = data.includedServices ? JSON.stringify(data.includedServices) : null;
   if (data.optionalServices !== undefined) updateData.optionalServices = data.optionalServices ? JSON.stringify(data.optionalServices) : null;
   if (data.pricingTiers !== undefined) updateData.pricingTiers = data.pricingTiers ? JSON.stringify(data.pricingTiers) : null;
+  if (data.variants !== undefined) updateData.variants = data.variants ? (typeof data.variants === "string" ? data.variants : JSON.stringify(data.variants)) : null;
   if (data.availableDays !== undefined) updateData.availableDays = Array.isArray(data.availableDays) && data.availableDays.length ? JSON.stringify(data.availableDays) : null;
   if (data.serviceCities !== undefined) updateData.serviceCities = Array.isArray(data.serviceCities) && data.serviceCities.length ? JSON.stringify(data.serviceCities) : null;
   // Normalise date fields
