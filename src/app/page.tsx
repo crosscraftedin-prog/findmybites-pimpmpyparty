@@ -36,7 +36,7 @@ export const revalidate = 30; // ISR: revalidate every 30 seconds
 // This eliminates the 12 client-side API waterfall requests.
 async function getHomepageData() {
   const safe = async <T,>(fn: () => Promise<T>, fallback: T): Promise<T> => {
-    try { return await fn(); } catch (e) { console.error("[homepage] DB query failed:", e?.message?.slice(0,200)); return fallback; }
+    try { return await fn(); } catch { return fallback; }
   };
 
   const [
