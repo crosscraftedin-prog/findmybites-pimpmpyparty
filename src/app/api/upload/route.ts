@@ -39,6 +39,7 @@ function secureFilename(ext: string): string {
 // Force dynamic, nodejs runtime — required for FormData parsing on Vercel
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
