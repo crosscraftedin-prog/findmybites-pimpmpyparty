@@ -741,7 +741,7 @@ export function ProductPageClient({ slug }: Props) {
                         </div>
                         <div className="p-2">
                           <p className="line-clamp-1 text-xs font-bold">{rp.name}</p>
-                          <p className="mt-0.5 text-xs font-bold text-brand">{symbol}{rp.price.toLocaleString()}</p>
+                          <p className="mt-0.5 text-xs font-bold text-brand">{symbol}{(rp.offerPrice || rp.price).toLocaleString()}</p>
                           {rp.vendor && (
                             <p className="mt-0.5 truncate text-[10px] text-muted-foreground">by {rp.vendor.name}</p>
                           )}

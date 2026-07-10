@@ -74,7 +74,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const title =
     product.metaTitle ||
-    `${product.name} — ${currencySymbol}${product.price} | ${product.vendor?.name ?? "Vendor"}`;
+    `${product.name} — ${currencySymbol}${product.offerPrice || product.price} | ${product.vendor?.name ?? "Vendor"}`;
   const description =
     product.metaDescription ||
     product.description ||
@@ -129,7 +129,7 @@ export default async function ProductPage({ params }: PageProps) {
       : undefined,
     offers: {
       "@type": "Offer",
-      price: product.price,
+      price: product.offerPrice || product.price,
       priceCurrency: product.vendor?.currency || "USD",
       availability: product.isAvailable
         ? "https://schema.org/InStock"

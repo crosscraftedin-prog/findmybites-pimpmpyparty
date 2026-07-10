@@ -331,7 +331,7 @@ export function VendorModal() {
                             <div className="flex items-center justify-between gap-2">
                               <p className="truncate text-sm font-semibold">{p.name}</p>
                               <span className="shrink-0 text-sm font-bold tabular-nums">
-                                {symbol}{p.price.toLocaleString("en-US")}
+                                {symbol}{(p.offerPrice || p.price).toLocaleString("en-US")}
                               </span>
                             </div>
                             {p.productType && (
@@ -523,7 +523,7 @@ export function VendorModal() {
                                 </div>
                                 <div className="shrink-0 text-right">
                                   <p className="text-lg font-extrabold tabular-nums">
-                                    {symbol}{p.price.toLocaleString("en-US")}
+                                    {symbol}{(p.offerPrice || p.price).toLocaleString("en-US")}
                                   </p>
                                   {p.pricePerHead != null && (
                                     <p className="text-xs text-muted-foreground">
@@ -696,7 +696,7 @@ function ProductDetailModal({
               </div>
               <div className="text-right">
                 <p className="text-2xl font-extrabold tabular-nums">
-                  {symbol}{product.price.toLocaleString("en-US")}
+                  {symbol}{(product.offerPrice || product.price).toLocaleString("en-US")}
                 </p>
                 {product.pricePerHead != null && (
                   <p className="text-xs text-muted-foreground">{symbol}{product.pricePerHead}/head</p>

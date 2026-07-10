@@ -76,6 +76,7 @@ export interface Product {
   slug: string;
   description?: string | null;
   price: number;
+  offerPrice?: number | null;
   image?: string | null;
   productType?: string | null;
   sizes?: string | null;

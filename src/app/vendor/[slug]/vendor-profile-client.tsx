@@ -840,8 +840,10 @@ function ProductCard({ product, currency }: { product: Product; currency: string
   const packageType = (product as any).packageType || "standard";
   const capacity = (product as any).capacity;
   const duration = (product as any).duration;
-  const comparePrice = (product as any).comparePrice;
-  const discountPercent = (product as any).discountPercent;
+  const comparePrice = (product as any).offerPrice ? product.price : (product as any).comparePrice;
+  const discountPercent = (product as any).offerPrice && product.price > 0
+    ? Math.round(((product.price - Number((product as any).offerPrice)) / product.price) * 100)
+    : (product as any).discountPercent;
   const offerType = (product as any).offerType || "none";
   const offerLabel = (product as any).offerLabel;
   const offerExpiresAt = (product as any).offerExpiresAt;
@@ -930,7 +932,7 @@ function ProductCard({ product, currency }: { product: Product; currency: string
             {hasDiscount && (
               <span className="text-[11px] text-muted-foreground line-through">{symbol}{Number(comparePrice).toLocaleString()}</span>
             )}
-            <span className="text-sm font-bold text-brand">{symbol}{product.price.toLocaleString()}</span>
+            <span className="text-sm font-bold text-brand">{symbol}{((product as any).offerPrice || product.price).toLocaleString()}</span>
             {hasDiscount && (
               <span className="text-[10px] font-semibold text-green-600">Save {discountPercent || Math.round(((Number(comparePrice) - product.price) / Number(comparePrice)) * 100)}%</span>
             )}

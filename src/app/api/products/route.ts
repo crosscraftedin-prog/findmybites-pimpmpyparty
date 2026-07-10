@@ -12,6 +12,7 @@ function transformProduct(p: any): Product {
     slug: p.slug,
     description: p.description,
     price: p.price,
+    offerPrice: (p as any).offerPrice,
     image: p.image,
     productType: p.productType,
     sizes: p.sizes,
