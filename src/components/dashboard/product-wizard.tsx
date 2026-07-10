@@ -340,6 +340,9 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     const payload = {
       ...form,
       price: form.price ? Number(form.price) : 0,
+      offerPrice: form.offerPrice === "" || form.offerPrice == null ? null : Number(form.offerPrice),
+      capacity: form.capacity === "" || form.capacity == null ? null : Number(form.capacity),
+      duration: form.duration === "" || form.duration == null ? null : Number(form.duration),
       status: "active",
       variants: form.variants?.length > 0 ? JSON.stringify(form.variants) : null,
       // Normalise inventory fields for the API
@@ -372,6 +375,9 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     const payload = {
       ...form,
       price: form.price ? Number(form.price) : 0,
+      offerPrice: form.offerPrice === "" || form.offerPrice == null ? null : Number(form.offerPrice),
+      capacity: form.capacity === "" || form.capacity == null ? null : Number(form.capacity),
+      duration: form.duration === "" || form.duration == null ? null : Number(form.duration),
       status: "draft",
       stockCount: form.stockCount === "" ? null : Number(form.stockCount),
       lowStockThreshold: Number(form.lowStockThreshold) || 5,

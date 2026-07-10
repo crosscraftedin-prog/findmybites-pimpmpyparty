@@ -6,6 +6,21 @@
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
 
+// ── Type normalization helper ──────────────────────────────────────────────
+// HTML form inputs arrive as strings. Prisma Int fields reject strings.
+// This converts any value to a proper number or null.
+const toInt = (value: unknown): number | null => {
+  if (value === "" || value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isNaN(n) ? null : Math.trunc(n);
+};
+
+// Some Int fields should default to 0 rather than null when empty
+const toIntOrZero = (value: unknown): number => {
+  const n = toInt(value);
+  return n === null ? 0 : n;
+};
+
 export interface ProductSearchParams {
   vendorId: string;
   search?: string;
@@ -207,7 +222,7 @@ export async function createProduct(vendorId: string, data: any): Promise<Produc
   const p = await db.product.create({ data: {
     vendorId, name: data.name || "Untitled", slug,
     description: data.description || null, shortDescription: data.shortDescription || null,
-    price: data.price || 0, offerPrice: data.offerPrice ?? null, currency: data.currency || "INR",
+    price: toIntOrZero(data.price), offerPrice: toInt(data.offerPrice), currency: data.currency || "INR",
     image: data.image || null, images: data.images ? JSON.stringify(data.images) : null,
     videoUrl: data.videoUrl || null, productType: data.productType || null,
     category: data.category || null, subCategory: data.subCategory || null, ecosystem: data.ecosystem || null,
@@ -223,7 +238,7 @@ export async function createProduct(vendorId: string, data: any): Promise<Produc
     inStock: data.inStock ?? true, limitedTime: data.limitedTime ?? false,
     customOrderOnly: data.customOrderOnly ?? false, featured: data.featured ?? false,
     metaTitle: data.metaTitle || null, metaDescription: data.metaDescription || null,
-    duration: data.duration || null, capacity: data.capacity ?? null,
+    duration: data.duration || null, capacity: toInt(data.capacity),
     includes: data.includes ? JSON.stringify(data.includes) : null,
     includedServices: data.includedServices ? JSON.stringify(data.includedServices) : null,
     optionalServices: data.optionalServices ? JSON.stringify(data.optionalServices) : null,
@@ -234,16 +249,16 @@ export async function createProduct(vendorId: string, data: any): Promise<Produc
     status: data.status || "active",
     // ── Inventory & Availability Management defaults ──
     stockType: data.stockType || "unlimited",
-    stockCount: data.stockCount ?? null,
-    lowStockThreshold: data.lowStockThreshold ?? 10,
-    maxOrdersPerDay: data.maxOrdersPerDay ?? null,
+    stockCount: toInt(data.stockCount),
+    lowStockThreshold: toInt(data.lowStockThreshold) ?? 10,
+    maxOrdersPerDay: toInt(data.maxOrdersPerDay),
     availabilityMode: data.availabilityMode || "always",
     availableDays: Array.isArray(data.availableDays) && data.availableDays.length ? JSON.stringify(data.availableDays) : null,
     availabilityStart: data.availabilityStart ? new Date(data.availabilityStart) : null,
     availabilityEnd: data.availabilityEnd ? new Date(data.availabilityEnd) : null,
     preparationTimeCategory: data.preparationTimeCategory || null,
     preparationTimeCustom: data.preparationTimeCustom || null,
-    bookingNoticeHours: data.bookingNoticeHours ?? null,
+    bookingNoticeHours: toInt(data.bookingNoticeHours),
     serviceAreaType: data.serviceAreaType || null,
     serviceCities: Array.isArray(data.serviceCities) && data.serviceCities.length ? JSON.stringify(data.serviceCities) : null,
     seasonLabel: data.seasonLabel || null,
@@ -257,16 +272,29 @@ export async function updateProduct(productId: string, vendorId: string, data: a
   const updateData: any = {};
   // NOTE: forceHidden, adminNotes, salesRevenue, orderCount are admin/system-only
   // and intentionally excluded here so vendors cannot self-promote or self-unhide.
-  const fields = ["name","description","shortDescription","price","offerPrice","currency","image","videoUrl",
+
+  // ── Numeric Int fields — must be converted from string→number ──
+  // HTML form inputs arrive as strings; Prisma rejects strings for Int fields.
+  const INT_FIELDS = ["price", "offerPrice", "capacity", "stockCount", "lowStockThreshold",
+    "maxOrdersPerDay", "bookingNoticeHours", "comparePrice", "minGuests", "pricePerHead",
+    "bundleDiscount", "minOrderForOffer", "discountPercent", "sortOrder", "views",
+    "enquiryCount", "orderCount", "salesRevenue"];
+  for (const f of INT_FIELDS) {
+    if (data[f] !== undefined) {
+      updateData[f] = toInt(data[f]);
+    }
+  }
+
+  // ── String/Boolean fields — copy directly ──
+  const fields = ["name","description","shortDescription","currency","image","videoUrl",
     "productType","category","subCategory","ecosystem","sizes","flavours","weight","prepTime","servings","shape",
     "ingredients","allergenInfo","spicyLevel","eggless","vegetarian","vegan","halal","glutenFree","sugarFree",
     "deliveryAvailable","pickupAvailable","customOrder","sameDay","startingFromPrice","hidePrice","priceOnRequest",
     "isAvailable","inStock","limitedTime","customOrderOnly","featured","metaTitle","metaDescription",
-    "duration","capacity","equipmentIncluded","indoorOutdoor","travelAvailable",
+    "duration","equipmentIncluded","indoorOutdoor","travelAvailable",
     "bookingNotice","cancellationPolicy","leadTime","status",
-    "maxOrdersPerDay","availabilityMode","availabilityStart","availabilityEnd",
-    "preparationTimeCategory","preparationTimeCustom","bookingNoticeHours","serviceAreaType",
-    "seasonLabel","stockType","stockCount","lowStockThreshold"];
+    "availabilityMode","preparationTimeCategory","preparationTimeCustom","serviceAreaType",
+    "seasonLabel","stockType"];
   for (const f of fields) { if (data[f] !== undefined) updateData[f] = data[f]; }
   if (data.images !== undefined) updateData.images = data.images ? JSON.stringify(data.images) : null;
   if (data.includes !== undefined) updateData.includes = data.includes ? JSON.stringify(data.includes) : null;
