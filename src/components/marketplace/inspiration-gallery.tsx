@@ -15,7 +15,7 @@ interface GalleryItem {
   category: string;
 }
 
-export function InspirationGallery() {
+export function InspirationGallery({ vendors: serverVendors }: { vendors?: any[] } = {}) {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const [items, setItems] = React.useState<GalleryItem[]>([]);
   const [loading, setLoading] = React.useState(true);

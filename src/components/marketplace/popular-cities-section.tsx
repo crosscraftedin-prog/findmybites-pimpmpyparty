@@ -16,7 +16,7 @@ interface PopularCity {
   topImage: string | null;
 }
 
-export function PopularCitiesSection() {
+export function PopularCitiesSection({ cities: serverCities }: { cities?: any[] } = {}) {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const [cities, setCities] = React.useState<PopularCity[]>([]);
   const [loading, setLoading] = React.useState(true);

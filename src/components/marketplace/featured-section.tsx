@@ -9,14 +9,12 @@ import { VendorCard } from "./vendor-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
-export function FeaturedSection() {
+export function FeaturedSection({ vendors: serverVendors }: { vendors?: any[] } = {}) {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const { data, isLoading } = useFeaturedVendors(ecosystem);
-  const realVendors = data?.vendors ?? [];
-  const displayVendors = realVendors.length > 0 ? realVendors : getPlaceholderVendors(ecosystem);
+  const vendors = serverVendors ?? data?.vendors ?? [];
+  const displayVendors = vendors.length > 0 ? vendors : getPlaceholderVendors(ecosystem);
   const scrollerRef = React.useRef<HTMLDivElement>(null);
-
-  const vendors = data?.vendors ?? [];
 
   const scroll = (dir: "left" | "right") => {
     const el = scrollerRef.current;
