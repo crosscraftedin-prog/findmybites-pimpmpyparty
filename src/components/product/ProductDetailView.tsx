@@ -163,7 +163,7 @@ export function ProductDetailView({
           <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{product.name}</h1>
           {vendor && (
             <Link href={mode === "live" ? `/vendor/${vendor.slug}` : "#"} className="mt-2 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-              {vendor.avatarImage && <img src={vendor.avatarImage} alt={vendor.name} className="size-6 rounded-full object-cover ring-1 ring-border" />}
+              {vendor.avatarImage && <img loading="lazy" src={vendor.avatarImage} alt={vendor.name} className="size-6 rounded-full object-cover ring-1 ring-border" />}
               <span>by <span className="font-semibold text-foreground">{vendor.name}</span></span>
               {vendor.verified && <BadgeCheck className="size-4 text-emerald-500" />}
               {(vendor.rating ?? 0) > 0 && (

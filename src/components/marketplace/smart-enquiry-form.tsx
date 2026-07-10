@@ -330,7 +330,7 @@ export function SmartEnquiryForm({
       <Field label="Reference image (optional)">
         {form.referenceImage ? (
           <div className="relative inline-block">
-            <img src={form.referenceImage} alt="Reference" className="h-20 w-20 rounded-lg border border-border object-cover" />
+            <img loading="lazy" src={form.referenceImage} alt="Reference" className="h-20 w-20 rounded-lg border border-border object-cover" />
             <button
               type="button"
               onClick={() => set("referenceImage", "")}

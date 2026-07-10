@@ -115,7 +115,7 @@ export function NearMePageClient() {
     const fetchCats = async () => {
       setCatsLoading(true);
       try {
-        const res = await fetch(`/api/categories?ecosystem=${ecosystem}&t=${Date.now()}`);
+        const res = await fetch(`/api/categories?ecosystem=${ecosystem}`);
         if (res.ok) {
           const data = await res.json();
           setCats(data.categories ?? []);

@@ -391,7 +391,7 @@ export function VendorDashboardPage({
             </p>
           </div>
           {userImage ? (
-            <img src={userImage} alt="" className="size-8 rounded-full object-cover" />
+            <img loading="lazy" src={userImage} alt="" className="size-8 rounded-full object-cover" />
           ) : (
             <div
               className="grid size-8 place-items-center rounded-full text-[11px] font-medium text-white"

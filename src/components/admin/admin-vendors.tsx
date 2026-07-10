@@ -303,7 +303,7 @@ export function AdminVendors() {
                   <div className="flex items-start gap-3">
                     <div className="size-10 shrink-0 overflow-hidden rounded-lg bg-muted">
                       {v.heroImage && (
-                        <img src={v.heroImage} alt="" className="h-full w-full object-cover" />
+                        <img loading="lazy" src={v.heroImage} alt="" className="h-full w-full object-cover" />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">

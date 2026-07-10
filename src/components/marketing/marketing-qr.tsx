@@ -77,7 +77,7 @@ export function QrCodeGenerator({ vendor }: { vendor: Vendor }) {
 
       {dataUrl && (
         <div className="flex flex-col items-center gap-3 rounded-xl border bg-card p-6">
-          <img src={dataUrl} alt="Generated QR code" className="h-56 w-56" />
+          <img loading="lazy" src={dataUrl} alt="Generated QR code" className="h-56 w-56" />
           <Button onClick={download} variant="outline">
             <Download className="mr-1.5 h-4 w-4" /> Download {format.toUpperCase()}
           </Button>

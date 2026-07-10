@@ -49,7 +49,7 @@ export function FilterSidebar({ category, onResults, onLoadingChange }: FilterSi
     setLoading(true);
     setSelected(new Set());
     setHasSearched(false);
-    fetch(`/api/filters/category?category=${encodeURIComponent(category)}&t=${Date.now()}`)
+    fetch(`/api/filters/category?category=${encodeURIComponent(category)}`)
       .then((r) => r.json())
       .then((data) => {
         setFilters(Array.isArray(data) ? data : []);

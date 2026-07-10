@@ -199,7 +199,7 @@ export function MyListing({ vendor }: MyListingProps) {
   // ── Load categories from DB ──
   React.useEffect(() => {
     const eco = vendor.ecosystem || "FINDMYBITES";
-    fetch(`/api/categories?ecosystem=${eco}&t=${Date.now()}`)
+    fetch(`/api/categories?ecosystem=${eco}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
         if (d?.categories) {
@@ -224,7 +224,7 @@ export function MyListing({ vendor }: MyListingProps) {
     // The clearing is handled by the category dropdown's onChange handler.
 
     // Load subcategories
-    fetch(`/api/categories/subcategories?category=${encodeURIComponent(form.category)}&t=${Date.now()}`)
+    fetch(`/api/categories/subcategories?category=${encodeURIComponent(form.category)}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
         if (d?.subcategories) {
@@ -238,7 +238,7 @@ export function MyListing({ vendor }: MyListingProps) {
     // Load DB-driven business types
     setBusinessTypesLoading(true);
     setBusinessTypesError(false);
-    fetch(`/api/business-types?category=${encodeURIComponent(form.category)}&t=${Date.now()}`)
+    fetch(`/api/business-types?category=${encodeURIComponent(form.category)}`)
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load business types");
         return r.json();
@@ -918,7 +918,7 @@ export function MyListing({ vendor }: MyListingProps) {
                 </div>
               ) : businessTypesError ? (
                 <div className="mt-1 flex h-10 items-center gap-2 rounded-md border border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/20 px-3 text-xs text-red-600 dark:text-red-400">
-                  Failed to load. <button type="button" onClick={() => { setBusinessTypesError(false); setBusinessTypesLoading(true); fetch(`/api/business-types?category=${encodeURIComponent(form.category)}&t=${Date.now()}`).then(r => r.ok ? r.json() : null).then(d => setBusinessTypes((d?.businessTypes || []).map((t: any) => ({ value: t.value, label: t.label })))).catch(() => setBusinessTypesError(true)).finally(() => setBusinessTypesLoading(false)); }} className="underline font-medium">Retry</button>
+                  Failed to load. <button type="button" onClick={() => { setBusinessTypesError(false); setBusinessTypesLoading(true); fetch(`/api/business-types?category=${encodeURIComponent(form.category)}`).then(r => r.ok ? r.json() : null).then(d => setBusinessTypes((d?.businessTypes || []).map((t: any) => ({ value: t.value, label: t.label })))).catch(() => setBusinessTypesError(true)).finally(() => setBusinessTypesLoading(false)); }} className="underline font-medium">Retry</button>
                 </div>
               ) : businessTypes.length === 0 && form.category ? (
                 <div className="mt-1 flex h-10 items-center rounded-md border border-input bg-muted/30 px-3 text-sm text-muted-foreground">

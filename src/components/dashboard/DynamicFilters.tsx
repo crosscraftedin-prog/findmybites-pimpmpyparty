@@ -48,7 +48,7 @@ export function DynamicFilters({ vendorId, category }: DynamicFiltersProps) {
       return;
     }
     setLoading(true);
-    fetch(`/api/filters/category?category=${encodeURIComponent(category)}&t=${Date.now()}`)
+    fetch(`/api/filters/category?category=${encodeURIComponent(category)}`)
       .then((r) => r.json())
       .then((data) => {
         setFilters(Array.isArray(data) ? data : []);
@@ -63,7 +63,7 @@ export function DynamicFilters({ vendorId, category }: DynamicFiltersProps) {
   // Fetch vendor's existing selections (only once when vendorId is available)
   React.useEffect(() => {
     if (!vendorId) return;
-    fetch(`/api/filters/vendor?vendorId=${vendorId}&t=${Date.now()}`)
+    fetch(`/api/filters/vendor?vendorId=${vendorId}`)
       .then((r) => r.json())
       .then((data) => {
         const ids = new Set<string>(data.filterValueIds || []);

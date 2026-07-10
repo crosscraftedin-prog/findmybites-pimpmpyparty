@@ -160,7 +160,7 @@ export function ProductPageClient({ slug }: Props) {
 
   React.useEffect(() => {
     setLoading(true);
-    fetch(`/api/products/detail?slug=${encodeURIComponent(slug)}&t=${Date.now()}`)
+    fetch(`/api/products/detail?slug=${encodeURIComponent(slug)}`)
       .then((r) => {
         if (!r.ok) throw new Error("Not found");
         return r.json();
@@ -541,7 +541,7 @@ export function ProductPageClient({ slug }: Props) {
                   <div className="flex items-start gap-4">
                     {vendor.avatarImage && (
                       <Link href={`/vendor/${vendor.slug}`}>
-                        <img src={vendor.avatarImage} alt={vendor.name} className="size-16 rounded-xl object-cover" />
+                        <img loading="lazy" src={vendor.avatarImage} alt={vendor.name} className="size-16 rounded-xl object-cover" />
                       </Link>
                     )}
                     <div className="min-w-0 flex-1">
@@ -580,7 +580,7 @@ export function ProductPageClient({ slug }: Props) {
                       >
                         <div className="relative aspect-square overflow-hidden">
                           {rp.image ? (
-                            <img src={rp.image} alt={rp.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                            <img loading="lazy" src={rp.image} alt={rp.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
                           ) : (
                             <div className="flex h-full items-center justify-center bg-muted">
                               <Package className="size-8 text-muted-foreground/40" />

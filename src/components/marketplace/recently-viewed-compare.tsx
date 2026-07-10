@@ -102,7 +102,7 @@ export function RecentlyViewedSection() {
   React.useEffect(() => {
     const ids = getRecentlyViewedIds();
     if (ids.length === 0) return;
-    fetch(`/api/recently-viewed?ids=${ids.join(",")}&t=${Date.now()}`)
+    fetch(`/api/recently-viewed?ids=${ids.join(",")}`)
       .then((r) => r.json())
       .then((d) => setVendors(d.vendors ?? []))
       .catch(() => {});
@@ -173,7 +173,7 @@ export function CompareBar({ onCompare }: { onCompare: (ids: string[]) => void }
       setVendors([]);
       return;
     }
-    fetch(`/api/recently-viewed?ids=${compareIds.join(",")}&t=${Date.now()}`)
+    fetch(`/api/recently-viewed?ids=${compareIds.join(",")}`)
       .then((r) => r.json())
       .then((d) => setVendors(d.vendors ?? []))
       .catch(() => {});
@@ -204,7 +204,7 @@ export function CompareBar({ onCompare }: { onCompare: (ids: string[]) => void }
         <div className="flex flex-1 gap-2 overflow-x-auto">
           {vendors.map((v) => (
             <div key={v.id} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
-              {v.avatarImage && <img src={v.avatarImage} alt={v.name} className="size-6 rounded-full object-cover" />}
+              {v.avatarImage && <img loading="lazy" src={v.avatarImage} alt={v.name} className="size-6 rounded-full object-cover" />}
               <span className="truncate text-xs font-medium">{v.name}</span>
               <button onClick={() => remove(v.id)} className="text-muted-foreground hover:text-destructive">
                 <X className="size-3.5" />

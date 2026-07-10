@@ -14,7 +14,7 @@ export function AIStoreSummary({ vendorId }: { vendorId: string }) {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    fetch(`/api/ai/vendor-summary?vendorId=${vendorId}&t=${Date.now()}`)
+    fetch(`/api/ai/vendor-summary?vendorId=${vendorId}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.summary) {
@@ -61,7 +61,7 @@ export function AIFAQ({ vendorId }: { vendorId: string }) {
   const [openIndex, setOpenIndex] = React.useState<number | null>(0);
 
   React.useEffect(() => {
-    fetch(`/api/ai/vendor-faq?vendorId=${vendorId}&t=${Date.now()}`)
+    fetch(`/api/ai/vendor-faq?vendorId=${vendorId}`)
       .then((r) => r.json())
       .then((d) => {
         setFaqs(d.faqs ?? []);
@@ -116,7 +116,7 @@ export function AIReviewSummary({ vendorId }: { vendorId: string }) {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    fetch(`/api/ai/review-summary?vendorId=${vendorId}&t=${Date.now()}`)
+    fetch(`/api/ai/review-summary?vendorId=${vendorId}`)
       .then((r) => r.json())
       .then((d) => {
         setData(d);

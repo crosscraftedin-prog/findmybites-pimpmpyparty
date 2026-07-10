@@ -51,7 +51,7 @@ export function VendorComparison({ vendorIds, onClose }: VendorComparisonProps) 
   React.useEffect(() => {
     if (vendorIds.length < 2) return;
     setLoading(true);
-    fetch(`/api/vendors/compare?ids=${vendorIds.join(",")}&t=${Date.now()}`)
+    fetch(`/api/vendors/compare?ids=${vendorIds.join(",")}`)
       .then((r) => r.json())
       .then((d) => {
         setVendors(d.vendors ?? []);
@@ -110,7 +110,7 @@ export function VendorComparison({ vendorIds, onClose }: VendorComparisonProps) 
                     <th key={v.id} className="min-w-[200px] p-4 text-left align-top">
                       <Link href={`/vendor/${v.slug}`} className="block">
                         {v.avatarImage && (
-                          <img src={v.avatarImage} alt={v.name} className="mb-2 size-12 rounded-xl object-cover" />
+                          <img loading="lazy" src={v.avatarImage} alt={v.name} className="mb-2 size-12 rounded-xl object-cover" />
                         )}
                         <p className="font-bold leading-tight">{v.name}</p>
                         <p className="text-xs text-muted-foreground">{v.categoryLabel}</p>
@@ -166,7 +166,7 @@ export function VendorComparison({ vendorIds, onClose }: VendorComparisonProps) 
                             href={`/product/${p.slug}`}
                             className="flex items-center gap-2 rounded-lg border border-border p-2 hover:bg-accent"
                           >
-                            {p.image && <img src={p.image} alt={p.name} className="size-8 rounded object-cover" />}
+                            {p.image && <img loading="lazy" src={p.image} alt={p.name} className="size-8 rounded object-cover" />}
                             <div className="min-w-0">
                               <p className="truncate text-xs font-medium">{p.name}</p>
                               <p className="text-xs font-bold text-brand">{v.currencySymbol}{((p as any).offerPrice || p.price).toLocaleString()}</p>

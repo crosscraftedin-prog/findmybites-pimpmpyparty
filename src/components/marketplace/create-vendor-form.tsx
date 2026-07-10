@@ -227,7 +227,7 @@ export function CreateVendorForm({
     const fetchCategories = async () => {
       setCategoriesLoading(true);
       try {
-        const res = await fetch(`/api/categories?ecosystem=${activeEcosystem}&t=${Date.now()}`);
+        const res = await fetch(`/api/categories?ecosystem=${activeEcosystem}`);
         if (res.ok) {
           const data = await res.json();
           setDbCategories(data.categories ?? []);
@@ -256,7 +256,7 @@ export function CreateVendorForm({
     }
     const fetchSubs = async () => {
       try {
-        const res = await fetch(`/api/categories/subcategories?category=${encodeURIComponent(form.category)}&ecosystem=${activeEcosystem}&t=${Date.now()}`);
+        const res = await fetch(`/api/categories/subcategories?category=${encodeURIComponent(form.category)}&ecosystem=${activeEcosystem}`);
         if (res.ok) {
           const data = await res.json();
           // If the API returns subcategories with {id, label} format,

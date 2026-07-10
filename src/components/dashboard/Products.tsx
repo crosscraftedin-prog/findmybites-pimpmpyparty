@@ -144,7 +144,7 @@ export function Products({ vendor }: ProductsProps) {
     setTemplateLoading(true);
     const params = new URLSearchParams({ category: vendor.category });
     if (vendor.subcategory) params.set("subcategory", vendor.subcategory);
-    fetch(`/api/templates/resolve?${params.toString()}&t=${Date.now()}`)
+    fetch(`/api/templates/resolve?${params.toString()}`)
       .then(r => r.json())
       .then(data => {
         if (data.template) { setTemplate(data.template); setFilterOptions(data.filterOptions || {}); }

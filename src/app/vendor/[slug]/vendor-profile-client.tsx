@@ -112,7 +112,7 @@ export function VendorProfileClient({ vendor }: Props) {
   // Similar vendors — fetched from dedicated API
   const [similarVendors, setSimilarVendors] = React.useState<any[]>([]);
   React.useEffect(() => {
-    fetch(`/api/vendors/similar?vendorId=${vendor.id}&limit=4&t=${Date.now()}`)
+    fetch(`/api/vendors/similar?vendorId=${vendor.id}&limit=4`)
       .then((r) => r.json())
       .then((d) => setSimilarVendors(d.vendors ?? []))
       .catch(() => setSimilarVendors([]));
@@ -860,7 +860,7 @@ function ProductCard({ product, currency }: { product: Product; currency: string
     <Link href={`/product/${product.slug}`} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:-translate-y-0.5 hover:shadow-md">
       {images.length > 0 && (
         <div className="relative aspect-video overflow-hidden bg-muted">
-          <img src={images[0]} alt={product.name} className="h-full w-full object-cover" />
+          <img loading="lazy" src={images[0]} alt={product.name} className="h-full w-full object-cover" />
           <div className="absolute right-2 top-2 flex flex-col gap-1">
             <ProductBadge badge={(product as any).badge} />
             <span className={cn(

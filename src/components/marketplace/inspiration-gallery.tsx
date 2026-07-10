@@ -25,7 +25,7 @@ export function InspirationGallery() {
   React.useEffect(() => {
     if (ecosystem !== "PIMPMYPARTY") return;
     setLoading(true);
-    fetch(`/api/vendors?ecosystem=PIMPMYPARTY&featured=true&limit=20&t=${Date.now()}`)
+    fetch(`/api/vendors?ecosystem=PIMPMYPARTY&featured=true&limit=20`)
       .then((r) => r.json())
       .then((d) => {
         const vendors = d.vendors ?? [];

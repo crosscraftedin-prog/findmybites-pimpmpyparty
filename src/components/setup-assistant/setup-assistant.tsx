@@ -196,7 +196,7 @@ export function SetupAssistant({ vendor, onSaved }: SetupAssistantProps) {
                   <Label className="text-xs">Business Logo</Label>
                   <div className="flex items-center gap-2">
                     {minFields.logoUrl ? (
-                      <img src={minFields.logoUrl} alt="Logo" className="size-10 rounded-lg object-cover" />
+                      <img loading="lazy" src={minFields.logoUrl} alt="Logo" className="size-10 rounded-lg object-cover" />
                     ) : (
                       <div className="grid size-10 place-items-center rounded-lg border-2 border-dashed"><ImageIcon className="size-4 text-muted-foreground" /></div>
                     )}

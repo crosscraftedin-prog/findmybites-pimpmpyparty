@@ -231,7 +231,7 @@ export function ImageUpload({
       {value ? (
         <div className="relative group">
           <div className={cn("overflow-hidden rounded-xl border border-border bg-muted", previewClass)}>
-            <img src={value} alt={label} className="h-full w-full object-cover" />
+            <img loading="lazy" src={value} alt={label} className="h-full w-full object-cover" />
           </div>
           <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
             <Button size="sm" variant="outline" className="bg-white/90 text-xs"

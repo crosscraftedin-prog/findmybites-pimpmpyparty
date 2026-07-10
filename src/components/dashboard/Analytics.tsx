@@ -42,7 +42,7 @@ export function Analytics({ vendor }: { vendor: Vendor }) {
 
   React.useEffect(() => {
     setLoading(true);
-    fetch(`/api/analytics/track?vendorId=${vendor.id}&days=${daysMap[range]}&t=${Date.now()}`)
+    fetch(`/api/analytics/track?vendorId=${vendor.id}&days=${daysMap[range]}`)
       .then((r) => r.json())
       .then((d) => {
         setData(d);

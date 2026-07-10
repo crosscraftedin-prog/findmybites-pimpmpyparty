@@ -414,7 +414,7 @@ function VendorChatCard({ vendor }: { vendor: ChatVendorCard }) {
       <div className="flex gap-2.5 p-2.5">
         <div className="size-16 shrink-0 overflow-hidden rounded-lg bg-muted">
           {vendor.heroImage ? (
-            <img src={vendor.heroImage} alt={vendor.name} className="h-full w-full object-cover" />
+            <img loading="lazy" src={vendor.heroImage} alt={vendor.name} className="h-full w-full object-cover" />
           ) : (
             <div className={cn("flex h-full w-full items-center justify-center bg-gradient-to-br", cat?.accent ?? "from-amber-400 to-orange-500")}>
               <Sparkles className="size-6 text-white/80" />

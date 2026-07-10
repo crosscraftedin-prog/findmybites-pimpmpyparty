@@ -34,7 +34,7 @@ export function ReviewsCarousel() {
 
   React.useEffect(() => {
     setLoading(true);
-    fetch(`/api/reviews/recent?ecosystem=${ecosystem}&limit=10&t=${Date.now()}`)
+    fetch(`/api/reviews/recent?ecosystem=${ecosystem}&limit=10`)
       .then((r) => r.json())
       .then((d) => {
         setReviews(d.reviews ?? []);
@@ -88,7 +88,7 @@ export function ReviewsCarousel() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     {r.avatar ? (
-                      <img src={r.avatar} alt={r.author} className="size-9 rounded-full object-cover" />
+                      <img loading="lazy" src={r.avatar} alt={r.author} className="size-9 rounded-full object-cover" />
                     ) : (
                       <div className="grid size-9 place-items-center rounded-full bg-brand-soft text-sm font-bold text-brand">
                         {r.author?.charAt(0)?.toUpperCase() || "A"}
@@ -117,7 +117,7 @@ export function ReviewsCarousel() {
                   className="mt-3 flex items-center gap-2 border-t border-border pt-3 hover:opacity-80"
                 >
                   {r.vendor.avatarImage && (
-                    <img src={r.vendor.avatarImage} alt={r.vendor.name} className="size-6 rounded-full object-cover" />
+                    <img loading="lazy" src={r.vendor.avatarImage} alt={r.vendor.name} className="size-6 rounded-full object-cover" />
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold">{r.vendor.name}</p>

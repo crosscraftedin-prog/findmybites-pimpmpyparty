@@ -15,7 +15,7 @@ export function RecentVendorsSection() {
 
   React.useEffect(() => {
     setLoading(true);
-    fetch(`/api/vendors?ecosystem=${ecosystem}&sort=newest&limit=8&t=${Date.now()}`)
+    fetch(`/api/vendors?ecosystem=${ecosystem}&sort=newest&limit=8`)
       .then((r) => r.json())
       .then((d) => {
         setVendors(d.vendors ?? []);

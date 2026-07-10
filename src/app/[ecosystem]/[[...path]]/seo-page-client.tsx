@@ -88,7 +88,7 @@ export function SeoPageClient({
   React.useEffect(() => {
     const fetchCats = async () => {
       try {
-        const res = await fetch(`/api/categories?ecosystem=${ctx.ecosystem}&t=${Date.now()}`);
+        const res = await fetch(`/api/categories?ecosystem=${ctx.ecosystem}`);
         if (res.ok) {
           const data = await res.json();
           setDbCategories(data.categories ?? []);

@@ -325,7 +325,7 @@ export function VendorModal() {
                           >
                             {pImages.length > 0 && (
                               <div className="mb-2 aspect-video overflow-hidden rounded-lg">
-                                <img src={pImages[0]} alt={p.name} className="h-full w-full object-cover" />
+                                <img loading="lazy" src={pImages[0]} alt={p.name} className="h-full w-full object-cover" />
                               </div>
                             )}
                             <div className="flex items-center justify-between gap-2">
@@ -363,7 +363,7 @@ export function VendorModal() {
                     <div className="grid grid-cols-3 gap-2">
                       {vendor.gallery.slice(0, 6).map((img, i) => (
                         <div key={i} className="aspect-square overflow-hidden rounded-lg border border-border">
-                          <img src={img} alt={`${vendor.name} photo ${i + 1}`} className="h-full w-full object-cover" />
+                          <img loading="lazy" src={img} alt={`${vendor.name} photo ${i + 1}`} className="h-full w-full object-cover" />
                         </div>
                       ))}
                     </div>
@@ -505,7 +505,7 @@ export function VendorModal() {
                               <div className="flex items-start gap-3">
                                 {pImages.length > 0 && (
                                   <div className="size-16 shrink-0 overflow-hidden rounded-lg">
-                                    <img src={pImages[0]} alt={p.name} className="h-full w-full object-cover" />
+                                    <img loading="lazy" src={pImages[0]} alt={p.name} className="h-full w-full object-cover" />
                                   </div>
                                 )}
                                 <div className="min-w-0 flex-1">
@@ -664,7 +664,7 @@ function ProductDetailModal({
           {/* Image gallery — clickable thumbnails */}
           {images.length > 0 && (
             <div className="relative aspect-video overflow-hidden bg-muted">
-              <img src={images[activeImage] ?? images[0]} alt={product.name} className="h-full w-full object-cover" />
+              <img loading="lazy" src={images[activeImage] ?? images[0]} alt={product.name} className="h-full w-full object-cover" />
               {images.length > 1 && (
                 <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-2">
                   {images.map((img, i) => (
@@ -675,7 +675,7 @@ function ProductDetailModal({
                         i === activeImage ? "border-white opacity-100" : "border-white/40 opacity-60 hover:opacity-100"
                       }`}
                     >
-                      <img src={img} alt="" className="h-full w-full object-cover" />
+                      <img loading="lazy" src={img} alt="" className="h-full w-full object-cover" />
                     </button>
                   ))}
                 </div>

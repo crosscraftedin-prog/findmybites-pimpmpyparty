@@ -39,7 +39,7 @@ export function TrendingProductsSection() {
 
   React.useEffect(() => {
     setLoading(true);
-    fetch(`/api/products/trending?ecosystem=${ecosystem}&limit=14&t=${Date.now()}`)
+    fetch(`/api/products/trending?ecosystem=${ecosystem}&limit=14`)
       .then((r) => r.json())
       .then((d) => {
         setProducts(d.products ?? []);
@@ -109,7 +109,7 @@ export function TrendingProductsSection() {
                 <a href={`/product/${p.slug}`} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
                   <div className="relative aspect-square overflow-hidden">
                     {p.image ? (
-                      <img src={p.image} alt={p.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                      <img loading="lazy" src={p.image} alt={p.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     ) : (
                       <div className={cn("h-full w-full bg-gradient-to-br", ecosystem === "FINDMYBITES" ? "from-amber-200 to-orange-300" : "from-fuchsia-200 to-purple-300")} />
                     )}

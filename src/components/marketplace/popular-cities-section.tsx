@@ -25,7 +25,7 @@ export function PopularCitiesSection() {
 
   React.useEffect(() => {
     setLoading(true);
-    fetch(`/api/cities/popular?ecosystem=${ecosystem}&limit=12&t=${Date.now()}`)
+    fetch(`/api/cities/popular?ecosystem=${ecosystem}&limit=12`)
       .then((r) => r.json())
       .then((d) => {
         setCities(d.cities ?? []);

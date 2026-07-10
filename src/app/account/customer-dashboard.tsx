@@ -90,7 +90,7 @@ export function CustomerDashboard({ userEmail, userName, userImage }: { userEmai
           <div className="mb-6 flex items-center gap-4">
             <div className="size-16 overflow-hidden rounded-full bg-muted">
               {userImage ? (
-                <img src={userImage} alt={userName} className="h-full w-full object-cover" />
+                <img loading="lazy" src={userImage} alt={userName} className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full items-center justify-center">
                   <User className="size-8 text-muted-foreground" />
@@ -177,7 +177,7 @@ export function CustomerDashboard({ userEmail, userName, userImage }: { userEmai
                   {savedProducts.map(item => (
                     <div key={item.id} className="flex gap-3 rounded-xl border border-border bg-card p-3">
                       <div className="size-16 shrink-0 overflow-hidden rounded-lg bg-muted">
-                        {item.image && <img src={item.image} alt={item.productName} className="h-full w-full object-cover" />}
+                        {item.image && <img loading="lazy" src={item.image} alt={item.productName} className="h-full w-full object-cover" />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-bold">{item.productName || "Product"}</p>

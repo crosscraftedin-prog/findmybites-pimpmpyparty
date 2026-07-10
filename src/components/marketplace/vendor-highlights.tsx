@@ -67,7 +67,7 @@ export function FollowButton({ vendorId }: { vendorId: string }) {
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
-    fetch(`/api/follow?vendorId=${vendorId}&t=${Date.now()}`)
+    fetch(`/api/follow?vendorId=${vendorId}`)
       .then((r) => r.json())
       .then((d) => {
         setFollowing(d.following ?? false);

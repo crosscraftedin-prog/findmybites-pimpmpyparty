@@ -155,7 +155,7 @@ export function FeaturedSection() {
               <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-soft text-[11px] font-bold text-brand-soft-foreground">{i + 1}</span>
               {/* Photo */}
               <div className="size-10 shrink-0 overflow-hidden rounded-lg bg-muted">
-                {vendor.heroImage ? <img src={vendor.heroImage} alt={vendor.name} className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center"><Star className="size-4 text-muted-foreground/40" /></div>}
+                {vendor.heroImage ? <img loading="lazy" src={vendor.heroImage} alt={vendor.name} className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center"><Star className="size-4 text-muted-foreground/40" /></div>}
               </div>
               {/* Info */}
               <div className="min-w-0 flex-1">
@@ -207,7 +207,7 @@ export function FeaturedSection() {
                   className="flex w-full items-center gap-2 rounded-lg p-2 text-left transition-colors hover:bg-muted/50"
                 >
                   <div className="size-8 shrink-0 overflow-hidden rounded-lg bg-muted">
-                    {v.heroImage ? <img src={v.heroImage} alt={v.name} className="h-full w-full object-cover" /> : null}
+                    {v.heroImage ? <img loading="lazy" src={v.heroImage} alt={v.name} className="h-full w-full object-cover" /> : null}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[12px] font-medium">{v.name}</p>

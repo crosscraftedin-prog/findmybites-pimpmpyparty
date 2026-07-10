@@ -206,7 +206,7 @@ export function AdminCreateBusiness({ ecosystem }: { ecosystem: Ecosystem }) {
                     📸 Invitation Card
                   </p>
                   <div className="overflow-hidden rounded-lg border border-black/10">
-                    <img src={inviteCardUrl} alt="Invite card" className="w-full" />
+                    <img loading="lazy" src={inviteCardUrl} alt="Invite card" className="w-full" />
                   </div>
                 </div>
               )}

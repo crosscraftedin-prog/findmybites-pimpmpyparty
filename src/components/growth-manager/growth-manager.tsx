@@ -252,7 +252,7 @@ function ProductOptimizerTab({ vendor }: { vendor: Vendor }) {
           <div key={p.id} className="rounded-xl border bg-card p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {p.image && <img src={p.image} alt={p.name} className="size-10 rounded-lg object-cover" />}
+                {p.image && <img loading="lazy" src={p.image} alt={p.name} className="size-10 rounded-lg object-cover" />}
                 <div><p className="text-sm font-semibold">{p.name}</p><p className="text-xs text-muted-foreground">{p.views || 0} views · {p.orderCount || 0} orders</p></div>
               </div>
               <div className="flex items-center gap-3">
