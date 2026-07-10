@@ -94,7 +94,6 @@ interface ProductData {
     shelfLife: string | null;
     storageMethod: string | null;
     storageInstructions: string | null;
-    discountPercent: number | null;
     offerType: string | null;
     offerLabel: string | null;
     templateSlug: string | null;
@@ -804,10 +803,12 @@ function ProductEnquiryForm({
   product,
   vendor,
   symbol,
+  selectedVariant = 0,
 }: {
   product: ProductData["product"];
   vendor: ProductData["vendor"];
   symbol: string;
+  selectedVariant?: number;
 }) {
   const createBooking = useCreateBooking();
   const [done, setDone] = React.useState(false);
@@ -871,7 +872,7 @@ function ProductEnquiryForm({
             if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
             return [];
           })();
-          const selectedVar = variants[selectedVariant];
+          const selectedVar = variants[selectedVariant || 0];
           const msg = selectedVar
             ? `Hi, I'm interested in ${product.name} — ${selectedVar.name} (${symbol}${selectedVar.price || selectedVar.offerPrice})`
             : `Hi, I'm interested in ${product.name}`;

@@ -211,7 +211,6 @@ export async function GET(req: NextRequest) {
         shelfLife: product.shelfLife,
         storageMethod: product.storageMethod,
         storageInstructions: product.storageInstructions,
-        discountPercent: product.discountPercent,
         offerType: product.offerType,
         offerLabel: product.offerLabel,
         templateSlug: product.templateSlug,
