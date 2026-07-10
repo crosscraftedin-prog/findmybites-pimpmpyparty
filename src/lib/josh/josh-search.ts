@@ -113,8 +113,8 @@ export async function searchVendors(
     }
 
     if (state.city) {
-      const cityLower = state.city.toLowerCase();
-      where.city = { contains: cityLower };
+      // Use case-insensitive contains for PostgreSQL
+      where.city = { contains: state.city, mode: "insensitive" };
     }
 
     if (state.onlyVerified) where.verified = true;

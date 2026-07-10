@@ -31,11 +31,12 @@ export function isVendorPage(pathname: string | null | undefined): boolean {
 
 /**
  * Returns true if the current route is a dashboard or admin page.
- * These pages don't show any floating AI widget.
+ * Admin/account pages don't show any floating AI widget.
+ * Dashboard DOES show the widget (for the "Chat with Josh" button).
  */
 export function isDashboardPage(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
-  return pathname.startsWith("/dashboard") || pathname.startsWith("/admin") || pathname.startsWith("/account");
+  return pathname.startsWith("/admin") || pathname.startsWith("/account");
 }
 
 /**

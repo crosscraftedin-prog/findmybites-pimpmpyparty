@@ -102,13 +102,111 @@ async function buildStorefrontContext(vendorId: string): Promise<string> {
   try {
     const storeVendor = await db.vendor.findUnique({
       where: { id: vendorId },
-      include: { products: { where: { isAvailable: true }, take: 20, orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }] } },
+      include: {
+        products: {
+          where: { isAvailable: true, status: "active" },
+          take: 30,
+          orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
+          select: { id: true, name: true, price: true, offerPrice: true, currency: true, description: true, shortDescription: true, category: true, subCategory: true, image: true, isFeatured: true, vegetarian: true, vegan: true, halal: true, glutenFree: true, eggless: true, servings: true, weight: true, flavours: true, prepTime: true },
+        },
+        reviews: {
+          where: { visible: true },
+          take: 5,
+          orderBy: { createdAt: "desc" },
+          select: { id: true, author: true, rating: true, comment: true, eventDate: true, createdAt: true },
+        },
+      },
     });
     if (!storeVendor) return "";
+
     const symbol = storeVendor.currency === "INR" ? "₹" : storeVendor.currency === "USD" ? "$" : storeVendor.currency === "GBP" ? "£" : storeVendor.currency === "AED" ? "AED" : storeVendor.currency + " ";
-    const productList = storeVendor.products.map((p) => `  - ${p.name} — ${symbol}${p.price}${p.description ? ` (${p.description.slice(0, 80)})` : ""}`).join("\n");
-    return `\n\n## STOREFRONT CONTEXT\nCustomer viewing: ${storeVendor.name} (${storeVendor.city}, ${storeVendor.country})\nCategory: ${storeVendor.category}\nRating: ${storeVendor.rating}/5 (${storeVendor.reviewCount} reviews)\nProducts:\n${productList || "  (none)"}`;
-  } catch {
+    const CURRENCY_SYMBOL = symbol;
+
+    // ── Build comprehensive vendor context ──
+    const lines: string[] = [];
+    lines.push("\n\n## STOREFRONT CONTEXT — VENDOR DETAILS");
+    lines.push(`You are the AI assistant for: ${storeVendor.name}`);
+    lines.push(`Category: ${storeVendor.category}${storeVendor.subcategory ? ` / ${storeVendor.subcategory}` : ""}`);
+    lines.push(`Ecosystem: ${storeVendor.ecosystem === "FINDMYBITES" ? "FindMyBites (Food)" : "PimpMyParty (Events)"}`);
+    lines.push(`Location: ${storeVendor.city}, ${storeVendor.state ? storeVendor.state + ", " : ""}${storeVendor.country}`);
+    lines.push(`Address: ${storeVendor.address || "Not provided"}`);
+    lines.push(`Service Areas: ${storeVendor.serviceAreas || "Not specified"}`);
+    lines.push(`Service Radius: ${storeVendor.serviceRadiusKm ? storeVendor.serviceRadiusKm + " km" : "Not specified"}`);
+
+    // Rating & Reviews
+    lines.push(`\nRating: ${storeVendor.rating}/5 (${storeVendor.reviewCount} reviews)`);
+    if (storeVendor.reviews.length > 0) {
+      lines.push("Recent Reviews:");
+      for (const r of storeVendor.reviews) {
+        lines.push(`  - ${r.rating}★ from ${r.author}: "${r.comment?.slice(0, 150) || "No comment"}"`);
+      }
+    }
+
+    // Business Info
+    lines.push(`\nTagline: ${storeVendor.tagline || "Not provided"}`);
+    lines.push(`Description: ${storeVendor.description || "Not provided"}`);
+    lines.push(`Price Range: ${storeVendor.priceRange || "Not specified"}`);
+    lines.push(`Starting Price: ${storeVendor.basePrice ? CURRENCY_SYMBOL + storeVendor.basePrice : "Contact for pricing"}`);
+    lines.push(`Years Active: ${storeVendor.yearsActive || "Not specified"}`);
+    lines.push(`Response Time: ${storeVendor.responseTime || "Not specified"}`);
+    lines.push(`Business Hours: ${storeVendor.openHours || "Not specified"}`);
+
+    // Contact & Social
+    lines.push(`\nContact:`);
+    lines.push(`  WhatsApp: ${storeVendor.whatsapp || "Not provided"}`);
+    lines.push(`  Website: ${storeVendor.website || "Not provided"}`);
+    lines.push(`  Instagram: ${storeVendor.instagram || "Not provided"}`);
+
+    // Service Options
+    lines.push(`\nService Options:`);
+    lines.push(`  Delivery Available: ${storeVendor.deliveryAvailable ? "Yes" : "No"}`);
+    lines.push(`  Pickup Available: ${storeVendor.pickupAvailable ? "Yes" : "No"}`);
+    lines.push(`  Custom Orders: ${storeVendor.customOrder ? "Yes" : "No"}`);
+    lines.push(`  Same Day: ${storeVendor.sameDay ? "Yes" : "No"}`);
+    lines.push(`  Verified: ${storeVendor.verified ? "Yes" : "No"}`);
+    lines.push(`  Featured: ${storeVendor.featured ? "Yes" : "No"}`);
+
+    // Tags
+    try {
+      const tags = parseJsonArray<string>(storeVendor.tags);
+      if (tags.length > 0) lines.push(`\nTags: ${tags.join(", ")}`);
+    } catch {}
+
+    // Products
+    if (storeVendor.products.length > 0) {
+      lines.push(`\nProducts (${storeVendor.products.length} available):`);
+      for (const p of storeVendor.products) {
+        const dietary = [
+          p.vegetarian ? "Vegetarian" : null,
+          p.vegan ? "Vegan" : null,
+          p.halal ? "Halal" : null,
+          p.glutenFree ? "Gluten-Free" : null,
+          p.eggless ? "Eggless" : null,
+        ].filter(Boolean).join(", ");
+        const price = p.offerPrice ? `${CURRENCY_SYMBOL}${p.offerPrice} (was ${CURRENCY_SYMBOL}${p.price})` : `${CURRENCY_SYMBOL}${p.price}`;
+        const feat = p.isFeatured ? " ⭐ FEATURED" : "";
+        const diet = dietary ? ` [${dietary}]` : "";
+        const serve = p.servings ? ` (serves ${p.servings})` : "";
+        const wt = p.weight ? ` (${p.weight})` : "";
+        lines.push(`  - ${p.name} — ${price}${feat}${diet}${serve}${wt}`);
+        if (p.shortDescription) lines.push(`    ${p.shortDescription.slice(0, 120)}`);
+      }
+    } else {
+      lines.push("\nProducts: None listed yet");
+    }
+
+    lines.push("\n## IMPORTANT INSTRUCTIONS");
+    lines.push("You are the AI assistant for this specific vendor. Answer questions ABOUT THIS VENDOR using the context above.");
+    lines.push("When asked about products, list them with names and prices.");
+    lines.push("When asked about location, provide the city, country, and address if available.");
+    lines.push("When asked about pricing, reference specific product prices or the starting price.");
+    lines.push("When asked about reviews, summarize the rating and mention recent reviews.");
+    lines.push("Do NOT say 'I can answer questions about this vendor' — actually ANSWER the question using the data above.");
+    lines.push("Be specific, concise, and helpful. Use the vendor's actual data.");
+
+    return lines.join("\n");
+  } catch (e) {
+    console.error("[josh] buildStorefrontContext failed:", (e as Error)?.message?.slice(0, 200));
     return "";
   }
 }
