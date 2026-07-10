@@ -1,8 +1,7 @@
 import * as React from "react";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
-import { RecentlyViewedSection, CompareBar } from "@/components/marketplace/recently-viewed-compare";
-import { VendorComparison } from "@/components/marketplace/vendor-comparison";
+import { HomepageClient } from "@/components/marketplace/homepage-client";
 import { SiteHeader } from "@/components/marketplace/site-header";
 import { SiteFooter } from "@/components/marketplace/site-footer";
 import { LocationBanner } from "@/components/marketplace/location-banner";
@@ -63,7 +62,7 @@ async function getHomepageData() {
       ]);
       return {
         totalVendors, totalReviews, totalBookings,
-        countries: new Set<string>().size,
+        countries: 0,
         findmybitesCount, pimpmpypartyCount,
         avgRating: avgAgg._avg.rating ?? 0,
         continents: continentGroups.map((g) => ({ continent: g.continent, count: g._count._all })),
@@ -212,16 +211,3 @@ export default async function Home() {
   );
 }
 
-// ── Client-side wrapper for CompareBar + VendorComparison ────────────────
-// These need client state (compareIds) but are the ONLY client logic on the page.
-function HomepageClient({ compareIds: initial }: { compareIds: string[] | null }) {
-  const [compareIds, setCompareIds] = React.useState<string[] | null>(initial);
-  return (
-    <>
-      <CompareBar onCompare={(ids) => setCompareIds(ids)} />
-      {compareIds && (
-        <VendorComparison vendorIds={compareIds} onClose={() => setCompareIds(null)} />
-      )}
-    </>
-  );
-}
