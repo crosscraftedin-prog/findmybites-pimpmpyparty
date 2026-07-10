@@ -34,7 +34,6 @@ export const revalidate = 30; // ISR: revalidate every 30 seconds
 // Fetch ALL homepage data in parallel on the server.
 // This eliminates the 12 client-side API waterfall requests.
 async function getHomepageData() {
-  try {
   const safe = async <T,>(fn: () => Promise<T>, fallback: T): Promise<T> => {
     try { return await fn(); } catch { return fallback; }
   };
@@ -158,10 +157,6 @@ async function getHomepageData() {
   ]);
 
   return { stats, categories, featuredVendors, trendingProducts, popularCities, recentVendors, verifiedVendors, recentReviews, inspirationVendors };
-  } catch (e: any) {
-    console.error("[homepage] getHomepageData failed:", e?.message?.slice(0,300));
-    return { stats: null, categories: [], featuredVendors: [], trendingProducts: [], popularCities: [], recentVendors: [], verifiedVendors: [], recentReviews: [], inspirationVendors: [] };
-  }
 }
 
 /**
