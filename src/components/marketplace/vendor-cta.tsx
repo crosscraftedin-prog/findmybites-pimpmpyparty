@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import {
   Globe2, Sparkles, MessageSquare, TrendingUp, Star, BarChart3,
   Crown, ArrowRight, CheckCircle2, BadgeCheck,
@@ -99,12 +98,12 @@ export function VendorCTA() {
               {BENEFITS.map((b, i) => {
                 const Icon = b.icon;
                 return (
-                  <motion.div
+                  <div
                     key={b.title}
-                    initial={{ opacity: 0, y: 12 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: i * 0.05 }}
+                    
+                    
+                    
+                    
                     className="rounded-xl border border-border bg-background/80 p-4 backdrop-blur transition-shadow hover:shadow-md"
                   >
                     <div className="grid size-9 place-items-center rounded-lg bg-brand text-brand-foreground">
@@ -112,7 +111,7 @@ export function VendorCTA() {
                     </div>
                     <h3 className="mt-2.5 text-sm font-bold">{b.title}</h3>
                     <p className="mt-0.5 text-xs text-muted-foreground">{b.desc}</p>
-                  </motion.div>
+                  </div>
                 );
               })}
             </div>

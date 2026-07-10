@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { MapPin, BadgeCheck, Clock, Heart, MessageCircle } from "lucide-react";
 import type { Vendor } from "@/lib/types";
 import { useCategoryLabels } from "@/hooks/use-category-labels";
@@ -20,11 +19,11 @@ export function VendorCard({ vendor, index = 0 }: { vendor: Vendor; index?: numb
   const href = `/vendor/${vendor.slug}`;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ delay: Math.min(index * 0.04, 0.3) }}
+    <div
+      
+      
+      
+      
       className="group relative flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-border hover:shadow-xl"
     >
       <Link href={href} className="flex w-full flex-col">
@@ -157,6 +156,6 @@ export function VendorCard({ vendor, index = 0 }: { vendor: Vendor; index?: numb
           </a>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }

@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
-import { motion } from "framer-motion";
 import {
   TrendingUp,
   ShieldCheck,
@@ -115,12 +114,12 @@ export function BecomeVendor() {
               {BENEFITS.map((b, i) => {
                 const Icon = b.icon;
                 return (
-                  <motion.div
+                  <div
                     key={b.title}
-                    initial={{ opacity: 0, y: 14 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: i * 0.08 }}
+                    
+                    
+                    
+                    
                     className="rounded-2xl border border-border bg-background/80 p-5 backdrop-blur"
                   >
                     <div className="grid size-10 place-items-center rounded-xl bg-brand text-brand-foreground">
@@ -130,7 +129,7 @@ export function BecomeVendor() {
                     <p className="mt-1 text-sm text-muted-foreground">
                       {b.description}
                     </p>
-                  </motion.div>
+                  </div>
                 );
               })}
             </div>

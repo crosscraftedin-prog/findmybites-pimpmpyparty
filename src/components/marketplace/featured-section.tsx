@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Flame } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { useFeaturedVendors } from "@/lib/queries";
@@ -78,16 +77,16 @@ export function FeaturedSection() {
             className="no-scrollbar mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2"
           >
             {displayVendors.map((v, i) => (
-              <motion.div
+              <div
                 key={v.id}
-                initial={{ opacity: 0, scale: 0.96 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: Math.min(i * 0.05, 0.3) }}
+                
+                
+                
+                
                 className="w-72 shrink-0 snap-start"
               >
                 <VendorCard vendor={v} index={i} />
-              </motion.div>
+              </div>
             ))}
           </div>
         )}

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { Sparkles, Crown, TrendingUp, BarChart3, Star, Zap, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,15 +27,15 @@ const FEATURES = [
 export function UpgradePrompt({ variant = "card", feature, limit, current, onUpgrade, onDismiss }: UpgradePromptProps) {
   if (variant === "modal") {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+      <div
+        
+        
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
         onClick={onDismiss}
       >
-        <motion.div
-          initial={{ scale: 0.9, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
+        <div
+          
+          
           className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl"
           onClick={e => e.stopPropagation()}
         >
@@ -82,8 +81,8 @@ export function UpgradePrompt({ variant = "card", feature, limit, current, onUpg
           <Button onClick={onUpgrade} className="w-full bg-[#FF6B35] text-white hover:bg-[#e85a2a]">
             View Plans
           </Button>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
     );
   }
 

@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { BadgeCheck, Star, Zap, Clock, Shield, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 

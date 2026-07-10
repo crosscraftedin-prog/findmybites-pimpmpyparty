@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { Globe2, MapPin, Users } from "lucide-react";
 import { useStats } from "@/lib/queries";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -84,12 +83,12 @@ export function WorldPresence() {
                       };
                       const pct = Math.round((c.count / max) * 100);
                       return (
-                        <motion.div
+                        <div
                           key={c.continent}
-                          initial={{ opacity: 0, x: 12 }}
-                          whileInView={{ opacity: 1, x: 0 }}
-                          viewport={{ once: true }}
-                          transition={{ delay: i * 0.05 }}
+                          
+                          
+                          
+                          
                         >
                           <div className="mb-1 flex items-center justify-between text-sm">
                             <span className="flex items-center gap-2 font-medium">
@@ -101,18 +100,18 @@ export function WorldPresence() {
                             </span>
                           </div>
                           <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              whileInView={{ width: `${pct}%` }}
-                              viewport={{ once: true }}
-                              transition={{ delay: i * 0.05 + 0.1, duration: 0.6 }}
+                            <div
+                              
+                              
+                              
+                              
                               className={cn(
                                 "h-full rounded-full bg-gradient-to-r",
                                 meta.gradient
                               )}
                             />
                           </div>
-                        </motion.div>
+                        </div>
                       );
                     })}
             </div>

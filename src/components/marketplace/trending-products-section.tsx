@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, TrendingUp, MapPin } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -98,12 +97,12 @@ export function TrendingProductsSection() {
         ) : (
           <div ref={scrollerRef} className="no-scrollbar mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
             {products.map((p, i) => (
-              <motion.div
+              <div
                 key={p.id}
-                initial={{ opacity: 0, scale: 0.96 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: Math.min(i * 0.04, 0.3) }}
+                
+                
+                
+                
                 className="w-60 shrink-0 snap-start"
               >
                 <a href={`/product/${p.slug}`} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
@@ -153,7 +152,7 @@ export function TrendingProductsSection() {
                     )}
                   </div>
                 </a>
-              </motion.div>
+              </div>
             ))}
           </div>
         )}

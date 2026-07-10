@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   SlidersHorizontal,
   Search,
@@ -462,11 +461,11 @@ export function BrowseSection() {
               </div>
             ) : (
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                <AnimatePresence mode="popLayout">
+                
                   {finalVendors.map((v, i) => (
                     <VendorCard key={v.id} vendor={v} index={i} />
                   ))}
-                </AnimatePresence>
+                
               </div>
             )}
           </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { MapPin, Users } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -70,12 +69,12 @@ export function PopularCitiesSection() {
               </p>
             ) : (
               cities.map((c, i) => (
-                <motion.button
+                < button
                   key={`${c.city}-${c.country}`}
-                  initial={{ opacity: 0, y: 14 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-50px" }}
-                  transition={{ delay: Math.min(i * 0.04, 0.3) }}
+                  
+                  
+                  
+                  
                   onClick={() => handlePick(c.city)}
                   className="group relative flex aspect-[3/2] flex-col overflow-hidden rounded-2xl border border-border text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
                 >
@@ -108,7 +107,7 @@ export function PopularCitiesSection() {
                       {c.count} {c.count === 1 ? "vendor" : "vendors"}
                     </p>
                   </div>
-                </motion.button>
+                </ button>
               ))
             )}
         </div>

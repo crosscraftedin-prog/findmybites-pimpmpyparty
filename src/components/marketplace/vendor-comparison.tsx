@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
 import { X, Check, Star, MapPin, Zap, Clock, Shield, Users, Calendar, Package, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -77,9 +76,9 @@ export function VendorComparison({ vendorIds, onClose }: VendorComparisonProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
+      <div
+        
+        
         className="my-8 w-full max-w-6xl rounded-2xl border border-border bg-background shadow-2xl"
       >
         {/* Header */}
@@ -196,7 +195,7 @@ export function VendorComparison({ vendorIds, onClose }: VendorComparisonProps) 
             </table>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { Search, MessageSquareHeart, PartyPopper } from "lucide-react";
 
 const STEPS = [
@@ -52,12 +51,12 @@ export function HowItWorks() {
           {STEPS.map((s, i) => {
             const Icon = s.icon;
             return (
-              <motion.div
+              <div
                 key={s.title}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
+                
+                
+                
+                
                 className="relative flex flex-col items-center text-center"
               >
                 <div
@@ -72,7 +71,7 @@ export function HowItWorks() {
                 <p className="mt-2 max-w-xs text-sm text-muted-foreground">
                   {s.description}
                 </p>
-              </motion.div>
+              </div>
             );
           })}
         </div>

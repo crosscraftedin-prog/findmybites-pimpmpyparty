@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { Clock, X, GitCompare, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -119,11 +118,11 @@ export function RecentlyViewedSection() {
         </div>
         <div className="mt-6 flex gap-4 overflow-x-auto pb-2">
           {vendors.map((v, i) => (
-            <motion.div
+            <div
               key={v.id}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: Math.min(i * 0.04, 0.2) }}
+              
+              
+              
               className="w-48 shrink-0"
             >
               <Link
@@ -148,7 +147,7 @@ export function RecentlyViewedSection() {
                   </div>
                 </div>
               </Link>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

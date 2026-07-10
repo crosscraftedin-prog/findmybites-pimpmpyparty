@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X, Send, Loader2, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -84,28 +83,28 @@ export function VendorAIChat({ vendorId, vendorName, vendorCategory, vendorCity 
   return (
     <>
       {/* Floating button */}
-      <AnimatePresence>
+      
         {!open && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
+          <button
+            
+            
+            
             onClick={() => setOpen(true)}
             className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-bold text-brand-foreground shadow-xl transition-transform hover:scale-105"
           >
             <Sparkles className="size-5" />
             Ask this Vendor
-          </motion.button>
+          </button>
         )}
-      </AnimatePresence>
+      
 
       {/* Chat panel */}
-      <AnimatePresence>
+      
         {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+          <div
+            
+            
+            
             className="fixed bottom-6 right-6 z-40 flex h-[500px] max-h-[80vh] w-[380px] max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
           >
             {/* Header */}
@@ -207,9 +206,9 @@ export function VendorAIChat({ vendorId, vendorName, vendorCategory, vendorCity 
                 {loading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
               </button>
             </form>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Sparkles, ShieldCheck, Globe2, ArrowRight, MapPin,
   Navigation, ChevronDown, Star, Users, CheckCircle2,
@@ -107,13 +106,13 @@ export function PremiumHero() {
       </div>
 
       <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8 lg:py-28">
-        <AnimatePresence mode="wait">
-          <motion.div
+        
+          <div
             key={ecosystem}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.4 }}
+            
+            
+            
+            
             className="mx-auto max-w-4xl text-center"
           >
             {/* Eyebrow */}
@@ -236,11 +235,11 @@ export function PremiumHero() {
               {heroStats.map((s, i) => {
                 const Icon = s.icon;
                 return (
-                  <motion.div
+                  <div
                     key={s.label}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 + i * 0.08 }}
+                    
+                    
+                    
                     className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2.5 backdrop-blur-md"
                   >
                     <Icon className="size-4 text-white/80" />
@@ -250,12 +249,12 @@ export function PremiumHero() {
                       </p>
                       <p className="text-[10px] text-white/70">{s.label}</p>
                     </div>
-                  </motion.div>
+                  </div>
                 );
               })}
             </div>
-          </motion.div>
-        </AnimatePresence>
+          </div>
+        
       </div>
     </section>
   );

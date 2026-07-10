@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   LocateFixed,
   Loader2,
@@ -93,12 +92,12 @@ export function NearMeSection() {
           </div>
         </div>
 
-        <AnimatePresence>
+        
           {open && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
+            <div
+              
+              
+              
               className="overflow-hidden"
             >
               <div className="mt-8">
@@ -238,7 +237,7 @@ export function NearMeSection() {
                       </div>
                     ) : (
                       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                        <AnimatePresence mode="popLayout">
+                        
                           {vendors.map((v, i) => (
                             <NearVendorCard
                               key={v.id}
@@ -247,15 +246,15 @@ export function NearMeSection() {
                               onClick={() => openVendor(v.slug)}
                             />
                           ))}
-                        </AnimatePresence>
+                        
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
+        
       </div>
     </section>
   );
@@ -273,11 +272,11 @@ function NearVendorCard({
   const { getCategory } = useCategoryLabels();
   const cat = getCategory(vendor.category);
   return (
-    <motion.button
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ delay: Math.min(index * 0.04, 0.3) }}
+    <button
+      
+      
+      
+      
       onClick={onClick}
       className="group flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-border hover:shadow-xl"
     >
@@ -339,6 +338,6 @@ function NearVendorCard({
           </div>
         )}
       </div>
-    </motion.button>
+    </button>
   );
 }

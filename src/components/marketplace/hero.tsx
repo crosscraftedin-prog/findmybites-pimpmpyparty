@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { Search, Sparkles, ShieldCheck, Globe2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMarketplace } from "@/lib/store";
@@ -71,11 +70,11 @@ export function Hero() {
       </div>
 
       <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-28">
-        <motion.div
+        <div
           key={ecosystem}
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+          
+          
+          
           className="max-w-3xl"
         >
           <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur-md">
@@ -172,7 +171,7 @@ export function Hero() {
               </p>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

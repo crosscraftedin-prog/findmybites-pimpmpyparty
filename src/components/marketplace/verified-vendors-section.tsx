@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { BadgeCheck, Star, MapPin, Loader2 } from "lucide-react";
 import { CURRENCY_SYMBOLS } from "@/lib/constants";
 import { formatPrice } from "@/lib/format";
@@ -63,11 +62,11 @@ export function VerifiedVendorsSection() {
         {vendors.map((v, i) => {
           const symbol = CURRENCY_SYMBOLS[v.currency as keyof typeof CURRENCY_SYMBOLS] ?? v.currency + " ";
           return (
-            <motion.div
+            <div
               key={v.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
+              
+              
+              
             >
               <Link href={`/vendor/${v.slug}`} className="block w-64 shrink-0 rounded-xl border border-border bg-card p-3 transition-shadow hover:shadow-md">
                 <div className="relative h-24 overflow-hidden rounded-lg bg-muted">
@@ -98,7 +97,7 @@ export function VerifiedVendorsSection() {
                   from {symbol}{v.basePrice.toLocaleString()}
                 </p>
               </Link>
-            </motion.div>
+            </div>
           );
         })}
       </div>

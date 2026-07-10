@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { Users, Globe2, Star, MessageSquareQuote } from "lucide-react";
 import { useStats } from "@/lib/queries";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,12 +42,12 @@ export function StatsBar() {
           {stats.map((s, i) => {
             const Icon = s.icon;
             return (
-              <motion.div
+              <div
                 key={s.label}
-                initial={{ opacity: 0, y: 8 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
+                
+                
+                
+                
                 className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
               >
                 <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand">
@@ -66,7 +65,7 @@ export function StatsBar() {
                     {s.label}
                   </p>
                 </div>
-              </motion.div>
+              </div>
             );
           })}
         </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { Images } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -93,13 +92,13 @@ export function InspirationGallery() {
         ) : (
           <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {items.map((item, i) => (
-              <motion.a
+              < a
                 key={`${item.vendorId}-${i}`}
                 href={`/vendor/${item.vendorSlug}`}
-                initial={{ opacity: 0, scale: 0.96 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: Math.min(i * 0.03, 0.3) }}
+                
+                
+                
+                
                 className={cn(
                   "group relative overflow-hidden rounded-2xl border border-border shadow-sm transition-all hover:shadow-lg",
                   i % 5 === 0 ? "row-span-2 aspect-[3/4]" : "aspect-square"
@@ -115,7 +114,7 @@ export function InspirationGallery() {
                   <p className="truncate text-xs font-bold text-white">{item.vendorName}</p>
                   <p className="truncate text-[10px] text-white/80">{item.city}</p>
                 </div>
-              </motion.a>
+              </ a>
             ))}
           </div>
         )}

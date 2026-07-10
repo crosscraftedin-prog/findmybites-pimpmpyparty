@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { useCategories } from "@/lib/queries";
@@ -50,12 +49,12 @@ export function CategoriesSection() {
                 <Skeleton key={i} className="aspect-[4/5] rounded-2xl" />
               ))
             : cats.map((cat, i) => (
-                <motion.button
+                <button
                   key={cat.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.04 }}
+                  
+                  
+                  
+                  
                   onClick={() => handlePick(cat.id)}
                   className="group relative overflow-hidden rounded-2xl border border-border bg-card text-left transition-all hover:-translate-y-1 hover:shadow-lg"
                 >
@@ -86,7 +85,7 @@ export function CategoriesSection() {
                     </span>
                     <ArrowUpRight className="size-3.5 text-muted-foreground transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand" />
                   </div>
-                </motion.button>
+                </button>
               ))}
         </div>
       </div>

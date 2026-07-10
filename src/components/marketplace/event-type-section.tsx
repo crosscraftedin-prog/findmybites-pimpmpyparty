@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { Cake, Heart, Briefcase, Baby, GraduationCap, Music, Gift, PartyPopper } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,12 +53,12 @@ export function EventTypeSection() {
           {EVENT_TYPES.map((et, i) => {
             const Icon = et.icon;
             return (
-              <motion.button
+              < button
                 key={et.id}
-                initial={{ opacity: 0, y: 14 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ delay: Math.min(i * 0.04, 0.3) }}
+                
+                
+                
+                
                 onClick={() => handlePick(et)}
                 className="group flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-brand-border hover:shadow-lg"
               >
@@ -70,7 +69,7 @@ export function EventTypeSection() {
                   <Icon className="size-7 text-white" />
                 </div>
                 <span className="text-xs font-bold text-center">{et.label}</span>
-              </motion.button>
+              </ button>
             );
           })}
         </div>

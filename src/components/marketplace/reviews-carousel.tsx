@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { Star, Quote } from "lucide-react";
 import { useMarketplace } from "@/lib/store";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -77,12 +76,12 @@ export function ReviewsCarousel() {
         ) : (
           <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {reviews.slice(0, 6).map((r, i) => (
-              <motion.div
+              <div
                 key={r.id}
-                initial={{ opacity: 0, y: 14 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ delay: Math.min(i * 0.06, 0.3) }}
+                
+                
+                
+                
                 className="flex flex-col rounded-2xl border border-border bg-card p-5 shadow-sm"
               >
                 <div className="flex items-start justify-between gap-2">
@@ -124,7 +123,7 @@ export function ReviewsCarousel() {
                     <p className="truncate text-[10px] text-muted-foreground">{r.vendor.city}, {r.vendor.country}</p>
                   </div>
                 </a>
-              </motion.div>
+              </div>
             ))}
           </div>
         )}
