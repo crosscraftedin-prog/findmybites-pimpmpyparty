@@ -183,13 +183,18 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     const checks = [
       { id: "name", label: "Product Name", passed: !!form.name?.trim() },
       { id: "category", label: "Category", passed: !!form.category },
-      { id: "images", label: "At least 1 Image", passed: form.images?.length > 0 },
-      { id: "description", label: "Description", passed: !!form.description?.trim() && form.description.length > 20 },
+      { id: "images", label: "At least 1 Image", passed: (form.images?.length ?? 0) > 0 },
+      { id: "description", label: "Description (20+ chars)", passed: typeof form.description === "string" && form.description.trim().length > 20 },
       { id: "price", label: "Price or Price on Request", passed: !!form.price || form.priceOnRequest },
-      { id: "availability", label: "Availability", passed: form.isAvailable !== undefined },
+      { id: "offerPrice", label: "Offer Price (optional)", passed: !!form.offerPrice, optional: true },
+      { id: "seoTitle", label: "SEO Title", passed: typeof form.metaTitle === "string" && form.metaTitle.trim().length > 0 },
+      { id: "seoDesc", label: "SEO Description", passed: typeof form.metaDescription === "string" && form.metaDescription.trim().length > 0 },
+      { id: "availability", label: "Availability Set", passed: form.isAvailable !== undefined },
+      { id: "variants", label: "Variants (optional)", passed: (form.variants?.length ?? 0) > 0, optional: true },
     ];
-    const passedCount = checks.filter(c => c.passed).length;
-    return { checks, passedCount, total: checks.length, allPassed: passedCount === checks.length };
+    const requiredChecks = checks.filter(c => !c.optional);
+    const passedCount = requiredChecks.filter(c => c.passed).length;
+    return { checks, passedCount, total: requiredChecks.length, allPassed: passedCount === requiredChecks.length };
   }, [form]);
 
   // ── Quality Score ──
@@ -350,12 +355,14 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     // ── Pre-publish validation warnings ──
     const warnings: string[] = [];
     if (!form.images || form.images.length === 0) warnings.push("No images uploaded");
-    if (!form.description || form.description.length < 30) warnings.push("Description is short");
-    if (!form.offerPrice && !form.price) warnings.push("No price set");
+    if (typeof form.description !== "string" || form.description.length < 30) warnings.push("Description is too short");
+    if (!form.price && !form.priceOnRequest) warnings.push("No price set");
     if (!form.metaTitle) warnings.push("No SEO title");
     if (!form.metaDescription) warnings.push("No SEO description");
+    if (!form.category) warnings.push("No category selected");
+    if (form.offerPrice && form.price && Number(form.offerPrice) >= Number(form.price)) warnings.push("Offer price should be less than regular price");
     if (warnings.length > 0) {
-      toast.warning(`Publishing with warnings: ${warnings.join(", ")}`);
+      toast.warning(`Publishing with ${warnings.length} warning(s): ${warnings.join(", ")}`);
     }
     const payload = {
       ...form,
@@ -1063,27 +1070,76 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     })}
                   </div>
 
-                  {/* Product Preview Card (responsive by device) */}
-                  <div className={cn("mx-auto rounded-xl border border-border bg-card p-4 transition-all",
-                    previewDevice === "desktop" ? "max-w-full" : previewDevice === "tablet" ? "max-w-md" : "max-w-xs")}>
-                    <div className="flex gap-3">
-                      <div className="size-20 shrink-0 overflow-hidden rounded-lg bg-muted">
-                        {form.images?.[0] ? (
-                          <img src={form.images[0]} alt={form.name} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full items-center justify-center"><ImageIcon className="size-6 text-muted-foreground/30" /></div>
+                  {/* Product Preview — matches live product page design */}
+                  <div className={cn("mx-auto rounded-2xl border border-border bg-card overflow-hidden transition-all",
+                    previewDevice === "desktop" ? "max-w-full" : previewDevice === "tablet" ? "max-w-2xl" : "max-w-sm")}>
+                    {/* Gallery preview */}
+                    <div className="relative aspect-[4/3] bg-muted">
+                      {form.images?.[0] ? (
+                        <img src={form.images[0]} alt={form.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center"><ImageIcon className="size-12 text-muted-foreground/30" /></div>
+                      )}
+                      <div className="absolute left-3 top-3 flex flex-col gap-1.5">
+                        {form.featured && <Badge className="border-0 bg-amber-500 text-white">★ Featured</Badge>}
+                        {form.images?.length > 1 && (
+                          <div className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
+                            {form.images.length} photos
+                          </div>
                         )}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="truncate font-bold">{form.name || "Untitled Product"}</h4>
-                        <p className="text-xs text-muted-foreground">{form.category}</p>
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{form.shortDescription || form.description}</p>
-                        <p className="mt-1 text-sm font-bold text-brand">
-                          {form.priceOnRequest ? "Price on request" : form.hidePrice ? "Price hidden" : `${symbol}${form.price || 0}`}
-                        </p>
+                    </div>
+                    {/* Info preview */}
+                    <div className="p-4 space-y-3">
+                      <div>
+                        <h4 className="text-lg font-extrabold tracking-tight">{form.name || "Untitled Product"}</h4>
+                        <p className="text-xs text-muted-foreground">{form.category || "No category"}</p>
+                      </div>
+                      {/* Price preview */}
+                      <div className="flex items-baseline gap-2">
+                        {form.offerPrice ? (
+                          <>
+                            <span className="text-xl font-extrabold text-brand">{symbol}{Number(form.offerPrice).toLocaleString()}</span>
+                            <span className="text-sm text-muted-foreground line-through">{symbol}{Number(form.price || 0).toLocaleString()}</span>
+                            {(() => {
+                              const p = Number(form.price || 0);
+                              const o = Number(form.offerPrice);
+                              return p > 0 ? <Badge className="border-0 bg-red-500 text-white text-[10px]">{Math.round(((p - o) / p) * 100)}% OFF</Badge> : null;
+                            })()}
+                          </>
+                        ) : form.priceOnRequest ? (
+                          <span className="text-xl font-extrabold text-brand">Price on request</span>
+                        ) : form.hidePrice ? (
+                          <span className="text-xl font-extrabold text-muted-foreground">Price hidden</span>
+                        ) : (
+                          <span className="text-xl font-extrabold text-brand">{symbol}{Number(form.price || 0).toLocaleString()}</span>
+                        )}
+                      </div>
+                      {/* Variants preview */}
+                      {form.variants?.length > 1 && (
+                        <div className="rounded-xl border border-border p-2">
+                          <p className="mb-1.5 text-xs font-bold">Package Options</p>
+                          <div className="space-y-1">
+                            {form.variants.slice(0, 3).map((v: any, i: number) => (
+                              <div key={i} className="flex items-center justify-between rounded-lg border border-border px-2 py-1 text-xs">
+                                <span className="font-medium">{v.name || `Option ${i + 1}`}</span>
+                                <span className="font-bold text-brand">{symbol}{Number(v.offerPrice || v.price || 0).toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Description preview */}
+                      {form.shortDescription && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">{form.shortDescription}</p>
+                      )}
+                      {/* Badges */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {form.deliveryAvailable && <Badge className="border-0 bg-emerald-100 text-emerald-700 text-[10px]">Delivery</Badge>}
+                        {form.pickupAvailable && <Badge className="border-0 bg-emerald-100 text-emerald-700 text-[10px]">Pickup</Badge>}
+                        {form.vegetarian && <Badge className="border-0 bg-green-100 text-green-700 text-[10px]">🟢 Veg</Badge>}
                       </div>
                     </div>
-                    {form.featured && <Badge className="mt-2 bg-amber-100 text-amber-700">⭐ Featured</Badge>}
                   </div>
 
                   {/* Validation + Scores */}

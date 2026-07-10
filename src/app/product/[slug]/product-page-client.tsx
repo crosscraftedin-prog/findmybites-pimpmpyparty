@@ -315,43 +315,48 @@ export function ProductPageClient({ slug }: Props) {
           </div>
         </div>
 
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
             {/* Left column */}
-            <div className="space-y-6">
-              {/* ── Product Hero ────────────────────────────────────── */}
+            <div className="space-y-8">
+              {/* ── Product Hero — Premium Gallery ─────────────────── */}
               <div>
-                {/* Gallery */}
-                <div className="grid gap-2 sm:grid-cols-[2fr_1fr]">
-                  {/* Main image */}
+                {/* Main Gallery */}
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                  {/* Main image — larger, more prominent */}
                   <button
                     onClick={() => setLightboxIndex(0)}
-                    className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-muted"
+                    className="group relative aspect-square overflow-hidden rounded-2xl border border-border bg-muted sm:aspect-[4/3]"
                   >
                     {gallery[0] ? (
-                      <img src={gallery[0]} alt={product.name} className="h-full w-full object-cover" />
+                      <img src={gallery[0]} alt={product.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     ) : (
                       <div className="flex h-full items-center justify-center text-muted-foreground">
-                        <Package className="size-12" />
+                        <Package className="size-16" />
                       </div>
                     )}
-                    <div className="absolute left-3 top-3 flex flex-col gap-1.5">
+                    <div className="absolute left-4 top-4 flex flex-col gap-2">
                       <ProductBadge badge={product.badge} />
                       {product.isFeatured && (
-                        <Badge className="border-0 bg-amber-500 text-white">★ Featured</Badge>
+                        <Badge className="border-0 bg-amber-500 text-white shadow-lg">★ Featured</Badge>
                       )}
                     </div>
+                    {gallery.length > 1 && (
+                      <div className="absolute bottom-4 right-4 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                        {gallery.length} photos
+                      </div>
+                    )}
                   </button>
-                  {/* Thumbnails */}
+                  {/* Thumbnails — vertical on desktop, hidden on mobile */}
                   {gallery.length > 1 && (
-                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-1">
-                      {gallery.slice(1, 4).map((img, i) => (
+                    <div className="flex gap-2 overflow-x-auto sm:flex-col sm:overflow-visible sm:w-24">
+                      {gallery.slice(0, 4).map((img, i) => (
                         <button
                           key={i}
-                          onClick={() => setLightboxIndex(i + 1)}
-                          className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted sm:aspect-[4/3]"
+                          onClick={() => setLightboxIndex(i)}
+                          className="relative aspect-square shrink-0 overflow-hidden rounded-xl border-2 border-border bg-muted transition-colors hover:border-brand sm:w-24"
                         >
-                          <img src={img ?? undefined} alt={`${product.name} ${i + 2}`} className="h-full w-full object-cover" />
+                          <img src={img ?? undefined} alt={`${product.name} ${i + 1}`} className="h-full w-full object-cover" />
                         </button>
                       ))}
                     </div>
@@ -359,20 +364,27 @@ export function ProductPageClient({ slug }: Props) {
                 </div>
 
                 {/* Title + price + actions */}
-                <div className="mt-4">
+                <div className="mt-6">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
-                      <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{product.name}</h1>
+                      <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl lg:text-4xl">{product.name}</h1>
                       {vendor && (
                         <Link
                           href={`/vendor/${vendor.slug}`}
-                          className="mt-1 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                          className="mt-2 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
                         >
                           {vendor.avatarImage && (
-                            <img src={vendor.avatarImage} alt={vendor.name} className="size-5 rounded-full object-cover" />
+                            <img src={vendor.avatarImage} alt={vendor.name} className="size-6 rounded-full object-cover ring-1 ring-border" />
                           )}
                           <span>by <span className="font-semibold text-foreground">{vendor.name}</span></span>
                           {vendor.verified && <BadgeCheck className="size-4 text-emerald-500" />}
+                          {vendor.rating > 0 && (
+                            <span className="flex items-center gap-0.5 text-xs">
+                              <Star className="size-3 fill-amber-400 text-amber-400" />
+                              {vendor.rating.toFixed(1)}
+                              <span className="text-muted-foreground">({vendor.reviewCount})</span>
+                            </span>
+                          )}
                         </Link>
                       )}
                     </div>
