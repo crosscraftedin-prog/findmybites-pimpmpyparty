@@ -110,7 +110,6 @@ async function buildStorefrontContext(vendorId: string): Promise<string> {
           select: { id: true, name: true, price: true, offerPrice: true, currency: true, description: true, shortDescription: true, category: true, subCategory: true, image: true, isFeatured: true, vegetarian: true, vegan: true, halal: true, glutenFree: true, eggless: true, servings: true, weight: true, flavours: true, prepTime: true },
         },
         reviews: {
-          where: { visible: true },
           take: 5,
           orderBy: { createdAt: "desc" },
           select: { id: true, author: true, rating: true, comment: true, eventDate: true, createdAt: true },
@@ -161,8 +160,6 @@ async function buildStorefrontContext(vendorId: string): Promise<string> {
     lines.push(`\nService Options:`);
     lines.push(`  Delivery Available: ${storeVendor.deliveryAvailable ? "Yes" : "No"}`);
     lines.push(`  Pickup Available: ${storeVendor.pickupAvailable ? "Yes" : "No"}`);
-    lines.push(`  Custom Orders: ${storeVendor.customOrder ? "Yes" : "No"}`);
-    lines.push(`  Same Day: ${storeVendor.sameDay ? "Yes" : "No"}`);
     lines.push(`  Verified: ${storeVendor.verified ? "Yes" : "No"}`);
     lines.push(`  Featured: ${storeVendor.featured ? "Yes" : "No"}`);
 
