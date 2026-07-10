@@ -53,6 +53,7 @@ import {
 } from "@/components/marketplace/vendor-highlights";
 import { SmartEnquiryForm } from "@/components/marketplace/smart-enquiry-form";
 import { ProductAvailabilityBanner } from "@/components/inventory/product-availability-banner";
+import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
 import type { VendorWithRelations } from "@/lib/types";
 
 interface Props {
@@ -319,268 +320,87 @@ export function ProductPageClient({ slug }: Props) {
           <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
             {/* Left column */}
             <div className="space-y-8">
-              {/* ── Product Hero — Premium Gallery ─────────────────── */}
-              <div>
-                {/* Main Gallery */}
-                <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                  {/* Main image — larger, more prominent */}
-                  <button
-                    onClick={() => setLightboxIndex(0)}
-                    className="group relative aspect-square overflow-hidden rounded-2xl border border-border bg-muted sm:aspect-[4/3]"
-                  >
-                    {gallery[0] ? (
-                      <img src={gallery[0]} alt={product.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-muted-foreground">
-                        <Package className="size-16" />
-                      </div>
-                    )}
-                    <div className="absolute left-4 top-4 flex flex-col gap-2">
-                      <ProductBadge badge={product.badge} />
-                      {product.isFeatured && (
-                        <Badge className="border-0 bg-amber-500 text-white shadow-lg">★ Featured</Badge>
-                      )}
-                    </div>
-                    {gallery.length > 1 && (
-                      <div className="absolute bottom-4 right-4 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                        {gallery.length} photos
-                      </div>
-                    )}
-                  </button>
-                  {/* Thumbnails — vertical on desktop, hidden on mobile */}
-                  {gallery.length > 1 && (
-                    <div className="flex gap-2 overflow-x-auto sm:flex-col sm:overflow-visible sm:w-24">
-                      {gallery.slice(0, 4).map((img, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setLightboxIndex(i)}
-                          className="relative aspect-square shrink-0 overflow-hidden rounded-xl border-2 border-border bg-muted transition-colors hover:border-brand sm:w-24"
-                        >
-                          <img src={img ?? undefined} alt={`${product.name} ${i + 1}`} className="h-full w-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              {/* ── Product Detail — shared component (same as wizard preview) ── */}
+              <ProductDetailView
+                mode="live"
+                product={{
+                  id: product.id,
+                  name: product.name,
+                  description: product.description,
+                  shortDescription: (product as any).shortDescription,
+                  price: product.price,
+                  offerPrice: product.offerPrice,
+                  comparePrice: product.comparePrice,
+                  discountPercent: product.discountPercent,
+                  currency: product.currency,
+                  currencySymbol: symbol,
+                  image: product.image,
+                  images: gallery,
+                  packageType: product.packageType,
+                  badge: product.badge,
+                  isFeatured: product.isFeatured,
+                  isAvailable: product.isAvailable,
+                  variants: (product as any).variants,
+                  deliveryAvailable: (product as any).deliveryAvailable ?? vendor?.deliveryAvailable,
+                  pickupAvailable: (product as any).pickupAvailable ?? vendor?.pickupAvailable,
+                  vegetarian: (product as any).vegetarian,
+                  vegan: (product as any).vegan,
+                  halal: (product as any).halal,
+                  glutenFree: (product as any).glutenFree,
+                  eggless: (product as any).eggless,
+                  category: (product as any).category,
+                  capacity: (product as any).capacity,
+                  duration: (product as any).duration,
+                  servings: (product as any).servings,
+                  weight: (product as any).weight,
+                } as ProductViewData}
+                vendor={vendor ? {
+                  id: vendor.id,
+                  name: vendor.name,
+                  slug: vendor.slug,
+                  city: vendor.city,
+                  avatarImage: vendor.avatarImage,
+                  verified: vendor.verified,
+                  rating: vendor.rating,
+                  reviewCount: vendor.reviewCount,
+                  whatsapp: vendor.whatsapp,
+                  ecosystem: vendor.ecosystem,
+                } : null}
+                selectedVariant={selectedVariant}
+                onVariantSelect={setSelectedVariant}
+                onWhatsApp={() => {
+                  const variants = (() => {
+                    const v = (product as any).variants;
+                    if (Array.isArray(v)) return v;
+                    if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
+                    return [];
+                  })();
+                  const selVar = variants[selectedVariant];
+                  if (vendor?.whatsapp) {
+                    const msg = selVar
+                      ? `Hi, I'm interested in ${product.name} — ${selVar.name} (${symbol}${selVar.offerPrice || selVar.price})`
+                      : `Hi, I'm interested in ${product.name}`;
+                    window.open(`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
+                  }
+                }}
+                onWishlist={toggleWishlist}
+                isWishlisted={wishlisted}
+              />
 
-                {/* Title + price + actions */}
-                <div className="mt-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl lg:text-4xl">{product.name}</h1>
-                      {vendor && (
-                        <Link
-                          href={`/vendor/${vendor.slug}`}
-                          className="mt-2 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-                        >
-                          {vendor.avatarImage && (
-                            <img src={vendor.avatarImage} alt={vendor.name} className="size-6 rounded-full object-cover ring-1 ring-border" />
-                          )}
-                          <span>by <span className="font-semibold text-foreground">{vendor.name}</span></span>
-                          {vendor.verified && <BadgeCheck className="size-4 text-emerald-500" />}
-                          {vendor.rating > 0 && (
-                            <span className="flex items-center gap-0.5 text-xs">
-                              <Star className="size-3 fill-amber-400 text-amber-400" />
-                              {vendor.rating.toFixed(1)}
-                              <span className="text-muted-foreground">({vendor.reviewCount})</span>
-                            </span>
-                          )}
-                        </Link>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={toggleWishlist}
-                        className={cn(
-                          "grid size-10 place-items-center rounded-full border transition-colors",
-                          wishlisted ? "border-rose-200 bg-rose-50 text-rose-500" : "border-border hover:bg-accent"
-                        )}
-                        aria-label="Save to wishlist"
-                      >
-                        <Heart className={cn("size-5", wishlisted && "fill-rose-500")} />
-                      </button>
-                      <button
-                        onClick={share}
-                        className="grid size-10 place-items-center rounded-full border border-border transition-colors hover:bg-accent"
-                        aria-label="Share"
-                      >
-                        <Share2 className="size-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Rating + location */}
-                  {vendor && (
-                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                      <span className="flex items-center gap-1">
-                        <Star className="size-4 fill-amber-400 text-amber-400" />
-                        <span className="font-bold">{vendor.rating.toFixed(1)}</span>
-                        <span className="text-muted-foreground">({vendor.reviewCount} reviews)</span>
-                      </span>
-                      <span className="flex items-center gap-1 text-muted-foreground">
-                        <MapPin className="size-4" />
-                        {vendor.city}, {vendor.country}
-                      </span>
-                      {vendor.responseTime && (
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Zap className="size-4 text-brand" />
-                          Responds {vendor.responseTime}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Price — show offerPrice or variant price as main price */}
-                  <div className="mt-4 flex items-baseline gap-2">
-                    {(() => {
-                      // If a variant is selected, show variant price
-                      const variants = (() => {
-                        const v = (product as any).variants;
-                        if (Array.isArray(v)) return v;
-                        if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
-                        return [];
-                      })();
-                      const selVar = variants[selectedVariant];
-                      if (selVar) {
-                        const varPrice = Number(selVar.offerPrice || selVar.price || 0);
-                        const varOrig = Number(selVar.price || 0);
-                        return (
-                          <>
-                            <span className="text-3xl font-extrabold text-brand">
-                              {symbol}{varPrice.toLocaleString()}
-                            </span>
-                            {selVar.offerPrice && varOrig > varPrice && (
-                              <span className="text-lg text-muted-foreground line-through">
-                                {symbol}{varOrig.toLocaleString()}
-                              </span>
-                            )}
-                          </>
-                        );
-                      }
-                      // Otherwise show product offerPrice or regular price
-                      if (product.offerPrice && Number(product.offerPrice) < product.price) {
-                        const pct = Math.round(((product.price - Number(product.offerPrice)) / product.price) * 100);
-                        return (
-                          <>
-                            <span className="text-3xl font-extrabold text-brand">
-                              {symbol}{Number(product.offerPrice).toLocaleString()}
-                            </span>
-                            <span className="text-lg text-muted-foreground line-through">
-                              {symbol}{product.price.toLocaleString()}
-                            </span>
-                            {pct > 0 && <Badge className="border-0 bg-red-500 text-white">{pct}% OFF</Badge>}
-                          </>
-                        );
-                      }
-                      return (
-                        <>
-                          <span className="text-3xl font-extrabold text-brand">
-                            {symbol}{product.price.toLocaleString()}
-                          </span>
-                          {product.comparePrice && Number(product.comparePrice) > product.price && (
-                            <span className="text-lg text-muted-foreground line-through">
-                              {symbol}{Number(product.comparePrice).toLocaleString()}
-                            </span>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Quick badges */}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {vendor?.deliveryAvailable && (
-                      <Badge className="border-0 bg-emerald-100 text-emerald-700"><Check className="size-3" /> Delivery</Badge>
-                    )}
-                    {vendor?.pickupAvailable && (
-                      <Badge className="border-0 bg-emerald-100 text-emerald-700"><Check className="size-3" /> Pickup</Badge>
-                    )}
-                    {product.customisationAvailable && (
-                      <Badge className="border-0 bg-blue-100 text-blue-700"><Check className="size-3" /> Customisation</Badge>
-                    )}
-                  </div>
-
-                  {/* Availability & inventory banner */}
-                  <div className="mt-3">
-                    <ProductAvailabilityBanner
-                      productId={product.id}
-                      preparationTimeCategory={(product as any).preparationTimeCategory}
-                      preparationTimeCustom={(product as any).preparationTimeCustom}
-                      prepTime={(product as any).prepTime}
-                      bookingNoticeHours={(product as any).bookingNoticeHours}
-                      serviceAreaType={(product as any).serviceAreaType}
-                      deliveryAvailable={(product as any).deliveryAvailable}
-                      stockType={(product as any).stockType}
-                      stockCount={(product as any).stockCount}
-                      lowStockThreshold={(product as any).lowStockThreshold}
-                      status={(product as any).status}
-                    />
-                  </div>
-
-                  {/* ── Package / Variant Options ─────────────────────────── */}
-                  {(() => {
-                    const variants = (() => {
-                      const v = (product as any).variants;
-                      if (Array.isArray(v)) return v;
-                      if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
-                      return [];
-                    })();
-                    if (!variants.length || variants.length === 1) return null; // Hide if 0 or 1 variant
-                    return (
-                      <div className="mt-5 rounded-xl border border-border p-4">
-                        <h4 className="mb-3 text-sm font-bold text-foreground">Choose Package</h4>
-                        <div className="space-y-2">
-                          {variants.map((variant: any, idx: number) => {
-                            const isUnavailable = variant.available === false;
-                            const varPrice = Number(variant.offerPrice || variant.price || 0);
-                            const varOrig = Number(variant.price || 0);
-                            const hasOffer = variant.offerPrice && varOrig > varPrice;
-                            return (
-                            <button
-                              key={idx}
-                              onClick={() => !isUnavailable && setSelectedVariant(idx)}
-                              disabled={isUnavailable}
-                              className={cn(
-                                "flex w-full items-center justify-between rounded-xl border-2 p-3 text-left transition-all",
-                                isUnavailable
-                                  ? "border-border bg-muted/30 opacity-50 cursor-not-allowed"
-                                  : selectedVariant === idx
-                                    ? "border-brand bg-brand/5"
-                                    : "border-border hover:border-brand/50"
-                              )}
-                            >
-                              <div className="flex items-center gap-3 min-w-0 flex-1">
-                                <div className={cn(
-                                  "grid size-5 shrink-0 place-items-center rounded-full border-2",
-                                  selectedVariant === idx && !isUnavailable ? "border-brand bg-brand" : "border-muted-foreground/30"
-                                )}>
-                                  {selectedVariant === idx && !isUnavailable && <div className="size-2 rounded-full bg-white" />}
-                                </div>
-                                <div className="min-w-0">
-                                  <span className="block text-sm font-semibold truncate">{variant.name || `Option ${idx + 1}`}</span>
-                                  {variant.description && (
-                                    <span className="block text-xs text-muted-foreground truncate">{variant.description}</span>
-                                  )}
-                                  {isUnavailable && (
-                                    <span className="text-xs text-red-500">Currently unavailable</span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                {hasOffer && (
-                                  <span className="text-xs text-muted-foreground line-through">{symbol}{varOrig.toLocaleString()}</span>
-                                )}
-                                <span className="text-sm font-bold text-brand">{symbol}{varPrice.toLocaleString()}</span>
-                              </div>
-                            </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
+              {/* Availability banner */}
+              <ProductAvailabilityBanner
+                productId={product.id}
+                preparationTimeCategory={(product as any).preparationTimeCategory}
+                preparationTimeCustom={(product as any).preparationTimeCustom}
+                prepTime={(product as any).prepTime}
+                bookingNoticeHours={(product as any).bookingNoticeHours}
+                serviceAreaType={(product as any).serviceAreaType}
+                deliveryAvailable={(product as any).deliveryAvailable}
+                stockType={(product as any).stockType}
+                stockCount={(product as any).stockCount}
+                lowStockThreshold={(product as any).lowStockThreshold}
+                status={(product as any).status}
+              />
 
               {/* ── AI Store Summary ────────────────────────────────── */}
               {vendor && <AIStoreSummary vendorId={vendor.id} />}
