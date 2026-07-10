@@ -71,7 +71,7 @@ export default function Home() {
       <SiteHeader />
       <LocationBanner />
       <PendingVendorBanner />
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <PremiumHero />
         <TrustStrip />
         <CategoriesSection />

@@ -1,8 +1,24 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import type { PlatformStats } from "@/lib/types";
 
-export async function GET() {
+// ── In-memory cache (60 second TTL) ──────────────────────────────────────
+// Stats don't change frequently — cache the result to avoid 10s DB queries
+// on every homepage load.
+let cachedStats: PlatformStats | null = null;
+let cachedAt = 0;
+const CACHE_TTL_MS = 60_000; // 60 seconds
+
+export async function GET(_req: NextRequest) {
+  // Return cached stats if fresh
+  if (cachedStats && Date.now() - cachedAt < CACHE_TTL_MS) {
+    return NextResponse.json(cachedStats, {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    });
+  }
+
   try {
     // Run each query individually with safe() so one failure (e.g. DB
     // connection issue) doesn't sink the whole stats payload. Returns
@@ -69,6 +85,10 @@ export async function GET() {
         count: g._count._all,
       })),
     };
+
+    // Cache the result
+    cachedStats = stats;
+    cachedAt = Date.now();
 
     return NextResponse.json(stats, { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } });
   } catch (err) {
