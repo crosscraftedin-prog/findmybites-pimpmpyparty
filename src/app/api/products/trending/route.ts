@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
           slug: p.slug,
           description: p.description,
           price: p.price,
+          offerPrice: p.offerPrice,
           currency,
           currencySymbol: CURRENCY_SYMBOLS[currency] ?? currency,
           image: p.image || images[0] || null,

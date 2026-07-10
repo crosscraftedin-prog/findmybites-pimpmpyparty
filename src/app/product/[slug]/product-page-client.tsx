@@ -66,7 +66,9 @@ interface ProductData {
     slug: string;
     description: string | null;
     price: number;
+    offerPrice: number | null;
     comparePrice: number | null;
+    discountPercent: number | null;
     currency: string;
     currencySymbol: string;
     image: string | null;
@@ -154,6 +156,7 @@ export function ProductPageClient({ slug }: Props) {
   const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null);
   const [wishlisted, setWishlisted] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<"specs" | "reviews" | "faq">("specs");
+  const [selectedVariant, setSelectedVariant] = React.useState<number>(0);
 
   React.useEffect(() => {
     setLoading(true);
@@ -416,18 +419,35 @@ export function ProductPageClient({ slug }: Props) {
                     </div>
                   )}
 
-                  {/* Price */}
+                  {/* Price — show offerPrice as main price if available, regular price struck through */}
                   <div className="mt-4 flex items-baseline gap-2">
-                    <span className="text-3xl font-extrabold text-brand">
-                      {symbol}{product.price.toLocaleString()}
-                    </span>
-                    {product.comparePrice && Number(product.comparePrice) > product.price && (
-                      <span className="text-lg text-muted-foreground line-through">
-                        {symbol}{Number(product.comparePrice).toLocaleString()}
-                      </span>
-                    )}
-                    {product.discountPercent && (
-                      <Badge className="border-0 bg-red-500 text-white">{product.discountPercent}% OFF</Badge>
+                    {product.offerPrice && Number(product.offerPrice) < product.price ? (
+                      <>
+                        <span className="text-3xl font-extrabold text-brand">
+                          {symbol}{Number(product.offerPrice).toLocaleString()}
+                        </span>
+                        <span className="text-lg text-muted-foreground line-through">
+                          {symbol}{product.price.toLocaleString()}
+                        </span>
+                        {(() => {
+                          const pct = Math.round(((product.price - Number(product.offerPrice)) / product.price) * 100);
+                          return pct > 0 ? <Badge className="border-0 bg-red-500 text-white">{pct}% OFF</Badge> : null;
+                        })()}
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-3xl font-extrabold text-brand">
+                          {symbol}{product.price.toLocaleString()}
+                        </span>
+                        {product.comparePrice && Number(product.comparePrice) > product.price && (
+                          <span className="text-lg text-muted-foreground line-through">
+                            {symbol}{Number(product.comparePrice).toLocaleString()}
+                          </span>
+                        )}
+                        {product.discountPercent && (
+                          <Badge className="border-0 bg-red-500 text-white">{product.discountPercent}% OFF</Badge>
+                        )}
+                      </>
                     )}
                   </div>
 
@@ -460,6 +480,52 @@ export function ProductPageClient({ slug }: Props) {
                       status={(product as any).status}
                     />
                   </div>
+
+                  {/* ── Package / Variant Options ─────────────────────────── */}
+                  {(() => {
+                    const variants = (() => {
+                      const v = (product as any).variants;
+                      if (Array.isArray(v)) return v;
+                      if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
+                      return [];
+                    })();
+                    if (!variants.length) return null;
+                    return (
+                      <div className="mt-4">
+                        <h4 className="mb-2 text-sm font-bold text-foreground">Package Options</h4>
+                        <div className="space-y-2">
+                          {variants.map((variant: any, idx: number) => (
+                            <button
+                              key={idx}
+                              onClick={() => setSelectedVariant(idx)}
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-xl border-2 p-3 text-left transition-all",
+                                selectedVariant === idx
+                                  ? "border-brand bg-brand/5"
+                                  : "border-border hover:border-brand/50"
+                              )}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={cn(
+                                  "grid size-5 place-items-center rounded-full border-2",
+                                  selectedVariant === idx ? "border-brand bg-brand" : "border-muted-foreground/30"
+                                )}>
+                                  {selectedVariant === idx && <div className="size-2 rounded-full bg-white" />}
+                                </div>
+                                <span className="text-sm font-semibold">{variant.name || `Option ${idx + 1}`}</span>
+                                {variant.available === false && (
+                                  <span className="text-xs text-muted-foreground">(Unavailable)</span>
+                                )}
+                              </div>
+                              <span className="text-sm font-bold text-brand">
+                                {symbol}{Number(variant.price || variant.offerPrice || 0).toLocaleString()}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -798,16 +864,28 @@ function ProductEnquiryForm({
         <p className="mt-1 text-sm text-muted-foreground">
           {vendor?.name} typically replies within {vendor?.responseTime}.
         </p>
-        {vendor?.whatsapp && (
+        {vendor?.whatsapp && (() => {
+          const variants = (() => {
+            const v = (product as any).variants;
+            if (Array.isArray(v)) return v;
+            if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
+            return [];
+          })();
+          const selectedVar = variants[selectedVariant];
+          const msg = selectedVar
+            ? `Hi, I'm interested in ${product.name} — ${selectedVar.name} (${symbol}${selectedVar.price || selectedVar.offerPrice})`
+            : `Hi, I'm interested in ${product.name}`;
+          return (
           <a
-            href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(`Hi, I'm interested in ${product.name}`)}`}
+            href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(msg)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1da851]"
           >
             <MessageCircle className="size-4" /> WhatsApp
           </a>
-        )}
+          );
+        })()}
         <Button variant="outline" className="mt-2 w-full" onClick={() => setDone(false)}>
           Send another enquiry
         </Button>

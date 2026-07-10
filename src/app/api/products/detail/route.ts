@@ -180,7 +180,11 @@ export async function GET(req: NextRequest) {
         slug: product.slug,
         description: product.description,
         price: product.price,
-        comparePrice: product.comparePrice,
+        offerPrice: product.offerPrice,
+        comparePrice: product.offerPrice ? product.price : product.comparePrice, // If offerPrice exists, price is the compare price
+        discountPercent: product.offerPrice && product.price > 0
+          ? Math.round(((product.price - product.offerPrice) / product.price) * 100)
+          : product.discountPercent,
         currency,
         currencySymbol,
         image: product.image || images[0] || null,
@@ -200,6 +204,7 @@ export async function GET(req: NextRequest) {
         dietaryTags,
         allergens,
         addOns,
+        variants: product.variants ? (typeof product.variants === "string" ? JSON.parse(product.variants) : product.variants) : [],
         cuisineType: product.cuisineType,
         customisationAvailable: product.customisationAvailable,
         customisationNotes: product.customisationNotes,

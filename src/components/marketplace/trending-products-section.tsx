@@ -126,7 +126,16 @@ export function TrendingProductsSection() {
                     )}
                     <div className="mt-auto flex items-center justify-between pt-2">
                       <span className="text-sm font-bold text-brand">
-                        {p.currencySymbol}{p.price.toLocaleString()}
+                        {(p as any).offerPrice ? (
+                          <>
+                            {p.currencySymbol}{Number((p as any).offerPrice).toLocaleString()}
+                            <span className="ml-1 text-xs font-normal text-muted-foreground line-through">
+                              {p.currencySymbol}{p.price.toLocaleString()}
+                            </span>
+                          </>
+                        ) : (
+                          p.currencySymbol + p.price.toLocaleString()
+                        )}
                       </span>
                       {p.vendor && (
                         <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">

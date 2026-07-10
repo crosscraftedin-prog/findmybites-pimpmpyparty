@@ -59,10 +59,15 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     subCategory: initialData?.subCategory || "",
     shortDescription: initialData?.shortDescription || "",
     description: initialData?.description || "",
-    images: initialData?.images || [],
+    images: (() => {
+      const imgs = initialData?.images;
+      if (Array.isArray(imgs)) return imgs;
+      if (typeof imgs === "string" && imgs.trim()) { try { return JSON.parse(imgs); } catch { return []; } }
+      return [];
+    })(),
     videoUrl: initialData?.videoUrl || "",
-    price: initialData?.price || "",
-    offerPrice: initialData?.offerPrice || "",
+    price: initialData?.price != null ? String(initialData.price) : "",
+    offerPrice: initialData?.offerPrice != null ? String(initialData.offerPrice) : "",
     startingFromPrice: initialData?.startingFromPrice || false,
     priceOnRequest: initialData?.priceOnRequest || false,
     hidePrice: initialData?.hidePrice || false,
@@ -96,9 +101,14 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     // SEO
     metaTitle: initialData?.metaTitle || "",
     metaDescription: initialData?.metaDescription || "",
-    tags: initialData?.tags || "",
-    // Variants & Inventory
-    variants: initialData?.variants || [],
+    tags: Array.isArray(initialData?.tags) ? (initialData.tags as string[]).join(", ") : (initialData?.tags as string) || "",
+    // Variants & Inventory — variants may be stored as JSON string or array
+    variants: (() => {
+      const v = initialData?.variants;
+      if (Array.isArray(v)) return v;
+      if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
+      return [];
+    })(),
     stockType: initialData?.stockType || "unlimited",
     stockCount: initialData?.stockCount ?? "",
     lowStockThreshold: initialData?.lowStockThreshold ?? 5,
