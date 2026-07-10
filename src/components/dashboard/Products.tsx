@@ -478,7 +478,7 @@ export function Products({ vendor }: ProductsProps) {
                     {/* Price + Views */}
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-sm font-bold text-brand">
-                        {symbol}{p.price.toLocaleString()}
+                        {symbol}{(p.offerPrice || p.price).toLocaleString()}
                         {p.comparePrice && (
                           <span className="ml-1 text-xs text-muted-foreground line-through">
                             {symbol}{p.comparePrice.toLocaleString()}

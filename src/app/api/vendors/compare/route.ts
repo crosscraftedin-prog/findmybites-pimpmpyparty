@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
         name: p.name,
         slug: p.slug,
         price: p.price,
+        offerPrice: (p as any).offerPrice,
         image: p.image,
       })),
     }));

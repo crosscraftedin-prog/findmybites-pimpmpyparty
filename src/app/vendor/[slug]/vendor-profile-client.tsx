@@ -975,7 +975,7 @@ function ProductMenuItem({ product, currency }: { product: Product; currency: st
         )}
       </div>
       <p className="shrink-0 font-bold tabular-nums text-brand">
-        {symbol}{product.price.toLocaleString("en-US")}
+        {symbol}{((product as any).offerPrice || product.price).toLocaleString("en-US")}
       </p>
     </div>
   );
@@ -998,7 +998,7 @@ function ServiceItem({ product, currency }: { product: Product; currency: string
         )}
       </div>
       <p className="shrink-0 font-bold tabular-nums text-brand">
-        From {symbol}{product.price.toLocaleString("en-US")}
+        From {symbol}{((product as any).offerPrice || product.price).toLocaleString("en-US")}
       </p>
     </div>
   );

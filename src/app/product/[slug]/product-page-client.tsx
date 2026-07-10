@@ -902,7 +902,7 @@ function ProductEnquiryForm({
         eventDate: form.eventDate,
         eventCity: vendor.city,
         guests: parseInt(form.guests, 10) || 0,
-        budget: `${symbol}${product.price}`,
+        budget: `${symbol}${product.offerPrice || product.price}`,
         message: form.message.trim() || `Enquiry for ${product.name}`,
       });
       setDone(true);
@@ -960,7 +960,7 @@ function ProductEnquiryForm({
   return (
     <form onSubmit={onSubmit} className="space-y-3 rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div>
-        <p className="text-lg font-bold">{symbol}{product.price.toLocaleString()}</p>
+        <p className="text-lg font-bold">{symbol}{(product.offerPrice || product.price).toLocaleString()}</p>
         <p className="text-xs text-muted-foreground">{product.packageType || "Package"}</p>
       </div>
       <Field label="Your name" required>

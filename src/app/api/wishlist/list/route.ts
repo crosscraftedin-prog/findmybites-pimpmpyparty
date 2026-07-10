@@ -69,6 +69,7 @@ function shapeProduct(p: any, currencyOverride?: string) {
     slug: p.slug,
     description: p.description,
     price: p.price,
+        offerPrice: (p as any).offerPrice,
     currency,
     currencySymbol: CURRENCY_SYMBOLS[currency] ?? currency,
     image: p.image || images[0] || null,

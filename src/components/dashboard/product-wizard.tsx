@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Vendor } from "@/lib/types";
 import { GalleryUpload } from "./image-upload";
+import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
 
 interface ProductWizardProps {
   vendor: Vendor;
@@ -1070,76 +1071,46 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     })}
                   </div>
 
-                  {/* Product Preview — matches live product page design */}
-                  <div className={cn("mx-auto rounded-2xl border border-border bg-card overflow-hidden transition-all",
+                  {/* Product Preview — uses shared ProductDetailView component (same as live page) */}
+                  <div className={cn("mx-auto overflow-hidden transition-all",
                     previewDevice === "desktop" ? "max-w-full" : previewDevice === "tablet" ? "max-w-2xl" : "max-w-sm")}>
-                    {/* Gallery preview */}
-                    <div className="relative aspect-[4/3] bg-muted">
-                      {form.images?.[0] ? (
-                        <img src={form.images[0]} alt={form.name} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full items-center justify-center"><ImageIcon className="size-12 text-muted-foreground/30" /></div>
-                      )}
-                      <div className="absolute left-3 top-3 flex flex-col gap-1.5">
-                        {form.featured && <Badge className="border-0 bg-amber-500 text-white">★ Featured</Badge>}
-                        {form.images?.length > 1 && (
-                          <div className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
-                            {form.images.length} photos
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {/* Info preview */}
-                    <div className="p-4 space-y-3">
-                      <div>
-                        <h4 className="text-lg font-extrabold tracking-tight">{form.name || "Untitled Product"}</h4>
-                        <p className="text-xs text-muted-foreground">{form.category || "No category"}</p>
-                      </div>
-                      {/* Price preview */}
-                      <div className="flex items-baseline gap-2">
-                        {form.offerPrice ? (
-                          <>
-                            <span className="text-xl font-extrabold text-brand">{symbol}{Number(form.offerPrice).toLocaleString()}</span>
-                            <span className="text-sm text-muted-foreground line-through">{symbol}{Number(form.price || 0).toLocaleString()}</span>
-                            {(() => {
-                              const p = Number(form.price || 0);
-                              const o = Number(form.offerPrice);
-                              return p > 0 ? <Badge className="border-0 bg-red-500 text-white text-[10px]">{Math.round(((p - o) / p) * 100)}% OFF</Badge> : null;
-                            })()}
-                          </>
-                        ) : form.priceOnRequest ? (
-                          <span className="text-xl font-extrabold text-brand">Price on request</span>
-                        ) : form.hidePrice ? (
-                          <span className="text-xl font-extrabold text-muted-foreground">Price hidden</span>
-                        ) : (
-                          <span className="text-xl font-extrabold text-brand">{symbol}{Number(form.price || 0).toLocaleString()}</span>
-                        )}
-                      </div>
-                      {/* Variants preview */}
-                      {form.variants?.length > 1 && (
-                        <div className="rounded-xl border border-border p-2">
-                          <p className="mb-1.5 text-xs font-bold">Package Options</p>
-                          <div className="space-y-1">
-                            {form.variants.slice(0, 3).map((v: any, i: number) => (
-                              <div key={i} className="flex items-center justify-between rounded-lg border border-border px-2 py-1 text-xs">
-                                <span className="font-medium">{v.name || `Option ${i + 1}`}</span>
-                                <span className="font-bold text-brand">{symbol}{Number(v.offerPrice || v.price || 0).toLocaleString()}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {/* Description preview */}
-                      {form.shortDescription && (
-                        <p className="text-xs text-muted-foreground line-clamp-2">{form.shortDescription}</p>
-                      )}
-                      {/* Badges */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {form.deliveryAvailable && <Badge className="border-0 bg-emerald-100 text-emerald-700 text-[10px]">Delivery</Badge>}
-                        {form.pickupAvailable && <Badge className="border-0 bg-emerald-100 text-emerald-700 text-[10px]">Pickup</Badge>}
-                        {form.vegetarian && <Badge className="border-0 bg-green-100 text-green-700 text-[10px]">🟢 Veg</Badge>}
-                      </div>
-                    </div>
+                    <ProductDetailView
+                      mode="preview"
+                      product={{
+                        id: "preview",
+                        name: form.name || "Untitled Product",
+                        description: form.description || null,
+                        shortDescription: form.shortDescription || null,
+                        price: Number(form.price) || 0,
+                        offerPrice: form.offerPrice ? Number(form.offerPrice) : null,
+                        currency: form.currency || "INR",
+                        currencySymbol: symbol,
+                        image: form.images?.[0] || null,
+                        images: form.images || [],
+                        isFeatured: form.featured || false,
+                        isAvailable: form.isAvailable ?? true,
+                        variants: form.variants || [],
+                        deliveryAvailable: form.deliveryAvailable || false,
+                        pickupAvailable: form.pickupAvailable || false,
+                        vegetarian: form.vegetarian || false,
+                        vegan: form.vegan || false,
+                        eggless: form.eggless || false,
+                        category: form.category || null,
+                      } as ProductViewData}
+                      vendor={{
+                        id: vendor.id,
+                        name: vendor.name,
+                        slug: vendor.slug,
+                        city: vendor.city || "",
+                        avatarImage: vendor.avatarImage || null,
+                        verified: vendor.verified,
+                        rating: vendor.rating,
+                        reviewCount: vendor.reviewCount,
+                        whatsapp: vendor.whatsapp || null,
+                      }}
+                      selectedVariant={0}
+                      onVariantSelect={(idx) => {/* preview only — no state change needed */}}
+                    />
                   </div>
 
                   {/* Validation + Scores */}
