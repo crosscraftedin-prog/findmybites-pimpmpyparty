@@ -515,37 +515,54 @@ export function ProductPageClient({ slug }: Props) {
                     })();
                     if (!variants.length || variants.length === 1) return null; // Hide if 0 or 1 variant
                     return (
-                      <div className="mt-4">
-                        <h4 className="mb-2 text-sm font-bold text-foreground">Package Options</h4>
+                      <div className="mt-5 rounded-xl border border-border p-4">
+                        <h4 className="mb-3 text-sm font-bold text-foreground">Choose Package</h4>
                         <div className="space-y-2">
-                          {variants.map((variant: any, idx: number) => (
+                          {variants.map((variant: any, idx: number) => {
+                            const isUnavailable = variant.available === false;
+                            const varPrice = Number(variant.offerPrice || variant.price || 0);
+                            const varOrig = Number(variant.price || 0);
+                            const hasOffer = variant.offerPrice && varOrig > varPrice;
+                            return (
                             <button
                               key={idx}
-                              onClick={() => setSelectedVariant(idx)}
+                              onClick={() => !isUnavailable && setSelectedVariant(idx)}
+                              disabled={isUnavailable}
                               className={cn(
                                 "flex w-full items-center justify-between rounded-xl border-2 p-3 text-left transition-all",
-                                selectedVariant === idx
-                                  ? "border-brand bg-brand/5"
-                                  : "border-border hover:border-brand/50"
+                                isUnavailable
+                                  ? "border-border bg-muted/30 opacity-50 cursor-not-allowed"
+                                  : selectedVariant === idx
+                                    ? "border-brand bg-brand/5"
+                                    : "border-border hover:border-brand/50"
                               )}
                             >
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
                                 <div className={cn(
-                                  "grid size-5 place-items-center rounded-full border-2",
-                                  selectedVariant === idx ? "border-brand bg-brand" : "border-muted-foreground/30"
+                                  "grid size-5 shrink-0 place-items-center rounded-full border-2",
+                                  selectedVariant === idx && !isUnavailable ? "border-brand bg-brand" : "border-muted-foreground/30"
                                 )}>
-                                  {selectedVariant === idx && <div className="size-2 rounded-full bg-white" />}
+                                  {selectedVariant === idx && !isUnavailable && <div className="size-2 rounded-full bg-white" />}
                                 </div>
-                                <span className="text-sm font-semibold">{variant.name || `Option ${idx + 1}`}</span>
-                                {variant.available === false && (
-                                  <span className="text-xs text-muted-foreground">(Unavailable)</span>
-                                )}
+                                <div className="min-w-0">
+                                  <span className="block text-sm font-semibold truncate">{variant.name || `Option ${idx + 1}`}</span>
+                                  {variant.description && (
+                                    <span className="block text-xs text-muted-foreground truncate">{variant.description}</span>
+                                  )}
+                                  {isUnavailable && (
+                                    <span className="text-xs text-red-500">Currently unavailable</span>
+                                  )}
+                                </div>
                               </div>
-                              <span className="text-sm font-bold text-brand">
-                                {symbol}{Number(variant.price || variant.offerPrice || 0).toLocaleString()}
-                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {hasOffer && (
+                                  <span className="text-xs text-muted-foreground line-through">{symbol}{varOrig.toLocaleString()}</span>
+                                )}
+                                <span className="text-sm font-bold text-brand">{symbol}{varPrice.toLocaleString()}</span>
+                              </div>
                             </button>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     );

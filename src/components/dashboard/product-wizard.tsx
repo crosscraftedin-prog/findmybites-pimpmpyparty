@@ -610,26 +610,47 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
 
                   {/* Variants */}
                   <div>
-                    <Label>Variants (optional)</Label>
-                    <p className="text-xs text-muted-foreground mb-2">Add size/weight/package options with different prices</p>
+                    <Label>Variants / Package Options</Label>
+                    <p className="text-xs text-muted-foreground mb-2">Add size/weight/package options with different prices. Shown on product page as selectable options.</p>
                     {form.variants?.length > 0 && (
-                      <div className="space-y-2 mb-2">
+                      <div className="space-y-3 mb-2">
                         {form.variants.map((v: any, idx: number) => (
-                          <div key={idx} className="flex items-center gap-2 rounded-lg border border-border p-2">
-                            <Input value={v.name} onChange={(e) => {
-                              const variants = [...form.variants]; variants[idx] = { ...v, name: e.target.value }; set("variants", variants);
-                            }} placeholder="e.g. 1kg" className="h-8 flex-1 text-sm" />
-                            <Input value={v.price} onChange={(e) => {
-                              const variants = [...form.variants]; variants[idx] = { ...v, price: e.target.value }; set("variants", variants);
-                            }} placeholder="Price" type="number" className="h-8 w-20 text-sm" />
-                            <button onClick={() => set("variants", form.variants.filter((_: any, i: number) => i !== idx))}
-                              className="grid size-7 place-items-center rounded text-red-600 hover:bg-red-50"><X className="size-3.5" /></button>
+                          <div key={idx} className="rounded-xl border border-border p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Input value={v.name} onChange={(e) => {
+                                const variants = [...form.variants]; variants[idx] = { ...v, name: e.target.value }; set("variants", variants);
+                              }} placeholder="Variant name (e.g. Veg Package)" className="h-9 flex-1 text-sm" />
+                              <button onClick={() => set("variants", form.variants.filter((_: any, i: number) => i !== idx))}
+                                className="grid size-8 place-items-center rounded-lg text-red-600 hover:bg-red-50"><X className="size-4" /></button>
+                            </div>
+                            <div className="flex gap-2">
+                              <Input value={v.price ?? ""} onChange={(e) => {
+                                const variants = [...form.variants]; variants[idx] = { ...v, price: e.target.value }; set("variants", variants);
+                              }} placeholder="Regular price" type="number" className="h-9 w-28 text-sm" />
+                              <Input value={v.offerPrice ?? ""} onChange={(e) => {
+                                const variants = [...form.variants]; variants[idx] = { ...v, offerPrice: e.target.value }; set("variants", variants);
+                              }} placeholder="Offer price (optional)" type="number" className="h-9 flex-1 text-sm" />
+                            </div>
+                            <Input value={v.description ?? ""} onChange={(e) => {
+                              const variants = [...form.variants]; variants[idx] = { ...v, description: e.target.value }; set("variants", variants);
+                            }} placeholder="Description (optional)" className="h-9 text-sm" />
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  const variants = [...form.variants]; variants[idx] = { ...v, available: !v.available }; set("variants", variants);
+                                }}
+                                className={cn("rounded-lg border px-3 py-1 text-xs font-medium",
+                                  v.available !== false ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-red-300 bg-red-50 text-red-700")}
+                              >
+                                {v.available !== false ? "✓ Available" : "✗ Unavailable"}
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
                     )}
                     <Button variant="outline" size="sm" onClick={() => {
-                      set("variants", [...(form.variants || []), { name: "", price: "", offerPrice: "", sku: "", available: true }]);
+                      set("variants", [...(form.variants || []), { name: "", price: "", offerPrice: "", description: "", available: true }]);
                     }} className="gap-1">
                       <Plus className="size-3.5" /> Add Variant
                     </Button>
