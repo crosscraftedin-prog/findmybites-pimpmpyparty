@@ -59,6 +59,7 @@ export interface ProductDetail {
   equipmentIncluded: string | null; indoorOutdoor: string | null;
   travelAvailable: boolean; bookingNotice: string | null; cancellationPolicy: string | null;
   leadTime: string | null; pricingTiers: any[] | null;
+  variants: any[] | null;
   views: number; enquiryCount: number; sortOrder: number;
   createdAt: string; updatedAt: string;
   // ── Inventory & Availability Management ──
