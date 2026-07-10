@@ -418,36 +418,61 @@ export function ProductPageClient({ slug }: Props) {
                     </div>
                   )}
 
-                  {/* Price — show offerPrice as main price if available, regular price struck through */}
+                  {/* Price — show offerPrice or variant price as main price */}
                   <div className="mt-4 flex items-baseline gap-2">
-                    {product.offerPrice && Number(product.offerPrice) < product.price ? (
-                      <>
-                        <span className="text-3xl font-extrabold text-brand">
-                          {symbol}{Number(product.offerPrice).toLocaleString()}
-                        </span>
-                        <span className="text-lg text-muted-foreground line-through">
-                          {symbol}{product.price.toLocaleString()}
-                        </span>
-                        {(() => {
-                          const pct = Math.round(((product.price - Number(product.offerPrice)) / product.price) * 100);
-                          return pct > 0 ? <Badge className="border-0 bg-red-500 text-white">{pct}% OFF</Badge> : null;
-                        })()}
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-3xl font-extrabold text-brand">
-                          {symbol}{product.price.toLocaleString()}
-                        </span>
-                        {product.comparePrice && Number(product.comparePrice) > product.price && (
-                          <span className="text-lg text-muted-foreground line-through">
-                            {symbol}{Number(product.comparePrice).toLocaleString()}
+                    {(() => {
+                      // If a variant is selected, show variant price
+                      const variants = (() => {
+                        const v = (product as any).variants;
+                        if (Array.isArray(v)) return v;
+                        if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
+                        return [];
+                      })();
+                      const selVar = variants[selectedVariant];
+                      if (selVar) {
+                        const varPrice = Number(selVar.offerPrice || selVar.price || 0);
+                        const varOrig = Number(selVar.price || 0);
+                        return (
+                          <>
+                            <span className="text-3xl font-extrabold text-brand">
+                              {symbol}{varPrice.toLocaleString()}
+                            </span>
+                            {selVar.offerPrice && varOrig > varPrice && (
+                              <span className="text-lg text-muted-foreground line-through">
+                                {symbol}{varOrig.toLocaleString()}
+                              </span>
+                            )}
+                          </>
+                        );
+                      }
+                      // Otherwise show product offerPrice or regular price
+                      if (product.offerPrice && Number(product.offerPrice) < product.price) {
+                        const pct = Math.round(((product.price - Number(product.offerPrice)) / product.price) * 100);
+                        return (
+                          <>
+                            <span className="text-3xl font-extrabold text-brand">
+                              {symbol}{Number(product.offerPrice).toLocaleString()}
+                            </span>
+                            <span className="text-lg text-muted-foreground line-through">
+                              {symbol}{product.price.toLocaleString()}
+                            </span>
+                            {pct > 0 && <Badge className="border-0 bg-red-500 text-white">{pct}% OFF</Badge>}
+                          </>
+                        );
+                      }
+                      return (
+                        <>
+                          <span className="text-3xl font-extrabold text-brand">
+                            {symbol}{product.price.toLocaleString()}
                           </span>
-                        )}
-                        {product.discountPercent && (
-                          <Badge className="border-0 bg-red-500 text-white">{product.discountPercent}% OFF</Badge>
-                        )}
-                      </>
-                    )}
+                          {product.comparePrice && Number(product.comparePrice) > product.price && (
+                            <span className="text-lg text-muted-foreground line-through">
+                              {symbol}{Number(product.comparePrice).toLocaleString()}
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* Quick badges */}
@@ -488,7 +513,7 @@ export function ProductPageClient({ slug }: Props) {
                       if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
                       return [];
                     })();
-                    if (!variants.length) return null;
+                    if (!variants.length || variants.length === 1) return null; // Hide if 0 or 1 variant
                     return (
                       <div className="mt-4">
                         <h4 className="mb-2 text-sm font-bold text-foreground">Package Options</h4>
@@ -730,18 +755,27 @@ export function ProductPageClient({ slug }: Props) {
 
             {/* ── Right column: Sticky smart enquiry form ────────────── */}
             <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-              {vendor && (
+              {vendor && (() => {
+                const variants = (() => {
+                  const v = (product as any).variants;
+                  if (Array.isArray(v)) return v;
+                  if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
+                  return [];
+                })();
+                const selVar = variants[selectedVariant];
+                return (
                 <SmartEnquiryForm
                   vendorId={vendor.id}
                   vendorName={vendor.name}
                   vendorCity={vendor.city}
                   productId={product.id}
-                  productName={product.name}
-                  productPrice={product.price}
+                  productName={selVar ? `${product.name} — ${selVar.name}` : product.name}
+                  productPrice={selVar ? Number(selVar.offerPrice || selVar.price || 0) : (product.offerPrice || product.price)}
                   currencySymbol={symbol}
                   eventType={product.productType || product.packageType || undefined}
                 />
-              )}
+                );
+              })()}
             </aside>
           </div>
         </div>

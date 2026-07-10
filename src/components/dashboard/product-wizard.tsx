@@ -206,7 +206,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     if (form.shortDescription?.trim()) score += 5;
     if (form.metaTitle?.trim()) score += 5;
     if (form.metaDescription?.trim()) score += 5;
-    if (form.tags?.trim()) score += 5;
+    if (typeof form.tags === "string" && form.tags.trim()) score += 5;
     return Math.min(score, 100);
   }, [form]);
 
@@ -223,7 +223,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       score += 25;
       if (form.metaDescription.length >= 120 && form.metaDescription.length <= 160) score += 10;
     }
-    if (form.tags?.trim()) score += 20;
+    if (typeof form.tags === "string" && form.tags.trim()) score += 20;
     if (form.images?.length > 0) score += 10;
     return Math.min(score, 100);
   }, [form]);
@@ -346,6 +346,16 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       toast.error("Please complete all required fields before publishing");
       setStep(1);
       return;
+    }
+    // ── Pre-publish validation warnings ──
+    const warnings: string[] = [];
+    if (!form.images || form.images.length === 0) warnings.push("No images uploaded");
+    if (!form.description || form.description.length < 30) warnings.push("Description is short");
+    if (!form.offerPrice && !form.price) warnings.push("No price set");
+    if (!form.metaTitle) warnings.push("No SEO title");
+    if (!form.metaDescription) warnings.push("No SEO description");
+    if (warnings.length > 0) {
+      toast.warning(`Publishing with warnings: ${warnings.join(", ")}`);
     }
     const payload = {
       ...form,
