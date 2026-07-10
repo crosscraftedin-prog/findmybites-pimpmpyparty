@@ -33,9 +33,19 @@ export function Settings({ vendor, userEmail }: SettingsProps) {
 
   const saveProfile = async () => {
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    toast.success("Settings saved!");
-    setSaving(false);
+    try {
+      const res = await fetch(`/api/vendor/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: displayName }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      toast.success("Settings saved!");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save settings");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDeleteListing = async () => {

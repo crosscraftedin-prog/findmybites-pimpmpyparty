@@ -56,6 +56,10 @@ export function SignInDialog() {
         // Redirect to the claim-token page after sign-in
         const tokenPath = intentStr.replace("claim-token:", "");
         window.location.href = `/claim-token/${tokenPath}`;
+      } else if (intentStr.startsWith("activate:")) {
+        // Redirect to the activate page after sign-in (admin-invite flow)
+        const tokenPath = intentStr.replace("activate:", "");
+        window.location.href = `/activate/${tokenPath}`;
       }
     },
     []

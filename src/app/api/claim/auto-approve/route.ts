@@ -64,11 +64,11 @@ export async function POST(req: NextRequest) {
       WHERE id = ${c.user_id}::uuid AND role = 'customer'
     `;
 
-    // Notification
+    // Notification (using correct schema: recipientType, recipientId, actionUrl)
     await db.$executeRaw`
-      INSERT INTO public.notifications (user_id, title, message, link)
-      VALUES (${c.user_id}::uuid, 'Claim approved', 'Your business claim has been approved. Welcome aboard!', '/dashboard')
-    `;
+      INSERT INTO public.notifications ("recipientType", "recipientId", type, title, message, "actionUrl", read, "createdAt")
+      VALUES ('vendor', ${c.vendor_id}::text, 'claim_approved', 'Business Claimed!', 'Your business claim has been approved. Welcome aboard!', '/dashboard', false, NOW())
+    `.catch(() => {}); // Non-critical — don't fail the claim if notification insert fails
 
     // Audit log
     await db.$executeRaw`

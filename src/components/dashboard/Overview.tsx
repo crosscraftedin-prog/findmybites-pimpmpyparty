@@ -40,7 +40,9 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
     { label: "Gallery photos added", done: vendor.gallery.length >= 3, tab: "listing" as DashboardTab },
     { label: "Description written", done: vendor.description.trim().length >= 20, tab: "listing" as DashboardTab },
     { label: "WhatsApp number added", done: !!vendor.whatsapp, tab: "listing" as DashboardTab },
-    { label: "Availability set", done: !!vendor.openHours, tab: "availability" as DashboardTab },
+    { label: "Business hours set", done: !!vendor.openHours, tab: "availability" as DashboardTab },
+    { label: "Products added", done: false, tab: "products" as DashboardTab },
+    { label: "SEO title set", done: !!vendor.metaTitle, tab: "listing" as DashboardTab },
   ];
   const completedCount = checklist.filter((c) => c.done).length;
   const completionPct = Math.round((completedCount / checklist.length) * 100);
@@ -52,11 +54,30 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
 
   return (
     <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
-      {/* ── A) Welcome banner ── */}
+      {/* ── A) Welcome banner + Business Status ── */}
       <div className="mb-6">
         <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
           Welcome back, {vendor.name}! 👋
         </h1>
+        {/* Business Status Card */}
+        <div className={cn(
+          "mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold",
+          vendor.approved
+            ? "bg-emerald-100 text-emerald-700"
+            : "bg-amber-100 text-amber-700"
+        )}>
+          {vendor.approved ? (
+            <>
+              <CheckCircle2 className="size-4" />
+              Business Live
+            </>
+          ) : (
+            <>
+              <Circle className="size-4" />
+              Pending Approval
+            </>
+          )}
+        </div>
         {isFreePlan ? (
           <div className="mt-4 rounded-xl border border-brand-border bg-brand-soft p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
