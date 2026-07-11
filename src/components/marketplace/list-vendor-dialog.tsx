@@ -45,6 +45,15 @@ export function ListVendorDialog() {
     }
   }, [open]);
 
+  // ── Hide floating AI widget while the business listing dialog is open ──
+  React.useEffect(() => {
+    if (open) {
+      window.dispatchEvent(new Event("fullscreen-overlay-open"));
+    } else {
+      window.dispatchEvent(new Event("fullscreen-overlay-close"));
+    }
+  }, [open]);
+
   const handleView = () => {
     if (!created) return;
     const slug = created.slug;

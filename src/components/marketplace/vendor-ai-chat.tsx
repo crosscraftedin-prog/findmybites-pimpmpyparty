@@ -86,11 +86,8 @@ export function VendorAIChat({ vendorId, vendorName, vendorCategory, vendorCity 
       
         {!open && (
           <button
-            
-            
-            
             onClick={() => setOpen(true)}
-            className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-bold text-brand-foreground shadow-xl transition-transform hover:scale-105"
+            className="fixed right-4 z-40 flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-bold text-brand-foreground shadow-xl transition-transform hover:scale-105 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6"
           >
             <Sparkles className="size-5" />
             Ask this Vendor

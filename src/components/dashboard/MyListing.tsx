@@ -744,9 +744,34 @@ export function MyListing({ vendor }: MyListingProps) {
         {/* Left: guided wizard + form */}
         <div>
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); const idx = WIZARD_STEPS.findIndex(s => s.tab === v); if (idx >= 0) setWizardStep(idx); }}>
-        {/* Guided wizard progress bar */}
-        <div className="mb-4 overflow-x-auto">
-          <div className="flex items-center gap-1 min-w-max pb-1">
+        {/* ── Mobile: compact "Step X of 9" + progress bar ── */}
+        <div className="mb-4 sm:hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold">
+              Step {wizardStep + 1} of {WIZARD_STEPS.length}
+            </span>
+            <span className="text-xs text-muted-foreground">{WIZARD_STEPS[wizardStep]?.label}</span>
+          </div>
+          <div className="mt-1.5 flex gap-0.5">
+            {WIZARD_STEPS.map((step, idx) => {
+              const isCompleted = idx < wizardStep;
+              const isActive = idx === wizardStep;
+              return (
+                <div
+                  key={step.id}
+                  className={cn(
+                    "h-1 flex-1 rounded-full transition-colors",
+                    isCompleted ? "bg-emerald-500" : isActive ? "bg-brand" : "bg-muted"
+                  )}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Desktop: full guided wizard progress bar with pills ── */}
+        <div className="mb-4 hidden sm:block">
+          <div className="flex min-w-max items-center gap-1 pb-1">
             {WIZARD_STEPS.map((step, idx) => {
               const Icon = step.icon;
               const isActive = activeTab === step.tab;

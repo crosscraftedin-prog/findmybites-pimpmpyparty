@@ -482,6 +482,23 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     return true;
   }, [step, form]);
 
+  // ── Touch swipe navigation (mobile) ──
+  const touchStartX = React.useRef<number | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const dx = (e.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current;
+    const threshold = 60; // px
+    if (dx < -threshold && step < 8 && canProceed) {
+      setStep(step + 1); // swipe left → next
+    } else if (dx > threshold && step > 1) {
+      setStep(step - 1); // swipe right → back
+    }
+    touchStartX.current = null;
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       {/* Header */}
@@ -565,8 +582,12 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         </div>
       </div>
 
-      {/* Step Content */}
-      <div className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      {/* Step Content — swipeable on mobile */}
+      <div
+        className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         <div className="mx-auto max-w-2xl">
           <AnimatePresence mode="wait">
             <motion.div
@@ -1294,6 +1315,10 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
 
       {/* Footer */}
       <div className="border-t border-border bg-card px-4 py-3 [padding-bottom:calc(env(safe-area-inset-bottom)+0.75rem)]">
+        {/* Swipe hint (mobile only) */}
+        <p className="mb-1.5 text-center text-[10px] text-muted-foreground sm:hidden">
+          ← Swipe to navigate steps →
+        </p>
         <div className="flex items-center justify-between gap-2">
           <div className="flex shrink-0 gap-2">
             {step > 1 && (
