@@ -501,8 +501,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border bg-card px-4 py-3">
+      {/* Header — permanently visible (shrink-0) */}
+      <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-3">
         <div className="flex items-center gap-3">
           <button onClick={onClose} className="grid size-8 place-items-center rounded-full hover:bg-muted">
             <X className="size-5" />
@@ -525,8 +525,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         </div>
       </div>
 
-      {/* Step Progress — mobile: "Step X of Y" + scrollable pills; desktop: full indicator */}
-      <div className="border-b border-border bg-card">
+      {/* Step Progress — permanently visible (shrink-0). Mobile: "Step X of Y" + progress bar; desktop: full indicator */}
+      <div className="shrink-0 border-b border-border bg-card">
         {/* Mobile: compact Step X of Y */}
         <div className="flex items-center justify-between px-4 py-1.5 sm:hidden">
           <span className="text-xs font-semibold">
@@ -1313,8 +1313,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="border-t border-border bg-card px-4 py-3 [padding-bottom:calc(env(safe-area-inset-bottom)+0.75rem)]">
+      {/* Footer — permanently visible (shrink-0) + safe-area */}
+      <div className="shrink-0 border-t border-border bg-card px-4 py-3 [padding-bottom:calc(env(safe-area-inset-bottom)+0.75rem)]">
         {/* Swipe hint (mobile only) */}
         <p className="mb-1.5 text-center text-[10px] text-muted-foreground sm:hidden">
           ← Swipe to navigate steps →

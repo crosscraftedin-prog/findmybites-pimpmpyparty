@@ -713,8 +713,8 @@ export function MyListing({ vendor }: MyListingProps) {
         <SuccessScreen vendorName={form.name || vendor.name} onAction={handleSuccessAction} />
       )}
 
-      {/* Header */}
-      <div className="sticky top-0 z-10 -mx-4 mb-6 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      {/* Header + Step indicator — sticky so they stay visible while scrolling */}
+      <div className="sticky top-0 z-10 -mx-4 mb-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Editing</p>
@@ -737,15 +737,9 @@ export function MyListing({ vendor }: MyListingProps) {
             </Button>
           </div>
         </div>
-      </div>
 
-      {/* 2-column layout: form + sidebar */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        {/* Left: guided wizard + form */}
-        <div>
-      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); const idx = WIZARD_STEPS.findIndex(s => s.tab === v); if (idx >= 0) setWizardStep(idx); }}>
-        {/* ── Mobile: compact "Step X of 9" + progress bar ── */}
-        <div className="mb-4 sm:hidden">
+        {/* ── Mobile: "Step X of 9" + progress bar (inside sticky header) ── */}
+        <div className="mt-2 sm:hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold">
               Step {wizardStep + 1} of {WIZARD_STEPS.length}
@@ -768,7 +762,13 @@ export function MyListing({ vendor }: MyListingProps) {
             })}
           </div>
         </div>
+      </div>
 
+      {/* 2-column layout: form + sidebar */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        {/* Left: guided wizard + form */}
+        <div>
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); const idx = WIZARD_STEPS.findIndex(s => s.tab === v); if (idx >= 0) setWizardStep(idx); }}>
         {/* ── Desktop: full guided wizard progress bar with pills ── */}
         <div className="mb-4 hidden sm:block">
           <div className="flex min-w-max items-center gap-1 pb-1">
