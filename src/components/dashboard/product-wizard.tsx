@@ -49,6 +49,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const [autoSaving, setAutoSaving] = React.useState(false);
   const [publishError, setPublishError] = React.useState<string | null>(null);
   const [savedProductSlug, setSavedProductSlug] = React.useState<string | null>(null);
+  const [published, setPublished] = React.useState(false);
 
   const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
   const isFood = vendor.ecosystem === "FINDMYBITES";
@@ -135,22 +136,26 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   // ── Auto-save draft (every 15s) ──
+  // Only auto-save when creating a NEW product (no initialData) AND the user
+  // has entered at least a name. This prevents restoring drafts when editing
+  // existing products or after publish/delete.
   const formRef = React.useRef(form);
   React.useEffect(() => {
     formRef.current = form;
   }, [form]);
 
   const autoSave = React.useCallback(async () => {
+    // Don't auto-save if editing an existing product or if the wizard is done
+    if (initialData || published || publishError) return;
     if (!formRef.current.name?.trim()) return; // don't save empty
     setAutoSaving(true);
     try {
-      // Save to localStorage as draft
       const draftKey = `product-draft-${vendor.id}`;
       localStorage.setItem(draftKey, JSON.stringify({ ...formRef.current, _savedAt: Date.now() }));
       setLastSaved(new Date().toLocaleTimeString());
     } catch {}
     setAutoSaving(false);
-  }, [vendor.id]);
+  }, [vendor.id, initialData, published, publishError]);
 
   React.useEffect(() => {
     const interval = setInterval(autoSave, 15000);
@@ -162,20 +167,34 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     };
   }, [autoSave]);
 
-  // Restore draft on mount
+  // Restore draft on mount — ONLY for new products (no initialData)
+  // and ONLY if a genuine draft exists (has a name and was saved recently)
   React.useEffect(() => {
-    if (!initialData) {
-      const draftKey = `product-draft-${vendor.id}`;
-      const draft = localStorage.getItem(draftKey);
-      if (draft) {
-        try {
-          const parsed = JSON.parse(draft);
-          if (parsed.name && confirm("Found an unsaved draft. Restore it?")) {
-            setForm(parsed);
-            toast.success("Draft restored");
-          }
-        } catch {}
+    if (initialData) return; // Skip for Edit mode — load from DB only
+    const draftKey = `product-draft-${vendor.id}`;
+    const draft = localStorage.getItem(draftKey);
+    if (!draft) return;
+    try {
+      const parsed = JSON.parse(draft);
+      // Only prompt if the draft has meaningful content (name + at least one other field)
+      const hasContent = parsed.name?.trim() && (
+        parsed.description?.trim() || parsed.price || parsed.category ||
+        (parsed.images?.length > 0) || parsed.shortDescription?.trim()
+      );
+      // Check if draft is recent (within 24 hours)
+      const isRecent = parsed._savedAt && (Date.now() - parsed._savedAt < 24 * 60 * 60 * 1000);
+      if (hasContent && isRecent && confirm("Found an unsaved draft. Restore it?")) {
+        // Remove the internal _savedAt field before setting form state
+        const { _savedAt, ...formData } = parsed;
+        setForm(formData);
+        toast.success("Draft restored");
+      } else {
+        // Draft is stale or empty — remove it
+        localStorage.removeItem(draftKey);
       }
+    } catch {
+      // Corrupted draft — remove it
+      localStorage.removeItem(draftKey);
     }
   }, [vendor.id, initialData]);
 
@@ -237,7 +256,6 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const seoLabel = seoScore >= 80 ? "Excellent" : seoScore >= 50 ? "Good" : "Poor";
 
   // ── Success state ──
-  const [published, setPublished] = React.useState(false);
   const [previewDevice, setPreviewDevice] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
 
   // ── AI Product Writer ──
@@ -1040,7 +1058,37 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                         >
                           <Eye className="size-4" /> View Product
                         </Button>
-                        <Button onClick={() => { setPublished(false); setSavedProductSlug(null); setStep(1); setForm({ ...form, name: "", description: "", images: [] }); }} variant="outline" className="gap-1.5">
+                        <Button onClick={() => {
+                          setPublished(false);
+                          setSavedProductSlug(null);
+                          setPublishError(null);
+                          setStep(1);
+                          // Reset to a completely fresh form — don't carry over any previous data
+                          setForm({
+                            name: "", category: vendor.category || "", subCategory: "",
+                            shortDescription: "", description: "", images: [], videoUrl: "",
+                            price: "", offerPrice: "", startingFromPrice: false, priceOnRequest: false,
+                            hidePrice: false, currency: vendor.currency || "INR",
+                            isAvailable: true, status: "draft",
+                            flavours: "", weight: "", servings: "", prepTime: "",
+                            ingredients: "", allergenInfo: "", spicyLevel: "",
+                            eggless: false, vegetarian: false, vegan: false, halal: false,
+                            glutenFree: false, sugarFree: false,
+                            deliveryAvailable: false, pickupAvailable: false,
+                            customOrder: false, sameDay: false,
+                            duration: "", capacity: "", shape: "",
+                            metaTitle: "", metaDescription: "",
+                            tags: "",
+                            variants: [],
+                            stockType: "unlimited", stockCount: "", lowStockThreshold: 5,
+                            maxOrdersPerDay: "", bookingNoticeHours: "",
+                            availabilityMode: "always", availableDays: [],
+                            availabilityStart: "", availabilityEnd: "",
+                            preparationTimeCategory: "", preparationTimeCustom: "",
+                            serviceAreaType: "", serviceCities: [],
+                            seasonLabel: "",
+                          });
+                        }} variant="outline" className="gap-1.5">
                           <Plus className="size-4" /> Add Another
                         </Button>
                         <Button onClick={onClose} className="bg-brand text-brand-foreground hover:bg-brand/90">Go to Dashboard</Button>
