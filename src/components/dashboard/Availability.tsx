@@ -697,24 +697,24 @@ function DayEditorDialog({
                 </Button>
               </div>
               {slots.map((slot, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <Clock className="size-3.5 text-muted-foreground" />
+                <div key={idx} className="flex flex-wrap items-center gap-2">
+                  <Clock className="size-3.5 shrink-0 text-muted-foreground" />
                   <Input
                     type="time"
                     value={slot.start}
                     onChange={(e) => handleSlotChange(idx, "start", e.target.value)}
-                    className="h-8 w-[110px]"
+                    className="h-8 min-w-0 flex-1 sm:w-[110px] sm:flex-none"
                   />
                   <span className="text-xs text-muted-foreground">to</span>
                   <Input
                     type="time"
                     value={slot.end}
                     onChange={(e) => handleSlotChange(idx, "end", e.target.value)}
-                    className="h-8 w-[110px]"
+                    className="h-8 min-w-0 flex-1 sm:w-[110px] sm:flex-none"
                   />
                   <button
                     onClick={() => handleRemoveSlot(idx)}
-                    className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
+                    className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
                     aria-label="Remove slot"
                   >
                     <X className="size-3.5" />

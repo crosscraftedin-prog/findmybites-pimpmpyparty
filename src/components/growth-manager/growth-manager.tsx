@@ -250,12 +250,12 @@ function ProductOptimizerTab({ vendor }: { vendor: Vendor }) {
         const result = results[p.id];
         return (
           <div key={p.id} className="rounded-xl border bg-card p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {p.image && <img loading="lazy" src={p.image} alt={p.name} className="size-10 rounded-lg object-cover" />}
-                <div><p className="text-sm font-semibold">{p.name}</p><p className="text-xs text-muted-foreground">{p.views || 0} views · {p.orderCount || 0} orders</p></div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                {p.image && <img loading="lazy" src={p.image} alt={p.name} className="size-10 shrink-0 rounded-lg object-cover" />}
+                <div className="min-w-0"><p className="truncate text-sm font-semibold">{p.name}</p><p className="text-xs text-muted-foreground">{p.views || 0} views · {p.orderCount || 0} orders</p></div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex shrink-0 items-center gap-2">
                 {result && <span className={cn("text-2xl font-bold", result.score >= 80 ? "text-emerald-600" : result.score >= 50 ? "text-amber-600" : "text-red-600")}>{result.score}<span className="text-xs text-muted-foreground">/100</span></span>}
                 <Button size="sm" variant="outline" onClick={() => optimize(p.id)} disabled={optimizing === p.id}>{optimizing === p.id ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}{result ? "Re-analyze" : "Optimize"}</Button>
               </div>

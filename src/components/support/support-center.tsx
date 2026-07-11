@@ -86,7 +86,7 @@ export function SupportCenter({ vendor }: { vendor: Vendor }) {
       <AnimatePresence mode="wait">
         {view === "list" && (
           <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <StatCard label="Total Tickets" value={stats.total} icon={<MessageCircle className="h-4 w-4" />} />
               <StatCard label="Open" value={stats.open} icon={<Clock className="h-4 w-4" />} tone="amber" />
               <StatCard label="Unread" value={stats.unread} icon={<AlertCircle className="h-4 w-4" />} tone="red" />
@@ -242,7 +242,7 @@ function CreateTicketForm({ vendor, onCreated, onCancel, onShowFaq }: { vendor: 
 
       <div className="space-y-4 rounded-xl border bg-card p-4">
         <h3 className="text-sm font-semibold">Create New Support Ticket</h3>
-        <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/30 p-3 text-xs">
+        <div className="grid grid-cols-1 gap-3 rounded-lg sm:grid-cols-2 bg-muted/30 p-3 text-xs">
           <div><span className="text-muted-foreground">Business:</span> <span className="font-medium">{vendor.name}</span></div>
           <div><span className="text-muted-foreground">Vendor ID:</span> <span className="font-mono">{vendor.id.slice(0, 12)}…</span></div>
         </div>
@@ -250,7 +250,7 @@ function CreateTicketForm({ vendor, onCreated, onCancel, onShowFaq }: { vendor: 
           <Label className="text-xs">Subject *</Label>
           <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Brief summary of your issue" />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="text-xs">Category *</Label>
             <Select value={category} onValueChange={setCategory}>

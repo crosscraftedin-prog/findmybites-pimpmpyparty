@@ -147,6 +147,14 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     formRef.current = form;
   }, [form]);
 
+  // ── Notify floating widgets (AI assistant) to hide while wizard is open ──
+  React.useEffect(() => {
+    window.dispatchEvent(new Event("fullscreen-overlay-open"));
+    return () => {
+      window.dispatchEvent(new Event("fullscreen-overlay-close"));
+    };
+  }, []);
+
   const autoSave = React.useCallback(async () => {
     // Don't auto-save if editing an existing product or if the wizard is done
     if (initialData || published || publishError) return;
@@ -500,35 +508,61 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         </div>
       </div>
 
-      {/* Step Progress */}
-      <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
-        {STEPS.map((s, i) => {
-          const Icon = s.icon;
-          const isActive = step === s.id;
-          const isCompleted = step > s.id;
-          return (
-            <React.Fragment key={s.id}>
-              <button
-                onClick={() => step > s.id && setStep(s.id)}
+      {/* Step Progress — mobile: "Step X of Y" + scrollable pills; desktop: full indicator */}
+      <div className="border-b border-border bg-card">
+        {/* Mobile: compact Step X of Y */}
+        <div className="flex items-center justify-between px-4 py-1.5 sm:hidden">
+          <span className="text-xs font-semibold">
+            Step {step} of {STEPS.length}
+          </span>
+          <span className="text-xs text-muted-foreground">{STEPS[step - 1]?.title}</span>
+        </div>
+        {/* Progress bar (both mobile + desktop) */}
+        <div className="flex gap-0.5 px-4 pb-1.5 sm:gap-1">
+          {STEPS.map((s) => {
+            const isCompleted = step > s.id;
+            const isActive = step === s.id;
+            return (
+              <div
+                key={s.id}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium transition-colors",
-                  isActive ? "bg-brand/10 text-brand" : isCompleted ? "text-emerald-600" : "text-muted-foreground"
+                  "h-1 flex-1 rounded-full transition-colors",
+                  isCompleted ? "bg-emerald-500" : isActive ? "bg-brand" : "bg-muted"
                 )}
-              >
-                <div className={cn(
-                  "grid size-5 place-items-center rounded-full text-[10px]",
-                  isActive ? "bg-brand text-white" : isCompleted ? "bg-emerald-500 text-white" : "bg-muted"
-                )}>
-                  {isCompleted ? <Check className="size-3" /> : s.id}
-                </div>
-                <span className="hidden sm:inline">{s.title}</span>
-              </button>
-              {i < STEPS.length - 1 && (
-                <div className={cn("h-0.5 flex-1", isCompleted ? "bg-emerald-400" : "bg-muted")} />
-              )}
-            </React.Fragment>
-          );
-        })}
+              />
+            );
+          })}
+        </div>
+        {/* Desktop: full step indicator with labels */}
+        <div className="hidden items-center justify-between px-4 py-2 sm:flex">
+          {STEPS.map((s, i) => {
+            const Icon = s.icon;
+            const isActive = step === s.id;
+            const isCompleted = step > s.id;
+            return (
+              <React.Fragment key={s.id}>
+                <button
+                  onClick={() => step > s.id && setStep(s.id)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium transition-colors",
+                    isActive ? "bg-brand/10 text-brand" : isCompleted ? "text-emerald-600" : "text-muted-foreground"
+                  )}
+                >
+                  <div className={cn(
+                    "grid size-5 place-items-center rounded-full text-[10px]",
+                    isActive ? "bg-brand text-white" : isCompleted ? "bg-emerald-500 text-white" : "bg-muted"
+                  )}>
+                    {isCompleted ? <Check className="size-3" /> : s.id}
+                  </div>
+                  <span>{s.title}</span>
+                </button>
+                {i < STEPS.length - 1 && (
+                  <div className={cn("h-0.5 flex-1", isCompleted ? "bg-emerald-400" : "bg-muted")} />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
       </div>
 
       {/* Step Content */}
@@ -1259,28 +1293,30 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between border-t border-border bg-card px-4 py-3">
-        <div className="flex gap-2">
-          {step > 1 && (
-            <Button variant="outline" onClick={() => setStep(step - 1)} className="gap-1">
-              <ChevronLeft className="size-4" /> Back
+      <div className="border-t border-border bg-card px-4 py-3 [padding-bottom:calc(env(safe-area-inset-bottom)+0.75rem)]">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex shrink-0 gap-2">
+            {step > 1 && (
+              <Button variant="outline" onClick={() => setStep(step - 1)} className="gap-1" size="sm">
+                <ChevronLeft className="size-4" /> Back
+              </Button>
+            )}
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="ghost" onClick={handleSaveDraft} disabled={saving} size="sm" className="hidden sm:inline-flex">
+              Save Draft
             </Button>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={handleSaveDraft} disabled={saving}>
-            Save Draft
-          </Button>
-          {step < 8 ? (
-            <Button onClick={() => setStep(step + 1)} disabled={!canProceed} className="gap-1 bg-brand text-brand-foreground hover:bg-brand/90">
-              Next <ChevronRight className="size-4" />
-            </Button>
-          ) : (
-            <Button onClick={handlePublish} disabled={saving || !validation.allPassed || published} className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
-              {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-              Publish
-            </Button>
-          )}
+            {step < 8 ? (
+              <Button onClick={() => setStep(step + 1)} disabled={!canProceed} className="gap-1 bg-brand text-brand-foreground hover:bg-brand/90" size="sm">
+                Next <ChevronRight className="size-4" />
+              </Button>
+            ) : (
+              <Button onClick={handlePublish} disabled={saving || !validation.allPassed || published} className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700" size="sm">
+                {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                Publish
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

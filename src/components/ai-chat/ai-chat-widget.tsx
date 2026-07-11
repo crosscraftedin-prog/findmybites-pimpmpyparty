@@ -16,6 +16,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useCategoryLabels } from "@/hooks/use-category-labels";
+import { useKeyboardOpen } from "@/hooks/use-keyboard-open";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -74,10 +75,24 @@ interface ChatMessage {
 export function AIChatWidget() {
   const [open, setOpen] = React.useState(false);
   const [showTooltip, setShowTooltip] = React.useState(false);
+  const [overlayOpen, setOverlayOpen] = React.useState(false);
+  const keyboardOpen = useKeyboardOpen();
 
   // ── Route-aware: only show on marketplace pages (not vendor/product/dashboard) ──
   const pathname = usePathname();
   const showWidget = isMarketplacePage(pathname);
+
+  // ── Hide when a full-screen overlay (product wizard, vendor wizard, etc.) is open ──
+  React.useEffect(() => {
+    const onOpen = () => setOverlayOpen(true);
+    const onClose = () => setOverlayOpen(false);
+    window.addEventListener("fullscreen-overlay-open", onOpen as EventListener);
+    window.addEventListener("fullscreen-overlay-close", onClose as EventListener);
+    return () => {
+      window.removeEventListener("fullscreen-overlay-open", onOpen as EventListener);
+      window.removeEventListener("fullscreen-overlay-close", onClose as EventListener);
+    };
+  }, []);
 
   React.useEffect(() => {
     const t = setTimeout(() => setShowTooltip(true), 3000);
@@ -98,12 +113,13 @@ export function AIChatWidget() {
     return () => window.removeEventListener("open-josh-chat", handleOpen as EventListener);
   }, []);
 
-  // ── Don't render on vendor/product/dashboard pages ──
-  if (!showWidget) return null;
+  // ── Don't render on vendor/product/dashboard pages, when overlay is open,
+  //    or when the mobile keyboard is open (prevents covering inputs) ──
+  if (!showWidget || overlayOpen || (keyboardOpen && !open)) return null;
 
   return (
     <>
-      <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
+      <div className="fixed right-4 z-50 flex flex-col items-end gap-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-5">
         <AnimatePresence>
           {showTooltip && !open && (
             <motion.div
