@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import {
   Loader2,
   Send,
-  Store,
   CheckCircle2,
   Clock,
   Eye,
@@ -14,6 +13,7 @@ import {
   Navigation,
   UtensilsCrossed,
   PartyPopper,
+  LayoutDashboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1054,26 +1054,42 @@ function Field({
 export function CreateVendorSuccess({
   vendor,
   onView,
-  onAgain,
+  onGoToDashboard,
 }: {
   vendor: Vendor;
   onView: () => void;
-  onAgain: () => void;
+  onGoToDashboard: () => void;
 }) {
   const [showUpgrade, setShowUpgrade] = React.useState(false);
   const brand = vendor.ecosystem === "FINDMYBITES" ? "food" : "party";
 
+  // One account → one business. Status reflects the actual approval state.
+  const isApproved = vendor.approved === true;
+  const StatusIcon = isApproved ? CheckCircle2 : Clock;
+  const statusAccent = isApproved ? "bg-emerald-500" : "bg-amber-500";
+  const statusText = isApproved ? "text-emerald-500" : "text-amber-500";
+  const statusLabel = isApproved ? "Live" : "Pending Approval";
+  const heading = isApproved ? "You're live! 🎉" : "Submitted for approval! ⏳";
+  const description = isApproved
+    ? "is now live and visible worldwide on the marketplace."
+    : "has been submitted and is pending admin approval. Once approved, it will appear publicly on the marketplace.";
+
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-brand-border bg-brand-soft p-8 text-center">
-      <div className="grid size-16 place-items-center rounded-full bg-amber-500 text-white shadow-lg">
-        <Clock className="size-8" />
+      <div className={`grid size-16 place-items-center rounded-full ${statusAccent} text-white shadow-lg`}>
+        <StatusIcon className="size-8" />
       </div>
-      <h3 className="mt-4 text-xl font-bold">Submitted for approval! ⏳</h3>
+      <h3 className="mt-4 text-xl font-bold">{heading}</h3>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        <span className="font-semibold text-foreground">{vendor.name}</span> has
-        been submitted and is pending admin approval. Once approved, it will
-        appear publicly on the marketplace.
+        <span className="font-semibold text-foreground">{vendor.name}</span>{" "}
+        {description}
       </p>
+
+      {/* Status badge */}
+      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-brand-border bg-background px-3 py-1 text-xs font-semibold">
+        <StatusIcon className={`size-3.5 ${statusText}`} />
+        {statusLabel}
+      </div>
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
         <span className="rounded-md bg-background px-2 py-1 text-xs font-medium">
@@ -1107,16 +1123,18 @@ export function CreateVendorSuccess({
       </div>
 
       <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+        {/* Primary CTA — one account, one business → go to dashboard */}
         <Button
-          onClick={onView}
+          onClick={onGoToDashboard}
           className="bg-brand text-brand-foreground hover:bg-brand/90"
         >
+          <LayoutDashboard className="size-4" />
+          Go to Dashboard
+        </Button>
+        {/* Secondary CTA — preview the live/pending listing */}
+        <Button variant="outline" onClick={onView}>
           <Eye className="size-4" />
           View my listing
-        </Button>
-        <Button variant="outline" onClick={onAgain}>
-          <Store className="size-4" />
-          Add another business
         </Button>
       </div>
 

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Store, Sparkles, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Store, Sparkles, Pencil, CheckCircle2, Clock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,8 @@ export function ListVendorDialog() {
   const ecosystem = useMarketplace((s) => s.ecosystem);
   const openVendor = useMarketplace((s) => s.openVendor);
   const editingSlug = useMarketplace((s) => s.editingSlug);
+
+  const router = useRouter();
 
   // fetch the vendor being edited (only when editingSlug is set)
   const { data: editingVendorData } = useVendor(editingSlug);
@@ -49,6 +52,13 @@ export function ListVendorDialog() {
     setTimeout(() => openVendor(slug), 150);
   };
 
+  // One account → one business: after publishing, send the vendor to their
+  // dashboard rather than offering to create another business.
+  const handleGoToDashboard = () => {
+    close();
+    setTimeout(() => router.push("/dashboard"), 150);
+  };
+
   const handleUpdated = (v: Vendor) => {
     setUpdated(true);
     // stash the updated vendor so the success screen can show it
@@ -63,6 +73,9 @@ export function ListVendorDialog() {
   };
 
   const showSuccess = isEditing ? updated : !!created;
+  // For a newly created vendor the header should reflect the actual approval
+  // state (Pending Approval / Live) instead of always claiming "You're live!".
+  const createdApproved = created?.approved === true;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
@@ -87,7 +100,9 @@ export function ListVendorDialog() {
                 {showSuccess
                   ? isEditing
                     ? "Updated!"
-                    : "You're live!"
+                    : createdApproved
+                      ? "You're live!"
+                      : "Submitted!"
                   : isEditing
                     ? "Edit your business"
                     : "List your business"}
@@ -96,16 +111,35 @@ export function ListVendorDialog() {
                 {showSuccess
                   ? isEditing
                     ? "Your changes have been saved."
-                    : "Your listing is now visible worldwide."
+                    : createdApproved
+                      ? "Your listing is now visible worldwide."
+                      : "Your listing is pending admin approval."
                   : isEditing
                     ? `Update your ${ECOSYSTEM_META[ecosystem].label} listing.`
                     : `Join ${ECOSYSTEM_META[ecosystem].label} — it's free and takes 2 minutes.`}
               </p>
             </div>
-            <Badge className="ml-auto hidden border-0 bg-brand-soft text-brand-soft-foreground sm:inline-flex">
-              <Sparkles className="size-3" />
-              {ECOSYSTEM_META[ecosystem].label}
-            </Badge>
+            {showSuccess && !isEditing ? (
+              <Badge
+                className={`ml-auto hidden border-0 sm:inline-flex ${
+                  createdApproved
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-amber-100 text-amber-700"
+                }`}
+              >
+                {createdApproved ? (
+                  <CheckCircle2 className="size-3" />
+                ) : (
+                  <Clock className="size-3" />
+                )}
+                {createdApproved ? "Live" : "Pending Approval"}
+              </Badge>
+            ) : (
+              <Badge className="ml-auto hidden border-0 bg-brand-soft text-brand-soft-foreground sm:inline-flex">
+                <Sparkles className="size-3" />
+                {ECOSYSTEM_META[ecosystem].label}
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -116,7 +150,7 @@ export function ListVendorDialog() {
               <CreateVendorSuccess
                 vendor={created}
                 onView={handleView}
-                onAgain={() => setCreated(null)}
+                onGoToDashboard={handleGoToDashboard}
               />
             ) : isEditing && updated && created ? (
               <EditSuccess
