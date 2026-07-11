@@ -76,6 +76,8 @@ export function buildFilterSummary(state: ConversationState): JoshFilterSummary[
   if (state.budget) filters.push({ key: "budget", value: String(state.budget) });
   if (state.dietaryRequirements?.length)
     filters.push({ key: "dietary", value: state.dietaryRequirements.join(", ") });
+  if (state.attributeSlugs?.length)
+    filters.push({ key: "attributes", value: state.attributeSlugs.join(", ") });
   if (state.eventDate) filters.push({ key: "date", value: state.eventDate });
   if (state.guestCount) filters.push({ key: "guests", value: String(state.guestCount) });
   if (state.deliveryRequired) filters.push({ key: "delivery", value: "yes" });
@@ -160,6 +162,21 @@ export async function searchVendors(
           return tagsLower.some((t) => t.includes(dl) || t.includes(dl.replace("-", " ")));
         });
       });
+    }
+
+    // Global Attribute System — filter vendors by extracted attribute slugs.
+    // Uses the indexed vendor_attributes table (not tag substring matching).
+    if (state.attributeSlugs && state.attributeSlugs.length > 0) {
+      try {
+        const { findVendorIdsByAttributes } = await import("@/lib/attributes/attribute-service");
+        const matchedIds = await findVendorIdsByAttributes(state.attributeSlugs, {
+          category: state.category ?? undefined,
+        });
+        const matchedSet = new Set(matchedIds);
+        vendors = vendors.filter((v) => matchedSet.has(v.id));
+      } catch (attrErr) {
+        console.error("[josh-search] attribute filter failed (non-fatal):", attrErr);
+      }
     }
 
     // Fetch top products from the matched vendors (for SEARCH_VENDORS / REFINE)

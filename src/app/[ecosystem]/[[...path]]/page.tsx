@@ -28,6 +28,8 @@ import {
   type SEOPage,
   type SEOCity,
 } from "@/lib/seo-data";
+import { parseAttributeSeoPath, generateAttributePageJsonLd, type AttributeSeoPage } from "@/lib/attributes/attribute-seo";
+import { findVendorIdsByAttributes, getAttributeBySlug } from "@/lib/attributes/attribute-service";
 import {
   generateKeywordMetadata,
   generateCityMetadata,
@@ -136,8 +138,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: "Not Found" };
   }
 
-  // 3. Keyword page (single segment) or city page (single segment)
+  // 3. Attribute SEO page (single segment): /{attribute}-{category}
   if (!path || path.length === 0) {
+    const attrParsed = parseAttributeSeoPath(`/${firstSegment}`);
+    if (attrParsed) {
+      const attr = await getAttributeBySlug(attrParsed.attributeSlug);
+      if (attr) {
+        const catLabel = attrParsed.categorySlug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        return {
+          title: `${attr.name} ${catLabel} — Best ${attr.name} ${catLabel} Near You | FindMyBites`,
+          description: `Discover the best ${attr.name.toLowerCase()} ${catLabel.toLowerCase()} from verified vendors. Browse ${attr.name.toLowerCase()} options with delivery, pickup, and custom orders.`,
+          alternates: { canonical: `/${firstSegment}` },
+        };
+      }
+    }
+
     const keywordPage = await resolveKeywordPage(firstSegment);
     if (keywordPage) return generateKeywordMetadata(keywordPage);
 
@@ -145,6 +160,23 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     if (city) return generateCityMetadata(city);
 
     return { title: "Not Found" };
+  }
+
+  // 3b. City + Attribute page (two segments): /{city}/{attribute}-{category}
+  if (path && path.length === 1) {
+    const attrParsed = parseAttributeSeoPath(`/${firstSegment}/${path[0]}`);
+    if (attrParsed && attrParsed.city) {
+      const attr = await getAttributeBySlug(attrParsed.attributeSlug);
+      if (attr) {
+        const catLabel = attrParsed.categorySlug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        const cityLabel = attrParsed.city.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        return {
+          title: `${attr.name} ${catLabel} in ${cityLabel} — Best Local ${attr.name} ${catLabel} | FindMyBites`,
+          description: `Find the best ${attr.name.toLowerCase()} ${catLabel.toLowerCase()} in ${cityLabel}. Browse verified local vendors offering ${attr.name.toLowerCase()} options.`,
+          alternates: { canonical: `/${firstSegment}/${path[0]}` },
+        };
+      }
+    }
   }
 
   return { title: "Not Found" };
@@ -174,8 +206,20 @@ export default async function SeoRoute({ params }: PageProps) {
     notFound();
   }
 
-  // ── 3. Keyword page (single segment): /{category}-{city} ───────────────
+  // ── 3. Attribute SEO page (single segment): /{attribute}-{category} ─────
+  // e.g. /findmybites/sugar-free-cakes, /pimpmyparty/luxury-events
   if (!path || path.length === 0) {
+    const attrParsed = parseAttributeSeoPath(`/${firstSegment}`);
+    if (attrParsed) {
+      // Attribute pages can belong to either ecosystem; default to FINDMYBITES
+      // unless the first segment itself is an ecosystem (which it isn't here,
+      // since ecosystem pages are handled above).
+      return renderAttributePage(attrParsed, (ecosystem ?? "FINDMYBITES") as Ecosystem);
+    }
+
+    // ── 3b. City + Attribute page (two segments): /{city}/{attribute}-{category} ──
+    // (handled below in the 2-segment block)
+
     const keywordPage = await resolveKeywordPage(firstSegment);
     if (keywordPage) {
       return renderKeywordPage(keywordPage);
@@ -188,6 +232,14 @@ export default async function SeoRoute({ params }: PageProps) {
     }
 
     notFound();
+  }
+
+  // ── 3c. City + Attribute page (two segments): /{city}/{attribute}-{category} ──
+  if (path && path.length === 1) {
+    const attrParsed = parseAttributeSeoPath(`/${firstSegment}/${path[0]}`);
+    if (attrParsed && attrParsed.city) {
+      return renderAttributePage(attrParsed, (ecosystem ?? "FINDMYBITES") as Ecosystem);
+    }
   }
 
   notFound();
@@ -426,4 +478,115 @@ function parseEcosystemPath(ecosystem: Ecosystem, path: string[]): SEOContext | 
   if (path.length === 2) return { ecosystem, country: path[0], city: path[1] };
   if (path.length === 3) return { ecosystem, country: path[0], city: path[1], category: path[2] };
   return null;
+}
+
+// ── Attribute SEO page renderer ────────────────────────────────────────────
+// Renders /{attribute}-{category} and /{city}/{attribute}-{category} pages.
+// Fetches vendors matching the attribute, generates JSON-LD + breadcrumbs.
+async function renderAttributePage(
+  parsed: { city: string | null; attributeSlug: string; categorySlug: string },
+  ecosystem: Ecosystem
+) {
+  const { city, attributeSlug, categorySlug } = parsed;
+
+  // Fetch the attribute (for name, color, description)
+  const attr = await getAttributeBySlug(attributeSlug);
+  if (!attr) notFound();
+
+  // Map category slug to the Vendor.category value used in the DB
+  // (may need migration for old slugs)
+  const catLabel = categorySlug
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+  // Build the SEO page object
+  const cityLabel = city
+    ? city.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+    : null;
+
+  const page: AttributeSeoPage = {
+    path: city ? `/${city}/${attributeSlug}-${categorySlug}` : `/${attributeSlug}-${categorySlug}`,
+    attributeSlug,
+    attributeName: attr.name,
+    categorySlug,
+    categoryLabel: catLabel,
+    city,
+    h1: city
+      ? `${attr.name} ${catLabel} in ${cityLabel}`
+      : `${attr.name} ${catLabel}`,
+    metaTitle: city
+      ? `${attr.name} ${catLabel} in ${cityLabel} — Best Local ${attr.name} ${catLabel} | FindMyBites`
+      : `${attr.name} ${catLabel} — Best ${attr.name} ${catLabel} Near You | FindMyBites`,
+    metaDescription: `Discover the best ${attr.name.toLowerCase()} ${catLabel.toLowerCase()}${
+      city ? ` in ${cityLabel}` : ""
+    } from verified vendors. Browse ${attr.name.toLowerCase()} options with delivery, pickup, and custom orders.`,
+    variant: city ? "city-attribute-category" : "attribute-category",
+  };
+
+  // Find vendors matching this attribute + category + ecosystem
+  let vendors: any[] = [];
+  let total = 0;
+  try {
+    const matchedIds = await findVendorIdsByAttributes([attributeSlug], {
+      ecosystem,
+      category: categorySlug,
+    });
+    if (matchedIds.length > 0) {
+      const vendorRows = await db.vendor.findMany({
+        where: {
+          id: { in: matchedIds },
+          approved: true,
+          ...(city && cityLabel
+            ? { city: { contains: cityLabel, mode: "insensitive" as const } }
+            : {}),
+        },
+        select: {
+          id: true, name: true, slug: true, category: true, tagline: true,
+          city: true, country: true, countryCode: true, rating: true,
+          reviewCount: true, priceRange: true, basePrice: true, currency: true,
+          heroImage: true, avatarImage: true, verified: true, featured: true,
+          responseTime: true, tags: true,
+        },
+        orderBy: [{ featured: "desc" }, { rating: "desc" }],
+        take: 24,
+      });
+      vendors = vendorRows;
+      total = vendorRows.length;
+    }
+  } catch (e) {
+    // Non-fatal — render the page with no vendors
+  }
+
+  // Generate JSON-LD
+  const { breadcrumb, itemList } = generateAttributePageJsonLd(page, vendors);
+
+  // Breadcrumbs for the UI
+  const breadcrumbs = [
+    { label: "Home", url: "/" },
+    { label: ecosystem === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty", url: `/${ecosystem.toLowerCase()}` },
+    { label: catLabel, url: `/${ecosystem.toLowerCase()}/${categorySlug}` },
+    ...(city ? [{ label: cityLabel!, url: `/${ecosystem.toLowerCase()}/${city}` }] : []),
+    { label: `${attr.name} ${catLabel}`, url: page.path },
+  ];
+
+  return (
+    <AutoSEOLanding
+      variant="keyword"
+      page={{
+        slug: page.path.replace(/^\//, ""),
+        h1: page.h1,
+        title: page.metaTitle,
+        description: page.metaDescription,
+        ecosystem,
+        category: categorySlug,
+        city: city ?? undefined,
+      } as any}
+      vendors={vendors}
+      total={total}
+      related={[]}
+      jsonLd={[breadcrumb, itemList].filter(Boolean) as Record<string, any>[]}
+      breadcrumbs={breadcrumbs}
+    />
+  );
 }

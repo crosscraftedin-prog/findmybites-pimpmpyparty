@@ -52,6 +52,9 @@ export interface ConversationState {
 
   // ── Search refinement ──
   filterOverrides: Record<string, string[]>; // e.g. {"Dietary Options": ["Eggless"]}
+  // Global Attribute System — slugs extracted from natural language
+  // e.g. "sugar free cake" → ["sugar-free"], "keto vegan cookies" → ["keto","vegan"]
+  attributeSlugs: string[];
   onlyVerified: boolean;
   onlyFeatured: boolean;
   onlyAvailable: boolean;
@@ -85,6 +88,7 @@ export const DEFAULT_STATE: ConversationState = {
   vendorDashboardSection: null,
   adminReportType: null,
   filterOverrides: {},
+  attributeSlugs: [],
   onlyVerified: false,
   onlyFeatured: false,
   onlyAvailable: false,
@@ -147,6 +151,96 @@ const DIETARY_KEYWORDS: Record<string, string[]> = {
   "Kosher": ["kosher"],
 };
 
+/**
+ * Global Attribute System — keyword → slug mapping for NL extraction.
+ * This powers Josh AI's ability to understand "sugar free birthday cake"
+ * → attribute=sugar-free + category=bakers-bakery + occasion=birthday.
+ *
+ * Keys are natural-language phrases the user might type; values are the
+ * canonical attribute slugs from the seed data.
+ */
+const ATTRIBUTE_KEYWORDS: Record<string, string> = {
+  // Dietary
+  "sugar free": "sugar-free",
+  "sugarless": "sugar-free",
+  "no sugar": "sugar-free",
+  "gluten free": "gluten-free",
+  "gluten-free": "gluten-free",
+  "keto": "keto",
+  "ketogenic": "keto",
+  "low carb": "low-carb",
+  "vegan": "vegan",
+  "eggless": "eggless",
+  "egg less": "eggless",
+  "egg free": "eggless",
+  "dairy free": "dairy-free",
+  "dairy-free": "dairy-free",
+  "lactose free": "dairy-free",
+  "nut free": "nut-free",
+  "nut-free": "nut-free",
+  "organic": "organic",
+  "halal": "halal",
+  "jain": "jain-friendly",
+  "jain friendly": "jain-friendly",
+  "diabetic": "diabetic-friendly",
+  "diabetic friendly": "diabetic-friendly",
+  "diabetes friendly": "diabetic-friendly",
+  "high protein": "high-protein",
+  "no preservatives": "no-preservatives",
+  "preservative free": "no-preservatives",
+  "no artificial colors": "no-artificial-colors",
+  "no artificial colours": "no-artificial-colors",
+  // Service
+  "same day delivery": "same-day-delivery",
+  "same day": "same-day-delivery",
+  "midnight delivery": "midnight-delivery",
+  "midnight": "midnight-delivery",
+  "pickup": "pickup-available",
+  "pick up": "pickup-available",
+  "home delivery": "home-delivery",
+  "custom order": "custom-orders",
+  "customized": "custom-orders",
+  "bespoke": "custom-orders",
+  "corporate": "corporate-orders",
+  "bulk order": "bulk-orders",
+  "bulk": "bulk-orders",
+  "gift wrap": "gift-wrapping",
+  "gift wrapping": "gift-wrapping",
+  // Product features
+  "bestseller": "bestseller",
+  "best seller": "bestseller",
+  "premium": "premium",
+  "handmade": "handmade",
+  "hand made": "handmade",
+  "fresh daily": "fresh-daily",
+  "chef recommended": "chef-recommended",
+  "seasonal": "seasonal",
+  "limited edition": "limited-edition",
+  // Business
+  "gst registered": "gst-registered",
+  "gst": "gst-registered",
+  "fssai": "fssai-certified",
+  "fssai certified": "fssai-certified",
+  "home baker": "home-baker",
+  "home bakery": "home-baker",
+  "commercial kitchen": "commercial-kitchen",
+  "women owned": "women-owned",
+  "woman owned": "women-owned",
+  "family business": "family-business",
+  // Party attributes
+  "outdoor": "outdoor-events",
+  "luxury": "luxury-events",
+  "destination wedding": "destination-wedding",
+  "budget friendly": "budget-friendly",
+  "affordable": "budget-friendly",
+  "corporate event": "corporate-events",
+  "kids friendly": "kids-friendly",
+  "kid friendly": "kids-friendly",
+  "indoor venue": "indoor-venue",
+  "live music": "live-music",
+  "photography included": "photography-included",
+};
+
 const SORT_KEYWORDS: Record<string, string[]> = {
   "rating": ["best rated", "top rated", "highest rated", "best reviews"],
   "price-asc": ["cheaper", "cheapest", "lowest price", "most affordable", "budget"],
@@ -206,7 +300,7 @@ export function extractFromMessage(message: string): Partial<ConversationState> 
     updates.eventDate = dateMatch[0];
   }
 
-  // Dietary
+  // Dietary (legacy — maps to human-readable labels)
   const dietary: string[] = [];
   for (const [label, keywords] of Object.entries(DIETARY_KEYWORDS)) {
     if (keywords.some((k) => lower.includes(k))) {
@@ -215,6 +309,20 @@ export function extractFromMessage(message: string): Partial<ConversationState> 
   }
   if (dietary.length > 0) {
     updates.dietaryRequirements = dietary;
+  }
+
+  // Global Attribute System — extract attribute slugs from natural language.
+  // This powers ?attribute=sugar-free,keto filtering in the search API.
+  // Sort keywords by length (longest first) so "sugar free" matches before "free".
+  const attrSlugs = new Set<string>();
+  const sortedKeys = Object.keys(ATTRIBUTE_KEYWORDS).sort((a, b) => b.length - a.length);
+  for (const keyword of sortedKeys) {
+    if (lower.includes(keyword)) {
+      attrSlugs.add(ATTRIBUTE_KEYWORDS[keyword]);
+    }
+  }
+  if (attrSlugs.size > 0) {
+    updates.attributeSlugs = Array.from(attrSlugs);
   }
 
   // Delivery / Pickup
@@ -288,6 +396,11 @@ export function mergeState(
   }
   if (updates.productIdsDiscussed) {
     merged.productIdsDiscussed = [...new Set([...(merged.productIdsDiscussed || []), ...updates.productIdsDiscussed])];
+  }
+
+  // Global Attribute System — merge attribute slugs (dedupe)
+  if (updates.attributeSlugs) {
+    merged.attributeSlugs = [...new Set([...(merged.attributeSlugs || []), ...updates.attributeSlugs])];
   }
 
   // Filter overrides — merge by key

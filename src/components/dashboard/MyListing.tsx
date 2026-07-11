@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Eye, Save, Loader2, Store, MapPin, Phone, Clock, Truck, Image as ImageIcon,
   Search, Check, Plus, X, Star, Sparkles, Rocket, Navigation, ChevronDown,
+  Tags,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import type { Vendor } from "@/lib/types";
 import { CreateVendorForm } from "@/components/marketplace/create-vendor-form";
 import { useVendor } from "@/lib/queries";
 import { ImageUpload, GalleryUpload } from "./image-upload";
+import { AttributeSelector } from "./attribute-selector";
 import { AddressAutocomplete } from "./address-autocomplete";
 import {
   BusinessScoreCard, MissingFieldsCard, QualityCheckCard, PublishCard,
@@ -64,6 +66,7 @@ const WIZARD_STEPS = [
   { id: "hours", label: "Hours", icon: Clock, tab: "hours" },
   { id: "delivery", label: "Service Area", icon: Truck, tab: "delivery" },
   { id: "media", label: "Gallery", icon: ImageIcon, tab: "media" },
+  { id: "attributes", label: "Attributes", icon: Tags, tab: "attributes" },
   { id: "seo", label: "SEO", icon: Search, tab: "seo" },
   { id: "publish", label: "Publish", icon: Rocket, tab: "publish" },
 ];
@@ -126,6 +129,8 @@ export function MyListing({ vendor }: MyListingProps) {
   // Form state
   const [form, setForm] = React.useState<any>({});
   const [gallery, setGallery] = React.useState<string[]>([]);
+  const [vendorAttributeIds, setVendorAttributeIds] = React.useState<string[]>([]);
+  const [savingAttributes, setSavingAttributes] = React.useState(false);
 
   React.useEffect(() => {
     if (fullVendor) {
@@ -191,6 +196,17 @@ export function MyListing({ vendor }: MyListingProps) {
       // Set GST/Reg visibility based on existing values
       setHasGst(!!(fullVendor as any).gstVatNumber);
       setHasReg(!!(fullVendor as any).businessRegNumber);
+
+      // ── Load vendor attributes from the Global Attribute System ──
+      (async () => {
+        try {
+          const attrRes = await fetch(`/api/vendors/${fullVendor.slug}/attributes`);
+          if (attrRes.ok) {
+            const attrData = await attrRes.json();
+            setVendorAttributeIds((attrData.attributes ?? []).map((a: any) => a.id));
+          }
+        } catch { /* non-fatal */ }
+      })();
     }
   }, [fullVendor]);
 
@@ -517,6 +533,27 @@ export function MyListing({ vendor }: MyListingProps) {
       toast.error(err.message || "Failed to save");
     }
     setSaving(false);
+  };
+
+  // ── Save vendor attributes (Global Attribute System) ──
+  const saveAttributes = async () => {
+    if (!fullVendor?.slug) return;
+    setSavingAttributes(true);
+    try {
+      const res = await fetch(`/api/vendors/${fullVendor.slug}/attributes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attributeIds: vendorAttributeIds }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Failed to save attributes");
+      }
+      toast.success("Attributes saved!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save attributes");
+    }
+    setSavingAttributes(false);
   };
 
   // Profile completeness (legacy — kept for the header bar)
@@ -1134,6 +1171,40 @@ export function MyListing({ vendor }: MyListingProps) {
               maxImages={10}
               vendorId={vendor.id}
             />
+          </div>
+        </TabsContent>
+
+        {/* Attributes — Global Attribute System */}
+        <TabsContent value="attributes" className="space-y-4">
+          <div>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="flex items-center gap-2 text-lg font-bold">
+                  <Tags className="size-5" />
+                  Business Attributes
+                </h3>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Select your specialties & credentials. These appear as badges on your
+                  listing and power dietary/feature filtering.
+                </p>
+              </div>
+              <Button
+                onClick={saveAttributes}
+                disabled={savingAttributes}
+                size="sm"
+                className="gap-1.5"
+              >
+                {savingAttributes ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                Save Attributes
+              </Button>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-4">
+              <AttributeSelector
+                selectedIds={vendorAttributeIds}
+                onChange={setVendorAttributeIds}
+                ecosystem={fullVendor?.ecosystem}
+              />
+            </div>
           </div>
         </TabsContent>
 

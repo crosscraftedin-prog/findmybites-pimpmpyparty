@@ -190,6 +190,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.5,
       });
     }
+
+    // ── Global Attribute System SEO pages ────────────────────────────────
+    // /findmybites/{attribute}-{category} and /pimpmyparty/{attribute}-{category}
+    // e.g. /findmybites/sugar-free-cakes, /pimpmyparty/luxury-events
+    try {
+      const { listAttributes } = await import("@/lib/attributes/attribute-service");
+      const { generateAttributeSeoPages } = await import("@/lib/attributes/attribute-seo");
+      const attrs = await listAttributes();
+      const attrPages = generateAttributeSeoPages(
+        attrs.map((a) => ({ slug: a.slug, name: a.name, group: a.group })),
+        300 // limit to 300 pages for sitemap performance
+      );
+      for (const ap of attrPages) {
+        // Attribute pages live under both ecosystems
+        for (const eco of ["findmybites", "pimpmyparty"]) {
+          entries.push({
+            url: `${baseUrl}/${eco}${ap.path}`,
+            lastModified: new Date(),
+            changeFrequency: "weekly",
+            priority: 0.7,
+          });
+        }
+      }
+    } catch {
+      // Attributes not yet seeded — skip
+    }
   } catch {
     // DB unavailable — return static pages only
   }

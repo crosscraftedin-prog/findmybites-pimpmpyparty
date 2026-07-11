@@ -118,6 +118,12 @@ export async function GET(req: NextRequest) {
     const lng = sp.get("lng") ? Number(sp.get("lng")) : undefined;
     const radius = sp.get("radius") ? Number(sp.get("radius")) : undefined;
     const dietary = sp.get("dietary") ?? undefined;
+    // Global Attribute System: ?attribute=sugar-free,keto (comma-separated slugs)
+    // Multiple slugs = AND logic (vendor must have ALL specified attributes).
+    const attributeParam = sp.get("attribute") ?? sp.get("attributes") ?? undefined;
+    const attributeSlugs = attributeParam
+      ? attributeParam.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
 
     // Structured (non-search) filters
     const where: Prisma.VendorWhereInput = { approved: true };
@@ -134,8 +140,29 @@ export async function GET(req: NextRequest) {
     if (delivery !== undefined) where.deliveryAvailable = delivery;
     if (pickup !== undefined) where.pickupAvailable = pickup;
     if (verified !== undefined) where.verified = verified;
-    // Dietary filter: search tags column for the dietary keyword
+    // Dietary filter: search tags column for the dietary keyword (legacy)
     if (dietary) where.tags = { contains: dietary, mode: "insensitive" };
+
+    // Global Attribute filter: resolve slugs → vendor IDs, add to where clause.
+    // This is an AND filter — vendor must have ALL specified attributes.
+    if (attributeSlugs.length > 0) {
+      try {
+        const { findVendorIdsByAttributes } = await import("@/lib/attributes/attribute-service");
+        const matchedIds = await findVendorIdsByAttributes(attributeSlugs, {
+          ecosystem,
+          category,
+        });
+        if (matchedIds.length > 0) {
+          where.id = { in: matchedIds };
+        } else {
+          // No vendors match any attribute — return empty result
+          where.id = { in: [] };
+        }
+      } catch (attrErr) {
+        console.error("[api/vendors] attribute filter failed:", attrErr);
+        // Fail gracefully — ignore attribute filter if service unavailable
+      }
+    }
 
     // ── Search path ──────────────────────────────────────────────────────
     // When a search term is present we hand it to the FTS5 index, which returns
@@ -200,6 +227,25 @@ export async function GET(req: NextRequest) {
     ]);
 
     const vendors = rows.map(transformVendor);
+
+    // ── Batch-fetch attributes for all vendors in the result set ──
+    // Single grouped query, not N+1. Attributes are non-critical enrichment
+    // — if this fails, vendors are still returned without attributes.
+    try {
+      const { getVendorAttributesBatch } = await import("@/lib/attributes/attribute-service");
+      const attrMap = await getVendorAttributesBatch(vendors.map((v) => v.id));
+      for (const v of vendors) {
+        const attrs = attrMap.get(v.id);
+        if (attrs && attrs.length > 0) {
+          (v as any).attributes = attrs.map((a) => ({
+            slug: a.slug, name: a.name, color: a.color, icon: a.icon, group: a.group,
+          }));
+        }
+      }
+    } catch (attrErr) {
+      console.error("[api/vendors] attribute batch fetch failed (non-fatal):", attrErr);
+    }
+
     return NextResponse.json({ vendors, total });
   } catch (err) {
     console.error("[api/vendors] GET failed:", err);

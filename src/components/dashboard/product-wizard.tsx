@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, ChevronLeft, ChevronRight, Loader2, Sparkles, Upload, X,
   Image as ImageIcon, Eye, Star, AlertCircle, AlertTriangle, Wand2, Plus, PartyPopper, Monitor, Tablet, Smartphone,
-  Boxes, Clock, CalendarDays, Bell,
+  Boxes, Clock, CalendarDays, Bell, Tags,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Vendor } from "@/lib/types";
 import { GalleryUpload } from "./image-upload";
+import { AttributeSelector } from "./attribute-selector";
 import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
 
 interface ProductWizardProps {
@@ -50,6 +51,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const [publishError, setPublishError] = React.useState<string | null>(null);
   const [savedProductSlug, setSavedProductSlug] = React.useState<string | null>(null);
   const [published, setPublished] = React.useState(false);
+  // Global Attribute System — product attribute IDs
+  const [productAttributeIds, setProductAttributeIds] = React.useState<string[]>([]);
 
   const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
   const isFood = vendor.ecosystem === "FINDMYBITES";
@@ -197,6 +200,22 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       localStorage.removeItem(draftKey);
     }
   }, [vendor.id, initialData]);
+
+  // ── Load existing product attributes when editing ──
+  React.useEffect(() => {
+    if (!initialData?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/products/${initialData.id}/attributes`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setProductAttributeIds((data.attributes ?? []).map((a: any) => a.id));
+      } catch { /* non-fatal */ }
+    })();
+    return () => { cancelled = true; };
+  }, [initialData?.id]);
 
   // ── Validation ──
   const validation = React.useMemo(() => {
@@ -407,6 +426,18 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       // If onSave returns null/undefined without throwing, assume void and check indirectly
       if (result && typeof result === "object" && result.slug) {
         setSavedProductSlug(result.slug);
+      }
+      // ── Save product attributes (Global Attribute System) ──
+      // Best-effort: don't fail the publish if attributes fail to save.
+      if (result && typeof result === "object" && (result.id || result.slug)) {
+        const prodId = result.id || result.slug;
+        try {
+          await fetch(`/api/products/${prodId}/attributes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ attributeIds: productAttributeIds }),
+          });
+        } catch { /* non-fatal — attributes can be saved later */ }
       }
       setPublished(true);
     } catch (e: any) {
@@ -777,6 +808,23 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                       ))}
                     </div>
                   )}
+                  {/* Global Attribute System — product attributes */}
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Tags className="size-4 text-brand" />
+                      <Label className="text-sm font-semibold">Product Attributes</Label>
+                    </div>
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      Select dietary, service & feature badges. These appear on the product
+                      card and power attribute filtering.
+                    </p>
+                    <AttributeSelector
+                      selectedIds={productAttributeIds}
+                      onChange={setProductAttributeIds}
+                      ecosystem={vendor.ecosystem}
+                      groups={isFood ? ["dietary", "product_feature", "service"] : ["product_feature", "service"]}
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="flex items-center gap-2 text-sm">
                       <input type="checkbox" checked={form.deliveryAvailable} onChange={e => set("deliveryAvailable", e.target.checked)} className="size-4 rounded border-border" />

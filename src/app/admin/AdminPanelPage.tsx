@@ -21,6 +21,7 @@ import {
   Loader2,
   Globe2,
   Filter,
+  Tags,
   LayoutTemplate,
   ClipboardList,
   ShieldCheck,
@@ -53,6 +54,7 @@ import dynamic from "next/dynamic";
 const AdminSeoPages = dynamic(() => import("@/components/admin/admin-seo-pages").then(m => ({ default: m.AdminSeoPages })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminPricing = dynamic(() => import("@/components/admin/admin-pricing").then(m => ({ default: m.AdminPricing })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminFilters = dynamic(() => import("@/components/admin/admin-filters").then(m => ({ default: m.AdminFilters })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
+const AdminAttributes = dynamic(() => import("@/components/admin/admin-attributes").then(m => ({ default: m.AdminAttributes })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminTemplates = dynamic(() => import("@/components/admin/admin-templates").then(m => ({ default: m.AdminTemplates })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminLeadCenter = dynamic(() => import("@/components/admin/admin-lead-center").then(m => ({ default: m.AdminLeadCenter })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminVendorInvitations = dynamic(() => import("@/components/admin/admin-vendor-invitations").then(m => ({ default: m.AdminVendorInvitations })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
@@ -191,6 +193,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: "seo-pages", label: "SEO pages", icon: Globe2 },
       { id: "pricing", label: "Pricing", icon: Tag },
       { id: "filters", label: "Filters", icon: Filter },
+      { id: "attributes", label: "Attributes", icon: Tags },
       { id: "templates", label: "Templates", icon: LayoutTemplate },
       { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
       { id: "messages", label: "Messages", icon: Mail },
@@ -1012,6 +1015,8 @@ export function AdminPanelPage({
             <AdminPricing />
           ) : activeNav === "filters" ? (
             <AdminFilters />
+          ) : activeNav === "attributes" ? (
+            <AdminAttributes />
           ) : activeNav === "templates" ? (
             <AdminTemplates />
           ) : (

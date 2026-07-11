@@ -732,6 +732,70 @@ model VendorFilterValue {
   @@map("vendor_filter_values")
 }
 
+// ── Global Attribute System ──────────────────────────────────────────────
+// Reusable, cross-category attributes (Dietary, Service, Product Features,
+// Business Features). Unlike the category-scoped FilterGroup system above,
+// global attributes apply across ALL categories — "Sugar Free" is the same
+// attribute whether on a Cake, Cupcake, or Cookie.
+//
+// Architecture:
+//   Attribute  →  VendorAttribute  →  Vendor  (vendor specialties)
+//   Attribute  →  ProductAttribute →  Product (product badges)
+//
+// A product/vendor can have unlimited attributes. Attributes are global
+// (not tied to a category) and are managed via the Admin Attribute Manager.
+// Adding new attributes requires NO code changes — just a DB row.
+
+model Attribute {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  group       String   // "dietary" | "service" | "product_feature" | "business"
+  icon        String?
+  color       String?
+  description String?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  ecosystem   String   @default("BOTH") // "FINDMYBITES" | "PIMPMYPARTY" | "BOTH"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  vendors     VendorAttribute[]
+  products    ProductAttribute[]
+
+  @@index([group, active, sortOrder])
+  @@index([ecosystem, active])
+  @@map("attributes")
+}
+
+model VendorAttribute {
+  id          String    @id @default(cuid())
+  vendorId    String
+  attributeId String
+  createdAt   DateTime  @default(now())
+
+  attribute   Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, attributeId])
+  @@index([vendorId])
+  @@index([attributeId])
+  @@map("vendor_attributes")
+}
+
+model ProductAttribute {
+  id          String    @id @default(cuid())
+  productId   String
+  attributeId String
+  createdAt   DateTime  @default(now())
+
+  attribute   Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, attributeId])
+  @@index([productId])
+  @@index([attributeId])
+  @@map("product_attributes")
+}
+
 // ── Template Engine (Enterprise v2) ───────────────────────────────────────
 // Database-driven, admin-managed listing templates.
 // Architecture: Business Type → Category → Subcategory → Template → Dynamic Fields

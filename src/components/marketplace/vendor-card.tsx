@@ -93,16 +93,39 @@ export function VendorCard({ vendor, index = 0 }: { vendor: Vendor; index?: numb
             />
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
-            {vendor.tags.slice(0, 3).map((t) => (
-              <span
-                key={t}
-                className="rounded-md bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-soft-foreground"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
+          {/* Global Attribute System badges (structured, colored) */}
+          {(vendor as any).attributes && (vendor as any).attributes.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {(vendor as any).attributes.slice(0, 4).map((a: any) => {
+                const colorClass = a.color
+                  ? `bg-${a.color}-100 text-${a.color}-700 border-${a.color}-200`
+                  : "bg-muted text-foreground border-border";
+                return (
+                  <span
+                    key={a.slug}
+                    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${colorClass}`}
+                  >
+                    {a.name}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Legacy free-text tags (shown if no structured attributes) */}
+          {(!(vendor as any).attributes || (vendor as any).attributes.length === 0) &&
+            vendor.tags.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
+              {vendor.tags.slice(0, 3).map((t) => (
+                <span
+                  key={t}
+                  className="rounded-md bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-soft-foreground"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
 
           <div className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <Clock className="size-3" />
