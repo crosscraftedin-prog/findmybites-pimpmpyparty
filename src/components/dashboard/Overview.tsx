@@ -41,8 +41,8 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
     { label: "Description written", done: vendor.description.trim().length >= 20, tab: "listing" as DashboardTab },
     { label: "WhatsApp number added", done: !!vendor.whatsapp, tab: "listing" as DashboardTab },
     { label: "Business hours set", done: !!vendor.openHours, tab: "availability" as DashboardTab },
-    { label: "Products added", done: false, tab: "products" as DashboardTab },
     { label: "SEO title set", done: !!vendor.metaTitle, tab: "listing" as DashboardTab },
+    { label: "Meta description set", done: !!(vendor as any).metaDescription, tab: "listing" as DashboardTab },
   ];
   const completedCount = checklist.filter((c) => c.done).length;
   const completionPct = Math.round((completedCount / checklist.length) * 100);
