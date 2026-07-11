@@ -383,7 +383,7 @@ export function runQualityChecks(form: any): QualityCheck[] {
   // Meta description
   checks.push({
     check: "Meta Description",
-    passed: !!form.metaDescription && form.metaDescription.length >= 100,
+    passed: !!form.metaDescription && form.metaDescription.length >= 80,
     detail: form.metaDescription ? `${form.metaDescription.length} chars` : "Missing",
   });
 

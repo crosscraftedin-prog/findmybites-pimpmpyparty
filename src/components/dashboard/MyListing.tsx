@@ -1175,6 +1175,66 @@ export function MyListing({ vendor }: MyListingProps) {
             <Textarea value={form.metaDescription} onChange={e => set("metaDescription", e.target.value)} maxLength={160} className="mt-1 min-h-[60px]" />
             <p className="mt-1 text-[10px] text-muted-foreground">{(form.metaDescription || "").length}/160</p>
           </div>
+          {/* Tags / Keywords */}
+          <div>
+            <Label>Tags & Keywords</Label>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">Add at least 3 tags to improve search visibility. Press Enter or comma to add.</p>
+            <div className="mt-2 flex flex-wrap gap-1.5 rounded-lg border border-input bg-background p-2 min-h-[44px]">
+              {(typeof form.tags === "string" ? form.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : (Array.isArray(form.tags) ? form.tags : [])).map((tag: string, idx: number) => (
+                <span key={idx} className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand">
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const current = typeof form.tags === "string" ? form.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : (Array.isArray(form.tags) ? form.tags : []);
+                      const next = current.filter((_: string, i: number) => i !== idx);
+                      set("tags", next.join(", "));
+                    }}
+                    className="text-brand/60 hover:text-brand"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                placeholder={(() => {
+                  const current = typeof form.tags === "string" ? form.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : (Array.isArray(form.tags) ? form.tags : []);
+                  return current.length === 0 ? "Type a tag and press Enter..." : "Add more...";
+                })()}
+                className="flex-1 min-w-[120px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    const input = e.target as HTMLInputElement;
+                    const value = input.value.trim();
+                    if (value) {
+                      const current = typeof form.tags === "string" ? form.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : (Array.isArray(form.tags) ? form.tags : []);
+                      if (!current.includes(value)) {
+                        set("tags", [...current, value].join(", "));
+                      }
+                      input.value = "";
+                    }
+                  }
+                }}
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {["Birthday Cakes", "Wedding Cakes", "Custom Cakes", "Eggless", "Fondant", "Cupcakes", "Home Bakery", "Home Delivery", "Anniversary Cakes", "Kids Cakes"].map(suggestion => {
+                const current = typeof form.tags === "string" ? form.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : (Array.isArray(form.tags) ? form.tags : []);
+                return !current.includes(suggestion) ? (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => set("tags", [...current, suggestion].join(", "))}
+                    className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:border-brand hover:text-brand"
+                  >
+                    + {suggestion}
+                  </button>
+                ) : null;
+              })}
+            </div>
+          </div>
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
             <p className="font-semibold">SEO Tips:</p>
             <ul className="mt-1 list-disc pl-4 space-y-0.5">
@@ -1195,7 +1255,7 @@ export function MyListing({ vendor }: MyListingProps) {
           <MissingFieldsCard missing={missingFields} onNavigate={setActiveTab} />
           <QualityCheckCard checks={qualityChecks} onFix={(action) => {
             if (action === "generate_description" || action === "generate_seo") setActiveTab("seo");
-            else if (action === "add_tags") setActiveTab("business");
+            else if (action === "add_tags") setActiveTab("seo");
             else if (action === "add_whatsapp" || action === "add_social") setActiveTab("contact");
             else if (action === "select_category" || action === "add_city") setActiveTab("business");
             else if (action === "add_city") setActiveTab("location");
