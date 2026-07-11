@@ -17,21 +17,32 @@ WITH attr_lookup AS (
   SELECT id, slug, name FROM "attributes"
 ),
 
--- Expand Vendor.tags JSON array into one row per tag, normalize, match to attributes
+-- Expand Vendor.tags into one row per tag, normalize, match to attributes.
+-- Handles ALL tag formats defensively:
+--   ["tag1","tag2"]  (JSON array)  → strip brackets/quotes, split on commas
+--   "tag1, tag2"     (CSV string)  → split on commas
+--   "Saudi"          (plain string) → single tag
+-- Does NOT use jsonb_array_elements_text (which fails on non-JSON strings).
 vendor_tag_expansions AS (
   SELECT
     v.id AS "vendorId",
     LOWER(
       REGEXP_REPLACE(
-        TRIM(tag_value::text),
+        TRIM(part),
         '[^a-z0-9 -]', '', 'g'
       )
     ) AS normalized_tag
   FROM vendor_listings v,
-       jsonb_array_elements_text(v.tags::jsonb) AS tag_value
+       LATERAL regexp_split_to_table(
+         -- Strip all JSON brackets, quotes, and backslashes, then split on commas
+         REGEXP_REPLACE(v.tags, '[\[\]"\\]', '', 'g'),
+         ','
+       ) AS part
   WHERE v.tags IS NOT NULL
+    AND v.tags != ''
     AND v.tags != '[]'
     AND v.tags != 'null'
+    AND TRIM(part) != ''
 ),
 vendor_tag_matched AS (
   SELECT DISTINCT
