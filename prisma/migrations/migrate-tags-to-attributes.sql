@@ -46,7 +46,7 @@ vendor_tag_matched AS (
 -- Insert matched vendor attributes (skip existing)
 INSERT INTO "vendor_attributes" ("id", "vendorId", "attributeId", "createdAt")
 SELECT
-  'va-' || v."vendorId" || '-' || v."attributeId" || '-' || md5(v."vendorId" || v."attributeId")::substr(1,8),
+  'va-' || substr(md5(v."vendorId" || '-' || v."attributeId"), 1, 12),
   v."vendorId",
   v."attributeId",
   NOW()
@@ -59,7 +59,7 @@ ON CONFLICT ("vendorId", "attributeId") DO NOTHING;
 
 INSERT INTO "product_attributes" ("id", "productId", "attributeId", "createdAt")
 SELECT
-  'pa-' || p."productId" || '-' || p."attributeId" || '-' || md5(p."productId" || p."attributeId")::substr(1,8),
+  'pa-' || substr(md5(p."productId" || '-' || p."attributeId"), 1, 12),
   p."productId",
   p."attributeId",
   NOW()
