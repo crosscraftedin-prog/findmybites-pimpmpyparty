@@ -26,7 +26,7 @@ export function FeaturedSection() {
   };
 
   return (
-    <section id="featured" className="border-b border-border bg-background">
+    <section id="featured" className="overflow-hidden border-b border-border bg-background">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
         <div className="flex items-end justify-between gap-4">
           <div>
@@ -74,7 +74,7 @@ export function FeaturedSection() {
         ) : (
           <div
             ref={scrollerRef}
-            className="no-scrollbar mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2"
+            className="no-scrollbar mt-8 flex w-full snap-x snap-mandatory gap-5 overflow-x-auto pb-2"
           >
             {displayVendors.map((v, i) => (
               <div

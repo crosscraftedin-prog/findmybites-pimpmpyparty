@@ -1074,12 +1074,12 @@ export function MyListing({ vendor }: MyListingProps) {
             <div><Label>Email</Label><Input value={form.email} onChange={e => set("email", e.target.value)} className="mt-1" /></div>
             <div><Label>Website</Label><Input value={form.website} onChange={e => set("website", e.target.value)} placeholder="https://…" className="mt-1" /></div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div><Label>Instagram</Label><Input value={form.instagram} onChange={e => set("instagram", e.target.value)} className="mt-1" /></div>
             <div><Label>Facebook</Label><Input value={form.facebook} onChange={e => set("facebook", e.target.value)} className="mt-1" /></div>
             <div><Label>YouTube</Label><Input value={form.youtube} onChange={e => set("youtube", e.target.value)} className="mt-1" /></div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div><Label>TikTok</Label><Input value={form.tiktok} onChange={e => set("tiktok", e.target.value)} className="mt-1" /></div>
             <div><Label>Pinterest</Label><Input value={form.pinterest} onChange={e => set("pinterest", e.target.value)} className="mt-1" /></div>
             <div><Label>LinkedIn</Label><Input value={form.linkedin} onChange={e => set("linkedin", e.target.value)} className="mt-1" /></div>

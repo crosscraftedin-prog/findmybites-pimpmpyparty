@@ -566,7 +566,7 @@ export function AdminAttributes() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard label="Total" value={stats.total} />
         <StatCard label="Active" value={stats.active} accent="emerald" />
         <StatCard label="Disabled" value={stats.disabled} accent="amber" />
@@ -574,7 +574,7 @@ export function AdminAttributes() {
 
       {/* Toolbar */}
       <div className="flex flex-wrap gap-2">
-        <div className="relative min-w-[200px] flex-1">
+        <div className="relative min-w-0 flex-1 sm:min-w-[200px]">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search by name, slug, description, or icon…"
@@ -585,7 +585,7 @@ export function AdminAttributes() {
           />
         </div>
         <Select value={groupFilter} onValueChange={setGroupFilter}>
-          <SelectTrigger className="w-[200px]" aria-label="Filter by group">
+          <SelectTrigger className="w-full sm:w-[200px]" aria-label="Filter by group">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

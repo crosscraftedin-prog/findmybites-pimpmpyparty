@@ -105,7 +105,7 @@ export default function DashboardPage() {
         />
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+        <main className="min-w-0 flex-1 overflow-y-auto pb-20 lg:pb-0">
           {activeTab === "overview" && (
             <div className="space-y-6">
               <VendorOnboarding vendorId={vendor.id} onNavigate={(tab: string) => setActiveTab(tab as DashboardTab)} />

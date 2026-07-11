@@ -156,8 +156,8 @@ export function Settings({ vendor, userEmail }: SettingsProps) {
         </div>
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
-            <div>
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <p className="text-sm font-semibold">Delete my listing</p>
               <p className="text-xs text-muted-foreground">
                 Permanently remove your vendor listing and all associated data.
@@ -194,8 +194,8 @@ export function Settings({ vendor, userEmail }: SettingsProps) {
             )}
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
-            <div>
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <p className="text-sm font-semibold">Close my account</p>
               <p className="text-xs text-muted-foreground">
                 Sign out and close your FindMyBites account.

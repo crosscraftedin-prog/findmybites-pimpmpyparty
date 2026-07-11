@@ -146,11 +146,11 @@ export function LocationBanner() {
           Allow location access to find vendors near you
         </p>
 
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
           {state === "city-input" ? (
             <form
               onSubmit={onCitySearch}
-              className="flex w-full max-w-sm items-center gap-2"
+              className="flex w-full items-center gap-2 sm:max-w-sm"
             >
               <div className="relative flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -185,7 +185,7 @@ export function LocationBanner() {
               </Button>
             </form>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
                 onClick={onAllowLocation}
@@ -211,7 +211,8 @@ export function LocationBanner() {
                 className="h-9 rounded-full"
               >
                 <Search className="size-4" />
-                Search by City instead
+                <span className="hidden sm:inline">Search by City instead</span>
+                <span className="sm:hidden">City</span>
               </Button>
             </div>
           )}

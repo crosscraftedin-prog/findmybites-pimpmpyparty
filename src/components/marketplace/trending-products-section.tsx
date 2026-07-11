@@ -57,7 +57,7 @@ export function TrendingProductsSection() {
   };
 
   return (
-    <section id="trending" className="border-b border-border bg-muted/30">
+    <section id="trending" className="overflow-hidden border-b border-border bg-muted/30">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
         <div className="flex items-end justify-between gap-4">
           <div>
@@ -95,7 +95,7 @@ export function TrendingProductsSection() {
             Trending products coming soon — vendors are adding new items daily.
           </p>
         ) : (
-          <div ref={scrollerRef} className="no-scrollbar mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
+          <div ref={scrollerRef} className="no-scrollbar mt-8 flex w-full snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
             {products.map((p, i) => (
               <div
                 key={p.id}

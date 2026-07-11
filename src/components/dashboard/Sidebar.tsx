@@ -184,7 +184,7 @@ export function Sidebar({ vendor, activeTab, onTabChange, userEmail }: SidebarPr
       </aside>
 
       {/* ── Mobile bottom tab bar ── */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-border bg-card px-2 py-2 lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around overflow-x-auto border-t border-border bg-card px-1 py-2 lg:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {MOBILE_MAIN_TABS.map((tabId) => {
           const item = NAV_ITEMS.find((n) => n.id === tabId)!;
           const active = activeTab === tabId;
@@ -193,7 +193,7 @@ export function Sidebar({ vendor, activeTab, onTabChange, userEmail }: SidebarPr
               key={tabId}
               onClick={() => onTabChange(tabId)}
               className={cn(
-                "flex flex-col items-center gap-0.5 rounded-lg px-3 py-1 text-[10px] font-medium transition-colors",
+                "flex shrink-0 flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium transition-colors",
                 active ? "text-brand" : "text-muted-foreground"
               )}
             >

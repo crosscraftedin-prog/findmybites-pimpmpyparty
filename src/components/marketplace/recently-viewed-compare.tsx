@@ -116,7 +116,7 @@ export function RecentlyViewedSection() {
           <Clock className="size-5 text-brand" />
           <h2 className="text-2xl font-extrabold tracking-tight">Recently Viewed</h2>
         </div>
-        <div className="mt-6 flex gap-4 overflow-x-auto pb-2">
+        <div className="mt-6 flex w-full gap-4 overflow-x-auto pb-2">
           {vendors.map((v, i) => (
             <div
               key={v.id}

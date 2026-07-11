@@ -47,7 +47,7 @@ export function VerifiedVendorsSection() {
   if (vendors.length === 0) return null;
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <section className="mx-auto max-w-7xl overflow-hidden px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BadgeCheck className="size-5 text-blue-600" />
@@ -58,7 +58,7 @@ export function VerifiedVendorsSection() {
         </Link>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex w-full gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {vendors.map((v, i) => {
           const symbol = CURRENCY_SYMBOLS[v.currency as keyof typeof CURRENCY_SYMBOLS] ?? v.currency + " ";
           return (
