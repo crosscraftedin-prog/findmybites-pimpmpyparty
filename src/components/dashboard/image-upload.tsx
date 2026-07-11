@@ -1,11 +1,34 @@
 "use client";
 
 import * as React from "react";
-import { Upload, X, Loader2, Check, AlertCircle, Crown } from "lucide-react";
+import { Upload, X, Loader2, AlertCircle, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { supabaseBrowser } from "@/lib/supabase/client";
+
+/**
+ * ───────────────────────────────────────────────────────────────────────────
+ * UNIFIED UPLOAD PIPELINE
+ * ───────────────────────────────────────────────────────────────────────────
+ * This component routes ALL uploads through the single production API
+ * `POST /api/upload` — it does NOT call Supabase storage directly from the
+ * browser. The server API provides the one source of truth for:
+ *   - authentication (Supabase session check)
+ *   - validation (file type + size, server-enforced)
+ *   - storage path (resolved from the session — existing vendor →
+ *     vendor-uploads/{vendorId}/..., first-time onboarding →
+ *     vendor-uploads/pending/{userId}/...)
+ *   - URL generation (Supabase public URL)
+ *   - error handling (always JSON, never HTML)
+ *
+ * The valuable client-side features (canvas compression / EXIF strip, real
+ * upload progress, cancel, retry, gallery drag-reorder, autoSave to profile)
+ * are preserved here and layered ON TOP of /api/upload.
+ *
+ * Do not reintroduce `supabaseBrowser.storage` calls in this file — that
+ * would recreate the divergent, unauthenticated upload pipeline that was
+ * removed. If you need a new upload behavior, extend /api/upload instead.
+ */
 
 interface ImageUploadProps {
   value: string;
@@ -25,16 +48,6 @@ interface ImageUploadProps {
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp"];
 const REJECTED = ["image/gif", "image/svg+xml", "image/heic", "application/pdf"];
-
-/**
- * Generate a secure UUID-like filename.
- */
-function secureFilename(ext: string): string {
-  const ts = Date.now().toString(36);
-  const rand = Array.from(crypto.getRandomValues(new Uint8Array(8)))
-    .map(b => b.toString(16).padStart(2, "0")).join("");
-  return `${ts}-${rand}.${ext}`;
-}
 
 /**
  * Strip EXIF metadata by re-encoding the image via canvas.
@@ -95,6 +108,60 @@ async function compressImage(file: File, aspect: string): Promise<File> {
   });
 }
 
+/**
+ * Upload a (compressed) file to the single production upload API `/api/upload`
+ * using XHR so we get real upload progress + cancellation. Resolves with the
+ * public storage URL returned by the server. The server is the sole authority
+ * for auth, validation, storage path, and URL generation — the client only
+ * supplies the file bytes and an optional `folder` sub-namespace.
+ */
+function uploadViaApi(
+  file: File,
+  folder: string,
+  opts: {
+    onProgress?: (pct: number) => void;
+    signal?: AbortSignal;
+  } = {}
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (folder) fd.append("folder", folder);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && opts.onProgress) {
+        opts.onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      try {
+        const body = JSON.parse(xhr.responseText) as {
+          success?: boolean;
+          url?: string;
+          error?: string;
+        };
+        if (xhr.status >= 200 && xhr.status < 300 && body.url) {
+          resolve(body.url);
+        } else {
+          reject(new Error(body.error ?? `Upload failed (${xhr.status})`));
+        }
+      } catch {
+        reject(new Error("Upload failed: invalid response."));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload."));
+    if (opts.signal) {
+      opts.signal.addEventListener("abort", () => {
+        xhr.abort();
+        reject(new DOMException("Aborted", "AbortError"));
+      });
+    }
+    xhr.send(fd);
+  });
+}
+
 export function ImageUpload({
   value, onChange, folder, label, aspect = "free",
   maxSizeMB = 5, camera = false, vendorId = "temp", autoSave = false, field,
@@ -133,25 +200,20 @@ export function ImageUpload({
     abortRef.current = new AbortController();
 
     try {
+      // Client-side compression / EXIF strip BEFORE uploading — reduces
+      // bandwidth and strips metadata. The server still re-validates.
       const compressed = await compressImage(file, aspect);
-      const ext = compressed.type.split("/")[1];
-      const fileName = secureFilename(ext);
-      const path = `${vendorId}/${folder}/${fileName}`;
 
-      const { data, error: uploadError } = await supabaseBrowser.storage
-        .from("vendor-uploads")
-        .upload(path, compressed, {
-          cacheControl: "3600",
-          upsert: false,
-        });
+      // Single production pipeline: POST /api/upload. The server resolves the
+      // storage namespace from the session (vendorId or pending/{userId}),
+      // enforces auth + validation, and returns the public URL. We do NOT
+      // call supabaseBrowser.storage directly.
+      const publicUrl = await uploadViaApi(compressed, folder, {
+        onProgress: setProgress,
+        signal: abortRef.current.signal,
+      });
 
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabaseBrowser.storage
-        .from("vendor-uploads")
-        .getPublicUrl(data.path);
-
-      onChange(urlData.publicUrl);
+      onChange(publicUrl);
       toast.success("Image uploaded!");
 
       // Auto-save to DB if requested
@@ -160,7 +222,7 @@ export function ImageUpload({
           await fetch("/api/vendor/profile", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ [field]: urlData.publicUrl }),
+            body: JSON.stringify({ [field]: publicUrl }),
           });
           toast.success("Saved to profile");
         } catch {
@@ -364,23 +426,18 @@ export function GalleryUpload({
       try {
         setProgress(Math.round((i / toUpload.length) * 100));
         const compressed = await compressImage(file, "free");
-        const ext = compressed.type.split("/")[1];
-        const fileName = secureFilename(ext);
-        const path = `${vendorId}/${folder}/${fileName}`;
 
-        const { data, error } = await supabaseBrowser.storage
-          .from("vendor-uploads")
-          .upload(path, compressed, { cacheControl: "3600" });
+        // Single production pipeline: POST /api/upload. Server resolves auth,
+        // validation, storage path (vendorId or pending/{userId}) and returns
+        // the public URL. No direct supabaseBrowser.storage calls here.
+        const publicUrl = await uploadViaApi(compressed, folder, {
+          onProgress: (pct) =>
+            setProgress(Math.round(((i + pct / 100) / toUpload.length) * 100)),
+        });
 
-        if (error) throw error;
-
-        const { data: urlData } = supabaseBrowser.storage
-          .from("vendor-uploads")
-          .getPublicUrl(data.path);
-
-        newUrls.push(urlData.publicUrl);
+        newUrls.push(publicUrl);
       } catch (err: any) {
-        toast.error(`${file.name}: Upload failed`);
+        toast.error(`${file.name}: ${err?.message || "Upload failed"}`);
       }
     }
 
