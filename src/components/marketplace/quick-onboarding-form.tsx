@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Loader2, Sparkles, Check, ChevronRight, ChevronLeft, Camera, Store,
   MapPin, Phone, Tag, DollarSign, FileText, Eye, Share2, LayoutDashboard,
-  TrendingUp, Plus, ArrowRight, CheckCircle2, MessageCircle,
+  TrendingUp, Plus, ArrowRight, CheckCircle2, MessageCircle, Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +37,7 @@ import type { Vendor } from "@/lib/types";
  * completed later in the dashboard via the "Complete Your Profile" card.
  */
 
-type Step = 1 | 2 | 3 | "success";
+type Step = 1 | 2 | "success";
 
 interface QuickFormState {
   // Step 1
@@ -169,7 +169,7 @@ export function QuickOnboardingForm({
     setGenerating(false);
   };
 
-  // ── Publish ──
+  // ── Publish (does NOT wait for AI — AI runs in background after publish) ──
   const handlePublish = async () => {
     // If not signed in, trigger auth with a special intent to resume publishing
     if (!user) {
@@ -183,27 +183,29 @@ export function QuickOnboardingForm({
     try {
       const country = COUNTRIES.find((c) => c.code === form.countryCode);
 
+      // Publish immediately with the user's raw description.
+      // AI enrichment (SEO, tags, tagline) runs in the background after publish.
       const payload = {
         name: form.name.trim(),
         ecosystem,
         category: migrateCategory(form.category),
-        tagline: form.aiTagline || form.businessDescription.slice(0, 60) || form.name,
-        description: form.aiDescription || form.businessDescription,
+        tagline: form.businessDescription.slice(0, 60) || form.name,
+        description: form.businessDescription,
         city: form.city.trim(),
         countryCode: form.countryCode,
         country: country?.name || "",
         continent: country?.continent || "",
         currency,
-        priceRange: "$$", // default — vendor sets pricing in dashboard
+        priceRange: "$$",
         basePrice: 0,
-        tags: form.aiTags.length > 0 ? form.aiTags : [form.category, form.city.toLowerCase()],
+        tags: [form.category, form.city.toLowerCase()],
         responseTime: "24 hours",
         yearsActive: 1,
         whatsapp: form.whatsapp,
         logoUrl: form.photo || undefined,
         bannerUrl: form.photo || undefined,
-        metaTitle: form.aiSeoTitle,
-        metaDescription: form.aiSeoDescription,
+        metaTitle: `${form.name} — ${form.category} in ${form.city}`,
+        metaDescription: form.businessDescription.slice(0, 160),
       };
 
       const res = await fetch("/api/vendors", {
@@ -217,6 +219,25 @@ export function QuickOnboardingForm({
       setCreatedVendor(data.vendor);
       setStep("success");
       onCreated(data.vendor);
+
+      // ── Kick off AI enrichment in the background (fire-and-forget) ──
+      // AI generates: description, tagline, SEO title/description, tags, subcategory.
+      // The background API updates the listing directly when done — no user wait.
+      if (data.vendor?.id) {
+        fetch("/api/vendor/ai/background-enrich", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            vendorId: data.vendor.id,
+            businessName: form.name,
+            ecosystem,
+            category: form.category,
+            city: form.city,
+            country: country?.name || "",
+            description: form.businessDescription,
+          }),
+        }).catch(() => { /* non-fatal — AI enrichment is best-effort */ });
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to publish. Please try again.");
     }
@@ -244,14 +265,11 @@ export function QuickOnboardingForm({
         <div className="flex gap-1.5">
           <StepDot active={step === 1} completed={(step as number) > 1} label="1" />
           <div className={`h-0.5 w-8 self-center ${(step as number) > 1 ? "bg-emerald-500" : "bg-muted"}`} />
-          <StepDot active={step === 2} completed={(step as number) > 2} label="2" />
-          <div className={`h-0.5 w-8 self-center ${(step as number) > 2 ? "bg-emerald-500" : "bg-muted"}`} />
-          <StepDot active={step === 3} completed={false} label="3" />
+          <StepDot active={step === 2} completed={false} label="2" />
         </div>
         <span className="text-xs text-muted-foreground">
-          {step === 1 && "Step 1 of 3 — Basics"}
-          {step === 2 && "Step 2 of 3 — AI Description"}
-          {step === 3 && "Step 3 of 3 — Publish"}
+          {step === 1 && "Step 1 of 2 — Basics"}
+          {step === 2 && "Step 2 of 2 — Describe"}
         </span>
       </div>
 
@@ -429,69 +447,19 @@ export function QuickOnboardingForm({
             </div>
           )}
 
-          {/* Navigation */}
+          {/* Navigation — Publish directly from Step 2 (no review step) */}
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setStep(1)} className="gap-1.5">
               <ChevronLeft className="size-4" /> Back
             </Button>
             <Button
-              onClick={() => setStep(3)}
-              disabled={!form.aiDescription}
-              className="flex-1 gap-2 bg-brand text-brand-foreground hover:bg-brand/90"
-            >
-              Review & Publish
-              <ChevronRight className="size-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* ── STEP 3: REVIEW & PUBLISH ── */}
-      {step === 3 && (
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-lg font-bold">Review & Publish</h3>
-            <p className="text-sm text-muted-foreground">{user ? "Your listing will go live immediately." : "Sign in to publish your listing."}</p>
-          </div>
-
-          {/* Preview card */}
-          <div className="overflow-hidden rounded-xl border border-border">
-            {form.photo && (
-              <div className="aspect-[16/9] bg-muted">
-                <img src={form.photo} alt={form.name} className="h-full w-full object-cover" />
-              </div>
-            )}
-            <div className="p-4">
-              <h4 className="font-bold">{form.name}</h4>
-              <p className="text-sm text-muted-foreground">{form.aiTagline || form.businessDescription.slice(0, 60)}</p>
-              <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><Tag className="size-3" /> {categories.find((c) => c.slug === form.category)?.label || form.category}</span>
-                <span className="inline-flex items-center gap-1"><MapPin className="size-3" /> {form.city}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Auth status */}
-          {!user && !sessionLoading && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/30">
-              <p className="font-medium text-amber-900 dark:text-amber-200">Almost there!</p>
-              <p className="mt-0.5 text-amber-700 dark:text-amber-300">Sign in with Google or Email to publish your listing. You've already filled everything in — just one click left.</p>
-            </div>
-          )}
-
-          {/* Navigation */}
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setStep(2)} className="gap-1.5">
-              <ChevronLeft className="size-4" /> Back
-            </Button>
-            <Button
               onClick={handlePublish}
-              disabled={publishing}
+              disabled={publishing || !form.businessDescription.trim()}
               className="flex-1 gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
               size="lg"
             >
               {publishing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-              {publishing ? "Publishing..." : user ? "Publish Business" : "Sign In & Publish"}
+              {publishing ? "Publishing..." : user ? "Publish My Business" : "Sign In & Publish"}
             </Button>
           </div>
         </div>
@@ -517,8 +485,31 @@ function StepDot({ active, completed, label }: { active: boolean; completed: boo
 function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDashboard: () => void }) {
   const router = useRouter();
   const [copied, setCopied] = React.useState(false);
+  const [generatingProduct, setGeneratingProduct] = React.useState(false);
+  const [productGenerated, setProductGenerated] = React.useState(false);
 
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/vendor/${vendor.slug}` : "";
+
+  const handleCreateProductWithAI = async () => {
+    setGeneratingProduct(true);
+    try {
+      const res = await fetch("/api/vendor/ai/generate-product", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendorId: vendor.id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProductGenerated(true);
+        toast.success("Product created with AI! 🎉");
+      } else {
+        throw new Error(data.error || "Failed");
+      }
+    } catch {
+      toast.error("AI product generation failed. You can add products manually in the dashboard.");
+    }
+    setGeneratingProduct(false);
+  };
 
   return (
     <div className="space-y-5 text-center">
@@ -528,8 +519,13 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
       </div>
 
       <div>
-        <h3 className="text-xl font-bold">🎉 Congratulations!</h3>
-        <p className="mt-1 text-sm text-muted-foreground">Your business is <span className="font-semibold text-emerald-600">LIVE</span>.</p>
+        <h3 className="text-xl font-bold">🎉 Your Business is LIVE!</h3>
+        <div className="mt-1 flex items-center justify-center gap-0.5">
+          {[1, 2, 3, 4, 5].map((s) => (
+            <Star key={s} className="size-4 fill-amber-400 text-amber-400" />
+          ))}
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">You're now visible to customers searching on FindMyBites.</p>
       </div>
 
       {/* Preview card with badges */}
@@ -557,18 +553,32 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
       </div>
 
       {/* AI Product Suggestion */}
-      <div className="rounded-lg border border-brand-border bg-brand-soft/30 p-4 text-left">
-        <p className="text-xs font-semibold uppercase text-muted-foreground">⭐ Recommended Next Step</p>
-        <p className="mt-1 text-sm font-medium">Create Your First Product with AI</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">Businesses with products get 3x more enquiries. AI creates a product from your business info in seconds.</p>
-        <Button
-          size="sm"
-          className="mt-2 w-full gap-1.5 bg-brand text-brand-foreground hover:bg-brand/90"
-          onClick={() => router.push("/dashboard?tab=products&action=new")}
-        >
-          <Sparkles className="size-3.5" /> Create Product with AI
-        </Button>
-      </div>
+      {productGenerated ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-left dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="size-4" /> Product Created!
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Your first product is live. Add more products in the dashboard.</p>
+          <Button size="sm" variant="outline" className="mt-2 w-full gap-1.5" onClick={() => router.push("/dashboard?tab=products")}>
+            View Products
+          </Button>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-brand-border bg-brand-soft/30 p-4 text-left">
+          <p className="text-xs font-semibold uppercase text-muted-foreground">⭐ Recommended Next Step</p>
+          <p className="mt-1 text-sm font-medium">Create Your First Product with AI</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Businesses with products receive significantly more enquiries.</p>
+          <Button
+            size="sm"
+            className="mt-2 w-full gap-1.5 bg-brand text-brand-foreground hover:bg-brand/90"
+            onClick={handleCreateProductWithAI}
+            disabled={generatingProduct}
+          >
+            {generatingProduct ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+            {generatingProduct ? "AI is creating..." : "Create Product with AI"}
+          </Button>
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="space-y-2">

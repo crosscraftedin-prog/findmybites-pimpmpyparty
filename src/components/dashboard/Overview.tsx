@@ -215,7 +215,19 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
       </div>
       )}
 
-      {/* ── C) Stats cards ── */}
+      {/* ── C) Build Your Store (Shopify-style progress card) ── */}
+      <div className="mb-6 rounded-xl border border-border bg-card p-5">
+        <h2 className="text-base font-bold">Build Your Store</h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">Complete your storefront to attract more customers.</p>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StoreMetric label="Business" value="✅" sub="Complete" done />
+          <StoreMetric label="Products" value="0" sub="Add products" onClick={() => onNavigate("products")} />
+          <StoreMetric label="Gallery" value={String(vendor.gallery.length)} sub={vendor.gallery.length >= 3 ? "Good" : "Add photos"} onClick={() => onNavigate("listing")} />
+          <StoreMetric label="Reviews" value={String(vendor.reviewCount)} sub={vendor.reviewCount > 0 ? "Good" : "Pending"} onClick={() => onNavigate("overview")} />
+        </div>
+      </div>
+
+      {/* ── D) Stats cards ── */}
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           icon={Eye}
@@ -331,5 +343,24 @@ function StatCard({
       <p className="text-xs font-medium">{label}</p>
       <p className="text-[10px] text-muted-foreground">{subtext}</p>
     </div>
+  );
+}
+
+// ── Store Metric Card ──
+function StoreMetric({ label, value, sub, done, onClick }: { label: string; value: string; sub: string; done?: boolean; onClick?: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      className={cn(
+        "rounded-lg border p-3 text-left transition-colors",
+        done ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/10" : "border-border bg-card",
+        onClick && "hover:bg-accent"
+      )}
+    >
+      <p className={cn("text-2xl font-extrabold tabular-nums", done ? "text-emerald-600" : "text-foreground")}>{value}</p>
+      <p className="text-xs font-medium">{label}</p>
+      <p className="text-[10px] text-muted-foreground">{sub}</p>
+    </button>
   );
 }
