@@ -58,6 +58,10 @@ export interface Vendor {
   userEmail?: string | null;
   owner_user_id?: string | null;
   ownership_status?: string | null;
+  // Admin-Created Business Listings
+  claimToken?: string | null;
+  listingStatus?: string | null;
+  adminCreated?: boolean;
   planExpiresAt?: string | null;
   createdAt: string;
 }

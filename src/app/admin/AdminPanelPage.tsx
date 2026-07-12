@@ -21,7 +21,6 @@ import {
   Loader2,
   Globe2,
   Filter,
-  Tags,
   LayoutTemplate,
   ClipboardList,
   ShieldCheck,
@@ -32,7 +31,7 @@ import {
   Sparkles,
   LifeBuoy,
   Briefcase,
-  Menu,
+  Store,
 } from "lucide-react";
 import {
   BarChart,
@@ -55,7 +54,6 @@ import dynamic from "next/dynamic";
 const AdminSeoPages = dynamic(() => import("@/components/admin/admin-seo-pages").then(m => ({ default: m.AdminSeoPages })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminPricing = dynamic(() => import("@/components/admin/admin-pricing").then(m => ({ default: m.AdminPricing })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminFilters = dynamic(() => import("@/components/admin/admin-filters").then(m => ({ default: m.AdminFilters })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
-const AdminAttributes = dynamic(() => import("@/components/admin/admin-attributes").then(m => ({ default: m.AdminAttributes })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminTemplates = dynamic(() => import("@/components/admin/admin-templates").then(m => ({ default: m.AdminTemplates })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminLeadCenter = dynamic(() => import("@/components/admin/admin-lead-center").then(m => ({ default: m.AdminLeadCenter })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminVendorInvitations = dynamic(() => import("@/components/admin/admin-vendor-invitations").then(m => ({ default: m.AdminVendorInvitations })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
@@ -65,6 +63,7 @@ const AdminInventory = dynamic(() => import("@/components/admin/admin-inventory"
 const AdminMarketing = dynamic(() => import("@/components/admin/admin-marketing").then(m => ({ default: m.AdminMarketing })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminBusinessTypes = dynamic(() => import("@/components/admin/admin-business-types").then(m => ({ default: m.AdminBusinessTypes })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminSupport = dynamic(() => import("@/components/admin/admin-support").then(m => ({ default: m.AdminSupport })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
+const AdminBusinesses = dynamic(() => import("@/components/admin/admin-businesses").then(m => ({ default: m.AdminBusinesses })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const VendorDeleteModal = dynamic(() => import("@/components/admin/vendor-delete-modal").then(m => ({ default: m.VendorDeleteModal })), { ssr: false });
 const CleanupTestVendors = dynamic(() => import("@/components/admin/cleanup-test-vendors").then(m => ({ default: m.CleanupTestVendors })), { ssr: false });
 import { useCategoryLabels } from "@/hooks/use-category-labels";
@@ -165,6 +164,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: "marketing", label: "Marketing", icon: Megaphone },
       { id: "support", label: "Support", icon: LifeBuoy },
       { id: "business-types", label: "Business Types", icon: Briefcase },
+      { id: "businesses", label: "Businesses", icon: Store },
       { id: "analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
@@ -194,7 +194,6 @@ const NAV_SECTIONS: NavSection[] = [
       { id: "seo-pages", label: "SEO pages", icon: Globe2 },
       { id: "pricing", label: "Pricing", icon: Tag },
       { id: "filters", label: "Filters", icon: Filter },
-      { id: "attributes", label: "Attributes", icon: Tags },
       { id: "templates", label: "Templates", icon: LayoutTemplate },
       { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
       { id: "messages", label: "Messages", icon: Mail },
@@ -459,7 +458,7 @@ function ReviewPanel({
 
           {vendor.gallery && vendor.gallery.length > 0 && (
             <Section label="Gallery">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-3 gap-2">
                 {vendor.gallery.slice(0, 6).map((img, i) => (
                   <img
                     key={i}
@@ -573,7 +572,6 @@ export function AdminPanelPage({
   adminName: string;
 }) {
   const [activeNav, setActiveNav] = React.useState("dashboard");
-  const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [kpi, setKpi] = React.useState<KPIData | null>(null);
   const { getLabel: getCategoryLabel } = useCategoryLabels();
@@ -843,9 +841,9 @@ export function AdminPanelPage({
       className="flex min-h-screen"
       style={{ background: "#F7F6F2" }}
     >
-      {/* ── Sidebar (desktop) ─────────────────────────────────────────── */}
+      {/* ── Sidebar ───────────────────────────────────────────────────── */}
       <aside
-        className="hidden h-screen flex-col overflow-hidden lg:flex"
+        className="flex h-screen flex-col overflow-hidden"
         style={{
           width: 200,
           background: "#fff",
@@ -946,94 +944,21 @@ export function AdminPanelPage({
         </div>
       </aside>
 
-      {/* ── Mobile sidebar drawer ─────────────────────────────────────── */}
-      {mobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setMobileSidebarOpen(false)}
-          />
-          <aside
-            className="absolute left-0 top-0 flex h-full w-[260px] max-w-[85vw] flex-col overflow-y-auto"
-            style={{ background: "#fff" }}
-          >
-            <div
-              className="flex items-center justify-between px-4 py-4"
-              style={{ borderBottom: "0.5px solid rgba(0,0,0,0.12)" }}
-            >
-              <div>
-                <p className="text-[13px] font-medium leading-tight">
-                  FindMyBites × PimpMyParty
-                </p>
-                <p className="mt-0.5 text-[11px] text-black/40">Admin panel</p>
-              </div>
-              <button
-                className="grid size-8 place-items-center rounded-lg text-black/60 hover:bg-black/5"
-                aria-label="Close menu"
-                onClick={() => setMobileSidebarOpen(false)}
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-            <nav className="flex-1 overflow-y-auto py-2">
-              {NAV_SECTIONS.map((section) => (
-                <div key={section.title} className="mb-1">
-                  <p className="px-4 py-1 text-[10px] font-semibold uppercase tracking-wide text-black/30">
-                    {section.title}
-                  </p>
-                  {section.items.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = activeNav === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          setActiveNav(item.id);
-                          setMobileSidebarOpen(false);
-                        }}
-                        className="mx-2 mb-0.5 flex w-[calc(100%-16px)] items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors"
-                        style={{
-                          background: isActive ? "rgba(0,0,0,0.05)" : "transparent",
-                          color: isActive ? "#000" : "rgba(0,0,0,0.65)",
-                        }}
-                      >
-                        <Icon className="size-4 shrink-0" />
-                        <span className="truncate">{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </nav>
-          </aside>
-        </div>
-      )}
-
       {/* ── Main content ──────────────────────────────────────────────── */}
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Top bar */}
         <div
-          className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 sm:px-5"
+          className="sticky top-0 z-30 flex items-center justify-between px-5 py-3"
           style={{
             borderBottom: "0.5px solid rgba(0,0,0,0.12)",
             background: "#fff",
           }}
         >
-          <div className="flex min-w-0 items-center gap-2">
-            {/* Mobile hamburger menu */}
-            <button
-              className="grid size-8 shrink-0 place-items-center rounded-lg text-black/60 hover:bg-black/5 lg:hidden"
-              aria-label="Open menu"
-              onClick={() => setMobileSidebarOpen(true)}
-            >
-              <Menu className="size-4" />
-            </button>
-            <h1 className="truncate text-[15px] font-medium capitalize">
-              {NAV_SECTIONS.flatMap((s) => s.items).find(
-                (i) => i.id === activeNav
-              )?.label ?? "Dashboard"}
-            </h1>
-          </div>
+          <h1 className="text-[15px] font-medium capitalize">
+            {NAV_SECTIONS.flatMap((s) => s.items).find(
+              (i) => i.id === activeNav
+            )?.label ?? "Dashboard"}
+          </h1>
           <div className="flex items-center gap-2">
             {totalPending > 0 && (
               <span
@@ -1082,6 +1007,8 @@ export function AdminPanelPage({
             <AdminSupport />
           ) : activeNav === "business-types" ? (
             <AdminBusinessTypes />
+          ) : activeNav === "businesses" ? (
+            <AdminBusinesses />
           ) : activeNav === "subscriptions" ? (
             <AdminSubscriptions />
           ) : activeNav === "seo-pages" ? (
@@ -1090,8 +1017,6 @@ export function AdminPanelPage({
             <AdminPricing />
           ) : activeNav === "filters" ? (
             <AdminFilters />
-          ) : activeNav === "attributes" ? (
-            <AdminAttributes />
           ) : activeNav === "templates" ? (
             <AdminTemplates />
           ) : (
@@ -1289,7 +1214,7 @@ export function AdminPanelPage({
                     placeholder="Search vendors…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-8 w-full rounded-lg border py-1 pl-7 pr-2 text-[12px] outline-none focus:border-black/30 sm:w-44"
+                    className="h-8 w-44 rounded-lg border py-1 pl-7 pr-2 text-[12px] outline-none focus:border-black/30"
                     style={{ borderColor: "rgba(0,0,0,0.12)" }}
                   />
                 </div>

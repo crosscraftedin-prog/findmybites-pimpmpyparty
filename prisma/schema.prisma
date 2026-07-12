@@ -139,6 +139,29 @@ model Vendor {
   // How the vendor was onboarded: 'admin' (invited) or 'organic' (self-registered)
   invite_type       String? @default("organic")
 
+  // ── Admin-Created Business Listings (Marketplace Growth System) ──
+  // listing_status controls public visibility independently of ownership.
+  // draft = admin is still editing; published = live on the marketplace;
+  // claimed = owner has taken over; hidden = admin temporarily hid it;
+  // rejected = admin rejected the listing.
+  listingStatus     String? @default("published")
+  // Where the listing data came from: manual | google | website | customer
+  businessSource    String? @default("manual")
+  // True if an admin created this listing (vs a vendor self-registering)
+  adminCreated      Boolean  @default(false)
+  // Phone number (separate from whatsapp) for claim verification
+  phone             String?
+  // Claim token for the "Claim this listing" flow (unique, expires)
+  claimToken        String?  @unique
+  claimTokenExpiresAt DateTime?
+  // Invite tracking
+  inviteStatus      String?  // pending | opened | claimed | expired | null
+  inviteSentAt      DateTime?
+  inviteOpenedAt    DateTime?
+  // Claim tracking
+  claimedAt         DateTime?
+  claimedByUserId   String?
+
   // ── Business Profile Management ──
   businessType       String? // "home" | "shop" | "studio" | "cloud_kitchen" | "event_company" | "freelancer"
   yearStarted        Int?
@@ -211,7 +234,42 @@ model Vendor {
   @@index([ecosystem, approved])
   @@index([ecosystem, city])
   @@index([approved, latitude, longitude])
+  @@index([listingStatus])
+  @@index([ownership_status])
+  @@index([adminCreated])
+  @@index([phone])
+  @@index([inviteStatus])
   @@map("vendor_listings")
+}
+
+// ── Vendor Claim / Invite Audit Trail ────────────────────────────────────
+// Tracks every claim attempt and invite sent for admin-created listings.
+// One row per invite/claim event — supports multiple attempts over time.
+
+model VendorClaim {
+  id          String   @id @default(cuid())
+  vendorId    String   // references vendor_listings.id (loose, no FK)
+  // Event type: invite_sent | invite_opened | claim_started | claim_approved | claim_rejected | token_regenerated
+  eventType   String
+  // Who initiated the event
+  initiatedBy String?  // "admin" | "vendor" | "system"
+  adminId     String?  // admin user id (if initiated by admin)
+  adminEmail  String?  // admin email snapshot
+  // Claimant info (for claim_started / claim_approved events)
+  claimantEmail String?
+  claimantUserId String?
+  claimantName  String?
+  // Token used (snapshot for audit)
+  tokenSnippet String? // last 8 chars of the claim token
+  // Metadata
+  notes       String?  // free-form notes (e.g. rejection reason)
+  metadata    String?  // JSON blob
+  createdAt   DateTime @default(now())
+
+  @@index([vendorId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("vendor_claims")
 }
 
 model Review {

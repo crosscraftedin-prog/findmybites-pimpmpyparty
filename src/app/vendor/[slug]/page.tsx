@@ -5,6 +5,7 @@ import { parseJsonArray } from "@/lib/format";
 import { getCategoryInfo } from "@/lib/category-server";
 import type { VendorWithRelations } from "@/lib/types";
 import { VendorProfileClient } from "./vendor-profile-client";
+import { ClaimBanner } from "@/components/marketplace/claim-banner";
 
 /**
  * /vendor/[slug] — public vendor profile page (what CUSTOMERS see).
@@ -77,6 +78,8 @@ async function getVendor(slug: string): Promise<VendorWithRelations | null> {
       serviceRadiusKm: v.serviceRadiusKm,
       // SECURITY: Do NOT pass userEmail or owner_user_id to the client component
       createdAt: v.createdAt.toISOString(),
+      // Claim system: include claimToken for the ClaimBanner (admin-created listings)
+      claimToken: (v as any).claimToken ?? null,
       reviews: v.reviews.map((r) => ({
         id: r.id,
         vendorId: r.vendorId,
@@ -219,6 +222,8 @@ export default async function VendorProfilePage({ params }: PageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbsJsonLd) }}
       />
       <VendorProfileClient vendor={vendor} />
+      {/* Claim banner — only shows for unclaimed admin-created listings */}
+      <ClaimBanner claimToken={(vendor as any).claimToken} />
     </>
   );
 }

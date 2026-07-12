@@ -126,7 +126,12 @@ export async function GET(req: NextRequest) {
       : [];
 
     // Structured (non-search) filters
-    const where: Prisma.VendorWhereInput = { approved: true };
+    // Public visibility: only show published or claimed listings (not draft/hidden/rejected).
+    // This supports admin-created listings — draft/hidden ones are excluded from the public site.
+    const where: Prisma.VendorWhereInput = {
+      approved: true,
+      listingStatus: { in: ["published", "claimed"] },
+    };
     if (ecosystem) where.ecosystem = ecosystem;
     if (category) where.category = category;
     if (continent) where.continent = continent;
