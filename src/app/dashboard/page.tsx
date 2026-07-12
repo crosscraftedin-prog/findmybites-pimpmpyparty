@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Loader2, Store } from "lucide-react";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { useVendorDashboard } from "@/lib/queries";
-import { useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/marketplace/site-header";
 import { LocationBanner } from "@/components/marketplace/location-banner";
 import { Sidebar, type DashboardTab } from "@/components/dashboard/Sidebar";
@@ -34,7 +33,6 @@ import { VendorOnboarding } from "@/components/dashboard/vendor-onboarding";
  */
 export default function DashboardPage() {
   const router = useRouter();
-  const qc = useQueryClient();
   const { session, user, loading: sessionLoading } = useSupabaseSession();
   const { data: vendorData, isLoading: vendorLoading } = useVendorDashboard(
     !!session && !sessionLoading
@@ -49,16 +47,9 @@ export default function DashboardPage() {
     }
   }, [session, sessionLoading, router]);
 
-  // Listen for vendor-created event (fired by QuickOnboardingForm after publish)
-  // to invalidate the dashboard query so the new vendor appears immediately.
-  React.useEffect(() => {
-    const handler = () => {
-      qc.invalidateQueries({ queryKey: ["vendor", "dashboard"] });
-      qc.invalidateQueries({ queryKey: ["vendors"] });
-    };
-    window.addEventListener("vendor-created", handler);
-    return () => window.removeEventListener("vendor-created", handler);
-  }, [qc]);
+  // When no vendor exists, the dashboard staleTime is 15s — after publish,
+  // useCreateVendor invalidates ["vendor","dashboard"] so the dashboard
+  // will refetch automatically when the user navigates to /dashboard.
 
   const vendors = vendorData?.vendors ?? [];
   const vendor = vendors[0] ?? null;
@@ -82,7 +73,7 @@ export default function DashboardPage() {
     );
   }
 
-  // Logged in but no vendor listing — open the onboarding dialog automatically
+  // Logged in but no vendor listing — redirect to homepage to start onboarding
   if (!vendor) {
     return (
       <div className="flex min-h-screen flex-col">
@@ -95,9 +86,7 @@ export default function DashboardPage() {
             in under 3 minutes.
           </p>
           <button
-            onClick={() => {
-              router.push("/?list-vendor=1");
-            }}
+            onClick={() => router.push("/")}
             className="rounded-full bg-brand px-6 py-2.5 text-sm font-semibold text-brand-foreground"
           >
             List your business

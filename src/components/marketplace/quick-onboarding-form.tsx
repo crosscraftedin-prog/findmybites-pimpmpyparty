@@ -17,6 +17,7 @@ import {
 import { ImageUpload } from "./image-upload";
 import { useMarketplace } from "@/lib/store";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
+import { useCreateVendor } from "@/lib/queries";
 import { COUNTRIES, CURRENCY_SYMBOLS, migrateCategory, ECOSYSTEM_META } from "@/lib/constants";
 import { countryCodeToFlag } from "@/lib/format";
 import { toast } from "sonner";
@@ -94,6 +95,10 @@ export function QuickOnboardingForm({
   const [createdVendor, setCreatedVendor] = React.useState<Vendor | null>(null);
   const [pendingPublish, setPendingPublish] = React.useState(false);
 
+  // Single source of truth for vendor creation — uses TanStack Query mutation
+  // with automatic cache invalidation (no custom events needed)
+  const createVendor = useCreateVendor();
+
   // Categories for this ecosystem
   const [categories, setCategories] = React.useState<{ slug: string; label: string }[]>([]);
   React.useEffect(() => {
@@ -167,37 +172,23 @@ export function QuickOnboardingForm({
         metaDescription: form.businessDescription.slice(0, 160),
       };
 
-      const res = await fetch("/api/vendors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to publish");
+      // Use TanStack Query mutation — automatically invalidates dashboard cache
+      const result = await createVendor.mutateAsync(payload);
+      const vendor = result.vendor;
 
-      setCreatedVendor(data.vendor);
+      setCreatedVendor(vendor);
       setStep("success");
-      onCreated(data.vendor);
-
-      // ── Invalidate the dashboard query so /dashboard shows the new vendor ──
-      // Without this, the dashboard shows "No business yet" because the cached
-      // useVendorDashboard query still returns an empty vendor list.
-      try {
-        const { useQueryClient } = await import("@tanstack/react-query");
-        // useQueryClient is a hook — can't call it here. Instead, dispatch a
-        // custom event that the dashboard page listens for to refetch.
-        window.dispatchEvent(new Event("vendor-created"));
-      } catch { /* non-fatal */ }
+      onCreated(vendor);
 
       // ── Kick off AI enrichment in the background (fire-and-forget) ──
       // AI generates: description, tagline, SEO title/description, tags, subcategory.
       // The background API updates the listing directly when done — no user wait.
-      if (data.vendor?.id) {
+      if (vendor?.id) {
         fetch("/api/vendor/ai/background-enrich", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            vendorId: data.vendor.id,
+            vendorId: vendor.id,
             businessName: form.name,
             ecosystem,
             category: form.category,

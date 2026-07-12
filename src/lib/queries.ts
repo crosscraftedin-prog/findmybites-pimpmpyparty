@@ -102,6 +102,11 @@ export interface CreateVendorInput {
   website?: string;
   whatsapp?: string;
   serviceRadiusKm?: number;
+  businessType?: string;
+  metaTitle?: string;
+  metaDescription?: string;
+  country?: string;
+  continent?: string;
 }
 
 export interface CreateVendorResponse {
@@ -644,7 +649,7 @@ export function useVendorDashboard(enabled = true) {
       if (!res.ok) throw new Error("Failed to fetch dashboard");
       return (await res.json()) as VendorDashboardData;
     },
-    staleTime: 15 * 1000,
+    staleTime: 5 * 1000, // 5s — short enough to catch new vendor after publish
     retry: 1,
   });
 }
