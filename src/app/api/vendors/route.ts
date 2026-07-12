@@ -510,10 +510,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // --- auto-approval: first 500 vendors are auto-approved (growth phase) ---
-    const AUTO_APPROVAL_THRESHOLD = 500;
+    // --- auto-approval: controlled by admin marketplace settings ---
+    // Reads from marketplace_settings table (admin can toggle ON/OFF + threshold
+    // without code changes). Falls back to auto-approve with threshold 500.
+    let vendorAutoApproval = true;
+    let autoApprovalThreshold = 500;
+    try {
+      const settingsRows = await (db as any).$queryRaw`
+        SELECT key, value FROM marketplace_settings
+      `;
+      if (Array.isArray(settingsRows)) {
+        const map: Record<string, string> = {};
+        for (const r of settingsRows) map[r.key] = r.value;
+        if (map.vendorAutoApproval !== undefined) vendorAutoApproval = map.vendorAutoApproval !== "false";
+        if (map.autoApprovalThreshold) autoApprovalThreshold = Number(map.autoApprovalThreshold) || 500;
+      }
+    } catch {
+      // Table doesn't exist — use defaults
+    }
     const totalVendors = await db.vendor.count().catch(() => 0);
-    const autoApprove = totalVendors < AUTO_APPROVAL_THRESHOLD;
+    const autoApprove = vendorAutoApproval && totalVendors < autoApprovalThreshold;
 
     // --- create ---
     const created = await db.vendor.create({

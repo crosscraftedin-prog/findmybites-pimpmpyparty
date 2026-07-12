@@ -32,6 +32,29 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
   const router = useRouter();
   const [showUpgrade, setShowUpgrade] = React.useState(false);
 
+  // ── Dismissible profile card with 7-day reappear logic ──
+  const DISMISS_KEY = `profile-card-dismissed-${vendor.id}`;
+  const [profileCardDismissed, setProfileCardDismissed] = React.useState(false);
+
+  React.useEffect(() => {
+    const dismissed = localStorage.getItem(DISMISS_KEY);
+    if (dismissed) {
+      const dismissedAt = Number(dismissed);
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      if (Date.now() - dismissedAt < sevenDays) {
+        setProfileCardDismissed(true);
+      } else {
+        // Expired — show again
+        localStorage.removeItem(DISMISS_KEY);
+      }
+    }
+  }, [DISMISS_KEY]);
+
+  const dismissProfileCard = () => {
+    localStorage.setItem(DISMISS_KEY, String(Date.now()));
+    setProfileCardDismissed(true);
+  };
+
   // Profile completion checklist — comprehensive with "why it matters"
   const checklist = [
     { label: "Add Logo", why: "Brands your listing on cards & search", done: !!vendor.avatarImage, tab: "listing" as DashboardTab },
@@ -122,9 +145,19 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
         )}
       </div>
 
-      {/* ── B) Profile completion ── */}
+      {/* ── B) Profile completion (dismissible, reappears after 7 days if < 70%) ── */}
+      {!profileCardDismissed && completionPct < 100 && (
       <div className="mb-6 rounded-xl border border-border bg-card p-5">
-        <h2 className="text-base font-bold">Complete your profile to get more customers</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold">Complete your profile to get more customers</h2>
+          <button
+            onClick={dismissProfileCard}
+            className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            Dismiss ✕
+          </button>
+        </div>
         <div className="mt-3 flex items-center gap-3">
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
             <div
@@ -180,6 +213,7 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
           );
         })()}
       </div>
+      )}
 
       {/* ── C) Stats cards ── */}
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">

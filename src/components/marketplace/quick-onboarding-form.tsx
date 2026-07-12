@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Loader2, Sparkles, Check, ChevronRight, ChevronLeft, Camera, Store,
   MapPin, Phone, Tag, DollarSign, FileText, Eye, Share2, LayoutDashboard,
-  TrendingUp, Plus, ArrowRight, CheckCircle2,
+  TrendingUp, Plus, ArrowRight, CheckCircle2, MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -182,9 +182,6 @@ export function QuickOnboardingForm({
     setPublishing(true);
     try {
       const country = COUNTRIES.find((c) => c.code === form.countryCode);
-      const price = Number(form.startingPrice) || 0;
-      // Auto-calculate price range from starting price
-      const priceRange = price === 0 ? "$" : price < 50 ? "$" : price < 200 ? "$$" : price < 500 ? "$$$" : "$$$$";
 
       const payload = {
         name: form.name.trim(),
@@ -197,8 +194,8 @@ export function QuickOnboardingForm({
         country: country?.name || "",
         continent: country?.continent || "",
         currency,
-        priceRange,
-        basePrice: price,
+        priceRange: "$$", // default — vendor sets pricing in dashboard
+        basePrice: 0,
         tags: form.aiTags.length > 0 ? form.aiTags : [form.category, form.city.toLowerCase()],
         responseTime: "24 hours",
         yearsActive: 1,
@@ -333,22 +330,6 @@ export function QuickOnboardingForm({
               placeholder="e.g. +91 98765 43210"
               className="mt-1"
             />
-          </div>
-
-          {/* Starting Price */}
-          <div>
-            <Label htmlFor="qo-price" className="text-sm font-semibold">
-              Starting From ({currencySymbol})
-            </Label>
-            <Input
-              id="qo-price"
-              type="number"
-              value={form.startingPrice}
-              onChange={(e) => set("startingPrice", e.target.value)}
-              placeholder="e.g. 500"
-              className="mt-1"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">Customers see "from {currencySymbol}{form.startingPrice || "0"}". You can change this later.</p>
           </div>
 
           {/* Photo */}
@@ -486,9 +467,6 @@ export function QuickOnboardingForm({
               <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><Tag className="size-3" /> {categories.find((c) => c.slug === form.category)?.label || form.category}</span>
                 <span className="inline-flex items-center gap-1"><MapPin className="size-3" /> {form.city}</span>
-                {form.startingPrice && (
-                  <span className="inline-flex items-center gap-1"><DollarSign className="size-3" /> from {currencySymbol}{form.startingPrice}</span>
-                )}
               </div>
             </div>
           </div>
@@ -542,27 +520,6 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
 
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/vendor/${vendor.slug}` : "";
 
-  const handleShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: vendor.name, url: shareUrl });
-      } catch {}
-    } else {
-      navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      toast.success("Link copied to clipboard!");
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  // Calculate profile strength (basic fields filled)
-  const filledFields = [
-    vendor.name, vendor.tagline, vendor.description, vendor.city,
-    vendor.heroImage, vendor.avatarImage, vendor.tags?.length > 0,
-  ].filter(Boolean).length;
-  const totalFields = 10;
-  const strength = Math.round((filledFields / totalFields) * 100);
-
   return (
     <div className="space-y-5 text-center">
       {/* Checkmark */}
@@ -571,11 +528,11 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
       </div>
 
       <div>
-        <h3 className="text-xl font-bold">Congratulations! 🎉</h3>
+        <h3 className="text-xl font-bold">🎉 Congratulations!</h3>
         <p className="mt-1 text-sm text-muted-foreground">Your business is <span className="font-semibold text-emerald-600">LIVE</span>.</p>
       </div>
 
-      {/* Preview card */}
+      {/* Preview card with badges */}
       <div className="overflow-hidden rounded-xl border border-border text-left">
         {vendor.heroImage && (
           <div className="aspect-[16/9] bg-muted">
@@ -583,6 +540,14 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
           </div>
         )}
         <div className="p-4">
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+              ● LIVE
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+              🟢 FREE PLAN
+            </span>
+          </div>
           <h4 className="font-bold">{vendor.name}</h4>
           <p className="text-sm text-muted-foreground">{vendor.tagline}</p>
           <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
@@ -591,29 +556,18 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
         </div>
       </div>
 
-      {/* Profile Strength */}
-      <div className="rounded-lg border border-border bg-muted/30 p-4 text-left">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold">Profile Strength</span>
-          <span className="text-sm font-bold text-brand">{strength}%</span>
-        </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-          <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${strength}%` }} />
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Businesses with complete profiles receive more enquiries.
-        </p>
-      </div>
-
-      {/* Next recommended action */}
+      {/* AI Product Suggestion */}
       <div className="rounded-lg border border-brand-border bg-brand-soft/30 p-4 text-left">
-        <p className="text-xs font-semibold uppercase text-muted-foreground">Recommended Next Step</p>
-        <div className="mt-1 flex items-center justify-between">
-          <span className="text-sm font-medium">Add Your First Product</span>
-          <Button size="sm" className="gap-1.5 bg-brand text-brand-foreground hover:bg-brand/90" onClick={() => router.push("/dashboard?tab=products")}>
-            <Plus className="size-3.5" /> Add
-          </Button>
-        </div>
+        <p className="text-xs font-semibold uppercase text-muted-foreground">⭐ Recommended Next Step</p>
+        <p className="mt-1 text-sm font-medium">Create Your First Product with AI</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Businesses with products get 3x more enquiries. AI creates a product from your business info in seconds.</p>
+        <Button
+          size="sm"
+          className="mt-2 w-full gap-1.5 bg-brand text-brand-foreground hover:bg-brand/90"
+          onClick={() => router.push("/dashboard?tab=products&action=new")}
+        >
+          <Sparkles className="size-3.5" /> Create Product with AI
+        </Button>
       </div>
 
       {/* Action buttons */}
@@ -621,12 +575,31 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
         <Button className="w-full gap-2" onClick={onGoToDashboard}>
           <LayoutDashboard className="size-4" /> Go to Dashboard
         </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1 gap-2" onClick={() => window.open(`/vendor/${vendor.slug}`, "_blank")}>
-            <Eye className="size-4" /> View Listing
+        <div className="grid grid-cols-3 gap-2">
+          <Button variant="outline" className="gap-1.5 text-xs" onClick={() => window.open(`/vendor/${vendor.slug}`, "_blank")}>
+            <Eye className="size-3.5" /> View
           </Button>
-          <Button variant="outline" className="flex-1 gap-2" onClick={handleShare}>
-            {copied ? <Check className="size-4 text-emerald-600" /> : <Share2 className="size-4" />} Share
+          <Button
+            variant="outline"
+            className="gap-1.5 text-xs"
+            onClick={() => {
+              const waText = encodeURIComponent(`Check out ${vendor.name} on FindMyBites! ${shareUrl}`);
+              window.open(`https://wa.me/?text=${waText}`, "_blank");
+            }}
+          >
+            <MessageCircle className="size-3.5" /> WhatsApp
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-1.5 text-xs"
+            onClick={() => {
+              navigator.clipboard.writeText(shareUrl);
+              setCopied(true);
+              toast.success("Link copied!");
+              setTimeout(() => setCopied(false), 2000);
+            }}
+          >
+            {copied ? <Check className="size-3.5 text-emerald-600" /> : <Share2 className="size-3.5" />} Copy
           </Button>
         </div>
       </div>
