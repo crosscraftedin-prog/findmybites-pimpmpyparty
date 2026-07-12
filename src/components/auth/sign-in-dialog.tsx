@@ -43,7 +43,7 @@ export function SignInDialog() {
   //  - on page load after Google OAuth redirect (intent was persisted to localStorage)
   const executeIntent = React.useCallback(
     (intentStr: string) => {
-      if (intentStr === "list-vendor") {
+      if (intentStr === "list-vendor" || intentStr === "list-vendor-publish") {
         useMarketplace.getState().openListVendor();
       } else if (intentStr === "admin") {
         window.location.href = "/admin";

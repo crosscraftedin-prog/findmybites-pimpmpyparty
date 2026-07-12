@@ -28,8 +28,9 @@ export function VendorCTA() {
   const { data: stats } = useStats();
 
   const handleStart = () => {
-    if (session) openListVendor();
-    else { setAuthIntent("list-vendor"); openAuthDialog(); }
+    // Auth gate removed — the onboarding form handles auth at publish time.
+    // This maximizes conversion: user fills the form first, then signs in to publish.
+    openListVendor();
   };
 
   const handlePricing = () => {

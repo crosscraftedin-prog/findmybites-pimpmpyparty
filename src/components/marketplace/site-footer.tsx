@@ -102,13 +102,10 @@ export function SiteFooter() {
   const { user: session } = useSupabaseSession();
 
   const handleListClick = () => {
-    if (session) {
-      openListVendor();
-    } else {
-      setAuthIntent("list-vendor");
-      openAuthDialog();
-    }
+    // Auth gate removed — onboarding form handles auth at publish time.
+    openListVendor();
   };
+
   return (
     <footer className="mt-auto border-t border-border bg-background">
       {/* CTA strip */}

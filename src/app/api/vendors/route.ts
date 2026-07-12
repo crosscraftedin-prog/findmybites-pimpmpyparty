@@ -510,6 +510,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // --- auto-approval: first 500 vendors are auto-approved (growth phase) ---
+    const AUTO_APPROVAL_THRESHOLD = 500;
+    const totalVendors = await db.vendor.count().catch(() => 0);
+    const autoApprove = totalVendors < AUTO_APPROVAL_THRESHOLD;
+
     // --- create ---
     const created = await db.vendor.create({
       data: {
@@ -536,7 +541,11 @@ export async function POST(req: NextRequest) {
         tags: JSON.stringify(tags),
         featured: false,
         verified: false, // Only admin approval should grant verified badge
-        approved: false, // pending admin approval — hidden from public until approved
+        // AUTO-APPROVAL: For the first N vendors (marketplace growth phase),
+        // listings are automatically approved so they go live immediately.
+        // Admin can still suspend/reject later if a listing violates policies.
+        approved: autoApprove,
+        listingStatus: "published",
         responseTime,
         yearsActive,
         completedBookings: 0,

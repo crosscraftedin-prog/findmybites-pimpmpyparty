@@ -30,8 +30,8 @@ export function AboutClient() {
   const setAuthIntent = useMarketplace((s) => s.setAuthIntent);
 
   const handleListClick = () => {
-    setAuthIntent("list-vendor");
-    openAuthDialog();
+    // Auth gate removed — onboarding form handles auth at publish time.
+    openListVendor();
   };
 
   return (

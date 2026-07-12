@@ -15,6 +15,7 @@ import { useMarketplace } from "@/lib/store";
 import { ECOSYSTEM_META } from "@/lib/constants";
 import { useVendor } from "@/lib/queries";
 import { CreateVendorForm, CreateVendorSuccess } from "./create-vendor-form";
+import { QuickOnboardingForm } from "./quick-onboarding-form";
 import type { Vendor } from "@/lib/types";
 
 export function ListVendorDialog() {
@@ -170,12 +171,17 @@ export function ListVendorDialog() {
                   setCreated(null);
                 }}
               />
-            ) : (
+            ) : isEditing ? (
               <CreateVendorForm
                 ecosystem={ecosystem}
                 onCreated={(v) => setCreated(v)}
                 editingVendor={editingVendor}
                 onUpdated={handleUpdated}
+              />
+            ) : (
+              <QuickOnboardingForm
+                ecosystem={ecosystem}
+                onCreated={(v) => setCreated(v)}
               />
             )}
           </div>

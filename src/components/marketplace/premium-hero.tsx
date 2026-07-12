@@ -87,8 +87,8 @@ export function PremiumHero() {
   };
 
   const handleListClick = () => {
-    if (session) openListVendor();
-    else { setAuthIntent("list-vendor"); openAuthDialog(); }
+    // Auth gate removed — onboarding form handles auth at publish time.
+    openListVendor();
   };
 
   const heroStats = [

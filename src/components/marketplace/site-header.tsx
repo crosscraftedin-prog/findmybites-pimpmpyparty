@@ -186,7 +186,7 @@ export function SiteHeader() {
           <Button
             size="sm"
             className="hidden bg-brand text-brand-foreground hover:bg-brand/90 lg:inline-flex"
-            onClick={() => requireAuth("list-vendor", () => openListVendor())}
+            onClick={() => openListVendor()}
           >
             <Sparkles className="size-4" />
             List your business
@@ -274,7 +274,7 @@ export function SiteHeader() {
                   <SheetClose asChild>
                     <Button
                       className="bg-brand text-brand-foreground hover:bg-brand/90"
-                      onClick={() => requireAuth("list-vendor", () => openListVendor())}
+                      onClick={() => openListVendor()}
                     >
                       <Sparkles className="size-4" />
                       List your business

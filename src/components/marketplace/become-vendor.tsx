@@ -46,12 +46,8 @@ export function BecomeVendor() {
   const { user: session } = useSupabaseSession();
 
   const handleListClick = () => {
-    if (session) {
-      openListVendor();
-    } else {
-      setAuthIntent("list-vendor");
-      openAuthDialog();
-    }
+    // Auth gate removed — onboarding form handles auth at publish time.
+    openListVendor();
   };
 
   return (

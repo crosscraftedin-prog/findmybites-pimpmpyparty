@@ -13,6 +13,7 @@ import {
   Circle,
   ArrowRight,
   TrendingUp,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,18 +32,20 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
   const router = useRouter();
   const [showUpgrade, setShowUpgrade] = React.useState(false);
 
-  // Profile completion checklist
+  // Profile completion checklist — comprehensive with "why it matters"
   const checklist = [
-    { label: "Business name added", done: vendor.name.trim().length > 0, tab: "listing" as DashboardTab },
-    { label: "Category selected", done: !!vendor.category, tab: "listing" as DashboardTab },
-    { label: "Banner photo uploaded", done: !!vendor.heroImage, tab: "listing" as DashboardTab },
-    { label: "Logo uploaded", done: !!vendor.avatarImage, tab: "listing" as DashboardTab },
-    { label: "Gallery photos added", done: vendor.gallery.length >= 3, tab: "listing" as DashboardTab },
-    { label: "Description written", done: vendor.description.trim().length >= 20, tab: "listing" as DashboardTab },
-    { label: "WhatsApp number added", done: !!vendor.whatsapp, tab: "listing" as DashboardTab },
-    { label: "Business hours set", done: !!vendor.openHours, tab: "availability" as DashboardTab },
-    { label: "SEO title set", done: !!vendor.metaTitle, tab: "listing" as DashboardTab },
-    { label: "Meta description set", done: !!(vendor as any).metaDescription, tab: "listing" as DashboardTab },
+    { label: "Add Logo", why: "Brands your listing on cards & search", done: !!vendor.avatarImage, tab: "listing" as DashboardTab },
+    { label: "Add Banner", why: "Eye-catching header on your profile page", done: !!vendor.heroImage, tab: "listing" as DashboardTab },
+    { label: "Add Gallery", why: "Show your work — 3+ photos recommended", done: vendor.gallery.length >= 3, tab: "listing" as DashboardTab },
+    { label: "Verify WhatsApp", why: "Customers contact you directly", done: !!vendor.whatsapp, tab: "listing" as DashboardTab },
+    { label: "Add Pricing", why: "Customers filter by budget — show your range", done: !!vendor.basePrice && vendor.basePrice > 0, tab: "listing" as DashboardTab },
+    { label: "Add Products", why: "Products get 3x more enquiries", done: (vendor as any).productCount > 0, tab: "products" as DashboardTab },
+    { label: "Add Business Hours", why: "Customers know when you're available", done: !!vendor.openHours, tab: "availability" as DashboardTab },
+    { label: "Add Delivery Area", why: "Appear in location-based searches", done: !!(vendor as any).serviceRadiusKm, tab: "listing" as DashboardTab },
+    { label: "Add Instagram", why: "Showcase your work and build trust", done: !!vendor.instagram, tab: "listing" as DashboardTab },
+    { label: "Add Website", why: "Drive traffic to your own site", done: !!vendor.website, tab: "listing" as DashboardTab },
+    { label: "Add Tags", why: "Improve search visibility & SEO", done: vendor.tags.length >= 3, tab: "listing" as DashboardTab },
+    { label: "Add SEO Meta", why: "Help Google index your page", done: !!(vendor as any).metaDescription, tab: "listing" as DashboardTab },
   ];
   const completedCount = checklist.filter((c) => c.done).length;
   const completionPct = Math.round((completedCount / checklist.length) * 100);
@@ -59,23 +62,35 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
         <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
           Welcome back, {vendor.name}! 👋
         </h1>
-        {/* Business Status Card */}
-        <div className={cn(
-          "mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold",
-          vendor.approved
-            ? "bg-emerald-100 text-emerald-700"
-            : "bg-amber-100 text-amber-700"
-        )}>
-          {vendor.approved ? (
-            <>
-              <CheckCircle2 className="size-4" />
-              Business Live
-            </>
+        {/* Business Status + Plan Badge */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className={cn(
+            "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold",
+            vendor.approved
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-amber-100 text-amber-700"
+          )}>
+            {vendor.approved ? (
+              <>
+                <CheckCircle2 className="size-4" />
+                Business Live
+              </>
+            ) : (
+              <>
+                <Circle className="size-4" />
+                Pending Approval
+              </>
+            )}
+          </div>
+          {/* Free Plan badge */}
+          {isFreePlan ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-semibold text-emerald-700">
+              🟢 Free Plan
+            </span>
           ) : (
-            <>
-              <Circle className="size-4" />
-              Pending Approval
-            </>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-700">
+              ⭐ Pro Plan
+            </span>
           )}
         </div>
         {isFreePlan ? (
@@ -125,24 +140,45 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
               key={item.label}
               onClick={() => onNavigate(item.tab)}
               className={cn(
-                "flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent",
-                item.done ? "text-foreground" : "text-muted-foreground"
+                "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+                item.done ? "border-transparent bg-emerald-50/50 text-foreground dark:bg-emerald-950/10" : "border-border bg-card text-foreground"
               )}
             >
               {item.done ? (
-                <CheckCircle2 className="size-4 shrink-0 text-brand" />
+                <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
               ) : (
                 <Circle className="size-4 shrink-0 text-muted-foreground/40" />
               )}
-              <span className="flex-1">{item.label}</span>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium">{item.label}</div>
+                {!item.done && <div className="text-[11px] text-muted-foreground">{item.why}</div>}
+              </div>
               {!item.done && (
-                <span className="text-[11px] font-medium text-brand">
+                <span className="shrink-0 text-[11px] font-medium text-brand">
                   + Add
                 </span>
               )}
             </button>
           ))}
         </div>
+
+        {/* Recommended next step */}
+        {completionPct < 70 && (() => {
+          const nextItem = checklist.find((c) => !c.done);
+          if (!nextItem) return null;
+          return (
+            <div className="mt-4 flex items-center justify-between rounded-lg border border-brand-border bg-brand-soft/30 p-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase text-muted-foreground">Recommended Next Step</p>
+                <p className="text-sm font-medium">{nextItem.label}</p>
+                <p className="text-xs text-muted-foreground">{nextItem.why}</p>
+              </div>
+              <Button size="sm" className="shrink-0 gap-1.5 bg-brand text-brand-foreground hover:bg-brand/90" onClick={() => onNavigate(nextItem.tab)}>
+                <Plus className="size-3.5" /> Add
+              </Button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── C) Stats cards ── */}
