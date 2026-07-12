@@ -98,14 +98,14 @@ export function ListVendorDialog() {
             : "Create a new business listing on the marketplace."}
         </DialogDescription>
 
-        {/* Header band */}
-        <div className="shrink-0 border-b border-border bg-gradient-to-br from-brand-soft to-background px-5 py-4 sm:px-6">
+        {/* Header band — compact */}
+        <div className="shrink-0 border-b border-border bg-gradient-to-br from-brand-soft to-background px-5 py-2.5 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-xl bg-brand text-brand-foreground shadow-sm">
-              {isEditing ? <Pencil className="size-5" /> : <Store className="size-5" />}
+            <div className="grid size-8 place-items-center rounded-lg bg-brand text-brand-foreground shadow-sm">
+              {isEditing ? <Pencil className="size-4" /> : <Store className="size-4" />}
             </div>
             <div className="min-w-0">
-              <h2 className="flex items-center gap-2 text-lg font-bold leading-tight">
+              <h2 className="flex items-center gap-2 text-base font-bold leading-tight">
                 {showSuccess
                   ? isEditing
                     ? "Updated!"

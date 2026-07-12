@@ -27,6 +27,7 @@ import { VendorModal } from "@/components/marketplace/vendor-modal";
 import { ListVendorDialog } from "@/components/marketplace/list-vendor-dialog";
 import { SignInDialog } from "@/components/auth/sign-in-dialog";
 import { PendingVendorBanner } from "@/components/marketplace/pending-vendor-banner";
+import { useMarketplace } from "@/lib/store";
 
 /**
  * Homepage — FindMyBites × PimpMyParty
@@ -53,6 +54,16 @@ import { PendingVendorBanner } from "@/components/marketplace/pending-vendor-ban
 export default function Home() {
   useScrollToHash();
   const [compareIds, setCompareIds] = React.useState<string[] | null>(null);
+  const openListVendor = useMarketplace((s) => s.openListVendor);
+
+  // Auto-open onboarding dialog when ?list-vendor=1 is in the URL
+  React.useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("list-vendor=1")) {
+      openListVendor();
+      // Clean the URL
+      window.history.replaceState({}, "", "/");
+    }
+  }, [openListVendor]);
 
   // SEO structured data — Marketplace + Organization schema for rich results
   const jsonLd = {

@@ -179,6 +179,16 @@ export function QuickOnboardingForm({
       setStep("success");
       onCreated(data.vendor);
 
+      // ── Invalidate the dashboard query so /dashboard shows the new vendor ──
+      // Without this, the dashboard shows "No business yet" because the cached
+      // useVendorDashboard query still returns an empty vendor list.
+      try {
+        const { useQueryClient } = await import("@tanstack/react-query");
+        // useQueryClient is a hook — can't call it here. Instead, dispatch a
+        // custom event that the dashboard page listens for to refetch.
+        window.dispatchEvent(new Event("vendor-created"));
+      } catch { /* non-fatal */ }
+
       // ── Kick off AI enrichment in the background (fire-and-forget) ──
       // AI generates: description, tagline, SEO title/description, tags, subcategory.
       // The background API updates the listing directly when done — no user wait.
@@ -223,27 +233,27 @@ export function QuickOnboardingForm({
   // ── FORM STEPS ──
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Step indicator */}
-      <div className="flex items-center justify-between px-5 pb-3 pt-1 sm:px-6">
+      {/* Step indicator — compact */}
+      <div className="flex items-center justify-between px-5 pb-2 pt-1 sm:px-6">
         <div className="flex gap-1.5">
           <StepDot active={step === 1} completed={(step as number) > 1} label="1" />
-          <div className={`h-0.5 w-8 self-center ${(step as number) > 1 ? "bg-emerald-500" : "bg-muted"}`} />
+          <div className={`h-0.5 w-6 self-center ${(step as number) > 1 ? "bg-emerald-500" : "bg-muted"}`} />
           <StepDot active={step === 2} completed={false} label="2" />
         </div>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-[11px] text-muted-foreground">
           {step === 1 && "Step 1 of 2 — Basics"}
           {step === 2 && "Step 2 of 2 — Describe"}
         </span>
       </div>
 
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto px-5 pb-4 sm:px-6">
-      {/* ── STEP 1: BASICS ── */}
+      <div className="flex-1 overflow-y-auto px-5 pb-3 sm:px-6">
+      {/* ── STEP 1: BASICS — compact spacing ── */}
       {step === 1 && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
-            <h3 className="text-lg font-bold">Tell us about your business</h3>
-            <p className="text-sm text-muted-foreground">Just the basics — you can complete the rest later.</p>
+            <h3 className="text-base font-bold">Tell us about your business</h3>
+            <p className="text-xs text-muted-foreground">Just the basics — complete the rest later.</p>
           </div>
 
           {/* Business Name */}
@@ -346,12 +356,12 @@ export function QuickOnboardingForm({
         </div>
       )}
 
-      {/* ── STEP 2: DESCRIBE YOUR BUSINESS ── */}
+      {/* ── STEP 2: DESCRIBE YOUR BUSINESS — compact spacing ── */}
       {step === 2 && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
-            <h3 className="text-lg font-bold">Describe your business</h3>
-            <p className="text-sm text-muted-foreground">Write a sentence or two — AI will generate SEO, tags, and more in the background after publishing.</p>
+            <h3 className="text-base font-bold">Describe your business</h3>
+            <p className="text-xs text-muted-foreground">Write a sentence or two — AI generates SEO, tags, and more after publishing.</p>
           </div>
 
           <div>

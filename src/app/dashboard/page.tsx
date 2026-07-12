@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, Store } from "lucide-react";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { useVendorDashboard } from "@/lib/queries";
+import { useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/marketplace/site-header";
 import { LocationBanner } from "@/components/marketplace/location-banner";
 import { Sidebar, type DashboardTab } from "@/components/dashboard/Sidebar";
@@ -33,6 +34,7 @@ import { VendorOnboarding } from "@/components/dashboard/vendor-onboarding";
  */
 export default function DashboardPage() {
   const router = useRouter();
+  const qc = useQueryClient();
   const { session, user, loading: sessionLoading } = useSupabaseSession();
   const { data: vendorData, isLoading: vendorLoading } = useVendorDashboard(
     !!session && !sessionLoading
@@ -46,6 +48,17 @@ export default function DashboardPage() {
       router.push("/");
     }
   }, [session, sessionLoading, router]);
+
+  // Listen for vendor-created event (fired by QuickOnboardingForm after publish)
+  // to invalidate the dashboard query so the new vendor appears immediately.
+  React.useEffect(() => {
+    const handler = () => {
+      qc.invalidateQueries({ queryKey: ["vendor", "dashboard"] });
+      qc.invalidateQueries({ queryKey: ["vendors"] });
+    };
+    window.addEventListener("vendor-created", handler);
+    return () => window.removeEventListener("vendor-created", handler);
+  }, [qc]);
 
   const vendors = vendorData?.vendors ?? [];
   const vendor = vendors[0] ?? null;
@@ -69,19 +82,22 @@ export default function DashboardPage() {
     );
   }
 
-  // Logged in but no vendor listing
+  // Logged in but no vendor listing — open the onboarding dialog automatically
   if (!vendor) {
     return (
       <div className="flex min-h-screen flex-col">
         <SiteHeader />
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-          <h1 className="text-2xl font-bold">No business yet</h1>
+          <Store className="size-12 text-muted-foreground" />
+          <h1 className="text-2xl font-bold">List Your Business</h1>
           <p className="max-w-md text-muted-foreground">
-            You don&apos;t have a vendor listing yet. List your business to get
-            started.
+            You don&apos;t have a business listing yet. Click below to create one
+            in under 3 minutes.
           </p>
           <button
-            onClick={() => router.push("/")}
+            onClick={() => {
+              router.push("/?list-vendor=1");
+            }}
             className="rounded-full bg-brand px-6 py-2.5 text-sm font-semibold text-brand-foreground"
           >
             List your business

@@ -252,11 +252,12 @@ export function useCreateVendor(): UseMutationResult<
       return (await res.json()) as CreateVendorResponse;
     },
     onSuccess: async () => {
-      // refresh vendor lists, category counts, and platform stats
+      // refresh vendor lists, category counts, platform stats, AND dashboard
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["vendors"] }),
         qc.invalidateQueries({ queryKey: ["categories"] }),
         qc.invalidateQueries({ queryKey: ["stats"] }),
+        qc.invalidateQueries({ queryKey: ["vendor", "dashboard"] }),
       ]);
     },
   });
