@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { vendorId } = body;
+    const { vendorId, productType, productName } = body;
     if (!vendorId) {
       return NextResponse.json({ error: "vendorId required" }, { status: 400 });
     }
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       select: {
         id: true, name: true, category: true, city: true, country: true,
         ecosystem: true, description: true, tagline: true, owner_user_id: true,
-        currency: true, avatarImage: true, heroImage: true,
+        currency: true, avatarImage: true, heroImage: true, businessType: true,
       },
     });
     if (!vendor) {
@@ -49,23 +49,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
-    // ── Generate product with AI ──
+    // ── Generate product with AI (guided by vendor's productType + productName) ──
     const isFood = vendor.ecosystem === "FINDMYBITES";
     const prompt = `You are a product expert for a ${isFood ? "food" : "party"} marketplace.
-Generate ONE flagship product for this business:
+Generate ONE product for this business:
 
 Business: ${vendor.name}
+Business Type: ${vendor.businessType || "N/A"}
 Category: ${vendor.category}
 City: ${vendor.city}, ${vendor.country || ""}
 Description: ${vendor.description || vendor.tagline || ""}
 
-${isFood
-  ? "Examples for food: Chocolate Cake, Birthday Cake, Wedding Cake, Cupcakes, Biryani, Pizza"
-  : "Examples for party: Birthday Package, Wedding Package, Balloon Decoration, DJ Package"}
+The vendor wants to create: ${productType || "a product"}
+Product name: ${productName || "suggest one"}
+
+Generate a complete product profile based on the vendor's chosen product type and name.
 
 Return JSON with these exact fields:
 {
-  "name": "Product name (e.g. 'Chocolate Birthday Cake')",
+  "name": "${productName || "Product name"}",
   "description": "A mouth-watering 2-3 sentence product description",
   "price": <suggested price as a number, e.g. 500>,
   "tags": ["relevant", "product", "tags"],
@@ -82,9 +84,9 @@ Only return valid JSON, no markdown.`;
       productData = JSON.parse(cleaned);
     } catch (aiErr) {
       console.error("[generate-product] AI failed:", aiErr);
-      // Fallback product
+      // Fallback product using the vendor's chosen name
       productData = {
-        name: `${vendor.name} Signature ${isFood ? "Cake" : "Package"}`,
+        name: productName || `${vendor.name} Signature ${isFood ? "Cake" : "Package"}`,
         description: vendor.description || vendor.tagline || `A signature offering from ${vendor.name}.`,
         price: isFood ? 500 : 1000,
         tags: [vendor.category, vendor.city.toLowerCase()],

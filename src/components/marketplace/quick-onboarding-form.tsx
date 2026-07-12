@@ -43,37 +43,33 @@ interface QuickFormState {
   // Step 1
   name: string;
   category: string;
+  businessType: string;
   city: string;
   countryCode: string;
   whatsapp: string;
   photo: string; // single cover photo (used as both logo + banner)
-  startingPrice: string;
   // Step 2
   businessDescription: string; // user's raw description for AI
-  aiDescription: string;       // AI-generated description
-  aiTagline: string;           // AI-generated tagline
-  aiTags: string[];            // AI-generated tags
-  aiSeoTitle: string;
-  aiSeoDescription: string;
-  aiSubcategory: string;
 }
 
 const INITIAL_STATE: QuickFormState = {
   name: "",
   category: "",
+  businessType: "",
   city: "",
   countryCode: "IN",
   whatsapp: "",
   photo: "",
-  startingPrice: "",
   businessDescription: "",
-  aiDescription: "",
-  aiTagline: "",
-  aiTags: [],
-  aiSeoTitle: "",
-  aiSeoDescription: "",
-  aiSubcategory: "",
 };
+
+// Business type options — powers AI suggestions, SEO, templates, search
+const BUSINESS_TYPES = [
+  "Home Baker", "Bakery", "Restaurant", "Cafe", "Cloud Kitchen", "Caterer",
+  "Event Planner", "Decorator", "Florist", "Photographer", "Videographer",
+  "DJ", "Makeup Artist", "Mehendi Artist", "Venue", "Rental Service",
+  "Gift Shop", "Balloon Artist", "Other",
+];
 
 // Auto-approval threshold: first N vendors are auto-approved
 const AUTO_APPROVAL_THRESHOLD = 500;
@@ -92,7 +88,6 @@ export function QuickOnboardingForm({
 
   const [step, setStep] = React.useState<Step>(1);
   const [form, setForm] = React.useState<QuickFormState>(INITIAL_STATE);
-  const [generating, setGenerating] = React.useState(false);
   const [publishing, setPublishing] = React.useState(false);
   const [createdVendor, setCreatedVendor] = React.useState<Vendor | null>(null);
   const [pendingPublish, setPendingPublish] = React.useState(false);
@@ -118,56 +113,9 @@ export function QuickOnboardingForm({
   const step1Valid =
     form.name.trim().length >= 2 &&
     form.category &&
+    form.businessType &&
     form.city.trim().length >= 2 &&
     form.whatsapp.trim().length >= 5;
-
-  // ── AI generation ──
-  const generateWithAI = async () => {
-    if (!form.businessDescription.trim()) {
-      toast.error("Please describe your business first.");
-      return;
-    }
-    setGenerating(true);
-    try {
-      const res = await fetch("/api/vendor/ai/listing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          businessName: form.name,
-          marketplace: ecosystem,
-          category: form.category,
-          city: form.city,
-          country: COUNTRIES.find((c) => c.code === form.countryCode)?.name || "",
-          specialities: form.businessDescription,
-          style: "professional",
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        set("aiDescription", data.description || "");
-        set("aiTagline", data.tagline || "");
-        set("aiTags", Array.isArray(data.businessTags) ? data.businessTags : (Array.isArray(data.tags) ? data.tags : []));
-        set("aiSeoTitle", data.seoTitle || `${form.name} — ${form.category} in ${form.city}`);
-        set("aiSeoDescription", data.seoDescription || data.description?.slice(0, 160) || "");
-        toast.success("AI generated your business profile!");
-      } else {
-        // Fallback: use the user's description directly
-        set("aiDescription", form.businessDescription);
-        set("aiTagline", form.businessDescription.slice(0, 60));
-        set("aiTags", [form.category, form.city.toLowerCase()]);
-        set("aiSeoTitle", `${form.name} — ${form.category} in ${form.city}`);
-        set("aiSeoDescription", form.businessDescription.slice(0, 160));
-        toast.success("Profile created from your description.");
-      }
-    } catch {
-      // Fallback on error
-      set("aiDescription", form.businessDescription);
-      set("aiTagline", form.businessDescription.slice(0, 60));
-      set("aiTags", [form.category, form.city.toLowerCase()]);
-      toast.error("AI generation failed — using your description directly.");
-    }
-    setGenerating(false);
-  };
 
   // ── Publish (does NOT wait for AI — AI runs in background after publish) ──
   const handlePublish = async () => {
@@ -189,6 +137,7 @@ export function QuickOnboardingForm({
         name: form.name.trim(),
         ecosystem,
         category: migrateCategory(form.category),
+        businessType: form.businessType,
         tagline: form.businessDescription.slice(0, 60) || form.name,
         description: form.businessDescription,
         city: form.city.trim(),
@@ -232,6 +181,7 @@ export function QuickOnboardingForm({
             businessName: form.name,
             ecosystem,
             category: form.category,
+            businessType: form.businessType,
             city: form.city,
             country: country?.name || "",
             description: form.businessDescription,
@@ -309,6 +259,21 @@ export function QuickOnboardingForm({
             </Select>
           </div>
 
+          {/* Business Type — powers AI suggestions, SEO, templates, search */}
+          <div>
+            <Label className="text-sm font-semibold">What best describes your business? *</Label>
+            <Select value={form.businessType} onValueChange={(v) => set("businessType", v)}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Choose your business type" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {BUSINESS_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* City + Country */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -376,12 +341,12 @@ export function QuickOnboardingForm({
         </div>
       )}
 
-      {/* ── STEP 2: AI DESCRIPTION ── */}
+      {/* ── STEP 2: DESCRIBE YOUR BUSINESS ── */}
       {step === 2 && (
         <div className="space-y-4">
           <div>
             <h3 className="text-lg font-bold">Describe your business</h3>
-            <p className="text-sm text-muted-foreground">AI will create your description, tagline, SEO, and tags.</p>
+            <p className="text-sm text-muted-foreground">Write a sentence or two — AI will generate SEO, tags, and more in the background after publishing.</p>
           </div>
 
           <div>
@@ -394,58 +359,8 @@ export function QuickOnboardingForm({
               className="mt-1 min-h-[100px]"
               autoFocus
             />
-            <p className="mt-1 text-xs text-muted-foreground">Just write naturally — AI handles the rest.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Just write naturally — AI handles the rest after you publish.</p>
           </div>
-
-          <Button
-            onClick={generateWithAI}
-            disabled={!form.businessDescription.trim() || generating}
-            className="w-full gap-2"
-            size="lg"
-            variant="outline"
-          >
-            {generating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4 text-brand" />}
-            {generating ? "Generating..." : "✨ Generate with AI"}
-          </Button>
-
-          {/* AI Results */}
-          {form.aiDescription && (
-            <div className="space-y-3 rounded-lg border border-brand-border bg-brand-soft/30 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600">
-                <CheckCircle2 className="size-4" />
-                AI Generated — Edit if needed
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold uppercase text-muted-foreground">Tagline</Label>
-                <Input
-                  value={form.aiTagline}
-                  onChange={(e) => set("aiTagline", e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold uppercase text-muted-foreground">Description</Label>
-                <Textarea
-                  value={form.aiDescription}
-                  onChange={(e) => set("aiDescription", e.target.value)}
-                  className="mt-1 min-h-[80px]"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold uppercase text-muted-foreground">Tags</Label>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {form.aiTags.map((tag, i) => (
-                    <span key={i} className="rounded-full bg-background px-2.5 py-1 text-xs font-medium">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Navigation — Publish directly from Step 2 (no review step) */}
           <div className="flex gap-2">
@@ -485,30 +400,51 @@ function StepDot({ active, completed, label }: { active: boolean; completed: boo
 function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDashboard: () => void }) {
   const router = useRouter();
   const [copied, setCopied] = React.useState(false);
-  const [generatingProduct, setGeneratingProduct] = React.useState(false);
-  const [productGenerated, setProductGenerated] = React.useState(false);
+
+  // ── AI Product Assistant state ──
+  const [productStep, setProductStep] = React.useState<"idle" | "choose-type" | "enter-name" | "generating" | "review" | "done">("idle");
+  const [productType, setProductType] = React.useState("");
+  const [productName, setProductName] = React.useState("");
+  const [generatedProduct, setGeneratedProduct] = React.useState<any>(null);
 
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/vendor/${vendor.slug}` : "";
 
-  const handleCreateProductWithAI = async () => {
-    setGeneratingProduct(true);
+  // Product type options based on ecosystem
+  const isFood = vendor.ecosystem === "FINDMYBITES";
+  const PRODUCT_TYPES = isFood
+    ? ["Cake", "Cupcake", "Cookies", "Brownie", "Restaurant Meal", "Other"]
+    : ["Wedding Package", "Decoration Package", "Photography Package", "DJ Package", "Other"];
+
+  // ── Guided AI Product Assistant ──
+  const handleGenerateProduct = async () => {
+    setProductStep("generating");
     try {
       const res = await fetch("/api/vendor/ai/generate-product", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vendorId: vendor.id }),
+        body: JSON.stringify({
+          vendorId: vendor.id,
+          productType,
+          productName: productName.trim(),
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setProductGenerated(true);
-        toast.success("Product created with AI! 🎉");
+        setGeneratedProduct(data.product);
+        setProductStep("review");
       } else {
         throw new Error(data.error || "Failed");
       }
     } catch {
-      toast.error("AI product generation failed. You can add products manually in the dashboard.");
+      toast.error("AI generation failed. You can add products manually in the dashboard.");
+      setProductStep("idle");
     }
-    setGeneratingProduct(false);
+  };
+
+  const handlePublishProduct = async () => {
+    // Product is already created in DB by the generate API — just mark as done
+    setProductStep("done");
+    toast.success("Product published! 🎉");
   };
 
   return (
@@ -519,13 +455,13 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
       </div>
 
       <div>
-        <h3 className="text-xl font-bold">🎉 Your Business is LIVE!</h3>
+        <h3 className="text-xl font-bold">🎉 Congratulations!</h3>
         <div className="mt-1 flex items-center justify-center gap-0.5">
           {[1, 2, 3, 4, 5].map((s) => (
             <Star key={s} className="size-4 fill-amber-400 text-amber-400" />
           ))}
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">You're now visible to customers searching on FindMyBites.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Your Business is <span className="font-semibold text-emerald-600">LIVE</span>!</p>
       </div>
 
       {/* Preview card with badges */}
@@ -552,30 +488,132 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
         </div>
       </div>
 
-      {/* AI Product Suggestion */}
-      {productGenerated ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-left dark:border-emerald-900 dark:bg-emerald-950/30">
-          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-            <CheckCircle2 className="size-4" /> Product Created!
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">Your first product is live. Add more products in the dashboard.</p>
-          <Button size="sm" variant="outline" className="mt-2 w-full gap-1.5" onClick={() => router.push("/dashboard?tab=products")}>
-            View Products
-          </Button>
+      {/* Build Your Store — progress starts immediately */}
+      <div className="rounded-xl border border-border bg-card p-4 text-left">
+        <h4 className="text-sm font-bold">Build Your Store</h4>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <StoreMetric label="Business" value="✅" sub="Complete" done />
+          <StoreMetric label="Products" value={productStep === "done" ? "1" : "0"} sub={productStep === "done" ? "Great!" : "Add products"} />
+          <StoreMetric label="Gallery" value={String(vendor.gallery?.length || 0)} sub="Photos" />
+          <StoreMetric label="Reviews" value="0" sub="Pending" />
         </div>
-      ) : (
+      </div>
+
+      {/* AI Product Assistant — guided, not automatic */}
+      {productStep === "idle" && (
         <div className="rounded-lg border border-brand-border bg-brand-soft/30 p-4 text-left">
-          <p className="text-xs font-semibold uppercase text-muted-foreground">⭐ Recommended Next Step</p>
+          <p className="text-xs font-semibold uppercase text-muted-foreground">⭐ Let's Build Your First Product</p>
           <p className="mt-1 text-sm font-medium">Create Your First Product with AI</p>
           <p className="mt-0.5 text-xs text-muted-foreground">Businesses with products receive significantly more enquiries.</p>
           <Button
             size="sm"
             className="mt-2 w-full gap-1.5 bg-brand text-brand-foreground hover:bg-brand/90"
-            onClick={handleCreateProductWithAI}
-            disabled={generatingProduct}
+            onClick={() => setProductStep("choose-type")}
           >
-            {generatingProduct ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-            {generatingProduct ? "AI is creating..." : "Create Product with AI"}
+            <Sparkles className="size-3.5" /> Create Product with AI
+          </Button>
+        </div>
+      )}
+
+      {/* Step 1: Choose product type */}
+      {productStep === "choose-type" && (
+        <div className="rounded-lg border border-border bg-card p-4 text-left">
+          <p className="text-sm font-semibold">What would you like to list first?</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {PRODUCT_TYPES.map((t) => (
+              <button
+                key={t}
+                onClick={() => { setProductType(t); setProductStep("enter-name"); }}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  productType === t ? "border-brand bg-brand text-brand-foreground" : "border-border hover:bg-accent"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <Button variant="ghost" size="sm" className="mt-3 text-xs" onClick={() => setProductStep("idle")}>
+            Cancel
+          </Button>
+        </div>
+      )}
+
+      {/* Step 2: Enter product name */}
+      {productStep === "enter-name" && (
+        <div className="rounded-lg border border-border bg-card p-4 text-left">
+          <p className="text-sm font-semibold">Product Name</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">e.g. {isFood ? "Chocolate Truffle Cake" : "Birthday Decoration Package"}</p>
+          <Input
+            value={productName}
+            onChange={(e) => setProductName(e.target.value)}
+            placeholder="Enter product name"
+            className="mt-2"
+            autoFocus
+          />
+          <div className="mt-3 flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setProductStep("choose-type")}>Back</Button>
+            <Button
+              size="sm"
+              className="flex-1 gap-1.5 bg-brand text-brand-foreground hover:bg-brand/90"
+              onClick={handleGenerateProduct}
+              disabled={!productName.trim()}
+            >
+              <Sparkles className="size-3.5" /> Generate with AI
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Generating */}
+      {productStep === "generating" && (
+        <div className="rounded-lg border border-border bg-card p-6 text-center">
+          <Loader2 className="mx-auto size-6 animate-spin text-brand" />
+          <p className="mt-2 text-sm text-muted-foreground">AI is creating your product...</p>
+        </div>
+      )}
+
+      {/* Step 4: Review */}
+      {productStep === "review" && generatedProduct && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-left dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="size-4" /> AI Generated — Review & Publish
+          </div>
+          <div className="mt-3 space-y-2">
+            <div>
+              <Label className="text-xs font-semibold uppercase text-muted-foreground">Name</Label>
+              <p className="text-sm font-medium">{generatedProduct.name}</p>
+            </div>
+            {generatedProduct.description && (
+              <div>
+                <Label className="text-xs font-semibold uppercase text-muted-foreground">Description</Label>
+                <p className="text-sm text-muted-foreground">{generatedProduct.description}</p>
+              </div>
+            )}
+            {generatedProduct.price != null && (
+              <div>
+                <Label className="text-xs font-semibold uppercase text-muted-foreground">Price</Label>
+                <p className="text-sm font-medium">{generatedProduct.price}</p>
+              </div>
+            )}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setProductStep("enter-name")}>Redo</Button>
+            <Button size="sm" className="flex-1 gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700" onClick={handlePublishProduct}>
+              <Check className="size-3.5" /> Publish Product
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 5: Done */}
+      {productStep === "done" && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-left dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="size-4" /> Product Published!
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Your first product is live. Add more products in the dashboard.</p>
+          <Button size="sm" variant="outline" className="mt-2 w-full gap-1.5" onClick={() => router.push("/dashboard?tab=products")}>
+            View Products
           </Button>
         </div>
       )}
@@ -613,6 +651,17 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Store Metric (for success screen) ──
+function StoreMetric({ label, value, sub, done }: { label: string; value: string; sub: string; done?: boolean }) {
+  return (
+    <div className={`rounded-lg border p-2.5 text-left ${done ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/10" : "border-border bg-card"}`}>
+      <p className={`text-lg font-extrabold tabular-nums ${done ? "text-emerald-600" : "text-foreground"}`}>{value}</p>
+      <p className="text-[11px] font-medium">{label}</p>
+      <p className="text-[9px] text-muted-foreground">{sub}</p>
     </div>
   );
 }

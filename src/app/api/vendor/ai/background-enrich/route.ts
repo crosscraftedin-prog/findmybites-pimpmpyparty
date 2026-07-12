@@ -74,24 +74,46 @@ Only return valid JSON, no markdown.`;
       return NextResponse.json({ success: false, reason: "AI generation failed" });
     }
 
-    // ── Update the listing with AI content ──
-    const updateData: any = {};
-    if (aiData.tagline) updateData.tagline = aiData.tagline;
-    if (aiData.description) updateData.description = aiData.description;
-    if (aiData.seoTitle) updateData.metaTitle = aiData.seoTitle;
-    if (aiData.seoDescription) updateData.metaDescription = aiData.seoDescription;
-    if (Array.isArray(aiData.tags) && aiData.tags.length > 0) {
-      updateData.tags = JSON.stringify(aiData.tags);
+    // ── Store AI suggestions (NEVER overwrite vendor's content) ──
+    // AI generates suggestions that the vendor can choose to apply later:
+    // "Use AI Version" / "Merge With Mine" / "Keep Original"
+    // The vendor's own description/tagline/SEO remain the source of truth.
+    const suggestions = {
+      tagline: aiData.tagline || null,
+      description: aiData.description || null,
+      seoTitle: aiData.seoTitle || null,
+      seoDescription: aiData.seoDescription || null,
+      tags: Array.isArray(aiData.tags) ? aiData.tags : [],
+      specialties: Array.isArray(aiData.specialties) ? aiData.specialties : [],
+      suggestedSubcategory: aiData.suggestedSubcategory || null,
+      dietaryAttributes: Array.isArray(aiData.dietaryAttributes) ? aiData.dietaryAttributes : [],
+      keywords: Array.isArray(aiData.keywords) ? aiData.keywords : [],
+      generatedAt: new Date().toISOString(),
+    };
+
+    // Store suggestions in the vendor's extraFields or a dedicated column.
+    // We use a raw SQL approach since aiSuggestions column may not exist yet.
+    try {
+      await (db as any).$executeRaw`
+        UPDATE vendor_listings SET
+          "aiSuggestions" = ${JSON.stringify(suggestions)}::text
+        WHERE id = ${vendorId}
+      `;
+    } catch {
+      // Column doesn't exist — try adding it first
+      try {
+        await (db as any).$executeRaw`ALTER TABLE "vendor_listings" ADD COLUMN IF NOT EXISTS "aiSuggestions" TEXT`;
+        await (db as any).$executeRaw`
+          UPDATE vendor_listings SET
+            "aiSuggestions" = ${JSON.stringify(suggestions)}::text
+          WHERE id = ${vendorId}
+        `;
+      } catch (alterErr) {
+        console.error("[background-enrich] could not store suggestions (non-fatal):", alterErr);
+      }
     }
 
-    if (Object.keys(updateData).length > 0) {
-      await db.vendor.update({
-        where: { id: vendorId },
-        data: updateData,
-      });
-    }
-
-    return NextResponse.json({ success: true, updated: Object.keys(updateData) });
+    return NextResponse.json({ success: true, stored: "suggestions" });
   } catch (error: any) {
     console.error("[background-enrich] failed:", error);
     return NextResponse.json({ error: "Background enrichment failed" }, { status: 500 });
