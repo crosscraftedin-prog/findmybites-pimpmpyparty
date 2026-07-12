@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProductAttributes, setProductAttributes } from "@/lib/attributes/attribute-service";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/constants";
 import { db } from "@/lib/db";
 
 /**
@@ -64,7 +65,7 @@ export async function POST(
       where: { id: product.vendorId },
       select: { owner_user_id: true },
     });
-    const isAdmin = user.app_metadata?.role === "admin";
+    const isAdmin = isAdminEmail(user.email);
     if (!vendor || (vendor.owner_user_id !== user.id && !isAdmin)) {
       return NextResponse.json({ error: "Not authorized to edit this product" }, { status: 403 });
     }

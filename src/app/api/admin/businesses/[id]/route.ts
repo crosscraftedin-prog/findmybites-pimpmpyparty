@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/constants";
 import { generateClaimLink, getClaimHistory, bulkUpdateListingStatus, approveClaim, rejectClaim } from "@/lib/admin/admin-listing-service";
 import { db } from "@/lib/db";
 
@@ -21,8 +22,7 @@ async function requireAdmin() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Authentication required" }, { status: 401 }) };
-  const isAdmin = user.app_metadata?.role === "admin";
-  if (!isAdmin) return { error: NextResponse.json({ error: "Admin access required" }, { status: 403 }) };
+  if (!isAdminEmail(user.email)) return { error: NextResponse.json({ error: "Admin access required" }, { status: 403 }) };
   return { user, email: user.email ?? "" };
 }
 

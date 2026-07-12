@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getVendorAttributes, setVendorAttributes } from "@/lib/attributes/attribute-service";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/constants";
 import { db } from "@/lib/db";
 
 /**
@@ -59,7 +60,7 @@ export async function POST(
     }
 
     // Authorization: owner or admin
-    const isAdmin = user.app_metadata?.role === "admin";
+    const isAdmin = isAdminEmail(user.email);
     if (vendor.owner_user_id !== user.id && !isAdmin) {
       return NextResponse.json({ error: "Not authorized to edit this vendor" }, { status: 403 });
     }

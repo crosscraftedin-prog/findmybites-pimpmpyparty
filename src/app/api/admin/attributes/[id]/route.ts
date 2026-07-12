@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateAttribute, deleteAttribute } from "@/lib/attributes/attribute-service";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/constants";
 
 /**
  * PUT /api/admin/attributes/[id] — update an attribute.
@@ -16,8 +17,7 @@ async function requireAdmin() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Authentication required" }, { status: 401 }) };
-  const isAdmin = user.app_metadata?.role === "admin";
-  if (!isAdmin) return { error: NextResponse.json({ error: "Admin access required" }, { status: 403 }) };
+  if (!isAdminEmail(user.email)) return { error: NextResponse.json({ error: "Admin access required" }, { status: 403 }) };
   return { user };
 }
 
