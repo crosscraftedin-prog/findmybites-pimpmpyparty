@@ -42,7 +42,7 @@ export function ImageUpload({
   const [progress, setProgress] = React.useState(0);
 
   const aspectClass = compact
-    ? "h-[140px] sm:h-[180px]"
+    ? "h-[130px] sm:h-[160px]"
     : aspect === "banner"
       ? "aspect-[16/9]"
       : "aspect-square";

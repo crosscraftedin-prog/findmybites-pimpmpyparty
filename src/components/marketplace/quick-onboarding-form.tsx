@@ -89,6 +89,8 @@ export function QuickOnboardingForm({
   const [step, setStep] = React.useState<Step>(1);
   const [form, setForm] = React.useState<QuickFormState>(INITIAL_STATE);
   const [publishing, setPublishing] = React.useState(false);
+  const [publishStep, setPublishStep] = React.useState<string>("");
+  const [continuing, setContinuing] = React.useState(false);
   const [createdVendor, setCreatedVendor] = React.useState<Vendor | null>(null);
   const [pendingPublish, setPendingPublish] = React.useState(false);
 
@@ -128,8 +130,15 @@ export function QuickOnboardingForm({
     }
 
     setPublishing(true);
+    setPublishStep("Publishing your business...");
+    let msgTimer1: ReturnType<typeof setTimeout> | undefined;
+    let msgTimer2: ReturnType<typeof setTimeout> | undefined;
     try {
       const country = COUNTRIES.find((c) => c.code === form.countryCode);
+
+      // Progressive loading messages
+      msgTimer1 = setTimeout(() => setPublishStep("Creating your listing..."), 1500);
+      msgTimer2 = setTimeout(() => setPublishStep("Almost done..."), 3000);
 
       // Publish immediately with the user's raw description.
       // AI enrichment (SEO, tags, tagline) runs in the background after publish.
@@ -191,7 +200,10 @@ export function QuickOnboardingForm({
     } catch (err: any) {
       toast.error(err.message || "Failed to publish. Please try again.");
     }
+    if (msgTimer1) clearTimeout(msgTimer1);
+    if (msgTimer2) clearTimeout(msgTimer2);
     setPublishing(false);
+    setPublishStep("");
   };
 
   // ── If user signs in while pending publish, auto-publish ──
@@ -361,18 +373,22 @@ export function QuickOnboardingForm({
       <div className="shrink-0 border-t border-border bg-card px-5 py-3 [padding-bottom:calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-6">
         {step === 1 && (
           <Button
-            onClick={() => setStep(2)}
-            disabled={!step1Valid}
+            onClick={() => {
+              setContinuing(true);
+              setTimeout(() => { setStep(2); setContinuing(false); }, 300);
+            }}
+            disabled={!step1Valid || continuing}
             className="w-full gap-2 bg-brand text-brand-foreground hover:bg-brand/90"
             size="lg"
           >
-            Continue
-            <ChevronRight className="size-4" />
+            {continuing ? <Loader2 className="size-4 animate-spin" /> : <ChevronRight className="size-4" />}
+            {continuing ? "Loading..." : "Continue"}
+            {!continuing && <ChevronRight className="size-4" />}
           </Button>
         )}
         {step === 2 && (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setStep(1)} className="gap-1.5">
+            <Button variant="outline" onClick={() => setStep(1)} disabled={publishing} className="gap-1.5">
               <ChevronLeft className="size-4" /> Back
             </Button>
             <Button
@@ -382,7 +398,7 @@ export function QuickOnboardingForm({
               size="lg"
             >
               {publishing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-              {publishing ? "Publishing..." : user ? "Publish My Business" : "Sign In & Publish"}
+              {publishing ? (publishStep || "Publishing...") : user ? "Publish My Business" : "Sign In & Publish"}
             </Button>
           </div>
         )}
@@ -469,7 +485,17 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
             <Star key={s} className="size-4 fill-amber-400 text-amber-400" />
           ))}
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Your Business is <span className="font-semibold text-emerald-600">LIVE</span>!</p>
+        <p className="mt-1 text-sm font-semibold text-emerald-600">Your business is now LIVE.</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Customers can now discover you on FindMyBites.</p>
+      </div>
+
+      {/* AI background note */}
+      <div className="flex items-center gap-2 rounded-lg border border-brand-border bg-brand-soft/30 p-3 text-left">
+        <Loader2 className="size-4 shrink-0 animate-spin text-brand" />
+        <div>
+          <p className="text-xs font-semibold">✨ AI is improving your profile in the background.</p>
+          <p className="text-[11px] text-muted-foreground">This usually takes less than 30 seconds. You don't need to wait.</p>
+        </div>
       </div>
 
       {/* Preview card with badges */}
@@ -496,14 +522,38 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
         </div>
       </div>
 
-      {/* Build Your Store — progress starts immediately */}
+      {/* Build Your Store — checklist with auto-update */}
       <div className="rounded-xl border border-border bg-card p-4 text-left">
-        <h4 className="text-sm font-bold">Build Your Store</h4>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <StoreMetric label="Business" value="✅" sub="Complete" done />
-          <StoreMetric label="Products" value={productStep === "done" ? "1" : "0"} sub={productStep === "done" ? "Great!" : "Add products"} />
-          <StoreMetric label="Gallery" value={String(vendor.gallery?.length || 0)} sub="Photos" />
-          <StoreMetric label="Reviews" value="0" sub="Pending" />
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-bold">Build Your Store</h4>
+          <span className="text-xs font-semibold text-brand">
+            {Math.round(([
+              true, // business created
+              productStep === "done", // products
+              (vendor.gallery?.length || 0) >= 3, // gallery
+              false, // business hours
+              !!vendor.basePrice && vendor.basePrice > 0, // pricing
+              false, // social links
+              false, // reviews
+            ].filter(Boolean).length / 7) * 100)}%
+          </span>
+        </div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-brand transition-all" style={{
+            width: `${Math.round(([
+              true, productStep === "done", (vendor.gallery?.length || 0) >= 3,
+              false, !!vendor.basePrice && vendor.basePrice > 0, false, false,
+            ].filter(Boolean).length / 7) * 100)}%`
+          }} />
+        </div>
+        <div className="mt-3 space-y-1.5">
+          <StoreChecklist label="Business Created" done />
+          <StoreChecklist label="Products" done={productStep === "done"} />
+          <StoreChecklist label="Gallery" done={(vendor.gallery?.length || 0) >= 3} />
+          <StoreChecklist label="Business Hours" done={false} />
+          <StoreChecklist label="Pricing" done={!!vendor.basePrice && vendor.basePrice > 0} />
+          <StoreChecklist label="Social Links" done={false} />
+          <StoreChecklist label="Reviews" done={false} />
         </div>
       </div>
 
@@ -663,13 +713,14 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
   );
 }
 
-// ── Store Metric (for success screen) ──
-function StoreMetric({ label, value, sub, done }: { label: string; value: string; sub: string; done?: boolean }) {
+// ── Store Checklist Item (for success screen Build Your Store) ──
+function StoreChecklist({ label, done }: { label: string; done: boolean }) {
   return (
-    <div className={`rounded-lg border p-2.5 text-left ${done ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/10" : "border-border bg-card"}`}>
-      <p className={`text-lg font-extrabold tabular-nums ${done ? "text-emerald-600" : "text-foreground"}`}>{value}</p>
-      <p className="text-[11px] font-medium">{label}</p>
-      <p className="text-[9px] text-muted-foreground">{sub}</p>
+    <div className="flex items-center gap-2 text-sm">
+      <span className={`grid size-4 shrink-0 place-items-center rounded-full ${done ? "bg-emerald-500 text-white" : "border border-muted-foreground/30"}`}>
+        {done && <Check className="size-3" />}
+      </span>
+      <span className={done ? "text-muted-foreground line-through" : "text-foreground"}>{label}</span>
     </div>
   );
 }

@@ -215,7 +215,19 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
       </div>
       )}
 
-      {/* ── C) Build Your Store (Shopify-style progress card) ── */}
+      {/* ── C) Estimated Visibility ── */}
+      <div className="mb-6 rounded-xl border border-border bg-gradient-to-br from-brand-soft/30 to-card p-5">
+        <h2 className="text-base font-bold">Estimated Visibility</h2>
+        <p className="mt-2 text-3xl font-extrabold text-brand">≈ {Math.max(20, Math.round(completionPct * 2.5))} customers</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">Estimated monthly discovery based on your profile strength.</p>
+        {completionPct < 70 && (
+          <p className="mt-2 text-xs font-medium text-brand">
+            Increase your profile to reach more customers.
+          </p>
+        )}
+      </div>
+
+      {/* ── D) Build Your Store (Shopify-style progress card) ── */}
       <div className="mb-6 rounded-xl border border-border bg-card p-5">
         <h2 className="text-base font-bold">Build Your Store</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">Complete your storefront to attract more customers.</p>
