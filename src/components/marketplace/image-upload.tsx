@@ -12,6 +12,8 @@ interface ImageUploadProps {
   onChange: (url: string) => void;
   /** Aspect ratio hint for the dropzone + preview. */
   aspect?: "banner" | "square";
+  /** Compact mode — shorter height for onboarding/forms (default: false). */
+  compact?: boolean;
   /** Field label. */
   label: string;
   /** Optional helper text under the label. */
@@ -28,6 +30,7 @@ export function ImageUpload({
   value,
   onChange,
   aspect = "banner",
+  compact = false,
   label,
   hint,
   maxSizeBytes = MAX_BYTES_DEFAULT,
@@ -38,8 +41,11 @@ export function ImageUpload({
   const [uploading, setUploading] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
 
-  const aspectClass =
-    aspect === "banner" ? "aspect-[16/9]" : "aspect-square";
+  const aspectClass = compact
+    ? "h-[140px] sm:h-[180px]"
+    : aspect === "banner"
+      ? "aspect-[16/9]"
+      : "aspect-square";
 
   const validate = (file: File): string | null => {
     if (!file.type.startsWith("image/")) return "Please choose an image file.";

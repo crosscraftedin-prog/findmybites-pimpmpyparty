@@ -9,7 +9,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useMarketplace } from "@/lib/store";
 import { ECOSYSTEM_META } from "@/lib/constants";
@@ -89,7 +88,7 @@ export function ListVendorDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-h-[92vh] gap-0 overflow-hidden p-0 sm:max-w-2xl">
+      <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
         <DialogTitle className="sr-only">
           {isEditing ? "Edit your business" : "List your business"}
         </DialogTitle>
@@ -153,39 +152,42 @@ export function ListVendorDialog() {
           </div>
         </div>
 
-        {/* Scrollable body */}
-        <ScrollArea className="max-h-[80vh] overflow-y-auto">
-          <div className="p-5 sm:p-6">
-            {!isEditing && created ? (
-              <CreateVendorSuccess
-                vendor={created}
-                onView={handleView}
-                onGoToDashboard={handleGoToDashboard}
-              />
-            ) : isEditing && updated && created ? (
-              <EditSuccess
-                vendor={created}
-                onView={handleViewUpdated}
-                onAgain={() => {
-                  setUpdated(false);
-                  setCreated(null);
-                }}
-              />
-            ) : isEditing ? (
-              <CreateVendorForm
-                ecosystem={ecosystem}
-                onCreated={(v) => setCreated(v)}
-                editingVendor={editingVendor}
-                onUpdated={handleUpdated}
-              />
-            ) : (
-              <QuickOnboardingForm
-                ecosystem={ecosystem}
-                onCreated={(v) => setCreated(v)}
-              />
-            )}
+        {/* Body — QuickOnboardingForm manages its own scroll + sticky footer.
+            Other forms (edit, success) use a simple scrollable container. */}
+        {!isEditing && !created ? (
+          <QuickOnboardingForm
+            ecosystem={ecosystem}
+            onCreated={(v) => setCreated(v)}
+          />
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="p-5 sm:p-6">
+              {!isEditing && created ? (
+                <CreateVendorSuccess
+                  vendor={created}
+                  onView={handleView}
+                  onGoToDashboard={handleGoToDashboard}
+                />
+              ) : isEditing && updated && created ? (
+                <EditSuccess
+                  vendor={created}
+                  onView={handleViewUpdated}
+                  onAgain={() => {
+                    setUpdated(false);
+                    setCreated(null);
+                  }}
+                />
+              ) : (
+                <CreateVendorForm
+                  ecosystem={ecosystem}
+                  onCreated={(v) => setCreated(v)}
+                  editingVendor={editingVendor}
+                  onUpdated={handleUpdated}
+                />
+              )}
+            </div>
           </div>
-        </ScrollArea>
+        )}
       </DialogContent>
     </Dialog>
   );

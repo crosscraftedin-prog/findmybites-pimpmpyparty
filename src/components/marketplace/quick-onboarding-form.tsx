@@ -209,9 +209,9 @@ export function QuickOnboardingForm({
 
   // ── FORM STEPS ──
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Step indicator */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between px-5 pb-3 pt-1 sm:px-6">
         <div className="flex gap-1.5">
           <StepDot active={step === 1} completed={(step as number) > 1} label="1" />
           <div className={`h-0.5 w-8 self-center ${(step as number) > 1 ? "bg-emerald-500" : "bg-muted"}`} />
@@ -223,6 +223,8 @@ export function QuickOnboardingForm({
         </span>
       </div>
 
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto px-5 pb-4 sm:px-6">
       {/* ── STEP 1: BASICS ── */}
       {step === 1 && (
         <div className="space-y-4">
@@ -322,22 +324,12 @@ export function QuickOnboardingForm({
             <ImageUpload
               label="Click or drag to upload"
               aspect="banner"
+              compact
               value={form.photo}
               onChange={(url) => set("photo", url)}
               hint="JPG, PNG, WebP · max 5MB"
             />
           </div>
-
-          {/* Continue */}
-          <Button
-            onClick={() => setStep(2)}
-            disabled={!step1Valid}
-            className="w-full gap-2 bg-brand text-brand-foreground hover:bg-brand/90"
-            size="lg"
-          >
-            Continue
-            <ChevronRight className="size-4" />
-          </Button>
         </div>
       )}
 
@@ -361,8 +353,24 @@ export function QuickOnboardingForm({
             />
             <p className="mt-1 text-xs text-muted-foreground">Just write naturally — AI handles the rest after you publish.</p>
           </div>
+        </div>
+      )}
+      </div>
 
-          {/* Navigation — Publish directly from Step 2 (no review step) */}
+      {/* Sticky footer — always visible */}
+      <div className="shrink-0 border-t border-border bg-card px-5 py-3 [padding-bottom:calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-6">
+        {step === 1 && (
+          <Button
+            onClick={() => setStep(2)}
+            disabled={!step1Valid}
+            className="w-full gap-2 bg-brand text-brand-foreground hover:bg-brand/90"
+            size="lg"
+          >
+            Continue
+            <ChevronRight className="size-4" />
+          </Button>
+        )}
+        {step === 2 && (
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setStep(1)} className="gap-1.5">
               <ChevronLeft className="size-4" /> Back
@@ -377,8 +385,8 @@ export function QuickOnboardingForm({
               {publishing ? "Publishing..." : user ? "Publish My Business" : "Sign In & Publish"}
             </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
