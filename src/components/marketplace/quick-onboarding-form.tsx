@@ -100,7 +100,8 @@ export function QuickOnboardingForm({
     fetch(`/api/categories?ecosystem=${ecosystem}`)
       .then((r) => r.json())
       .then((data) => {
-        const cats = (data.categories || []).map((c: any) => ({ slug: c.slug, label: c.label }));
+        // API returns `id` (not `slug`) — use `c.id || c.slug` to handle both
+        const cats = (data.categories || []).map((c: any) => ({ slug: c.id || c.slug, label: c.label }));
         setCategories(cats);
       })
       .catch(() => {});
