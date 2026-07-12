@@ -3,12 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ensureCsrfCookie, validateCsrf } from "@/lib/security/csrf";
 
 /**
- * Middleware that:
+ * Proxy (formerly middleware) that:
  * 1. Refreshes the Supabase auth session on every request.
  * 2. Enforces CSRF protection on mutation requests.
  * 3. Sets CSRF cookie on GET requests if not present.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (
     pathname.startsWith("/_next/") ||
