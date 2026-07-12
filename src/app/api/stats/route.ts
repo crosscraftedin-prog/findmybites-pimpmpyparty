@@ -7,14 +7,14 @@ import type { PlatformStats } from "@/lib/types";
 // on every homepage load.
 let cachedStats: PlatformStats | null = null;
 let cachedAt = 0;
-const CACHE_TTL_MS = 60_000; // 60 seconds
+const CACHE_TTL_MS = 120_000; // 120 seconds (was 60s)
 
 export async function GET(_req: NextRequest) {
   // Return cached stats if fresh
   if (cachedStats && Date.now() - cachedAt < CACHE_TTL_MS) {
     return NextResponse.json(cachedStats, {
       headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600",
       },
     });
   }
@@ -90,7 +90,7 @@ export async function GET(_req: NextRequest) {
     cachedStats = stats;
     cachedAt = Date.now();
 
-    return NextResponse.json(stats, { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } });
+    return NextResponse.json(stats, { headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600" } });
   } catch (err) {
     console.error("[api/stats] GET failed:", err);
     // Return graceful empty stats instead of 500 so the homepage doesn't

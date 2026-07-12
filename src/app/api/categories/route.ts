@@ -9,7 +9,7 @@ import type { Ecosystem } from "@/lib/types";
 // category leakage (the bug where switching marketplaces showed the
 // previous marketplace's categories).
 let _cache = new Map<string, { data: any; expiry: number }>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes (was 5 min)
 
 interface CategoryWithCount {
   id: string;
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
     if (cached && Date.now() < cached.expiry) {
       return NextResponse.json(
         { categories: cached.data },
-        { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } }
+        { headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=3600" } }
       );
     }
 
@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       { categories },
-      { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } }
+      { headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=3600" } }
     );
   } catch (err) {
     console.error("[api/categories] GET failed:", err);

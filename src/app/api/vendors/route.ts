@@ -19,6 +19,7 @@ import {
   searchIndexHasRows,
   sanitizeFtsQuery,
 } from "@/lib/search";
+import { getVendorAttributesBatch, findVendorIdsByAttributes } from "@/lib/attributes/attribute-service";
 import type { Vendor as ApiVendor } from "@/lib/types";
 
 function transformVendor(v: DbVendor): ApiVendor {
@@ -152,7 +153,6 @@ export async function GET(req: NextRequest) {
     // This is an AND filter — vendor must have ALL specified attributes.
     if (attributeSlugs.length > 0) {
       try {
-        const { findVendorIdsByAttributes } = await import("@/lib/attributes/attribute-service");
         const matchedIds = await findVendorIdsByAttributes(attributeSlugs, {
           ecosystem,
           category,
@@ -237,7 +237,6 @@ export async function GET(req: NextRequest) {
     // Single grouped query, not N+1. Attributes are non-critical enrichment
     // — if this fails, vendors are still returned without attributes.
     try {
-      const { getVendorAttributesBatch } = await import("@/lib/attributes/attribute-service");
       const attrMap = await getVendorAttributesBatch(vendors.map((v) => v.id));
       for (const v of vendors) {
         const attrs = attrMap.get(v.id);
@@ -251,7 +250,10 @@ export async function GET(req: NextRequest) {
       console.error("[api/vendors] attribute batch fetch failed (non-fatal):", attrErr);
     }
 
-    return NextResponse.json({ vendors, total });
+    const res = NextResponse.json({ vendors, total });
+    // CDN cache public vendor listings for 60s (stale-while-revalidate 300s)
+    res.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+    return res;
   } catch (err) {
     console.error("[api/vendors] GET failed:", err);
     // Return empty list instead of 500 so the homepage doesn't break
