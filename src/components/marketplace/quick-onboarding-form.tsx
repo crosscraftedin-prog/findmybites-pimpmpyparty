@@ -64,8 +64,8 @@ const INITIAL_STATE: QuickFormState = {
   businessDescription: "",
 };
 
-// Business type options — powers AI suggestions, SEO, templates, search
-const BUSINESS_TYPES = [
+// Fallback business types — used if /api/business-types returns empty (DB not seeded)
+const FALLBACK_BUSINESS_TYPES = [
   "Home Baker", "Bakery", "Restaurant", "Cafe", "Cloud Kitchen", "Caterer",
   "Event Planner", "Decorator", "Florist", "Photographer", "Videographer",
   "DJ", "Makeup Artist", "Mehendi Artist", "Venue", "Rental Service",
@@ -105,6 +105,7 @@ export function QuickOnboardingForm({
 
   // Categories for this ecosystem
   const [categories, setCategories] = React.useState<{ slug: string; label: string }[]>([]);
+  const [businessTypes, setBusinessTypes] = React.useState<string[]>(FALLBACK_BUSINESS_TYPES);
   React.useEffect(() => {
     fetch(`/api/categories?ecosystem=${ecosystem}`)
       .then((r) => r.json())
@@ -115,6 +116,18 @@ export function QuickOnboardingForm({
       })
       .catch(() => {});
   }, [ecosystem]);
+
+  // Load business types when category changes (cascading)
+  React.useEffect(() => {
+    if (!form.category) return;
+    fetch(`/api/business-types?category=${encodeURIComponent(form.category)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const types = (data.businessTypes || []).map((t: any) => t.label || t.value || t.name);
+        setBusinessTypes(types.length > 0 ? types : FALLBACK_BUSINESS_TYPES);
+      })
+      .catch(() => setBusinessTypes(FALLBACK_BUSINESS_TYPES));
+  }, [form.category]);
 
   const currency = COUNTRIES.find((c) => c.code === form.countryCode)?.currency || "USD";
   const currencySymbol = CURRENCY_SYMBOLS[currency] || currency;
@@ -288,7 +301,7 @@ export function QuickOnboardingForm({
                 <SelectValue placeholder="Choose your business type" />
               </SelectTrigger>
               <SelectContent className="max-h-60">
-                {BUSINESS_TYPES.map((t) => (
+                {businessTypes.map((t) => (
                   <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}
               </SelectContent>

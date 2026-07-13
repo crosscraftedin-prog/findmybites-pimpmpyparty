@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       select: { id: true, ecosystem: true },
     });
 
-    if (!cat) return NextResponse.json([]);
+    if (!cat) return NextResponse.json({ subcategories: [] });
 
     const subcategories = await db.subcategory.findMany({
       where: { categoryId: cat.id, active: true },
@@ -57,12 +57,14 @@ export async function GET(req: NextRequest) {
       select: { id: true, slug: true, label: true },
     });
 
+    const result = subcategories.map((s) => ({ id: s.id, name: s.label, slug: s.slug }));
+
     return NextResponse.json(
-      subcategories.map((s) => ({ id: s.id, name: s.label, slug: s.slug })),
-      { headers: { "Cache-Control": "no-store" } }
+      { subcategories: result },
+      { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } }
     );
   } catch (err) {
     console.error("[api/categories/subcategories] GET failed:", err);
-    return NextResponse.json([]);
+    return NextResponse.json({ subcategories: [] });
   }
 }

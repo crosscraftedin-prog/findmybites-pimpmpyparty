@@ -80,14 +80,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 4. Resolve upload namespace from session (never trust client) ──
+    // ── 4. Resolve vendor ID from session (never trust client) ──
     // SECURITY: Require authentication — anonymous uploads are NOT allowed.
-    // The onboarding flow defers auth until publish time, so if the user
-    // is not yet signed in, the upload is rejected with 401. The frontend
-    // ImageUpload component handles this gracefully by showing an error toast.
-    //
-    // For pre-vendor uploads (onboarding), we namespace under pending/{userId}/
-    // For existing vendors, we namespace under {vendorId}/
     const supabase = await createSupabaseServerClient();
     let userId: string | null = null;
     try {
@@ -102,24 +96,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Resolve the storage namespace. Vendors who already have a listing upload
-    // under vendor-uploads/{vendorId}/... First-time onboarding has NO vendor
-    // row yet (the create-vendor flow uploads logo/banner BEFORE creating the
-    // vendor), so those uploads are namespaced under vendor-uploads/pending/{userId}/...
-    let uploadNamespace: string;
-    let vendorId: string | null;
+    let vendorId: string;
     try {
       const vendor = await db.vendor.findFirst({
         where: { owner_user_id: userId },
         select: { id: true },
       }).catch(() => null);
-      if (vendor) {
-        vendorId = vendor.id;
-        uploadNamespace = vendor.id;
-      } else {
-        vendorId = null;
-        uploadNamespace = `pending/${userId}`;
+      if (!vendor) {
+        return NextResponse.json(
+          { error: "No vendor listing found. Complete your vendor profile first." },
+          { status: 403 }
+        );
       }
+      vendorId = vendor.id;
     } catch {
       return NextResponse.json(
         { error: "Failed to verify vendor account." },
@@ -143,13 +132,12 @@ export async function POST(req: NextRequest) {
     const admin = getSupabaseAdmin()!;
     const ext = file.type.split("/")[1] || "jpg";
     const fileName = secureFilename(ext);
-    const path = `${uploadNamespace}/${folder}/${fileName}`;
+    const path = `${vendorId}/${folder}/${fileName}`;
 
     logger.info("upload", "Uploading to Supabase Storage", {
       bucket: BUCKET_NAME,
       path,
       contentType: file.type,
-      vendorId: vendorId ?? "pending-onboarding",
     });
 
     const { data: uploadData, error: uploadError } = await admin

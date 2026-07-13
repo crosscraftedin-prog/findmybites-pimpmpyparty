@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Vendor } from "@/lib/types";
@@ -53,6 +54,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const [published, setPublished] = React.useState(false);
   // Global Attribute System — product attribute IDs
   const [productAttributeIds, setProductAttributeIds] = React.useState<string[]>([]);
+  const [productSubcategories, setProductSubcategories] = React.useState<{id: string; name: string}[]>([]);
 
   const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
   const isFood = vendor.ecosystem === "FINDMYBITES";
@@ -154,6 +156,21 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       window.dispatchEvent(new Event("fullscreen-overlay-close"));
     };
   }, []);
+
+  // Load subcategories when product category changes (same API as vendor profile)
+  React.useEffect(() => {
+    if (!form.category) {
+      setProductSubcategories([]);
+      return;
+    }
+    fetch(`/api/categories/subcategories?category=${encodeURIComponent(form.category)}&ecosystem=${vendor.ecosystem}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const subs = (data.subcategories || []).map((s: any) => ({ id: s.id, name: s.name || s.label }));
+        setProductSubcategories(subs);
+      })
+      .catch(() => setProductSubcategories([]));
+  }, [form.category, vendor.ecosystem]);
 
   const autoSave = React.useCallback(async () => {
     // Don't auto-save if editing an existing product or if the wizard is done
@@ -628,8 +645,16 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     </div>
                     <div>
                       <Label htmlFor="p-subcat">Subcategory</Label>
-                      <Input id="p-subcat" value={form.subCategory} onChange={e => set("subCategory", e.target.value)}
-                        placeholder="e.g. Wedding Cakes" className="mt-1" />
+                      <Select value={form.subCategory || ""} onValueChange={(v) => set("subCategory", v)}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Choose a subcategory" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          {productSubcategories.map((s) => (
+                            <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <div>
