@@ -1489,11 +1489,13 @@ function TemplateEditorPanel({
   // by fields but missing from the sections[] array (defensive).
   const sectionNames = React.useMemo(() => {
     const seen = new Map<number, string>();
-    sections
+    const safeSections = Array.isArray(sections) ? sections : [];
+    safeSections
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .forEach((s) => seen.set(s.sortOrder, s.name));
-    fields.forEach((f) => {
+    const safeFields = Array.isArray(fields) ? fields : [];
+    safeFields.forEach((f) => {
       if (!Array.from(seen.values()).includes(f.section)) {
         seen.set(9000 + f.sortOrder, f.section);
       }
@@ -1504,7 +1506,8 @@ function TemplateEditorPanel({
   const fieldsBySection = React.useMemo(() => {
     const map = new Map<string, TemplateField[]>();
     sectionNames.forEach((s) => map.set(s, []));
-    fields
+    const safeFields = Array.isArray(fields) ? fields : [];
+    safeFields
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .forEach((f) => {
