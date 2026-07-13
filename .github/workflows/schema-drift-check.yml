@@ -1,0 +1,68 @@
+name: Schema Drift Check
+
+on:
+  pull_request:
+    paths:
+      - 'prisma/schema.prisma'
+      - 'prisma/migrations/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'prisma/schema.prisma'
+      - 'prisma/migrations/**'
+
+jobs:
+  check-schema-drift:
+    name: Check Prisma Schema Drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for diff
+
+      - name: Check if schema.prisma changed without migration
+        run: |
+          # Get the base commit (origin/main for PRs, HEAD~1 for pushes)
+          BASE_SHA="${{ github.event.pull_request.base.sha || github.event.before }}"
+
+          echo "Base SHA: $BASE_SHA"
+          echo "Head SHA: ${{ github.sha }}"
+
+          # Check if schema.prisma changed
+          SCHEMA_CHANGED=$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" -- prisma/schema.prisma || echo "")
+
+          if [ -z "$SCHEMA_CHANGED" ]; then
+            echo "✅ schema.prisma was not modified — no drift check needed."
+            exit 0
+          fi
+
+          echo "⚠️  schema.prisma was modified. Checking for new migrations..."
+
+          # Check if any new migration was added
+          NEW_MIGRATIONS=$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" -- 'prisma/migrations/*/migration.sql' || echo "")
+
+          # Also check for the sync-production-schema.sql fallback migration
+          SYNC_MIGRATION=$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" -- 'prisma/migrations/sync-production-schema.sql' || echo "")
+
+          if [ -z "$NEW_MIGRATIONS" ] && [ -z "$SYNC_MIGRATION" ]; then
+            echo ""
+            echo "❌ ERROR: prisma/schema.prisma was modified but NO migration was created."
+            echo ""
+            echo "   To fix this:"
+            echo "   1. Run: bun run db:migrate -- --name descriptive_name"
+            echo "   2. OR update prisma/migrations/sync-production-schema.sql"
+            echo "   3. Commit BOTH schema.prisma AND the migration"
+            echo "   4. The migration will be applied to production during deployment"
+            echo ""
+            echo "   NEVER modify schema.prisma without creating a migration."
+            echo "   NEVER apply schema changes directly to the database."
+            echo ""
+            exit 1
+          fi
+
+          echo "✅ New migration(s) found:"
+          [ -n "$NEW_MIGRATIONS" ] && echo "$NEW_MIGRATIONS" | sed 's/^/   - /'
+          [ -n "$SYNC_MIGRATION" ] && echo "$SYNC_MIGRATION" | sed 's/^/   - /'
+          echo ""
+          echo "✅ Schema and migrations are in sync."
