@@ -25,6 +25,7 @@ import {
   type InfoField,
   type FieldType,
 } from "./product-info";
+import { getCached } from "./template-cache";
 
 // ── DB field shape (matches TemplateField table) ───────────────────────────
 
@@ -249,51 +250,56 @@ export async function resolveProductInfoSectionsFromDB(
 ): Promise<InfoSection[] | null> {
   if (!category) return null;
 
-  try {
-    // 1. Find the template mapping for this category
-    const mapping = await db.templateMapping.findFirst({
-      where: {
-        OR: [
-          { categoryId: category, subcategory: subcategory ?? null },
-          { categoryId: category, subcategory: null },
-        ],
-      },
-      orderBy: [{ subcategory: "desc" }], // subcategory match first
-      include: {
-        template: {
+  // Use runtime cache — prevents repeated DB queries for the same category
+  return getCached<InfoSection[] | null>(
+    "sections",
+    category,
+    subcategory,
+    async () => {
+      try {
+        const mapping = await db.templateMapping.findFirst({
+          where: {
+            OR: [
+              { categoryId: category, subcategory: subcategory ?? null },
+              { categoryId: category, subcategory: null },
+            ],
+          },
+          orderBy: [{ subcategory: "desc" }],
           include: {
-            fields: {
-              where: { enabled: true },
-              orderBy: [{ section: "asc" }, { sortOrder: "asc" }],
+            template: {
+              include: {
+                fields: {
+                  where: { enabled: true },
+                  orderBy: [{ section: "asc" }, { sortOrder: "asc" }],
+                },
+              },
             },
           },
-        },
-      },
-    }).catch(() => null);
+        }).catch(() => null);
 
-    if (!mapping?.template?.fields?.length) return null;
+        if (!mapping?.template?.fields?.length) return null;
+        // Don't return draft templates' sections
+        if ((mapping.template as any).status === "draft") return null;
 
-    // 2. Parse section metadata from the template
-    const sectionMeta = parseJSON<DBTemplateSection[]>(mapping.template.sections, []);
+        const sectionMeta = parseJSON<DBTemplateSection[]>(mapping.template.sections, []);
+        const sections = dbFieldsToSections(mapping.template.fields, sectionMeta);
 
-    // 3. Group fields by section
-    const sections = dbFieldsToSections(mapping.template.fields, sectionMeta);
+        logger.info("template-engine-v3", "Resolved sections from DB (cache miss)", {
+          category,
+          templateSlug: mapping.template.slug,
+          sectionCount: sections.length,
+        });
 
-    logger.info("template-engine-v3", "Resolved sections from DB", {
-      category,
-      templateSlug: mapping.template.slug,
-      sectionCount: sections.length,
-      fieldCount: mapping.template.fields.length,
-    });
-
-    return sections;
-  } catch (err) {
-    logger.warn("template-engine-v3", "DB resolution failed, falling back to code", {
-      error: err instanceof Error ? err.message : String(err),
-      category,
-    });
-    return null;
-  }
+        return sections;
+      } catch (err) {
+        logger.warn("template-engine-v3", "DB resolution failed, falling back to code", {
+          error: err instanceof Error ? err.message : String(err),
+          category,
+        });
+        return null;
+      }
+    }
+  );
 }
 
 /**
@@ -1099,6 +1105,9 @@ export async function updateTemplateStatus(
       where: { id: templateId },
       data: { status },
     });
+    // Invalidate the cache so the new status takes effect immediately
+    const { invalidateAllTemplateCaches } = await import("./template-cache");
+    invalidateAllTemplateCaches();
     return true;
   } catch (err) {
     logger.error("template-engine-v3", "updateTemplateStatus failed", {

@@ -161,6 +161,72 @@ function renderProduct(p: JoshProduct): string {
 }
 
 /**
+ * V3: Render a product dynamically using template field metadata.
+ *
+ * Instead of hardcoded field access (info.ingredients, info.allergens, etc.),
+ * this function reads the template's AI-enabled fields and renders their values
+ * from productInfo using the field labels from the template.
+ *
+ * This means Josh AI automatically understands new fields added in the Admin
+ * Panel — no code changes needed.
+ *
+ * Falls back to the hardcoded renderProduct() if no template metadata is available.
+ */
+export function renderProductDynamic(
+  p: JoshProduct,
+  fieldMetadata?: { key: string; label: string; description?: string; priority: number; type: string }[]
+): string {
+  // If no template metadata, fall back to hardcoded rendering
+  if (!fieldMetadata || fieldMetadata.length === 0) {
+    return renderProduct(p);
+  }
+
+  const parts: string[] = [
+    `${p.name}`,
+    `vendor: ${p.vendorName}`,
+    `price: ${p.currency}${p.price}`,
+  ];
+  if (p.productType) parts.push(`type: ${p.productType}`);
+  if (p.eggless) parts.push("eggless: yes");
+  if (p.featured) parts.push("featured: yes");
+  if (p.description) parts.push(`desc: "${p.description.slice(0, 100)}"`);
+
+  // V3: Dynamic field rendering from template metadata
+  if (p.productInfo) {
+    const info = p.productInfo as Record<string, unknown>;
+    for (const field of fieldMetadata) {
+      const value = info[field.key];
+      if (value === undefined || value === null || value === "" || value === false) continue;
+      if (Array.isArray(value) && value.length === 0) continue;
+
+      // Render the value based on type
+      let valueStr: string;
+      if (Array.isArray(value)) {
+        valueStr = value.join(", ");
+      } else if (typeof value === "boolean") {
+        valueStr = "yes";
+      } else {
+        valueStr = String(value);
+      }
+
+      // Use the template-defined label (not the key) for better LLM understanding
+      const label = field.label.toLowerCase();
+      parts.push(`${label}: ${valueStr.slice(0, 200)}`);
+    }
+
+    // Always include stored FAQs (if any)
+    if (info.faqs && Array.isArray(info.faqs) && info.faqs.length > 0) {
+      const faqText = (info.faqs as { question: string; answer: string }[])
+        .map((f) => `Q: ${f.question} A: ${f.answer}`)
+        .join(" | ");
+      parts.push(`FAQs: ${faqText.slice(0, 300)}`);
+    }
+  }
+
+  return "- " + parts.join(" | ");
+}
+
+/**
  * Render the ConversationState as a compact summary for the LLM.
  * Only includes fields that have values.
  */
@@ -209,7 +275,7 @@ export function buildLLMPayloadSection(payload: JoshLLMPayload): string {
     "",
     "## PRODUCTS (use ONLY these — never invent)",
     products.length > 0
-      ? products.map(renderProduct).join("\n")
+      ? products.map((p) => renderProductDynamic(p, (payload as any).fieldMetadata)).join("\n")
       : "(empty — no products available)",
     "",
     "## ACTIVE FILTERS",

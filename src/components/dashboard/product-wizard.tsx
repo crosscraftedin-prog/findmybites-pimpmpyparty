@@ -34,7 +34,19 @@ interface ProductWizardProps {
   saving: boolean;
 }
 
-const STEPS = [
+// ── Dynamic Wizard Steps ───────────────────────────────────────────────────
+// V3: Steps are resolved from the Template Engine at runtime.
+// The hardcoded STEPS below are the FALLBACK used when no DB template defines a wizard.
+// Admins can override these by editing the template's `wizard` JSON column.
+
+interface DynamicStep {
+  id: number;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  sections?: string[];
+}
+
+const FALLBACK_STEPS: DynamicStep[] = [
   { id: 1, title: "Basic Info", icon: Star },
   { id: 2, title: "Photos", icon: ImageIcon },
   { id: 3, title: "Pricing", icon: DollarSign },
@@ -46,6 +58,12 @@ const STEPS = [
   { id: 9, title: "Inventory", icon: Boxes },
   { id: 10, title: "Preview", icon: Eye },
 ];
+
+// Icon resolver — maps icon names from the template to lucide components
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Star, ImageIcon, DollarSign, Package, Tags, Info, Search, Boxes, Eye,
+  Clock, CalendarDays, Bell, Sparkles, Upload, Check, AlertCircle,
+};
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   INR: "₹", USD: "$", GBP: "£", AED: "AED", AUD: "A$", CAD: "CA$", SGD: "S$", EUR: "€",
@@ -63,6 +81,32 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const [productAttributeIds, setProductAttributeIds] = React.useState<string[]>([]);
   const [productInfo, setProductInfo] = React.useState<ProductInfo>({});
   const [productSubcategories, setProductSubcategories] = React.useState<{id: string; name: string}[]>([]);
+  // V3: Dynamic wizard steps from Template Engine
+  const [dynamicSteps, setDynamicSteps] = React.useState<DynamicStep[] | null>(null);
+
+  // Fetch wizard steps from the Template Engine
+  React.useEffect(() => {
+    if (!vendor.category) return;
+    let cancelled = false;
+    fetch(`/api/templates/v3/wizard?category=${encodeURIComponent(vendor.category)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (cancelled || !data?.steps?.length) return;
+        // Map template steps to DynamicStep format
+        const steps: DynamicStep[] = data.steps.map((s: any) => ({
+          id: s.step,
+          title: s.title,
+          icon: ICON_MAP[s.icon] || Star,
+          sections: s.sections,
+        }));
+        setDynamicSteps(steps);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [vendor.category]);
+
+  // Use dynamic steps if available, otherwise fallback
+  const STEPS = dynamicSteps ?? FALLBACK_STEPS;
 
   const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
   const isFood = vendor.ecosystem === "FINDMYBITES";
@@ -520,7 +564,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     if (touchStartX.current === null) return;
     const dx = (e.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current;
     const threshold = 60; // px
-    if (dx < -threshold && step < 10 && canProceed) {
+    if (dx < -threshold && step < STEPS.length && canProceed) {
       setStep(step + 1); // swipe left → next
     } else if (dx > threshold && step > 1) {
       setStep(step - 1); // swipe right → back
