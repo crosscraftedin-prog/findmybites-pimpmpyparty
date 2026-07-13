@@ -16,9 +16,16 @@ import {
 } from "@/lib/products/product-info";
 
 /**
- * ProductInfoForm V2 — fully template-driven.
+ * ProductInfoForm V3 — Admin-Driven Template Engine.
  *
- * No category logic. Sections come from `infoSections` prop (from template).
+ * Sections are resolved from (in priority order):
+ *   1. `infoSections` prop (explicitly passed — e.g. CUSTOMISATION_SECTION)
+ *   2. DB Template Engine (fetched from /api/templates/v3/resolve by category)
+ *   3. Code fallback (DEFAULT_INFO_SECTIONS)
+ *
+ * Admins can edit sections + fields in the Admin Panel. Changes take effect
+ * immediately — no code deployment needed.
+ *
  * Supports: text, richtext, textarea, select, checkboxes, checkbox, images, table.
  * AI generation with replace/append modal.
  * Custom highlights as chips.
@@ -31,19 +38,44 @@ export function ProductInfoForm({
   productName,
   productDescription,
   showVendorOnly = false,
+  category,
 }: {
   productInfo: ProductInfo;
   onChange: (info: ProductInfo) => void;
+  /** Explicit sections (highest priority — overrides DB + code). */
   infoSections?: InfoSection[];
   productName?: string;
   productDescription?: string;
   /** Show vendor-only sections (Recipe Cost Calculator). */
   showVendorOnly?: boolean;
+  /** Vendor category — used to resolve sections from DB Template Engine. */
+  category?: string | null;
 }) {
-  const sections = React.useMemo(
-    () => getSectionsForTemplate({ infoSections }),
-    [infoSections]
-  );
+  // State for DB-resolved sections
+  const [dbSections, setDbSections] = React.useState<InfoSection[] | null>(null);
+
+  // Fetch sections from DB Template Engine when category is provided
+  React.useEffect(() => {
+    if (infoSections || !category) return;
+    let cancelled = false;
+    fetch(`/api/templates/v3/resolve?category=${encodeURIComponent(category)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (cancelled || !data?.sections?.length) return;
+        setDbSections(data.sections);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [category, infoSections]);
+
+  const sections = React.useMemo(() => {
+    // Priority 1: explicit infoSections prop
+    if (infoSections && infoSections.length > 0) return infoSections;
+    // Priority 2: DB-resolved sections
+    if (dbSections && dbSections.length > 0) return dbSections;
+    // Priority 3: code fallback
+    return getSectionsForTemplate({ infoSections });
+  }, [infoSections, dbSections]);
 
   const setField = (key: string, value: unknown) => {
     onChange({ ...productInfo, [key]: value });

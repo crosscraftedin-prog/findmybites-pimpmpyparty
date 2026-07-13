@@ -1095,6 +1095,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                   <ProductInfoForm
                     productInfo={productInfo}
                     onChange={setProductInfo}
+                    category={vendor.category}
                     productName={form.name}
                     productDescription={form.description}
                   />

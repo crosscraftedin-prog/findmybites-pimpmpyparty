@@ -27,14 +27,36 @@ import {
 export function ProductInfoDisplay({
   productInfo,
   infoSections,
+  category,
 }: {
   productInfo: ProductInfo;
+  /** Explicit sections (highest priority — overrides DB + code). */
   infoSections?: InfoSection[];
+  /** Product category — used to resolve sections from DB Template Engine. */
+  category?: string | null;
 }) {
-  const sections = React.useMemo(
-    () => getSectionsForTemplate({ infoSections }),
-    [infoSections]
-  );
+  // State for DB-resolved sections
+  const [dbSections, setDbSections] = React.useState<InfoSection[] | null>(null);
+
+  // Fetch sections from DB Template Engine when category is provided
+  React.useEffect(() => {
+    if (infoSections || !category) return;
+    let cancelled = false;
+    fetch(`/api/templates/v3/resolve?category=${encodeURIComponent(category)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (cancelled || !data?.sections?.length) return;
+        setDbSections(data.sections);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [category, infoSections]);
+
+  const sections = React.useMemo(() => {
+    if (infoSections && infoSections.length > 0) return infoSections;
+    if (dbSections && dbSections.length > 0) return dbSections;
+    return getSectionsForTemplate({ infoSections });
+  }, [infoSections, dbSections]);
 
   // Filter to only sections that have data, respecting showWhen + vendorOnly
   const visibleSections = sections.filter((section) => {
