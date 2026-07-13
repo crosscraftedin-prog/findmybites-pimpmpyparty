@@ -55,6 +55,8 @@ export interface JoshProduct {
   eggless: boolean;
   featured: boolean;
   currency: string;
+  /** Product Information (ingredients, allergens, storage, etc.) */
+  productInfo?: import("@/lib/products/product-info").ProductInfo;
 }
 
 export interface JoshFilterSummary {
@@ -193,6 +195,8 @@ export async function searchVendors(
         });
         const vendorCurrency = new Map(vendors.map((v) => [v.id, v.currency]));
         const vendorName = new Map(vendors.map((v) => [v.id, v.name]));
+        // Import extractFromExtraFields lazily to avoid circular deps
+        const { extractFromExtraFields } = await import("@/lib/products/product-info");
         products = productRows.map((p) => ({
           id: p.id,
           vendorId: p.vendorId,
@@ -205,6 +209,10 @@ export async function searchVendors(
           eggless: p.eggless,
           featured: p.featured,
           currency: vendorCurrency.get(p.vendorId) ?? "INR",
+          // Product Information System — gives Josh AI access to ingredients,
+          // allergens, storage, packaging, etc. so it can answer detailed
+          // customer questions without the customer leaving the chat.
+          productInfo: extractFromExtraFields((p as any).extraFields),
         }));
       } catch {
         products = [];

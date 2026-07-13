@@ -4,49 +4,60 @@ import * as React from "react";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  getSectionsForCategory,
+  getLegacySectionsForCategory,
+  getAllergenWarningText,
   type ProductInfo,
   type InfoSection,
+  type InfoField,
 } from "@/lib/products/product-info";
 
 /**
- * ProductInfoDisplay — renders the structured product information on the
- * public product page.
+ * ProductInfoDisplay — renders structured product information on the public
+ * product page as SEPARATE COLLAPSIBLE CARDS (not one long section).
  *
- * Layout (in order):
- *   Description (rendered by the parent)
- *   Product Highlights (badges near title — rendered by parent)
- *   Ingredients
- *   Packaging
- *   Storage
- *   Delivery
- *   Allergens
- *   Nutrition
+ * Each section (Ingredients, Packaging, Storage, Allergens, Nutrition, etc.)
+ * is its own card with an H2 heading for SEO. Cards collapse on mobile and
+ * expand on desktop.
  *
- * Only sections with data are shown. Sections use H2 headings for SEO.
- * Collapsible on mobile, expanded on desktop.
+ * Template-driven: sections come from the `infoSections` prop (from the
+ * active template) or fall back to the legacy category lookup.
  */
 export function ProductInfoDisplay({
   productInfo,
+  infoSections,
   category,
 }: {
   productInfo: ProductInfo;
-  category: string | null | undefined;
+  /** Template-driven sections. If omitted, falls back to category. */
+  infoSections?: InfoSection[];
+  category?: string | null;
 }) {
-  const sections = React.useMemo(
-    () => getSectionsForCategory(category),
-    [category]
-  );
+  const sections = React.useMemo(() => {
+    if (infoSections && infoSections.length > 0) return infoSections;
+    return getLegacySectionsForCategory(category);
+  }, [infoSections, category]);
 
-  // Filter to only sections that have data
-  const visibleSections = sections.filter((section) =>
-    sectionHasData(section, productInfo)
-  );
+  // Filter to only sections that have data, respecting showWhen
+  const visibleSections = sections.filter((section) => {
+    // Check showWhen condition
+    if (section.showWhen) {
+      const val = (productInfo as any)[section.showWhen.field];
+      if (section.showWhen.truthy && !val) return false;
+      if (!section.showWhen.truthy && val) return false;
+    }
+    // Check if any visible field has data
+    const visibleFields = section.fields.filter((field) => {
+      if (!field.showWhen) return true;
+      const val = (productInfo as any)[field.showWhen.field];
+      return val === field.showWhen.equals;
+    });
+    return visibleFields.some((field) => fieldHasData(field, productInfo));
+  });
 
   if (visibleSections.length === 0) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {visibleSections.map((section) => (
         <SectionDisplay
           key={section.key}
@@ -56,20 +67,18 @@ export function ProductInfoDisplay({
       ))}
 
       {/* Allergen warning banner (auto-generated if allergens are selected) */}
-      {hasAllergenWarning(productInfo) && (
+      {getAllergenWarningText(productInfo) && (
         <AllergenWarning productInfo={productInfo} />
       )}
     </div>
   );
 }
 
-function sectionHasData(section: InfoSection, info: ProductInfo): boolean {
-  return section.fields.some((field) => {
-    const val = (info as any)[field.key];
-    if (val === undefined || val === null || val === "") return false;
-    if (Array.isArray(val) && val.length === 0) return false;
-    return true;
-  });
+function fieldHasData(field: InfoField, info: ProductInfo): boolean {
+  const val = (info as any)[field.key];
+  if (val === undefined || val === null || val === "") return false;
+  if (Array.isArray(val) && val.length === 0) return false;
+  return true;
 }
 
 function SectionDisplay({
@@ -80,6 +89,19 @@ function SectionDisplay({
   productInfo: ProductInfo;
 }) {
   const [collapsed, setCollapsed] = React.useState(false);
+
+  // Filter fields by showWhen and data presence
+  const visibleFields = section.fields.filter((field) => {
+    if (!field.showWhen) return true;
+    const val = (productInfo as any)[field.showWhen.field];
+    return val === field.showWhen.equals;
+  });
+
+  const fieldsWithData = visibleFields.filter((field) =>
+    fieldHasData(field, productInfo)
+  );
+
+  if (fieldsWithData.length === 0) return null;
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -97,18 +119,13 @@ function SectionDisplay({
 
       <div className={cn("px-4 pb-4", collapsed && "hidden sm:block")}>
         <div className="space-y-3">
-          {section.fields.map((field) => {
-            const val = (productInfo as any)[field.key];
-            if (val === undefined || val === null || val === "") return null;
-            if (Array.isArray(val) && val.length === 0) return null;
-            return (
-              <FieldDisplay
-                key={field.key}
-                field={field}
-                value={val}
-              />
-            );
-          })}
+          {fieldsWithData.map((field) => (
+            <FieldDisplay
+              key={field.key}
+              field={field}
+              value={(productInfo as any)[field.key]}
+            />
+          ))}
         </div>
       </div>
     </div>
@@ -119,7 +136,7 @@ function FieldDisplay({
   field,
   value,
 }: {
-  field: import("@/lib/products/product-info").InfoField;
+  field: InfoField;
   value: unknown;
 }) {
   if (field.type === "checkboxes") {
@@ -154,14 +171,17 @@ function FieldDisplay({
     );
   }
 
-  // text, textarea, select
+  // text, richtext, textarea, select — all render as text
+  // richtext preserves line breaks (whitespace-pre-line)
   const strVal = String(value);
   if (!strVal.trim()) return null;
+
+  const isRichText = field.type === "richtext" || field.type === "textarea";
 
   return (
     <div className="grid grid-cols-1 gap-1 sm:grid-cols-[140px_1fr] sm:gap-3">
       <p className="text-xs font-medium text-muted-foreground sm:text-sm">{field.label}</p>
-      <p className="whitespace-pre-line text-sm text-foreground/90">{strVal}</p>
+      <p className={cn("text-sm text-foreground/90", isRichText && "whitespace-pre-line")}>{strVal}</p>
     </div>
   );
 }
@@ -182,17 +202,9 @@ function ChevronIcon({ collapsed, className }: { collapsed: boolean; className?:
 
 // ── Allergen warning ───────────────────────────────────────────────────────
 
-function hasAllergenWarning(info: ProductInfo): boolean {
-  return Array.isArray(info.allergens) && info.allergens.length > 0;
-}
-
 function AllergenWarning({ productInfo }: { productInfo: ProductInfo }) {
-  const allergens: string[] = productInfo.allergens ?? [];
-  const otherAllergens = productInfo.otherAllergens?.trim();
-
-  const allAllergenText = otherAllergens
-    ? [...allergens, otherAllergens].join(", ")
-    : allergens.join(", ");
+  const warningText = getAllergenWarningText(productInfo);
+  if (!warningText) return null;
 
   return (
     <div className="rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-900 dark:bg-red-950/20">
@@ -203,7 +215,7 @@ function AllergenWarning({ productInfo }: { productInfo: ProductInfo }) {
             ⚠️ Allergen Warning
           </p>
           <p className="mt-0.5 text-sm text-red-700 dark:text-red-400">
-            This product contains: <strong>{allAllergenText}</strong>
+            This product contains: <strong>{warningText}</strong>
           </p>
           {productInfo.facilityWarning?.trim() && (
             <p className="mt-2 text-xs text-red-600 dark:text-red-500">

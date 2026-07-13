@@ -1,47 +1,51 @@
 /**
- * Product Information System — category-specific field definitions.
+ * Product Information System — template-engine driven.
  * ─────────────────────────────────────────────────────────────────────────
  * Provides structured product information (Ingredients, Packaging, Storage,
- * Delivery, Allergens, Nutrition, Highlights) for product pages.
+ * Allergens, Nutrition, Highlights, etc.) for product pages.
  *
  * Storage: all productInfo is stored as a JSON string in the existing
  * `Product.extraFields` column — NO schema migration required.
  *
- * Category-aware: bakery products get the full bakery section set;
- * florists get Flower Types / Care Instructions / etc.
+ * Template-driven: sections are NOT hardcoded by category. Every template
+ * in the Template Engine defines its own `infoSections` array. The wizard
+ * and display components read from the template, not from a category lookup.
+ *
+ * Backward compatibility: existing products with the old category-based
+ * productInfo continue to work — the display component falls back to
+ * `getLegacySectionsForCategory()` when no template is active.
  */
 
+// ── ProductInfo data shape (stored in extraFields JSON) ────────────────────
+
 export interface ProductInfo {
-  // ── Ingredients (bakery) ──
-  ingredients?: string;
-  dietaryBadges?: string[]; // eggless, vegetarian, vegan, jain, glutenFree, sugarFree, organic, noArtificialColours, noArtificialFlavours, noPreservatives
+  // ── Ingredients ──
+  ingredients?: string; // rich text (newline-separated)
+  dietaryBadges?: string[];
 
   // ── Packaging ──
-  packageType?: string; // Cake Box, Gift Box, Window Box, Jar, Bottle, Cup, Tray, Eco Friendly, Custom
-  packageContents?: string;
-  packageWeight?: string;
+  packageType?: string;
+  netWeight?: string;
+  dimensions?: string;
+  packageIncludes?: string;
+  giftWrapping?: boolean;
+  ecoFriendly?: boolean;
+  customMessage?: string;
   packagingNotes?: string;
 
   // ── Storage ──
-  shelfLife?: string; // 1 Day, 2 Days, 3 Days, 5 Days, 7 Days, 15 Days, 30 Days
-  storageType?: string; // Room Temperature, Refrigerate, Freeze
-  storageInstructions?: string;
+  shelfLife?: string;
+  storageType?: string;
+  storageInstructions?: string; // rich text (newline-separated)
   servingSuggestion?: string;
 
-  // ── Delivery ──
-  sameDayDelivery?: boolean;
-  midnightDelivery?: boolean;
-  expressDelivery?: boolean;
-  deliveryRadius?: string;
-  estimatedDeliveryTime?: string;
-  deliveryNotes?: string;
-
   // ── Allergens ──
-  allergens?: string[]; // milk, eggs, wheat, gluten, soy, peanuts, treeNuts, sesame, sulphites, mustard, coconut, oats
-  otherAllergens?: string;
+  allergens?: string[];
+  customAllergens?: string; // comma-separated free-text allergens
   facilityWarning?: string;
 
-  // ── Nutrition (optional) ──
+  // ── Nutrition (optional — hidden unless enabled) ──
+  nutritionEnabled?: boolean;
   calories?: string;
   protein?: string;
   fat?: string;
@@ -50,7 +54,7 @@ export interface ProductInfo {
   servingSize?: string;
 
   // ── Product Highlights ──
-  highlights?: string[]; // freshlyBaked, madeToOrder, 100percentVegetarian, premiumIngredients, handcrafted, customizable, noPreservatives, bestSeller, chefRecommended, limitedEdition
+  highlights?: string[];
 
   // ── Florist-specific ──
   flowerTypes?: string;
@@ -72,129 +76,197 @@ export interface ProductInfo {
   languagesSpoken?: string;
   travelDistance?: string;
   equipmentRequired?: string;
+
+  // ── Legacy Delivery fields (kept for backward compat, not shown in wizard) ──
+  sameDayDelivery?: boolean;
+  midnightDelivery?: boolean;
+  expressDelivery?: boolean;
+  deliveryRadius?: string;
+  estimatedDeliveryTime?: string;
+  deliveryNotes?: string;
+
+  // ── Legacy packaging fields (kept for backward compat) ──
+  packageContents?: string;
+  packageWeight?: string;
 }
 
-// ── Category → Section definitions ─────────────────────────────────────────
+// ── Section / Field definitions (template-driven) ──────────────────────────
+
+export type FieldType = "text" | "richtext" | "textarea" | "select" | "checkboxes" | "checkbox";
+
+export interface InfoField {
+  key: string;
+  label: string;
+  type: FieldType;
+  options?: string[];
+  placeholder?: string;
+  optional?: boolean;
+  /** Show this field only when another field has a truthy value. */
+  showWhen?: { field: string; equals: unknown };
+}
 
 export interface InfoSection {
   key: string;
   heading: string;
   icon: string; // emoji
+  /** Show this section only when this condition is met. */
+  showWhen?: { field: string; truthy: boolean };
   fields: InfoField[];
 }
 
-export interface InfoField {
-  key: string;
-  label: string;
-  type: "text" | "textarea" | "select" | "checkboxes" | "checkbox";
-  options?: string[];
-  placeholder?: string;
-  optional?: boolean;
-}
+// ── Reusable section builders ──────────────────────────────────────────────
+// These are composable building blocks templates can mix-and-match.
+// Templates don't HAVE to use these — they can define fully custom sections.
 
-// ── Bakery sections (full set) ──
+export const INGREDIENTS_SECTION: InfoSection = {
+  key: "ingredients",
+  heading: "Ingredients",
+  icon: "🥣",
+  fields: [
+    {
+      key: "ingredients",
+      label: "Ingredients",
+      type: "richtext",
+      placeholder: "Refined Wheat Flour, Butter, Cocoa Powder, Dark Chocolate, Fresh Cream, Sugar, Baking Powder…",
+    },
+    {
+      key: "dietaryBadges",
+      label: "Dietary Features",
+      type: "checkboxes",
+      options: ["Eggless", "Contains Eggs", "Vegetarian", "Vegan", "Jain Friendly", "Gluten Free", "Sugar Free", "Organic", "No Artificial Colours", "No Artificial Flavours", "No Preservatives"],
+    },
+  ],
+};
+
+export const PACKAGING_SECTION: InfoSection = {
+  key: "packaging",
+  heading: "Packaging",
+  icon: "📦",
+  fields: [
+    {
+      key: "packageType",
+      label: "Package Type",
+      type: "select",
+      options: ["", "Cake Box", "Gift Box", "Window Box", "Jar", "Bottle", "Cup", "Tray", "Eco Friendly", "Custom"],
+    },
+    { key: "netWeight", label: "Net Weight", type: "text", placeholder: "500g" },
+    { key: "dimensions", label: "Dimensions", type: "text", placeholder: "20 × 20 × 15 cm" },
+    { key: "packageIncludes", label: "Package Includes", type: "text", placeholder: "1 Cake, 6 Cupcakes" },
+    { key: "giftWrapping", label: "Gift Wrapping Available", type: "checkbox" },
+    { key: "ecoFriendly", label: "Eco Friendly Packaging", type: "checkbox" },
+    { key: "customMessage", label: "Custom Message (optional)", type: "text", placeholder: "Happy Birthday!" , optional: true },
+    { key: "packagingNotes", label: "Packaging Notes (optional)", type: "textarea", placeholder: "Packed securely in a food-grade premium box.", optional: true },
+  ],
+};
+
+export const STORAGE_SECTION: InfoSection = {
+  key: "storage",
+  heading: "Storage Instructions",
+  icon: "🧊",
+  fields: [
+    {
+      key: "shelfLife",
+      label: "Shelf Life",
+      type: "select",
+      options: ["", "1 Day", "2 Days", "3 Days", "5 Days", "7 Days", "15 Days", "30 Days"],
+    },
+    {
+      key: "storageType",
+      label: "Storage Type",
+      type: "select",
+      options: ["", "Room Temperature", "Refrigerate", "Freeze"],
+    },
+    {
+      key: "storageInstructions",
+      label: "Storage Instructions",
+      type: "richtext",
+      placeholder: "Store refrigerated. Bring to room temperature for 30 minutes before serving.",
+    },
+    { key: "servingSuggestion", label: "Serving Suggestion", type: "text", placeholder: "Serve chilled." },
+  ],
+};
+
+export const ALLERGENS_SECTION: InfoSection = {
+  key: "allergens",
+  heading: "Allergens",
+  icon: "⚠️",
+  fields: [
+    {
+      key: "allergens",
+      label: "Contains",
+      type: "checkboxes",
+      options: ["Milk", "Eggs", "Wheat", "Gluten", "Soy", "Peanuts", "Tree Nuts", "Sesame", "Sulphites", "Mustard", "Coconut", "Oats"],
+    },
+    {
+      key: "customAllergens",
+      label: "Custom Allergens",
+      type: "text",
+      placeholder: "e.g. Corn, Yeast, Cashew (comma-separated)",
+      optional: true,
+    },
+    {
+      key: "facilityWarning",
+      label: "Facility Warning (optional)",
+      type: "textarea",
+      placeholder: "Manufactured in a facility that also processes Dairy, Eggs, Peanuts and Tree Nuts.",
+      optional: true,
+    },
+  ],
+};
+
+export const NUTRITION_SECTION: InfoSection = {
+  key: "nutrition",
+  heading: "Nutritional Information",
+  icon: "🍃",
+  showWhen: { field: "nutritionEnabled", truthy: true },
+  fields: [
+    { key: "nutritionEnabled", label: "Enable Nutrition Information", type: "checkbox" },
+    { key: "calories", label: "Calories", type: "text", placeholder: "250 kcal", showWhen: { field: "nutritionEnabled", equals: true } },
+    { key: "protein", label: "Protein", type: "text", placeholder: "4g", showWhen: { field: "nutritionEnabled", equals: true } },
+    { key: "fat", label: "Fat", type: "text", placeholder: "12g", showWhen: { field: "nutritionEnabled", equals: true } },
+    { key: "carbohydrates", label: "Carbohydrates", type: "text", placeholder: "35g", showWhen: { field: "nutritionEnabled", equals: true } },
+    { key: "sugar", label: "Sugar", type: "text", placeholder: "20g", showWhen: { field: "nutritionEnabled", equals: true } },
+    { key: "servingSize", label: "Serving Size", type: "text", placeholder: "1 slice (100g)", showWhen: { field: "nutritionEnabled", equals: true } },
+  ],
+};
+
+export const HIGHLIGHTS_SECTION_BAKERY: InfoSection = {
+  key: "highlights",
+  heading: "Product Highlights",
+  icon: "✨",
+  fields: [
+    {
+      key: "highlights",
+      label: "Highlights",
+      type: "checkboxes",
+      options: ["Freshly Baked", "Made to Order", "100% Vegetarian", "Premium Ingredients", "Handcrafted", "Customizable", "No Preservatives", "Best Seller", "Chef Recommended", "Limited Edition"],
+    },
+  ],
+};
+
+// ── Template-driven section registry ───────────────────────────────────────
+//
+// Templates define their own `infoSections` array. But for convenience, we
+// provide pre-built section SETS per category that templates can reference
+// or override. This keeps backward compatibility with the old approach.
+
 const BAKERY_SECTIONS: InfoSection[] = [
-  {
-    key: "ingredients",
-    heading: "Ingredients",
-    icon: "🥣",
-    fields: [
-      { key: "ingredients", label: "Ingredients", type: "textarea", placeholder: "Refined Wheat Flour, Butter, Cocoa Powder, Dark Chocolate, Fresh Cream, Sugar, Baking Powder…" },
-      {
-        key: "dietaryBadges",
-        label: "Dietary Features",
-        type: "checkboxes",
-        options: ["Eggless", "Contains Eggs", "Vegetarian", "Vegan", "Jain Friendly", "Gluten Free", "Sugar Free", "Organic", "No Artificial Colours", "No Artificial Flavours", "No Preservatives"],
-      },
-    ],
-  },
-  {
-    key: "packaging",
-    heading: "Packaging",
-    icon: "📦",
-    fields: [
-      { key: "packageType", label: "Package Type", type: "select", options: ["", "Cake Box", "Gift Box", "Window Box", "Jar", "Bottle", "Cup", "Tray", "Eco Friendly", "Custom"] },
-      { key: "packageContents", label: "Package Contents", type: "text", placeholder: "1 Cake / 6 Cupcakes / 12 Cookies" },
-      { key: "packageWeight", label: "Weight", type: "text", placeholder: "500g" },
-      { key: "packagingNotes", label: "Packaging Notes", type: "textarea", placeholder: "Packed securely in a food-grade premium box." },
-    ],
-  },
-  {
-    key: "storage",
-    heading: "Storage Instructions",
-    icon: "🧊",
-    fields: [
-      { key: "shelfLife", label: "Shelf Life", type: "select", options: ["", "1 Day", "2 Days", "3 Days", "5 Days", "7 Days", "15 Days", "30 Days"] },
-      { key: "storageType", label: "Storage Type", type: "select", options: ["", "Room Temperature", "Refrigerate", "Freeze"] },
-      { key: "storageInstructions", label: "Storage Instructions", type: "textarea", placeholder: "Store refrigerated. Bring to room temperature for 30 minutes before serving." },
-      { key: "servingSuggestion", label: "Serving Suggestion", type: "text", placeholder: "Serve chilled." },
-    ],
-  },
-  {
-    key: "delivery",
-    heading: "Delivery Information",
-    icon: "🚚",
-    fields: [
-      { key: "sameDayDelivery", label: "Same Day Delivery", type: "checkbox" },
-      { key: "midnightDelivery", label: "Midnight Delivery", type: "checkbox" },
-      { key: "expressDelivery", label: "Express Delivery", type: "checkbox" },
-      { key: "deliveryRadius", label: "Delivery Radius", type: "text", placeholder: "Within 10 km" },
-      { key: "estimatedDeliveryTime", label: "Estimated Delivery Time", type: "text", placeholder: "2-4 hours" },
-      { key: "deliveryNotes", label: "Delivery Notes", type: "textarea", placeholder: "Available across Hyderabad. Orders above ₹999 receive free delivery." },
-    ],
-  },
-  {
-    key: "allergens",
-    heading: "Allergens",
-    icon: "⚠️",
-    fields: [
-      {
-        key: "allergens",
-        label: "Contains",
-        type: "checkboxes",
-        options: ["Milk", "Eggs", "Wheat", "Gluten", "Soy", "Peanuts", "Tree Nuts", "Sesame", "Sulphites", "Mustard", "Coconut", "Oats"],
-      },
-      { key: "otherAllergens", label: "Other Allergens", type: "text", placeholder: "List any other allergens" },
-      { key: "facilityWarning", label: "Facility Warning (optional)", type: "textarea", placeholder: "Manufactured in a facility that also processes Dairy, Eggs, Peanuts and Tree Nuts.", optional: true },
-    ],
-  },
-  {
-    key: "nutrition",
-    heading: "Nutritional Information",
-    icon: "🍃",
-    fields: [
-      { key: "calories", label: "Calories", type: "text", placeholder: "250 kcal" },
-      { key: "protein", label: "Protein", type: "text", placeholder: "4g" },
-      { key: "fat", label: "Fat", type: "text", placeholder: "12g" },
-      { key: "carbohydrates", label: "Carbohydrates", type: "text", placeholder: "35g" },
-      { key: "sugar", label: "Sugar", type: "text", placeholder: "20g" },
-      { key: "servingSize", label: "Serving Size", type: "text", placeholder: "1 slice (100g)" },
-    ],
-  },
-  {
-    key: "highlights",
-    heading: "Product Highlights",
-    icon: "✨",
-    fields: [
-      {
-        key: "highlights",
-        label: "Highlights",
-        type: "checkboxes",
-        options: ["Freshly Baked", "Made to Order", "100% Vegetarian", "Premium Ingredients", "Handcrafted", "Customizable", "No Preservatives", "Best Seller", "Chef Recommended", "Limited Edition"],
-      },
-    ],
-  },
+  INGREDIENTS_SECTION,
+  PACKAGING_SECTION,
+  STORAGE_SECTION,
+  ALLERGENS_SECTION,
+  NUTRITION_SECTION,
+  HIGHLIGHTS_SECTION_BAKERY,
 ];
 
-// ── Florist sections ──
 const FLORIST_SECTIONS: InfoSection[] = [
   {
     key: "flowers",
     heading: "Flower Information",
     icon: "🌸",
     fields: [
-      { key: "flowerTypes", label: "Flower Types", type: "textarea", placeholder: "Roses, Lilies, Carnations, Baby Breath…" },
-      { key: "careInstructions", label: "Care Instructions", type: "textarea", placeholder: "Change water daily. Keep away from direct sunlight." },
+      { key: "flowerTypes", label: "Flower Types", type: "richtext", placeholder: "Roses, Lilies, Carnations, Baby Breath…" },
+      { key: "careInstructions", label: "Care Instructions", type: "richtext", placeholder: "Change water daily. Keep away from direct sunlight." },
       { key: "freshnessGuarantee", label: "Freshness Guarantee", type: "text", placeholder: "Fresh for 5-7 days with proper care" },
     ],
   },
@@ -204,21 +276,12 @@ const FLORIST_SECTIONS: InfoSection[] = [
     icon: "📦",
     fields: [
       { key: "packageType", label: "Package Type", type: "select", options: ["", "Gift Box", "Window Box", "Bouquet Wrap", "Vase", "Basket", "Custom"] },
-      { key: "packageContents", label: "Package Contents", type: "text", placeholder: "1 Bouquet / 12 Roses" },
-      { key: "packagingNotes", label: "Packaging Notes", type: "textarea", placeholder: "Wrapped in premium tissue paper with ribbon." },
-    ],
-  },
-  {
-    key: "delivery",
-    heading: "Delivery Information",
-    icon: "🚚",
-    fields: [
-      { key: "sameDayDelivery", label: "Same Day Delivery", type: "checkbox" },
-      { key: "midnightDelivery", label: "Midnight Delivery", type: "checkbox" },
-      { key: "expressDelivery", label: "Express Delivery", type: "checkbox" },
-      { key: "deliveryRadius", label: "Delivery Radius", type: "text", placeholder: "Within 15 km" },
-      { key: "estimatedDeliveryTime", label: "Estimated Delivery Time", type: "text", placeholder: "2-4 hours" },
-      { key: "deliveryNotes", label: "Delivery Notes", type: "textarea", placeholder: "Free delivery on orders above ₹1500." },
+      { key: "netWeight", label: "Size", type: "text", placeholder: "12 stems" },
+      { key: "dimensions", label: "Dimensions", type: "text", placeholder: "Bouquet: 40 cm tall" },
+      { key: "packageIncludes", label: "Package Includes", type: "text", placeholder: "1 Bouquet, Vase (optional)" },
+      { key: "giftWrapping", label: "Gift Wrapping Available", type: "checkbox" },
+      { key: "ecoFriendly", label: "Eco Friendly Packaging", type: "checkbox" },
+      { key: "customMessage", label: "Custom Message (optional)", type: "text", placeholder: "Happy Anniversary!", optional: true },
     ],
   },
   {
@@ -236,14 +299,13 @@ const FLORIST_SECTIONS: InfoSection[] = [
   },
 ];
 
-// ── Catering sections ──
 const CATERING_SECTIONS: InfoSection[] = [
   {
     key: "menu",
     heading: "Menu Details",
     icon: "🍽️",
     fields: [
-      { key: "menuItems", label: "Menu Items", type: "textarea", placeholder: "Starter: Paneer Tikka\nMain: Butter Paneer, Dal Makhani\nDessert: Gulab Jamun" },
+      { key: "menuItems", label: "Menu Items", type: "richtext", placeholder: "Starter: Paneer Tikka\nMain: Butter Paneer, Dal Makhani\nDessert: Gulab Jamun" },
       { key: "servingSizeCatering", label: "Serving Size", type: "text", placeholder: "Serves 50 guests" },
       { key: "dietaryOptions", label: "Dietary Options", type: "text", placeholder: "Veg, Non-Veg, Jain options available" },
     ],
@@ -254,20 +316,9 @@ const CATERING_SECTIONS: InfoSection[] = [
     icon: "📦",
     fields: [
       { key: "packageType", label: "Package Type", type: "select", options: ["", "Buffet Setup", "Individual Boxes", "Chafing Dishes", "Trays", "Custom"] },
-      { key: "packageContents", label: "Package Contents", type: "text", placeholder: "Main course + 2 sides + dessert" },
-      { key: "packagingNotes", label: "Packaging Notes", type: "textarea", placeholder: "Food-grade containers with disposable serving spoons." },
-    ],
-  },
-  {
-    key: "delivery",
-    heading: "Delivery Information",
-    icon: "🚚",
-    fields: [
-      { key: "sameDayDelivery", label: "Same Day Available", type: "checkbox" },
-      { key: "expressDelivery", label: "Express Setup", type: "checkbox" },
-      { key: "deliveryRadius", label: "Service Area", type: "text", placeholder: "Across Hyderabad" },
-      { key: "estimatedDeliveryTime", label: "Setup Time", type: "text", placeholder: "45 minutes setup" },
-      { key: "deliveryNotes", label: "Delivery Notes", type: "textarea", placeholder: "Free setup and cleanup for events above 100 guests." },
+      { key: "packageIncludes", label: "Package Includes", type: "text", placeholder: "Main course + 2 sides + dessert" },
+      { key: "ecoFriendly", label: "Eco Friendly Packaging", type: "checkbox" },
+      { key: "packagingNotes", label: "Packaging Notes (optional)", type: "textarea", placeholder: "Food-grade containers with disposable serving spoons.", optional: true },
     ],
   },
   {
@@ -285,7 +336,6 @@ const CATERING_SECTIONS: InfoSection[] = [
   },
 ];
 
-// ── Decorator sections ──
 const DECORATOR_SECTIONS: InfoSection[] = [
   {
     key: "setup",
@@ -294,17 +344,7 @@ const DECORATOR_SECTIONS: InfoSection[] = [
     fields: [
       { key: "setupTime", label: "Setup Time", type: "text", placeholder: "2-3 hours" },
       { key: "cleanupTime", label: "Cleanup Time", type: "text", placeholder: "1 hour" },
-      { key: "materialsIncluded", label: "Materials Included", type: "textarea", placeholder: "Balloon arch, backdrop, table centerpieces, lighting" },
-    ],
-  },
-  {
-    key: "delivery",
-    heading: "Delivery Information",
-    icon: "🚚",
-    fields: [
-      { key: "deliveryRadius", label: "Service Area", type: "text", placeholder: "Across Hyderabad" },
-      { key: "estimatedDeliveryTime", label: "Setup Window", type: "text", placeholder: "Day before or morning of event" },
-      { key: "deliveryNotes", label: "Notes", type: "textarea", placeholder: "Free delivery within 20 km. Travel charges apply beyond." },
+      { key: "materialsIncluded", label: "Materials Included", type: "richtext", placeholder: "Balloon arch, backdrop, table centerpieces, lighting" },
     ],
   },
   {
@@ -322,7 +362,6 @@ const DECORATOR_SECTIONS: InfoSection[] = [
   },
 ];
 
-// ── Entertainer sections ──
 const ENTERTAINER_SECTIONS: InfoSection[] = [
   {
     key: "performance",
@@ -332,17 +371,7 @@ const ENTERTAINER_SECTIONS: InfoSection[] = [
       { key: "performanceDuration", label: "Performance Duration", type: "text", placeholder: "1 hour / 2 hours" },
       { key: "languagesSpoken", label: "Languages", type: "text", placeholder: "English, Hindi, Telugu" },
       { key: "travelDistance", label: "Travel Distance", type: "text", placeholder: "Within 30 km" },
-      { key: "equipmentRequired", label: "Equipment Required", type: "textarea", placeholder: "Sound system, microphone, stage space (10x10 ft)" },
-    ],
-  },
-  {
-    key: "delivery",
-    heading: "Booking Information",
-    icon: "🚚",
-    fields: [
-      { key: "deliveryRadius", label: "Travel Area", type: "text", placeholder: "Across Hyderabad" },
-      { key: "estimatedDeliveryTime", label: "Setup Time", type: "text", placeholder: "30 minutes" },
-      { key: "deliveryNotes", label: "Notes", type: "textarea", placeholder: "Travel charges may apply for locations beyond 20 km." },
+      { key: "equipmentRequired", label: "Equipment Required", type: "richtext", placeholder: "Sound system, microphone, stage space (10x10 ft)" },
     ],
   },
   {
@@ -360,29 +389,7 @@ const ENTERTAINER_SECTIONS: InfoSection[] = [
   },
 ];
 
-// ── Section registry by category ──
-const SECTION_REGISTRY: Record<string, InfoSection[]> = {
-  "bakers-bakery": BAKERY_SECTIONS,
-  "florists": FLORIST_SECTIONS,
-  "caterers": CATERING_SECTIONS,
-  "decorators": DECORATOR_SECTIONS,
-  "entertainers": ENTERTAINER_SECTIONS,
-};
-
-// Fallback for categories without specific sections — use a generic set
 const GENERIC_SECTIONS: InfoSection[] = [
-  {
-    key: "delivery",
-    heading: "Delivery Information",
-    icon: "🚚",
-    fields: [
-      { key: "sameDayDelivery", label: "Same Day Available", type: "checkbox" },
-      { key: "expressDelivery", label: "Express Available", type: "checkbox" },
-      { key: "deliveryRadius", label: "Service Area", type: "text", placeholder: "Within 15 km" },
-      { key: "estimatedDeliveryTime", label: "Estimated Time", type: "text", placeholder: "2-4 hours" },
-      { key: "deliveryNotes", label: "Notes", type: "textarea", placeholder: "Delivery details and policies." },
-    ],
-  },
   {
     key: "highlights",
     heading: "Product Highlights",
@@ -398,31 +405,44 @@ const GENERIC_SECTIONS: InfoSection[] = [
   },
 ];
 
+// ── Legacy category → sections lookup (backward compatibility) ──────────────
+// Used when a template doesn't define its own infoSections.
+
+const LEGACY_SECTION_REGISTRY: Record<string, InfoSection[]> = {
+  "bakers-bakery": BAKERY_SECTIONS,
+  "florists": FLORIST_SECTIONS,
+  "caterers": CATERING_SECTIONS,
+  "decorators": DECORATOR_SECTIONS,
+  "entertainers": ENTERTAINER_SECTIONS,
+};
+
 /**
- * Get the product info sections for a given category.
- * Falls back to generic sections if no category-specific set exists.
+ * Get sections for a category — legacy fallback when no template is active.
+ * Delivery is intentionally NOT included (single source of truth elsewhere).
  */
-export function getSectionsForCategory(category: string | null | undefined): InfoSection[] {
+export function getLegacySectionsForCategory(category: string | null | undefined): InfoSection[] {
   if (!category) return GENERIC_SECTIONS;
-  return SECTION_REGISTRY[category] ?? GENERIC_SECTIONS;
+  return LEGACY_SECTION_REGISTRY[category] ?? GENERIC_SECTIONS;
 }
 
 /**
- * Check if a category has bakery-style sections (ingredients, allergens, etc.)
+ * Get sections from a template's `infoSections` field.
+ * Falls back to legacy category lookup if the template doesn't define sections.
  */
-export function isBakeryCategory(category: string | null | undefined): boolean {
-  return category === "bakers-bakery";
+export function getSectionsForTemplate(
+  template: { infoSections?: InfoSection[] } | null | undefined,
+  category: string | null | undefined
+): InfoSection[] {
+  if (template?.infoSections && template.infoSections.length > 0) {
+    return template.infoSections;
+  }
+  return getLegacySectionsForCategory(category);
 }
 
-// ── Serialization helpers ──────────────────────────────────────────────────
+// ── Serialization helpers (unchanged) ──────────────────────────────────────
 
-/**
- * Serialize a ProductInfo object into a JSON string for DB storage.
- * Returns null if the object is empty (so we don't waste column space).
- */
 export function serializeProductInfo(info: ProductInfo | null | undefined): string | null {
   if (!info) return null;
-  // Remove empty/falsy values to keep the JSON compact
   const cleaned: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(info)) {
     if (v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)) continue;
@@ -432,10 +452,6 @@ export function serializeProductInfo(info: ProductInfo | null | undefined): stri
   return JSON.stringify(cleaned);
 }
 
-/**
- * Parse a stored JSON string back into a ProductInfo object.
- * Defensive: returns {} on any parse error (never throws).
- */
 export function parseProductInfo(stored: string | null | undefined): ProductInfo {
   if (!stored) return {};
   try {
@@ -446,10 +462,6 @@ export function parseProductInfo(stored: string | null | undefined): ProductInfo
   }
 }
 
-/**
- * Merge productInfo into an existing extraFields JSON object.
- * Preserves any non-productInfo keys already in extraFields.
- */
 export function mergeIntoExtraFields(
   existingExtra: string | null | undefined,
   info: ProductInfo | null | undefined
@@ -470,9 +482,6 @@ export function mergeIntoExtraFields(
   return Object.keys(extra).length > 0 ? JSON.stringify(extra) : null;
 }
 
-/**
- * Extract productInfo from an extraFields JSON string.
- */
 export function extractFromExtraFields(stored: string | null | undefined): ProductInfo {
   if (!stored) return {};
   try {
@@ -482,4 +491,157 @@ export function extractFromExtraFields(stored: string | null | undefined): Produ
     }
   } catch { /* ignore */ }
   return {};
+}
+
+// ── Allergen warning text helper ────────────────────────────────────────────
+
+/**
+ * Build the human-readable allergen warning text.
+ * Combines standard allergens + custom allergens.
+ */
+export function getAllergenWarningText(info: ProductInfo): string | null {
+  const standard: string[] = info.allergens ?? [];
+  const custom = info.customAllergens?.trim();
+  if (standard.length === 0 && !custom) return null;
+  const all = custom
+    ? [...standard, ...custom.split(",").map((s) => s.trim()).filter(Boolean)]
+    : standard;
+  return all.join(", ");
+}
+
+// ── FAQ generation from ProductInfo ─────────────────────────────────────────
+
+export interface GeneratedFAQ {
+  question: string;
+  answer: string;
+}
+
+/**
+ * Generate SEO-friendly FAQs from product information.
+ * Only generates FAQs for sections that have data.
+ * Used on the product page for SEO structured data.
+ */
+export function generateFAQsFromProductInfo(
+  info: ProductInfo,
+  productName: string
+): GeneratedFAQ[] {
+  const faqs: GeneratedFAQ[] = [];
+
+  // Ingredients FAQ
+  if (info.ingredients?.trim()) {
+    const dietary = info.dietaryBadges?.length
+      ? ` This product is ${info.dietaryBadges.join(", ")}.`
+      : "";
+    faqs.push({
+      question: `What are the ingredients in ${productName}?`,
+      answer: `${info.ingredients.trim()}.${dietary}`,
+    });
+  }
+
+  // Storage FAQ
+  if (info.shelfLife || info.storageType || info.storageInstructions?.trim()) {
+    const parts: string[] = [];
+    if (info.shelfLife) parts.push(`Shelf life: ${info.shelfLife}`);
+    if (info.storageType) parts.push(`Storage: ${info.storageType}`);
+    if (info.storageInstructions?.trim()) parts.push(info.storageInstructions.trim());
+    faqs.push({
+      question: `How should I store ${productName}?`,
+      answer: parts.join(". ") + ".",
+    });
+  }
+
+  // Packaging FAQ
+  if (info.packageType || info.netWeight || info.packageIncludes) {
+    const parts: string[] = [];
+    if (info.packageType) parts.push(`Packaged in a ${info.packageType}`);
+    if (info.netWeight) parts.push(`Net weight: ${info.netWeight}`);
+    if (info.packageIncludes) parts.push(`Includes: ${info.packageIncludes}`);
+    if (info.giftWrapping) parts.push("Gift wrapping available");
+    if (info.ecoFriendly) parts.push("Eco-friendly packaging");
+    faqs.push({
+      question: `What is included in the packaging?`,
+      answer: parts.join(". ") + ".",
+    });
+  }
+
+  // Allergen FAQ
+  const allergenText = getAllergenWarningText(info);
+  if (allergenText) {
+    faqs.push({
+      question: `Does ${productName} contain any allergens?`,
+      answer: `Yes, this product contains: ${allergenText}.${info.facilityWarning?.trim() ? ` ${info.facilityWarning.trim()}` : ""}`,
+    });
+  }
+
+  // Nutrition FAQ
+  if (info.nutritionEnabled && info.calories) {
+    const parts: string[] = [];
+    if (info.servingSize) parts.push(`Per ${info.servingSize}:`);
+    parts.push(`${info.calories} calories`);
+    if (info.protein) parts.push(`${info.protein} protein`);
+    if (info.fat) parts.push(`${info.fat} fat`);
+    if (info.carbohydrates) parts.push(`${info.carbohydrates} carbs`);
+    if (info.sugar) parts.push(`${info.sugar} sugar`);
+    faqs.push({
+      question: `What is the nutritional information for ${productName}?`,
+      answer: parts.join(", ") + ".",
+    });
+  }
+
+  // Highlights FAQ
+  if (info.highlights?.length) {
+    faqs.push({
+      question: `What makes ${productName} special?`,
+      answer: `This product is ${info.highlights.join(", ")}.`,
+    });
+  }
+
+  // Florist-specific
+  if (info.flowerTypes?.trim()) {
+    faqs.push({
+      question: `What flowers are included?`,
+      answer: info.flowerTypes.trim(),
+    });
+  }
+  if (info.careInstructions?.trim()) {
+    faqs.push({
+      question: `How do I care for the flowers?`,
+      answer: info.careInstructions.trim(),
+    });
+  }
+
+  // Catering-specific
+  if (info.menuItems?.trim()) {
+    faqs.push({
+      question: `What is included in the menu?`,
+      answer: info.menuItems.trim(),
+    });
+  }
+
+  // Decorator-specific
+  if (info.setupTime?.trim() || info.cleanupTime?.trim()) {
+    const parts: string[] = [];
+    if (info.setupTime) parts.push(`Setup takes ${info.setupTime}`);
+    if (info.cleanupTime) parts.push(`cleanup takes ${info.cleanupTime}`);
+    faqs.push({
+      question: `How long does setup take?`,
+      answer: parts.join(" and ") + ".",
+    });
+  }
+
+  // Entertainer-specific
+  if (info.performanceDuration?.trim()) {
+    faqs.push({
+      question: `How long is the performance?`,
+      answer: `The performance duration is ${info.performanceDuration}.`,
+    });
+  }
+  if (info.languagesSpoken?.trim()) {
+    faqs.push({
+      question: `What languages does the performer speak?`,
+      answer: info.languagesSpoken.trim(),
+    });
+  }
+
+  return faqs;
 }

@@ -7,39 +7,39 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  getSectionsForCategory,
+  getLegacySectionsForCategory,
   type ProductInfo,
   type InfoSection,
   type InfoField,
 } from "@/lib/products/product-info";
 
 /**
- * ProductInfoForm — category-aware product information editor.
+ * ProductInfoForm — template-engine driven product information editor.
  *
- * Renders different sections based on the vendor's category:
- *   - Bakery: Ingredients, Packaging, Storage, Delivery, Allergens, Nutrition, Highlights
- *   - Florist: Flower Types, Care Instructions, Packaging, Delivery, Highlights
- *   - Catering: Menu, Serving Size, Dietary Options, Packaging, Delivery, Highlights
- *   - Decorators: Setup Time, Cleanup, Materials, Delivery, Highlights
- *   - Entertainers: Performance Duration, Languages, Travel, Equipment, Highlights
- *   - Other: Delivery, Highlights
+ * Sections are NOT hardcoded by category. They come from:
+ *   1. The `infoSections` prop (passed from the active template), OR
+ *   2. The legacy category fallback (backward compatibility).
  *
- * All fields are optional. The component is controlled — changes are passed
- * to the parent via `onChange` as a ProductInfo object.
+ * Supports field types: text, richtext, textarea, select, checkbox, checkboxes.
+ * Fields and sections can be conditionally shown via `showWhen`.
  */
 export function ProductInfoForm({
   productInfo,
   onChange,
+  infoSections,
   category,
 }: {
   productInfo: ProductInfo;
   onChange: (info: ProductInfo) => void;
-  category: string | null | undefined;
+  /** Template-driven sections. If omitted, falls back to category. */
+  infoSections?: InfoSection[];
+  /** Category for legacy fallback. */
+  category?: string | null;
 }) {
-  const sections = React.useMemo(
-    () => getSectionsForCategory(category),
-    [category]
-  );
+  const sections = React.useMemo(() => {
+    if (infoSections && infoSections.length > 0) return infoSections;
+    return getLegacySectionsForCategory(category);
+  }, [infoSections, category]);
 
   const setField = (key: string, value: unknown) => {
     onChange({ ...productInfo, [key]: value });
@@ -54,6 +54,13 @@ export function ProductInfoForm({
     }
   };
 
+  // Filter sections by showWhen condition
+  const visibleSections = sections.filter((section) => {
+    if (!section.showWhen) return true;
+    const val = (productInfo as any)[section.showWhen.field];
+    return section.showWhen.truthy ? !!val : !val;
+  });
+
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900 dark:bg-amber-950/20">
@@ -61,12 +68,12 @@ export function ProductInfoForm({
           <Info className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
           <p className="text-xs text-amber-800 dark:text-amber-300">
             All fields below are optional. Filling them in improves SEO, builds customer trust,
-            and reduces customer questions. Information shown varies by category.
+            and reduces customer questions.
           </p>
         </div>
       </div>
 
-      {sections.map((section) => (
+      {visibleSections.map((section) => (
         <SectionCard
           key={section.key}
           section={section}
@@ -92,8 +99,15 @@ function SectionCard({
 }) {
   const [collapsed, setCollapsed] = React.useState(false);
 
+  // Filter fields by showWhen condition
+  const visibleFields = section.fields.filter((field) => {
+    if (!field.showWhen) return true;
+    const val = (productInfo as any)[field.showWhen.field];
+    return val === field.showWhen.equals;
+  });
+
   // Check if this section has any data filled in
-  const hasData = section.fields.some((f) => {
+  const hasData = visibleFields.some((f) => {
     const val = (productInfo as any)[f.key];
     return val && (typeof val !== "object" || (Array.isArray(val) && val.length > 0));
   });
@@ -128,7 +142,7 @@ function SectionCard({
 
       <div className={cn("p-4", collapsed && "hidden sm:block")}>
         <div className="space-y-3">
-          {section.fields.map((field) => (
+          {visibleFields.map((field) => (
             <FieldInput
               key={field.key}
               field={field}
@@ -167,6 +181,29 @@ function FieldInput({
           placeholder={field.placeholder}
           className="mt-1 h-9 text-sm"
         />
+      </div>
+    );
+  }
+
+  if (field.type === "richtext") {
+    // Rich text = textarea with a hint that line breaks are supported.
+    // We use a textarea with a small "supports line breaks" hint.
+    return (
+      <div>
+        <Label className="text-xs">
+          {field.label}
+          {field.optional && <span className="ml-1 text-muted-foreground">(optional)</span>}
+        </Label>
+        <Textarea
+          value={(value as string) ?? ""}
+          onChange={(e) => setField(field.key, e.target.value)}
+          placeholder={field.placeholder}
+          className="mt-1 min-h-[80px] text-sm"
+          rows={3}
+        />
+        <p className="mt-0.5 text-[10px] text-muted-foreground">
+          Supports line breaks — press Enter for a new line.
+        </p>
       </div>
     );
   }

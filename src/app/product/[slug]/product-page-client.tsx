@@ -55,6 +55,8 @@ import { SmartEnquiryForm } from "@/components/marketplace/smart-enquiry-form";
 import { ProductAvailabilityBanner } from "@/components/inventory/product-availability-banner";
 import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
 import { ProductInfoDisplay } from "@/components/dashboard/product-info-display";
+import { generateFAQsFromProductInfo } from "@/lib/products/product-info";
+import { FAQSection } from "@/components/seo/FAQSection";
 import type { VendorWithRelations } from "@/lib/types";
 
 interface Props {
@@ -511,10 +513,24 @@ export function ProductPageClient({ slug }: Props) {
 
                   {/* Product Information System — Ingredients, Packaging, Storage, etc. */}
                   {(product as any).productInfo && Object.keys((product as any).productInfo).length > 0 && (
-                    <ProductInfoDisplay
-                      productInfo={(product as any).productInfo}
-                      category={product.category}
-                    />
+                    <>
+                      <ProductInfoDisplay
+                        productInfo={(product as any).productInfo}
+                        category={product.category}
+                      />
+                      {/* Auto-generated FAQs from Product Information for SEO */}
+                      {(() => {
+                        const faqs = generateFAQsFromProductInfo((product as any).productInfo, product.name);
+                        if (faqs.length === 0) return null;
+                        return (
+                          <FAQSection
+                            faqs={faqs.map((f) => ({ q: f.question, a: f.answer }))}
+                            heading="Product FAQs"
+                            ecoColor="#D85A30"
+                          />
+                        );
+                      })()}
+                    </>
                   )}
                 </div>
               )}

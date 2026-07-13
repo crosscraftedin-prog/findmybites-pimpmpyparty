@@ -50,6 +50,8 @@ function renderVendor(v: JoshVendor): string {
 
 /**
  * Render a single product as a compact line for the LLM.
+ * Includes Product Information (ingredients, allergens, storage, etc.) so
+ * Josh AI can answer detailed customer questions about the product.
  */
 function renderProduct(p: JoshProduct): string {
   const parts = [
@@ -61,6 +63,43 @@ function renderProduct(p: JoshProduct): string {
   if (p.eggless) parts.push("eggless: yes");
   if (p.featured) parts.push("featured: yes");
   if (p.description) parts.push(`desc: "${p.description.slice(0, 100)}"`);
+
+  // ── Product Information System ──
+  // Give the LLM access to structured product details so it can answer
+  // questions like "Does this contain eggs?" or "How should I store it?"
+  if (p.productInfo) {
+    const info = p.productInfo;
+    if (info.ingredients) parts.push(`ingredients: ${info.ingredients.slice(0, 200)}`);
+    if (info.dietaryBadges?.length) parts.push(`dietary: ${info.dietaryBadges.join(", ")}`);
+    if (info.allergens?.length) parts.push(`allergens: ${info.allergens.join(", ")}`);
+    if (info.customAllergens) parts.push(`custom allergens: ${info.customAllergens}`);
+    if (info.shelfLife) parts.push(`shelf life: ${info.shelfLife}`);
+    if (info.storageType) parts.push(`storage: ${info.storageType}`);
+    if (info.storageInstructions) parts.push(`storage instructions: ${info.storageInstructions.slice(0, 150)}`);
+    if (info.servingSuggestion) parts.push(`serving: ${info.servingSuggestion}`);
+    if (info.packageType) parts.push(`packaging: ${info.packageType}`);
+    if (info.netWeight) parts.push(`net weight: ${info.netWeight}`);
+    if (info.packageIncludes) parts.push(`package includes: ${info.packageIncludes}`);
+    if (info.giftWrapping) parts.push("gift wrapping: yes");
+    if (info.ecoFriendly) parts.push("eco friendly: yes");
+    if (info.highlights?.length) parts.push(`highlights: ${info.highlights.join(", ")}`);
+    if (info.nutritionEnabled) {
+      const nutrition = [];
+      if (info.calories) nutrition.push(`${info.calories} cal`);
+      if (info.protein) nutrition.push(`${info.protein} protein`);
+      if (info.fat) nutrition.push(`${info.fat} fat`);
+      if (info.carbohydrates) nutrition.push(`${info.carbohydrates} carbs`);
+      if (nutrition.length) parts.push(`nutrition: ${nutrition.join(", ")}`);
+    }
+    // Category-specific fields
+    if (info.flowerTypes) parts.push(`flowers: ${info.flowerTypes.slice(0, 100)}`);
+    if (info.careInstructions) parts.push(`care: ${info.careInstructions.slice(0, 100)}`);
+    if (info.menuItems) parts.push(`menu: ${info.menuItems.slice(0, 150)}`);
+    if (info.setupTime) parts.push(`setup time: ${info.setupTime}`);
+    if (info.performanceDuration) parts.push(`performance: ${info.performanceDuration}`);
+    if (info.languagesSpoken) parts.push(`languages: ${info.languagesSpoken}`);
+  }
+
   return "- " + parts.join(" | ");
 }
 
