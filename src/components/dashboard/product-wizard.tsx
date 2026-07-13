@@ -6,6 +6,7 @@ import {
   Check, ChevronLeft, ChevronRight, Loader2, Sparkles, Upload, X,
   Image as ImageIcon, Eye, Star, AlertCircle, AlertTriangle, Wand2, Plus, PartyPopper, Monitor, Tablet, Smartphone,
   Boxes, Clock, CalendarDays, Bell, Tags,
+  DollarSign, Package, Info, CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +33,8 @@ interface ProductWizardProps {
 const STEPS = [
   { id: 1, title: "Basic Info", icon: Star },
   { id: 2, title: "Photos", icon: ImageIcon },
-  { id: 3, title: "Pricing", icon: Star },
-  { id: 4, title: "Variants", icon: Star },
+  { id: 3, title: "Default Price", icon: DollarSign },
+  { id: 4, title: "Variants", icon: Package },
   { id: 5, title: "Details", icon: Star },
   { id: 6, title: "SEO", icon: Star },
   { id: 7, title: "Inventory", icon: Boxes },
@@ -704,98 +705,243 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                 </div>
               )}
 
-              {/* Step 3: Pricing */}
+              {/* Step 3: Default Price */}
               {step === 3 && (
                 <div className="space-y-4">
-                  <h3 className="text-lg font-bold">Pricing</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label htmlFor="p-price">Regular Price ({symbol})</Label>
-                      <Input id="p-price" type="number" value={form.price} onChange={e => set("price", e.target.value)}
-                        placeholder="0" className="mt-1" disabled={form.priceOnRequest} />
+                  <div>
+                    <h3 className="flex items-center gap-2 text-lg font-bold">
+                      <DollarSign className="size-5 text-amber-600" />
+                      Default Price
+                    </h3>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      This price will be used when your product has no variants.
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="p-price">Regular Price ({symbol})</Label>
+                        <Input id="p-price" type="number" value={form.price} onChange={e => set("price", e.target.value)}
+                          placeholder="0" className="mt-1" disabled={form.priceOnRequest} />
+                      </div>
+                      <div>
+                        <Label htmlFor="p-offer">Offer Price ({symbol})</Label>
+                        <Input id="p-offer" type="number" value={form.offerPrice} onChange={e => set("offerPrice", e.target.value)}
+                          placeholder="0" className="mt-1" disabled={form.priceOnRequest || form.hidePrice} />
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor="p-offer">Offer Price ({symbol})</Label>
-                      <Input id="p-offer" type="number" value={form.offerPrice} onChange={e => set("offerPrice", e.target.value)}
-                        placeholder="0" className="mt-1" disabled={form.priceOnRequest || form.hidePrice} />
+                    <div className="mt-3 space-y-2">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={form.startingFromPrice} onChange={e => set("startingFromPrice", e.target.checked)}
+                          className="size-4 rounded border-border" />
+                        Show "Starting from" prefix
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={form.priceOnRequest} onChange={e => { set("priceOnRequest", e.target.checked); if (e.target.checked) set("hidePrice", false); }}
+                          className="size-4 rounded border-border" />
+                        Price on request (hide price, show "Contact for price")
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={form.hidePrice} onChange={e => { set("hidePrice", e.target.checked); if (e.target.checked) set("priceOnRequest", false); }}
+                          className="size-4 rounded border-border" />
+                        Hide price completely
+                      </label>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={form.startingFromPrice} onChange={e => set("startingFromPrice", e.target.checked)}
-                        className="size-4 rounded border-border" />
-                      Show "Starting from" prefix
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={form.priceOnRequest} onChange={e => { set("priceOnRequest", e.target.checked); if (e.target.checked) set("hidePrice", false); }}
-                        className="size-4 rounded border-border" />
-                      Price on request (hide price, show "Contact for price")
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={form.hidePrice} onChange={e => { set("hidePrice", e.target.checked); if (e.target.checked) set("priceOnRequest", false); }}
-                        className="size-4 rounded border-border" />
-                      Hide price completely
-                    </label>
+
+                  {/* Info box */}
+                  <div className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900 dark:bg-blue-950/20">
+                    <Info className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                    <p className="text-xs text-blue-800 dark:text-blue-300">
+                      If you later add variants such as different sizes, flavours or packages, each variant can have its own price.
+                    </p>
                   </div>
                 </div>
               )}
 
-              {/* Step 4: Variants & Inventory */}
+              {/* Step 4: Product Variants (Optional) */}
               {step === 4 && (
                 <div className="space-y-4">
-                  <h3 className="text-lg font-bold">Variants & Inventory</h3>
-
-                  {/* Variants */}
                   <div>
-                    <Label>Variants / Package Options</Label>
-                    <p className="text-xs text-muted-foreground mb-2">Add size/weight/package options with different prices. Shown on product page as selectable options.</p>
-                    {form.variants?.length > 0 && (
-                      <div className="space-y-3 mb-2">
-                        {form.variants.map((v: any, idx: number) => (
-                          <div key={idx} className="rounded-xl border border-border p-3 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <Input value={v.name} onChange={(e) => {
-                                const variants = [...form.variants]; variants[idx] = { ...v, name: e.target.value }; set("variants", variants);
-                              }} placeholder="Variant name (e.g. Veg Package)" className="h-9 flex-1 text-sm" />
-                              <button onClick={() => set("variants", form.variants.filter((_: any, i: number) => i !== idx))}
-                                className="grid size-8 place-items-center rounded-lg text-red-600 hover:bg-red-50"><X className="size-4" /></button>
-                            </div>
-                            <div className="flex gap-2">
-                              <Input value={v.price ?? ""} onChange={(e) => {
-                                const variants = [...form.variants]; variants[idx] = { ...v, price: e.target.value }; set("variants", variants);
-                              }} placeholder="Regular price" type="number" className="h-9 w-28 text-sm" />
-                              <Input value={v.offerPrice ?? ""} onChange={(e) => {
-                                const variants = [...form.variants]; variants[idx] = { ...v, offerPrice: e.target.value }; set("variants", variants);
-                              }} placeholder="Offer price (optional)" type="number" className="h-9 flex-1 text-sm" />
-                            </div>
-                            <Input value={v.description ?? ""} onChange={(e) => {
-                              const variants = [...form.variants]; variants[idx] = { ...v, description: e.target.value }; set("variants", variants);
-                            }} placeholder="Description (optional)" className="h-9 text-sm" />
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  const variants = [...form.variants]; variants[idx] = { ...v, available: !v.available }; set("variants", variants);
-                                }}
-                                className={cn("rounded-lg border px-3 py-1 text-xs font-medium",
-                                  v.available !== false ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-red-300 bg-red-50 text-red-700")}
-                              >
-                                {v.available !== false ? "✓ Available" : "✗ Unavailable"}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <Button variant="outline" size="sm" onClick={() => {
-                      set("variants", [...(form.variants || []), { name: "", price: "", offerPrice: "", description: "", available: true }]);
-                    }} className="gap-1">
-                      <Plus className="size-3.5" /> Add Variant
-                    </Button>
+                    <h3 className="flex items-center gap-2 text-lg font-bold">
+                      <Package className="size-5 text-amber-600" />
+                      Product Variants (Optional)
+                    </h3>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      Create different sizes, flavours, packages or options. Each variant can have its own price.
+                    </p>
                   </div>
 
-                  {/* Inventory */}
-                  <div className="rounded-xl border border-border p-3">
-                    <Label className="mb-2 block">Inventory</Label>
+                  {/* Conditional notice: no variants yet */}
+                  {(!form.variants || form.variants.length === 0) && (
+                    <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900 dark:bg-amber-950/20">
+                      <Info className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <p className="text-xs text-amber-800 dark:text-amber-300">
+                        This product uses the Default Price. Add a variant below if you offer different sizes, flavours, or packages.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Conditional success: variants exist */}
+                  {form.variants && form.variants.length > 0 && (
+                    <div className="flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
+                      <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <p className="text-xs text-emerald-800 dark:text-emerald-300">
+                        This product now uses variant pricing. Customers will choose a variant before ordering. The Default Price is kept as a fallback.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Helper examples */}
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <p className="mb-2 text-xs font-semibold text-muted-foreground">Examples</p>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="text-xs text-muted-foreground">
+                        <p className="font-medium text-foreground">By Size / Weight</p>
+                        <p className="mt-0.5">✓ 500g — {symbol}399</p>
+                        <p>✓ 1kg — {symbol}699</p>
+                        <p>✓ 2kg — {symbol}1299</p>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        <p className="font-medium text-foreground">By Flavour / Package</p>
+                        <p className="mt-0.5">✓ Chocolate</p>
+                        <p>✓ Vanilla</p>
+                        <p>✓ Birthday Package</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Variant cards */}
+                  {form.variants && form.variants.length > 0 && (
+                    <div className="space-y-3">
+                      {form.variants.map((v: any, idx: number) => (
+                        <div key={idx} className="rounded-xl border border-border p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Variant {idx + 1}</span>
+                            <button onClick={() => set("variants", form.variants.filter((_: any, i: number) => i !== idx))}
+                              className="grid size-8 place-items-center rounded-lg text-red-600 hover:bg-red-50" aria-label="Remove variant">
+                              <X className="size-4" />
+                            </button>
+                          </div>
+
+                          {/* Variant Type + Value */}
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                              <Label className="text-xs">Variant Type</Label>
+                              <select
+                                value={v.type || ""}
+                                onChange={(e) => {
+                                  const variants = [...form.variants];
+                                  variants[idx] = { ...v, type: e.target.value };
+                                  set("variants", variants);
+                                }}
+                                className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                              >
+                                <option value="">Select type…</option>
+                                <option value="Size">Size</option>
+                                <option value="Weight">Weight</option>
+                                <option value="Flavour">Flavour</option>
+                                <option value="Package">Package</option>
+                                <option value="Shape">Shape</option>
+                                <option value="Portion">Portion</option>
+                                <option value="Custom">Custom</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label className="text-xs">Variant Value</Label>
+                              <Input
+                                value={v.name}
+                                onChange={(e) => {
+                                  const variants = [...form.variants];
+                                  variants[idx] = { ...v, name: e.target.value };
+                                  set("variants", variants);
+                                }}
+                                placeholder="e.g. 500g, Chocolate, Premium Package"
+                                className="mt-1 h-9 text-sm"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Prices */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-xs">Regular Price ({symbol})</Label>
+                              <Input
+                                value={v.price ?? ""}
+                                onChange={(e) => {
+                                  const variants = [...form.variants];
+                                  variants[idx] = { ...v, price: e.target.value };
+                                  set("variants", variants);
+                                }}
+                                placeholder="0"
+                                type="number"
+                                className="mt-1 h-9 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Offer Price ({symbol})</Label>
+                              <Input
+                                value={v.offerPrice ?? ""}
+                                onChange={(e) => {
+                                  const variants = [...form.variants];
+                                  variants[idx] = { ...v, offerPrice: e.target.value };
+                                  set("variants", variants);
+                                }}
+                                placeholder="0"
+                                type="number"
+                                className="mt-1 h-9 text-sm"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Description */}
+                          <div>
+                            <Label className="text-xs">Description (optional)</Label>
+                            <Input
+                              value={v.description ?? ""}
+                              onChange={(e) => {
+                                const variants = [...form.variants];
+                                variants[idx] = { ...v, description: e.target.value };
+                                set("variants", variants);
+                              }}
+                              placeholder="Short description of this variant"
+                              className="mt-1 h-9 text-sm"
+                            />
+                          </div>
+
+                          {/* Availability */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                const variants = [...form.variants];
+                                variants[idx] = { ...v, available: !v.available };
+                                set("variants", variants);
+                              }}
+                              className={cn("rounded-lg border px-3 py-1 text-xs font-medium",
+                                v.available !== false ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-red-300 bg-red-50 text-red-700")}
+                            >
+                              {v.available !== false ? "✓ Available" : "✗ Unavailable"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add Variant button */}
+                  <Button variant="outline" size="sm" onClick={() => {
+                    set("variants", [...(form.variants || []), { type: "", name: "", price: "", offerPrice: "", description: "", available: true }]);
+                  }} className="gap-1.5">
+                    <Plus className="size-3.5" /> Add Variant
+                  </Button>
+
+                  {/* Inventory card */}
+                  <div className="rounded-xl border border-border p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Boxes className="size-4 text-amber-600" />
+                      <Label className="text-sm font-semibold">Inventory</Label>
+                    </div>
                     <div className="flex gap-2 mb-2">
                       {["unlimited", "limited", "out_of_stock"].map(s => (
                         <button key={s} onClick={() => set("stockType", s)}
@@ -821,9 +967,12 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     )}
                   </div>
 
-                  {/* Scheduling */}
-                  <div className="rounded-xl border border-border p-3">
-                    <Label className="mb-2 block">Scheduling (optional)</Label>
+                  {/* Scheduling card */}
+                  <div className="rounded-xl border border-border p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <CalendarDays className="size-4 text-amber-600" />
+                      <Label className="text-sm font-semibold">Scheduling (optional)</Label>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label htmlFor="p-pub" className="text-xs">Schedule Publish Date</Label>
@@ -839,8 +988,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     <p className="mt-2 text-[10px] text-muted-foreground">Leave empty to publish immediately. Expiry auto-hides the product.</p>
                   </div>
 
-                  {/* Featured */}
-                  <div className="flex items-center gap-2 rounded-xl border border-border p-3">
+                  {/* Featured card */}
+                  <div className="flex items-center gap-2 rounded-xl border border-border p-4">
                     <input type="checkbox" id="p-featured" checked={form.featured} onChange={e => set("featured", e.target.checked)}
                       className="size-4 rounded border-border" />
                     <Label htmlFor="p-featured" className="text-sm cursor-pointer">
