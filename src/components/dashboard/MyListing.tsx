@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import type { Vendor } from "@/lib/types";
 import { CreateVendorForm } from "@/components/marketplace/create-vendor-form";
 import { useVendor } from "@/lib/queries";
+import { useQueryClient } from "@tanstack/react-query";
 import { ImageUpload, GalleryUpload } from "./image-upload";
 import { AttributeSelector } from "./attribute-selector";
 import { AddressAutocomplete } from "./address-autocomplete";
@@ -84,6 +85,7 @@ const SERVICE_RADIUS_OPTIONS = [
 export function MyListing({ vendor }: MyListingProps) {
   const router = useRouter();
   const { data: fullVendor, isLoading } = useVendor(vendor.slug);
+  const queryClient = useQueryClient();
   const [saving, setSaving] = React.useState(false);
   const [aiSeoLoading, setAiSeoLoading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState("business");
@@ -463,7 +465,9 @@ export function MyListing({ vendor }: MyListingProps) {
       .catch(() => {});
   }, []);
 
-  // ── Auto-save (debounced 2s after last change) ──
+  // ── Auto-save (debounced 800ms after last change) ──
+  // Every editable field autosaves. Errors are logged to the browser console
+  // (not silently swallowed) so failures are visible in DevTools.
   formRef.current = form;
   galleryRef.current = gallery;
 
@@ -482,19 +486,29 @@ export function MyListing({ vendor }: MyListingProps) {
           setAutoSaveStatus("saved"); setLastSavedAt(Date.now());
           if (statusTimer.current) clearTimeout(statusTimer.current);
           statusTimer.current = setTimeout(() => setAutoSaveStatus("idle"), 3000);
-        }
-        else {
+          // Invalidate the vendor query so the cache stays fresh — without
+          // this, a page refresh might show stale data from TanStack Query's
+          // in-memory cache.
+          queryClient.invalidateQueries({ queryKey: ["vendor", vendor.slug] });
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          console.error("[autosave] PUT failed:", res.status, errData);
           setAutoSaveStatus("error");
           if (statusTimer.current) clearTimeout(statusTimer.current);
           statusTimer.current = setTimeout(() => setAutoSaveStatus("idle"), 5000);
         }
-      } catch { setAutoSaveStatus("idle"); }
-    }, 2000);
+      } catch (err) {
+        console.error("[autosave] network error:", err);
+        setAutoSaveStatus("error");
+        if (statusTimer.current) clearTimeout(statusTimer.current);
+        statusTimer.current = setTimeout(() => setAutoSaveStatus("idle"), 5000);
+      }
+    }, 800);
     return () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
       if (statusTimer.current) clearTimeout(statusTimer.current);
     };
-  }, [form, gallery]);
+  }, [form, gallery, vendor.slug]);
 
   // ── One-click AI SEO generation ──
   // Calls the existing /api/vendor/marketing/ai/seo endpoint which uses GLM
@@ -537,8 +551,11 @@ export function MyListing({ vendor }: MyListingProps) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save");
+      // Invalidate the query so the cache is refreshed on next load
+      queryClient.invalidateQueries({ queryKey: ["vendor", vendor.slug] });
       toast.success("Profile saved!");
     } catch (err: any) {
+      console.error("[save] failed:", err);
       toast.error(err.message || "Failed to save");
     }
     setSaving(false);
@@ -1278,6 +1295,11 @@ export function MyListing({ vendor }: MyListingProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>Preparation Time</Label><Input value={form.prepTime} onChange={e => set("prepTime", e.target.value)} placeholder="24 hours" className="mt-1" /></div>
             <div><Label>Booking Notice</Label><Input value={form.bookingNotice} onChange={e => set("bookingNotice", e.target.value)} placeholder="2 days advance" className="mt-1" /></div>
+          </div>
+          <div>
+            <Label>Service Areas</Label>
+            <p className="mb-1 text-xs text-muted-foreground">Cities or neighborhoods you serve (comma-separated).</p>
+            <Textarea value={form.serviceAreas} onChange={e => set("serviceAreas", e.target.value)} placeholder="Hyderabad, Secunderabad, Banjara Hills" className="mt-1" rows={2} />
           </div>
         </TabsContent>
 

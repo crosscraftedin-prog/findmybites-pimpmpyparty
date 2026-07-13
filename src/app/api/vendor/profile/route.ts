@@ -2,18 +2,103 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveVendorFromSession } from "@/lib/vendor-session";
 import { logger } from "@/lib/logger";
+import { parseJsonArray } from "@/lib/format";
 
 /**
  * GET /api/vendor/profile
  * Returns the authenticated vendor's full profile (resolved from session).
+ * Returns ALL vendor fields — this is the canonical source for the dashboard.
  *
  * PUT /api/vendor/profile
  * Updates the authenticated vendor's profile.
- *
- * Authentication is handled by the SHARED resolveVendorFromSession() helper
- * in @/lib/vendor-session — no duplicate auth logic here. That helper uses
- * getUser() (JWT verification) first, then falls back to getSession() (cookie).
+ * - Accepts ALL vendor fields.
+ * - Defensively coerces types (empty string → null for optionals, string → number for numerics).
+ * - Normalizes tags/gallery to JSON array strings.
+ * - Returns the FULL updated vendor (same shape as GET) so the frontend can
+ *   update its cache without a refetch.
  */
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Convert "" → null, otherwise return the string as-is. */
+function strOrNull(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return s.length > 0 ? s : null;
+}
+
+/** Convert "" → null, "123" → 123, 123 → 123. Returns null for invalid. */
+function numOrNull(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+/** Convert "" → 0, "123" → 123. Returns 0 for invalid. */
+function numOrZero(v: unknown): number {
+  if (v === null || v === undefined || v === "") return 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n) : 0;
+}
+
+/** Convert "" → null, "1.5" → 1.5. Returns null for invalid. */
+function floatOrNull(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Convert various truthy/falsy values to boolean. */
+function toBool(v: unknown): boolean {
+  return v === true || v === "true" || v === 1 || v === "1" || v === "on";
+}
+
+// ── Fields metadata ────────────────────────────────────────────────────────
+// Each field is mapped to a coercer that guarantees the value matches the
+// Prisma column type. This prevents PrismaClientValidationError from killing
+// the entire update when one field has a wrong type.
+
+const STRING_FIELDS = [
+  "name", "tagline", "description", "category", "subcategory",
+  "city", "country", "countryCode", "continent", "currency", "priceRange",
+  "heroImage", "avatarImage",
+  "state", "address", "zipCode",
+  "whatsapp", "website", "instagram",
+  "facebook", "youtube", "tiktok", "twitter", "snapchat",
+  "pinterest", "linkedin", "telegram",
+  "openHours", "serviceAreas", "prepTime", "bookingNotice",
+  "metaTitle", "metaDescription",
+  "businessType", "businessRegNumber", "gstVatNumber", "languagesSpoken",
+  "responseTime", "fssaiNumber",
+] as const;
+
+const OPTIONAL_STRING_FIELDS = [
+  "subcategory", "state", "address", "zipCode",
+  "whatsapp", "website", "instagram",
+  "facebook", "youtube", "tiktok", "twitter", "snapchat",
+  "pinterest", "linkedin", "telegram",
+  "openHours", "serviceAreas", "prepTime", "bookingNotice",
+  "metaTitle", "metaDescription",
+  "businessType", "businessRegNumber", "gstVatNumber", "languagesSpoken",
+  "responseTime", "fssaiNumber",
+] as const;
+
+const BOOL_FIELDS = [
+  "deliveryAvailable", "pickupAvailable", "homeService", "onlineConsultation",
+  "hideAddress", "holidayMode", "vacationMode", "emergencyClosure",
+  "settingsLocked",
+] as const;
+
+const NUMERIC_FIELDS: Record<string, (v: unknown) => number | null> = {
+  yearStarted: numOrNull,
+  basePrice: numOrZero,
+  maxOrder: numOrNull,
+  latitude: floatOrNull,
+  longitude: floatOrNull,
+  serviceRadiusKm: numOrNull,
+};
+
+// ── GET ────────────────────────────────────────────────────────────────────
 
 export async function GET() {
   try {
@@ -21,11 +106,13 @@ export async function GET() {
     if (!session) {
       return NextResponse.json({ error: "No vendor listing found" }, { status: 404 });
     }
-    // Fetch the full vendor row (resolveVendorFromSession returns only id+name+ecosystem+category+currency)
     const vendor = await db.vendor.findUnique({ where: { id: session.id } });
     if (!vendor) {
       return NextResponse.json({ error: "No vendor listing found" }, { status: 404 });
     }
+    // Return the raw Prisma object — it contains ALL columns. The frontend
+    // reads fields directly from this object. (tags and gallery are JSON
+    // strings in the DB; the frontend parses them.)
     return NextResponse.json({ vendor });
   } catch (error: any) {
     logger.error("vendor-profile", "GET failed", { error: error.message });
@@ -33,63 +120,63 @@ export async function GET() {
   }
 }
 
-export async function PUT(req: NextRequest) {
-  const ts = () => new Date().toISOString();
-  console.log(`[TRACE] ${ts()} ═══════════════════════════════════════════════`);
-  console.log(`[TRACE] ${ts()} PUT /api/vendor/profile — API ENTERED`);
+// ── PUT ────────────────────────────────────────────────────────────────────
 
+export async function PUT(req: NextRequest) {
   try {
-    // Step 1: Authentication
-    console.log(`[TRACE] ${ts()} PUT — Step 1: Authentication (resolveVendorFromSession)`);
     const session = await resolveVendorFromSession();
     if (!session) {
-      console.log(`[TRACE] ${ts()} PUT — ❌ AUTH FAILED: no vendor session — returning 404`);
-      console.log(`[TRACE] ${ts()} PUT — FIRST EXCEPTION: Auth session missing — user not authenticated`);
       return NextResponse.json({ error: "No vendor listing found" }, { status: 404 });
     }
-    console.log(`[TRACE] ${ts()} PUT — ✅ AUTH SUCCESS: vendorId=${session.id}, name="${session.name}"`);
 
-    // Step 2: Parse body
-    console.log(`[TRACE] ${ts()} PUT — Step 2: Parsing request body`);
     const body = await req.json();
-    console.log(`[TRACE] ${ts()} PUT — Body parsed: ${Object.keys(body).length} fields`);
+    const updateData: Record<string, unknown> = {};
 
-    // Step 3: Build update data
-    console.log(`[TRACE] ${ts()} PUT — Step 3: Building update data`);
-    const updateData: any = {};
-    const fields = [
-      "name", "tagline", "description", "category", "subcategory",
-      "city", "country", "countryCode", "continent", "currency", "priceRange", "basePrice",
-      "heroImage", "avatarImage", "tags",
-      "state", "address", "zipCode", "latitude", "longitude", "serviceRadiusKm",
-      "whatsapp", "website", "instagram", "facebook", "youtube", "tiktok", "twitter", "snapchat",
-      "pinterest", "linkedin", "telegram",
-      "openHours", "deliveryAvailable", "pickupAvailable", "homeService", "onlineConsultation",
-      "serviceAreas", "maxOrder", "prepTime", "bookingNotice",
-      "metaTitle", "metaDescription",
-      "businessType", "yearStarted", "businessRegNumber", "gstVatNumber", "languagesSpoken",
-      "hideAddress", "holidayMode", "vacationMode", "emergencyClosure",
-      "responseTime", "settingsLocked",
-    ];
-
-    for (const f of fields) {
-      if (body[f] !== undefined) updateData[f] = body[f];
+    // ── String fields (required: stored as-is; optional: "" → null) ──
+    const optionalSet = new Set<string>(OPTIONAL_STRING_FIELDS);
+    for (const f of STRING_FIELDS) {
+      if (body[f] !== undefined) {
+        const raw = body[f];
+        if (optionalSet.has(f)) {
+          updateData[f] = typeof raw === "string" ? strOrNull(raw) : null;
+        } else {
+          // Required string — keep as string, default to "" if null
+          updateData[f] = typeof raw === "string" ? raw.trim() : String(raw ?? "");
+        }
+      }
     }
 
-    // ── Tags: normalize to a JSON array string ──
-    // The frontend may send tags as:
-    //   - a JSON array (["a","b"])  → keep as-is, stringify
-    //   - a comma-separated string ("a, b, c")  → split + trim + stringify
-    //   - already a JSON string ('["a","b"]')  → keep as-is
-    // The DB column stores JSON.stringify(["a","b","c"]).
+    // ── Boolean fields ──
+    for (const f of BOOL_FIELDS) {
+      if (body[f] !== undefined) {
+        updateData[f] = toBool(body[f]);
+      }
+    }
+
+    // ── Numeric fields (coerce string → number, "" → null) ──
+    for (const [f, coercer] of Object.entries(NUMERIC_FIELDS)) {
+      if (body[f] !== undefined) {
+        updateData[f] = coercer(body[f]);
+      }
+    }
+
+    // ── Tags: normalize to JSON array string ──
     if (body.tags !== undefined) {
       let tagsArray: string[] = [];
       if (Array.isArray(body.tags)) {
-        tagsArray = body.tags.filter((t: any) => typeof t === "string" && t.trim()).map((t: string) => t.trim());
+        tagsArray = body.tags
+          .filter((t: any) => typeof t === "string" && t.trim())
+          .map((t: string) => t.trim());
       } else if (typeof body.tags === "string") {
         const s = body.tags.trim();
         if (s.startsWith("[")) {
-          try { tagsArray = JSON.parse(s).filter((t: any) => typeof t === "string" && t.trim()).map((t: string) => t.trim()); } catch { tagsArray = []; }
+          try {
+            tagsArray = JSON.parse(s)
+              .filter((t: any) => typeof t === "string" && t.trim())
+              .map((t: string) => t.trim());
+          } catch {
+            tagsArray = [];
+          }
         } else if (s) {
           tagsArray = s.split(",").map((t) => t.trim()).filter(Boolean);
         }
@@ -99,55 +186,57 @@ export async function PUT(req: NextRequest) {
 
     // ── Gallery: normalize to JSON array string ──
     if (body.gallery !== undefined) {
-      updateData.gallery = Array.isArray(body.gallery) ? JSON.stringify(body.gallery) : body.gallery;
+      if (Array.isArray(body.gallery)) {
+        updateData.gallery = JSON.stringify(body.gallery);
+      } else if (typeof body.gallery === "string") {
+        // Already a JSON string or empty — store as-is
+        updateData.gallery = body.gallery || "[]";
+      }
     }
 
-    if (body.yearStarted !== undefined) updateData.yearStarted = body.yearStarted ? Number(body.yearStarted) : null;
-    if (body.basePrice !== undefined) updateData.basePrice = Number(body.basePrice) || 0;
-    if (body.maxOrder !== undefined) updateData.maxOrder = body.maxOrder ? Number(body.maxOrder) : null;
-    if (body.latitude !== undefined) updateData.latitude = body.latitude ? Number(body.latitude) : null;
-    if (body.longitude !== undefined) updateData.longitude = body.longitude ? Number(body.longitude) : null;
-    if (body.serviceRadiusKm !== undefined) updateData.serviceRadiusKm = body.serviceRadiusKm ? Number(body.serviceRadiusKm) : null;
+    // ── Years active (Int, required) ──
+    if (body.yearsActive !== undefined) {
+      updateData.yearsActive = numOrZero(body.yearsActive) || 1;
+    }
 
-    console.log(`[TRACE] ${ts()} PUT — Update data built: ${Object.keys(updateData).length} fields`);
+    // Never allow these to be updated via this route:
+    delete updateData.id;
+    delete updateData.slug;
+    delete updateData.ecosystem;
+    delete updateData.owner_user_id;
+    delete updateData.userEmail;
+    delete updateData.ownership_status;
+    delete updateData.claimToken;
+    delete updateData.claimTokenExpiresAt;
 
-    // Step 4: Database transaction
-    console.log(`[TRACE] ${ts()} PUT — Step 4: Database transaction BEGIN`);
-    console.log(`[TRACE] ${ts()} PUT — Calling db.vendor.update() for vendorId=${session.id}`);
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ success: true, vendor: await db.vendor.findUnique({ where: { id: session.id } }) });
+    }
+
     const updated = await db.vendor.update({
       where: { id: session.id },
       data: updateData,
     });
-    console.log(`[TRACE] ${ts()} PUT — ✅ DATABASE COMMIT SUCCESS — vendorId=${updated.id}, name="${updated.name}"`);
 
-    // Step 5: Cache invalidation (revalidatePath)
-    console.log(`[TRACE] ${ts()} PUT — Step 5: Cache invalidation (revalidatePath)`);
+    // Revalidate cached pages
     try {
       const { revalidatePath } = await import("next/cache");
       revalidatePath(`/vendor/${updated.slug}`);
       revalidatePath("/");
       revalidatePath("/sitemap.xml");
-      console.log(`[TRACE] ${ts()} PUT — ✅ revalidatePath() completed`);
-    } catch (revalErr: any) {
-      console.log(`[TRACE] ${ts()} PUT — ⚠️ revalidatePath() failed (non-fatal): ${revalErr?.message}`);
+    } catch {
+      // non-fatal
     }
 
-    // Step 6: Response
-    console.log(`[TRACE] ${ts()} PUT — Step 6: Returning success response`);
-    console.log(`[TRACE] ${ts()} PUT — ✅ RESPONSE SENT: { success: true, vendor: { id: ${updated.id} } }`);
-    console.log(`[TRACE] ${ts()} ═══════════════════════════════════════════════`);
     return NextResponse.json({ success: true, vendor: updated });
   } catch (error: any) {
-    console.log(`[TRACE] ${ts()} PUT — ❌ EXCEPTION: ${error.message}`);
-    console.log(`[TRACE] ${ts()} PUT — Error code: ${error.code}`);
-    console.log(`[TRACE] ${ts()} PUT — Stack: ${error.stack?.split('\n').slice(0, 5).join(' | ')}`);
-    console.log(`[TRACE] ${ts()} PUT — FIRST EXCEPTION: ${error.message}`);
-    console.log(`[TRACE] ${ts()} ═══════════════════════════════════════════════`);
     logger.error("vendor-profile", "PUT failed", {
       error: error.message,
       code: error.code,
-      stack: error.stack?.split("\n").slice(0, 3).join("\n"),
     });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Failed to update profile" },
+      { status: 500 }
+    );
   }
 }
