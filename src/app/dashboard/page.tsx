@@ -100,7 +100,7 @@ export default function DashboardPage() {
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
       <LocationBanner />
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-x-hidden">
         {/* Desktop sidebar */}
         <Sidebar
           vendor={vendor}

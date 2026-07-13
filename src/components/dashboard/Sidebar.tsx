@@ -101,7 +101,7 @@ export function Sidebar({ vendor, activeTab, onTabChange, userEmail }: SidebarPr
   return (
     <>
       {/* ── Desktop sidebar (240px fixed) ── */}
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-card lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-r border-border bg-card 2xl:w-60 lg:flex">
         {/* Vendor identity */}
         <div className="border-b border-border p-4">
           <div className="flex items-center gap-3">

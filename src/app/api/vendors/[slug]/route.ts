@@ -57,15 +57,52 @@ function transformVendor(v: DbVendorWithReviews): VendorWithRelations {
     instagram: v.instagram,
     website: v.website,
     whatsapp: v.whatsapp,
+    // ── Social media (additional platforms) ──
+    facebook: v.facebook,
+    youtube: v.youtube,
+    tiktok: v.tiktok,
+    twitter: v.twitter,
+    snapchat: v.snapchat,
+    // ── India-specific ──
+    fssaiNumber: v.fssaiNumber,
+    // ── Listing settings ──
+    settingsLocked: v.settingsLocked,
+    // ── Business settings ──
     openHours: v.openHours,
     deliveryAvailable: v.deliveryAvailable,
     pickupAvailable: v.pickupAvailable,
     serviceAreas: v.serviceAreas,
+    // ── SEO ──
     metaTitle: v.metaTitle,
     metaDescription: v.metaDescription,
     latitude: v.latitude,
     longitude: v.longitude,
     serviceRadiusKm: v.serviceRadiusKm,
+    // ── Business profile management ──
+    businessType: v.businessType,
+    yearStarted: v.yearStarted,
+    businessRegNumber: v.businessRegNumber,
+    gstVatNumber: v.gstVatNumber,
+    languagesSpoken: v.languagesSpoken,
+    hideAddress: v.hideAddress,
+    pinterest: v.pinterest,
+    linkedin: v.linkedin,
+    telegram: v.telegram,
+    holidayMode: v.holidayMode,
+    vacationMode: v.vacationMode,
+    emergencyClosure: v.emergencyClosure,
+    homeService: v.homeService,
+    onlineConsultation: v.onlineConsultation,
+    maxOrder: v.maxOrder,
+    prepTime: v.prepTime,
+    bookingNotice: v.bookingNotice,
+    responseRate: v.responseRate,
+    profileViews: v.profileViews,
+    productViews: v.productViews,
+    galleryViews: (v as any).galleryViews ?? 0,
+    // ── Admin-Created Business Listings ──
+    listingStatus: v.listingStatus,
+    adminCreated: v.adminCreated,
     // SECURITY: Do NOT expose userEmail, owner_user_id, or ownership_status
     // in public API responses — these are PII / credential-leak vectors.
     createdAt: v.createdAt.toISOString(),
@@ -142,6 +179,28 @@ interface UpdateVendorBody {
   fssaiNumber?: unknown;
   settingsLocked?: unknown;
   serviceRadiusKm?: unknown;
+  // ── Business profile management ──
+  businessType?: unknown;
+  yearStarted?: unknown;
+  businessRegNumber?: unknown;
+  gstVatNumber?: unknown;
+  languagesSpoken?: unknown;
+  hideAddress?: unknown;
+  pinterest?: unknown;
+  linkedin?: unknown;
+  telegram?: unknown;
+  holidayMode?: unknown;
+  vacationMode?: unknown;
+  emergencyClosure?: unknown;
+  homeService?: unknown;
+  onlineConsultation?: unknown;
+  maxOrder?: unknown;
+  prepTime?: unknown;
+  bookingNotice?: unknown;
+  openHours?: unknown;
+  serviceAreas?: unknown;
+  metaTitle?: unknown;
+  metaDescription?: unknown;
 }
 
 export async function PATCH(
@@ -299,6 +358,92 @@ export async function PATCH(
       const n = Number(body.serviceRadiusKm);
       data.serviceRadiusKm =
         Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+    }
+
+    // ── Business profile management ──
+    if (body.businessType !== undefined) {
+      data.businessType =
+        typeof body.businessType === "string" && body.businessType.trim()
+          ? body.businessType.trim()
+          : null;
+    }
+    if (body.yearStarted !== undefined) {
+      const n = Number(body.yearStarted);
+      data.yearStarted =
+        Number.isFinite(n) && n > 1700 ? Math.round(n) : null;
+    }
+    if (body.businessRegNumber !== undefined) {
+      data.businessRegNumber =
+        typeof body.businessRegNumber === "string" && body.businessRegNumber.trim()
+          ? body.businessRegNumber.trim().slice(0, 50)
+          : null;
+    }
+    if (body.gstVatNumber !== undefined) {
+      data.gstVatNumber =
+        typeof body.gstVatNumber === "string" && body.gstVatNumber.trim()
+          ? body.gstVatNumber.trim().slice(0, 30)
+          : null;
+    }
+    if (body.languagesSpoken !== undefined) {
+      data.languagesSpoken =
+        typeof body.languagesSpoken === "string" && body.languagesSpoken.trim()
+          ? body.languagesSpoken.trim().slice(0, 500)
+          : null;
+    }
+    if (typeof body.hideAddress === "boolean") data.hideAddress = body.hideAddress;
+    if (body.pinterest !== undefined) {
+      data.pinterest = sanitizeWebsite(body.pinterest) || null;
+    }
+    if (body.linkedin !== undefined) {
+      data.linkedin = sanitizeWebsite(body.linkedin) || null;
+    }
+    if (body.telegram !== undefined) {
+      data.telegram = sanitizeInstagram(body.telegram) || null;
+    }
+    if (typeof body.holidayMode === "boolean") data.holidayMode = body.holidayMode;
+    if (typeof body.vacationMode === "boolean") data.vacationMode = body.vacationMode;
+    if (typeof body.emergencyClosure === "boolean") data.emergencyClosure = body.emergencyClosure;
+    if (typeof body.homeService === "boolean") data.homeService = body.homeService;
+    if (typeof body.onlineConsultation === "boolean") data.onlineConsultation = body.onlineConsultation;
+    if (body.maxOrder !== undefined) {
+      const n = Number(body.maxOrder);
+      data.maxOrder = Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+    }
+    if (body.prepTime !== undefined) {
+      data.prepTime =
+        typeof body.prepTime === "string" && body.prepTime.trim()
+          ? body.prepTime.trim().slice(0, 100)
+          : null;
+    }
+    if (body.bookingNotice !== undefined) {
+      data.bookingNotice =
+        typeof body.bookingNotice === "string" && body.bookingNotice.trim()
+          ? body.bookingNotice.trim().slice(0, 100)
+          : null;
+    }
+    if (body.openHours !== undefined) {
+      data.openHours =
+        typeof body.openHours === "string" && body.openHours.trim()
+          ? body.openHours.trim().slice(0, 500)
+          : null;
+    }
+    if (body.serviceAreas !== undefined) {
+      data.serviceAreas =
+        typeof body.serviceAreas === "string" && body.serviceAreas.trim()
+          ? body.serviceAreas.trim().slice(0, 500)
+          : null;
+    }
+    if (body.metaTitle !== undefined) {
+      data.metaTitle =
+        typeof body.metaTitle === "string" && body.metaTitle.trim()
+          ? body.metaTitle.trim().slice(0, 200)
+          : null;
+    }
+    if (body.metaDescription !== undefined) {
+      data.metaDescription =
+        typeof body.metaDescription === "string" && body.metaDescription.trim()
+          ? body.metaDescription.trim().slice(0, 500)
+          : null;
     }
 
     // --- re-geocode if any address component changed ---

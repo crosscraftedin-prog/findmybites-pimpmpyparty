@@ -76,6 +76,28 @@ export async function PUT(req: NextRequest) {
       if (body[f] !== undefined) updateData[f] = body[f];
     }
 
+    // ── Tags: normalize to a JSON array string ──
+    // The frontend may send tags as:
+    //   - a JSON array (["a","b"])  → keep as-is, stringify
+    //   - a comma-separated string ("a, b, c")  → split + trim + stringify
+    //   - already a JSON string ('["a","b"]')  → keep as-is
+    // The DB column stores JSON.stringify(["a","b","c"]).
+    if (body.tags !== undefined) {
+      let tagsArray: string[] = [];
+      if (Array.isArray(body.tags)) {
+        tagsArray = body.tags.filter((t: any) => typeof t === "string" && t.trim()).map((t: string) => t.trim());
+      } else if (typeof body.tags === "string") {
+        const s = body.tags.trim();
+        if (s.startsWith("[")) {
+          try { tagsArray = JSON.parse(s).filter((t: any) => typeof t === "string" && t.trim()).map((t: string) => t.trim()); } catch { tagsArray = []; }
+        } else if (s) {
+          tagsArray = s.split(",").map((t) => t.trim()).filter(Boolean);
+        }
+      }
+      updateData.tags = JSON.stringify(tagsArray.slice(0, 20));
+    }
+
+    // ── Gallery: normalize to JSON array string ──
     if (body.gallery !== undefined) {
       updateData.gallery = Array.isArray(body.gallery) ? JSON.stringify(body.gallery) : body.gallery;
     }

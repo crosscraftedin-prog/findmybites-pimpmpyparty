@@ -11,6 +11,8 @@ import { getZAI } from "@/lib/zai-server";
 import { db } from "@/lib/db";
 import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
 import { logger } from "@/lib/logger";
+import { getVendorAttributes } from "@/lib/attributes/attribute-service";
+import { getCategoryLabel } from "@/lib/category-server";
 
 async function logAi(vendorId: string | null, feature: string, tokens: number, success: boolean) {
   try {
@@ -333,35 +335,288 @@ export interface SeoCopy {
   metaTitle: string;
   metaDescription: string;
   keywords: string[];
+  slug: string;
+  openGraph: { title: string; description: string };
+  twitter: { title: string; description: string };
+  jsonLd: Record<string, any>;
+}
+
+/**
+ * Build a LocalBusiness (or FoodEstablishment) JSON-LD object deterministically
+ * from the vendor record. We never trust the LLM with structured data — phone
+ * numbers, addresses, geo coordinates and social links must come from the DB.
+ */
+function buildLocalBusinessJsonLd(vendor: {
+  name: string; slug: string; ecosystem: string;
+  description: string | null; tagline: string | null;
+  city: string; state: string | null; country: string | null;
+  countryCode: string | null; address: string | null; zipCode: string | null;
+  phone: string | null; whatsapp: string | null; website: string | null;
+  heroImage: string | null; avatarImage: string | null;
+  priceRange: string | null; openHours: string | null;
+  latitude: number | null; longitude: number | null;
+  rating: number | null; reviewCount: number | null;
+  instagram: string | null; facebook: string | null; youtube: string | null;
+  tiktok: string | null; twitter: string | null; linkedin: string | null;
+  pinterest: string | null; snapchat: string | null; telegram: string | null;
+}, catLabel: string, metaDescription: string): Record<string, any> {
+  const sameAs = [
+    vendor.website, vendor.instagram, vendor.facebook, vendor.youtube,
+    vendor.tiktok, vendor.twitter, vendor.linkedin, vendor.pinterest,
+    vendor.snapchat, vendor.telegram,
+  ].filter((s): s is string => Boolean(s && s.trim()));
+
+  const ecosystemDomain = vendor.ecosystem === "FINDMYBITES"
+    ? "https://www.findmybites.com"
+    : "https://www.pimpmyparty.com";
+  const profileUrl = `${ecosystemDomain}/vendor/${vendor.slug}`;
+  const schemaType = vendor.ecosystem === "FINDMYBITES" ? "FoodEstablishment" : "LocalBusiness";
+
+  const jsonLd: Record<string, any> = {
+    "@context": "https://schema.org",
+    "@type": schemaType,
+    "@id": profileUrl,
+    name: vendor.name,
+    description: metaDescription || vendor.description || vendor.tagline ||
+      `${catLabel} in ${vendor.city}`,
+    url: vendor.website || profileUrl,
+    image: vendor.heroImage || vendor.avatarImage || undefined,
+    telephone: vendor.phone || vendor.whatsapp || undefined,
+    priceRange: vendor.priceRange || undefined,
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: vendor.address || undefined,
+      addressLocality: vendor.city,
+      addressRegion: vendor.state || undefined,
+      postalCode: vendor.zipCode || undefined,
+      addressCountry: vendor.country || vendor.countryCode || undefined,
+    },
+  };
+
+  if (vendor.latitude != null && vendor.longitude != null) {
+    jsonLd.geo = {
+      "@type": "GeoCoordinates",
+      latitude: vendor.latitude,
+      longitude: vendor.longitude,
+    };
+  }
+  if (vendor.openHours) jsonLd.openingHours = vendor.openHours;
+  if (vendor.rating && vendor.reviewCount && vendor.reviewCount > 0) {
+    jsonLd.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: vendor.rating,
+      reviewCount: vendor.reviewCount,
+      bestRating: 5,
+    };
+  }
+  if (vendor.ecosystem === "FINDMYBITES" && catLabel) {
+    jsonLd.servesCuisine = catLabel;
+  }
+  if (sameAs.length > 0) jsonLd.sameAs = sameAs;
+
+  // Strip undefined values (recursive) so the JSON-LD is clean.
+  return JSON.parse(
+    JSON.stringify(jsonLd, (_k, v) => (v === undefined ? undefined : v))
+  );
 }
 
 export async function generateSeoCopy(vendorId: string): Promise<SeoCopy> {
   const vendor = await db.vendor.findUnique({
     where: { id: vendorId },
-    select: { name: true, category: true, city: true, ecosystem: true, tagline: true, description: true },
+    select: {
+      id: true, name: true, slug: true, category: true, subcategory: true,
+      ecosystem: true, tagline: true, description: true,
+      city: true, state: true, country: true, countryCode: true,
+      address: true, zipCode: true,
+      currency: true, priceRange: true, basePrice: true,
+      phone: true, whatsapp: true, website: true,
+      instagram: true, facebook: true, youtube: true, tiktok: true,
+      twitter: true, linkedin: true, pinterest: true, snapchat: true, telegram: true,
+      openHours: true, languagesSpoken: true, tags: true,
+      deliveryAvailable: true, pickupAvailable: true,
+      homeService: true, onlineConsultation: true,
+      latitude: true, longitude: true,
+      rating: true, reviewCount: true,
+      heroImage: true, avatarImage: true,
+      yearsActive: true,
+    },
   });
   if (!vendor) throw new Error("Vendor not found");
 
-  const prompt = `Generate SEO metadata for a ${vendor.ecosystem === "FINDMYBITES" ? "food" : "event"} business profile.
-Business: ${vendor.name}
-Category: ${vendor.category}
-City: ${vendor.city}
-Tagline: ${vendor.tagline || "N/A"}
+  // ── Enrich: human-readable category label + global attributes ──
+  const [catLabel, attributes] = await Promise.all([
+    getCategoryLabel(vendor.category),
+    getVendorAttributes(vendor.id).catch(() => []),
+  ]);
 
-Return ONLY JSON: {"metaTitle":"50-60 chars, include category + city","metaDescription":"140-160 chars, persuasive with CTA","keywords":["8-10 relevant search keywords"]}`;
+  // ── Parse + derive structured context ──
+  let tags: string[] = [];
+  try { tags = JSON.parse(vendor.tags || "[]"); } catch { tags = []; }
+  if (!Array.isArray(tags)) tags = [];
+
+  const services: string[] = [];
+  if (vendor.deliveryAvailable) services.push("delivery");
+  if (vendor.pickupAvailable) services.push("pickup");
+  if (vendor.homeService) services.push("home service");
+  if (vendor.onlineConsultation) services.push("online consultation");
+
+  const languages = (vendor.languagesSpoken || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const attributeNames = attributes
+    .map((a) => a.name)
+    .filter(Boolean);
+
+  const ecosystemLabel = vendor.ecosystem === "FINDMYBITES" ? "food" : "event";
+  const marketplaceName = vendor.ecosystem === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty";
+
+  // Description is sometimes very long — cap at 600 chars for the prompt.
+  const trimmedDescription = (vendor.description || "").slice(0, 600);
+
+  // ── Build the rich context block ──
+  const contextLines = [
+    `Business Name: ${vendor.name}`,
+    `Marketplace: ${marketplaceName} (${ecosystemLabel} business)`,
+    `Category: ${catLabel || vendor.category}${vendor.subcategory ? ` → ${vendor.subcategory}` : ""}`,
+    `City: ${vendor.city}`,
+    vendor.state ? `State/Region: ${vendor.state}` : null,
+    `Country: ${vendor.country}`,
+    vendor.tagline ? `Tagline: ${vendor.tagline}` : null,
+    trimmedDescription ? `Business Description: ${trimmedDescription}` : null,
+    attributeNames.length ? `Attributes & Specialties: ${attributeNames.join(", ")}` : null,
+    tags.length ? `Specialty Tags: ${tags.join(", ")}` : null,
+    services.length ? `Services offered: ${services.join(", ")}` : null,
+    languages.length ? `Languages spoken: ${languages.join(", ")}` : null,
+    vendor.priceRange ? `Price range: ${vendor.priceRange}` : null,
+    vendor.openHours ? `Operating hours: ${vendor.openHours}` : null,
+    vendor.rating && vendor.reviewCount
+      ? `Reputation: ${vendor.rating}★ from ${vendor.reviewCount} reviews`
+      : null,
+    vendor.yearsActive ? `Years in business: ${vendor.yearsActive}` : null,
+  ].filter((l): l is string => Boolean(l));
+
+  // ── Build the detailed prompt ──
+  const prompt = `You are an expert SEO copywriter for a ${ecosystemLabel} business marketplace called ${marketplaceName}.
+Generate comprehensive, keyword-rich, natural-sounding SEO metadata for this business profile.
+
+═══════════════════════════════════════════════════════
+BUSINESS CONTEXT (use ALL of this — be specific, never generic):
+═══════════════════════════════════════════════════════
+${contextLines.join("\n")}
+
+═══════════════════════════════════════════════════════
+REQUIREMENTS — produce ALL of the following fields:
+═══════════════════════════════════════════════════════
+1. metaTitle (60-70 chars): Pipe-separated format
+   "{BusinessName} | {3 specific offerings from attributes/tags} & {CategoryLabel} in {City} | ${marketplaceName}"
+   Example: "CATU Listing Test | Custom Birthday Cakes, Wedding Cakes & Bakery in Hyderabad | FindMyBites"
+
+2. metaDescription (150-170 chars): One or two flowing sentences that mention
+   the business name, specific offerings (pull from attributes/tags), the city,
+   key services if any, and end with a call-to-action mentioning "${marketplaceName}"
+   and "no commission" / "order directly".
+
+3. keywords (10-15): Real search terms a customer might type. Mix:
+   - "{CategoryLabel} in {City}" and "{City} {CategoryLabel}"
+   - Specific products/services from attributes (e.g. "eggless cakes", "wedding cakes", "sugar-free desserts")
+   - Dietary/lifestyle tags if present (eggless, vegan, gluten-free, halal)
+   - Modifier phrases ("near me", "best", "custom", "online order")
+   - One brand keyword ("${marketplaceName.toLowerCase()}")
+
+4. slug (3-6 words, lowercase kebab-case): SEO-friendly URL slug derived from
+   the business name + city (e.g. "catu-bakery-hyderabad").
+
+5. openGraph.title (60-70 chars): Social-share title — punchier than metaTitle.
+6. openGraph.description (150-200 chars): Social-share description with emoji-friendly tone.
+7. twitter.title (60-70 chars): Twitter card title — concise and click-worthy.
+8. twitter.description (150-200 chars): Twitter card description.
+
+═══════════════════════════════════════════════════════
+CRITICAL RULES:
+═══════════════════════════════════════════════════════
+- Be SPECIFIC to this business. Use the actual attributes, tags, and specialties listed above — NOT generic phrases like "quality products" or "best in town".
+- Mention the business name AND city at least once in every text field.
+- Read naturally — no keyword stuffing.
+- Keep character counts strictly within the limits above.
+- Return ONLY a JSON object (no markdown, no prose, no code fences).
+
+Return JSON in EXACTLY this shape:
+{
+  "metaTitle": "...",
+  "metaDescription": "...",
+  "keywords": ["...", "..."],
+  "slug": "...",
+  "openGraph": { "title": "...", "description": "..." },
+  "twitter": { "title": "...", "description": "..." }
+}`;
 
   const text = await generate(prompt, vendorId, "seo", true);
   const parsed = extractJson(text || "");
+
+  // ── Build the deterministic JSON-LD (independent of LLM) ──
+  // We use the LLM's metaDescription if available (richer), else fall back.
+  const metaDescriptionForLd = parsed?.metaDescription
+    ? String(parsed.metaDescription).slice(0, 170)
+    : (vendor.description || vendor.tagline || `${catLabel} in ${vendor.city}`);
+  const jsonLd = buildLocalBusinessJsonLd(vendor, catLabel, metaDescriptionForLd);
+
   if (parsed?.metaTitle) {
+    const metaTitle = String(parsed.metaTitle).slice(0, 70);
+    const metaDescription = String(parsed.metaDescription || "").slice(0, 170);
+    const keywords: string[] = Array.isArray(parsed.keywords)
+      ? parsed.keywords.map(String).slice(0, 15)
+      : [];
+    const slug = String(parsed.slug || vendor.slug)
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 80) || vendor.slug;
+    const ogTitle = String(parsed.openGraph?.title || metaTitle).slice(0, 70);
+    const ogDesc = String(parsed.openGraph?.description || metaDescription).slice(0, 200);
+    const twTitle = String(parsed.twitter?.title || ogTitle).slice(0, 70);
+    const twDesc = String(parsed.twitter?.description || ogDesc).slice(0, 200);
+
     return {
-      metaTitle: parsed.metaTitle.slice(0, 60),
-      metaDescription: (parsed.metaDescription || "").slice(0, 160),
-      keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
+      metaTitle,
+      metaDescription,
+      keywords,
+      slug,
+      openGraph: { title: ogTitle, description: ogDesc },
+      twitter: { title: twTitle, description: twDesc },
+      jsonLd,
     };
   }
+
+  // ── Fallback: templated content using ALL available context ──
+  logger.warn("marketing-ai", "SEO LLM returned no parseable result — using templated fallback", { vendorId });
+  const offeringsHint = attributeNames.length
+    ? attributeNames.slice(0, 3).join(", ").toLowerCase()
+    : (tags[0] || catLabel).toLowerCase();
+  const fallbackTitle = `${vendor.name} | ${offeringsHint.charAt(0).toUpperCase() + offeringsHint.slice(1)} & ${catLabel} in ${vendor.city} | ${marketplaceName}`.slice(0, 70);
+  const servicesClause = services.length ? ` Services: ${services.join(", ")}.` : "";
+  const fallbackDesc = `${vendor.name} is a ${catLabel.toLowerCase()} in ${vendor.city} offering ${offeringsHint}.${servicesClause} Order directly from the vendor with no commission through ${marketplaceName}.`.slice(0, 170);
+  const fallbackKeywords = Array.from(new Set([
+    `${catLabel} ${vendor.city}`.toLowerCase(),
+    `${vendor.city} ${catLabel}`.toLowerCase(),
+    catLabel.toLowerCase(),
+    ...tags.slice(0, 5).map((t) => String(t).toLowerCase()),
+    ...attributeNames.slice(0, 5).map((a) => String(a).toLowerCase()),
+    `${ecosystemLabel} ${vendor.city}`.toLowerCase(),
+    `best ${catLabel.toLowerCase()} near me`,
+    "order online",
+    marketplaceName.toLowerCase(),
+  ])).slice(0, 15);
+
   return {
-    metaTitle: `${vendor.name} — ${vendor.category} in ${vendor.city}`,
-    metaDescription: `${vendor.name} is a ${vendor.category} in ${vendor.city}. ${vendor.tagline || ""} Book directly — no commission.`,
-    keywords: [vendor.category, vendor.city, vendor.ecosystem === "FINDMYBITES" ? "food" : "events", "book online"],
+    metaTitle: fallbackTitle,
+    metaDescription: fallbackDesc,
+    keywords: fallbackKeywords,
+    slug: vendor.slug,
+    openGraph: { title: fallbackTitle, description: fallbackDesc.slice(0, 200) },
+    twitter: { title: fallbackTitle, description: fallbackDesc.slice(0, 200) },
+    jsonLd,
   };
 }

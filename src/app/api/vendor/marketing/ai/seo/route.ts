@@ -20,17 +20,36 @@ export async function POST(req: NextRequest) {
 
     logger.info("ai-seo", "SEO generated successfully", {
       vendorId: vendor.id,
-      metaTitle: seo.metaTitle?.slice(0, 50),
+      metaTitle: seo.metaTitle?.slice(0, 70),
+      metaDescriptionLen: seo.metaDescription?.length ?? 0,
       keywordsCount: seo.keywords?.length ?? 0,
+      hasOpenGraph: !!seo.openGraph,
+      hasTwitter: !!seo.twitter,
+      hasJsonLd: !!seo.jsonLd,
+      slugSuggestion: seo.slug,
     });
 
     if (save) {
+      // Persist the AI-generated SEO suggestions (OpenGraph, Twitter card,
+      // JSON-LD structured data, slug suggestion) in the aiSuggestions JSON
+      // column so the frontend / SSR pages can render them later. The
+      // canonical metaTitle / metaDescription / tags live in their own columns.
+      const aiSuggestions = {
+        seo: {
+          slug: seo.slug,
+          openGraph: seo.openGraph,
+          twitter: seo.twitter,
+          jsonLd: seo.jsonLd,
+          generatedAt: new Date().toISOString(),
+        },
+      };
       await db.vendor.update({
         where: { id: vendor.id },
         data: {
           metaTitle: seo.metaTitle,
           metaDescription: seo.metaDescription,
           tags: JSON.stringify(seo.keywords),
+          aiSuggestions: JSON.stringify(aiSuggestions),
         },
       });
       logger.info("ai-seo", "SEO saved to database", { vendorId: vendor.id });

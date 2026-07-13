@@ -184,6 +184,15 @@ export function MyListing({ vendor }: MyListingProps) {
         // SEO
         metaTitle: (fullVendor as any).metaTitle || "",
         metaDescription: (fullVendor as any).metaDescription || "",
+        // Tags — fullVendor.tags is a string[] from the API (parseJsonArray).
+        // The form stores tags as a comma-separated string for the chip input.
+        tags: Array.isArray((fullVendor as any).tags)
+          ? (fullVendor as any).tags.join(", ")
+          : (typeof (fullVendor as any).tags === "string" && (fullVendor as any).tags.trim().startsWith("[")
+            ? (() => { try { return JSON.parse((fullVendor as any).tags).join(", "); } catch { return (fullVendor as any).tags; } })()
+            : ((fullVendor as any).tags || "")),
+        // Service areas
+        serviceAreas: (fullVendor as any).serviceAreas || "",
         // Media
         heroImage: fullVendor.heroImage || "",
         avatarImage: fullVendor.avatarImage || "",
@@ -556,6 +565,36 @@ export function MyListing({ vendor }: MyListingProps) {
     setSavingAttributes(false);
   };
 
+  // ── Auto-save attributes (debounced 800ms after change) ──
+  // No manual "Save Attributes" button needed — changes persist automatically.
+  const attrSaveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attrLoadedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!fullVendor?.slug) return;
+    // Skip the very first emit (initial load) so we don't save the just-loaded
+    // values back to the server.
+    if (!attrLoadedRef.current) {
+      attrLoadedRef.current = true;
+      return;
+    }
+    if (attrSaveTimer.current) clearTimeout(attrSaveTimer.current);
+    attrSaveTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/vendors/${fullVendor.slug}/attributes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ attributeIds: vendorAttributeIds }),
+        });
+        if (res.ok) {
+          setAutoSaveStatus("saved"); setLastSavedAt(Date.now());
+          if (statusTimer.current) clearTimeout(statusTimer.current);
+          statusTimer.current = setTimeout(() => setAutoSaveStatus("idle"), 3000);
+        }
+      } catch { /* non-fatal */ }
+    }, 800);
+    return () => { if (attrSaveTimer.current) clearTimeout(attrSaveTimer.current); };
+  }, [vendorAttributeIds, fullVendor?.slug]);
+
   // Profile completeness (legacy — kept for the header bar)
   const completeness = React.useMemo(() => {
     if (!form.name) return 0;
@@ -707,7 +746,7 @@ export function MyListing({ vendor }: MyListingProps) {
   }
 
   return (
-    <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
+    <div className="mx-auto max-w-[1600px] overflow-x-hidden p-4 sm:p-6 lg:p-8">
       {/* Success Screen */}
       {published && (
         <SuccessScreen vendorName={form.name || vendor.name} onAction={handleSuccessAction} />
@@ -765,13 +804,13 @@ export function MyListing({ vendor }: MyListingProps) {
       </div>
 
       {/* 2-column layout: form + sidebar */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
         {/* Left: guided wizard + form */}
-        <div>
+        <div className="min-w-0">
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); const idx = WIZARD_STEPS.findIndex(s => s.tab === v); if (idx >= 0) setWizardStep(idx); }}>
         {/* ── Desktop: full guided wizard progress bar with pills ── */}
         <div className="mb-4 hidden sm:block">
-          <div className="flex min-w-max items-center gap-1 pb-1">
+          <div className="overflow-x-auto pb-2 [scrollbar-width:thin]"><div className="flex min-w-max items-center gap-1">
             {WIZARD_STEPS.map((step, idx) => {
               const Icon = step.icon;
               const isActive = activeTab === step.tab;
@@ -803,6 +842,7 @@ export function MyListing({ vendor }: MyListingProps) {
                 </React.Fragment>
               );
             })}
+          </div>
           </div>
           {/* Completion percentage + estimated time */}
           <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
@@ -870,7 +910,7 @@ export function MyListing({ vendor }: MyListingProps) {
                   <p className="text-xs font-semibold text-violet-800 dark:text-violet-200">AI Auto-Classification</p>
                   <Badge className="ml-auto text-[9px] bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">{aiClassifyResult.confidence}% confidence</Badge>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   <div><span className="text-muted-foreground">Marketplace:</span> <span className="font-medium">{aiClassifyResult.marketplace === "FINDMYBITES" ? "FindMyBites" : "PimpMyParty"}</span></div>
                   <div><span className="text-muted-foreground">Category:</span> <span className="font-medium">{aiClassifyResult.category?.replace(/-/g, " ") || "—"}</span></div>
                   <div><span className="text-muted-foreground">Subcategory:</span> <span className="font-medium">{aiClassifyResult.subcategory || "—"}</span></div>
@@ -884,14 +924,14 @@ export function MyListing({ vendor }: MyListingProps) {
           {/* Integrated AI Business Profile Generator */}
           <IntegratedAIPanel form={form} onApply={handleAiApply} onNavigate={setActiveTab} />
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>Business Name *</Label><Input value={form.name} onChange={e => set("name", e.target.value)} className="mt-1" /></div>
             <div><Label>Short Tagline</Label><Input value={form.tagline} onChange={e => set("tagline", e.target.value)} placeholder="Custom cakes since 2015" className="mt-1" /></div>
           </div>
           <div><Label>Description</Label><Textarea value={form.description} onChange={e => set("description", e.target.value)} className="mt-1 min-h-[100px]" /></div>
 
           {/* Category — searchable dropdown from DB */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="relative">
               <Label>Category *</Label>
               <div className="relative mt-1">
@@ -971,7 +1011,7 @@ export function MyListing({ vendor }: MyListingProps) {
           </div>
 
           {/* Business Type — DB-driven, cascading from category */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label>Business Type</Label>
               {businessTypesLoading ? (
@@ -1004,7 +1044,7 @@ export function MyListing({ vendor }: MyListingProps) {
           </div>
 
           {/* GST & Registration — conditional */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Do you have a Business Registration?</Label>
               <div className="flex gap-2">
@@ -1079,6 +1119,36 @@ export function MyListing({ vendor }: MyListingProps) {
                 <option value="Mandarin" />
               </datalist>
             </div>
+            {/* Quick-select chips for common languages — click to toggle */}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {["English", "Hindi", "Telugu", "Tamil", "Kannada", "Malayalam", "Arabic", "French", "Spanish", "German", "Mandarin", "Urdu"].map((lang) => {
+                const langs = (form.languagesSpoken || "").split(",").map(l => l.trim()).filter(Boolean);
+                const isSelected = langs.includes(lang);
+                return (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) {
+                        set("languagesSpoken", langs.filter(l => l !== lang).join(", "));
+                      } else {
+                        set("languagesSpoken", [...langs, lang].join(", "));
+                      }
+                    }}
+                    aria-pressed={isSelected}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-all",
+                      isSelected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:bg-muted/50"
+                    )}
+                  >
+                    {isSelected && <Check className="size-3" />}
+                    {lang}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </TabsContent>
 
@@ -1148,11 +1218,11 @@ export function MyListing({ vendor }: MyListingProps) {
 
         {/* Contact */}
         <TabsContent value="contact" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>WhatsApp</Label><Input value={form.whatsapp} onChange={e => set("whatsapp", e.target.value)} placeholder="+91 98765 43210" className="mt-1" /></div>
             <div><Label>Phone</Label><Input value={form.phone} onChange={e => set("phone", e.target.value)} className="mt-1" /></div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>Email</Label><Input value={form.email} onChange={e => set("email", e.target.value)} className="mt-1" /></div>
             <div><Label>Website</Label><Input value={form.website} onChange={e => set("website", e.target.value)} placeholder="https://…" className="mt-1" /></div>
           </div>
@@ -1195,17 +1265,17 @@ export function MyListing({ vendor }: MyListingProps) {
 
         {/* Delivery & Service */}
         <TabsContent value="delivery" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.deliveryAvailable} onChange={e => set("deliveryAvailable", e.target.checked)} className="size-4 rounded border-border" /> Delivery Available</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.pickupAvailable} onChange={e => set("pickupAvailable", e.target.checked)} className="size-4 rounded border-border" /> Pickup Available</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.homeService} onChange={e => set("homeService", e.target.checked)} className="size-4 rounded border-border" /> Home Service</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.onlineConsultation} onChange={e => set("onlineConsultation", e.target.checked)} className="size-4 rounded border-border" /> Online Consultation</label>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>Minimum Order</Label><Input type="number" value={form.minOrder} onChange={e => set("minOrder", e.target.value)} className="mt-1" /></div>
             <div><Label>Maximum Order</Label><Input type="number" value={form.maxOrder} onChange={e => set("maxOrder", e.target.value)} className="mt-1" /></div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>Preparation Time</Label><Input value={form.prepTime} onChange={e => set("prepTime", e.target.value)} placeholder="24 hours" className="mt-1" /></div>
             <div><Label>Booking Notice</Label><Input value={form.bookingNotice} onChange={e => set("bookingNotice", e.target.value)} placeholder="2 days advance" className="mt-1" /></div>
           </div>

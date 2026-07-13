@@ -314,7 +314,7 @@ export function VendorDashboardPage({
   const initials = getInitials(userName);
 
   return (
-    <div className="flex h-screen" style={{ background: "#F7F6F2" }}>
+    <div className="flex h-screen overflow-x-hidden" style={{ background: "#F7F6F2" }}>
       {/* Sidebar */}
       <aside
         className="flex h-full flex-col overflow-hidden"
@@ -374,7 +374,7 @@ export function VendorDashboardPage({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         {/* Top bar */}
         <div
           className="flex items-center justify-between px-6 py-4"
@@ -405,7 +405,7 @@ export function VendorDashboardPage({
         {/* Dashboard content */}
         <div className="p-6">
           {/* KPI row */}
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <KPICard
               label="Profile views"
               value={vendor.completedBookings * 3 + 42}
@@ -433,7 +433,7 @@ export function VendorDashboardPage({
           </div>
 
           {/* Two-column row */}
-          <div className="mt-6 grid grid-cols-2 gap-4">
+          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* Enquiry feed */}
             <div className="rounded-xl bg-white p-4" style={{ border: "0.5px solid rgba(0,0,0,0.12)" }}>
               <h2 className="mb-3 text-[14px] font-medium">Enquiries</h2>
