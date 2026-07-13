@@ -20,6 +20,7 @@
 
 import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
+// (Bun may create separate instances for the same module when imported from different paths)
 import {
   type InfoSection,
   type InfoField,
@@ -246,17 +247,35 @@ function dbFieldsToSections(
  */
 export async function resolveProductInfoSectionsFromDB(
   category: string | null | undefined,
-  subcategory?: string | null
+  subcategory?: string | null,
+  opts?: { bypassCache?: boolean }
 ): Promise<InfoSection[] | null> {
   if (!category) return null;
 
   // Use runtime cache — prevents repeated DB queries for the same category
+  // bypassCache option is for testing — forces a fresh DB query
+  if (opts?.bypassCache) {
+    return resolveSectionsFromDBUncached(category, subcategory);
+  }
+
   return getCached<InfoSection[] | null>(
     "sections",
     category,
     subcategory,
-    async () => {
+    async () => resolveSectionsFromDBUncached(category, subcategory)
+  );
+}
+
+/**
+ * Internal: uncached DB query for sections. Used by the cached wrapper
+ * and by tests that need to bypass the cache.
+ */
+async function resolveSectionsFromDBUncached(
+  category: string,
+  subcategory?: string | null
+): Promise<InfoSection[] | null> {
       try {
+        // Query mapping + template separately (avoids Prisma include stale-read issue with SQLite)
         const mapping = await db.templateMapping.findFirst({
           where: {
             OR: [
@@ -265,28 +284,36 @@ export async function resolveProductInfoSectionsFromDB(
             ],
           },
           orderBy: [{ subcategory: "desc" }],
-          include: {
-            template: {
-              include: {
-                fields: {
-                  where: { enabled: true },
-                  orderBy: [{ section: "asc" }, { sortOrder: "asc" }],
-                },
-              },
-            },
-          },
         }).catch(() => null);
 
-        if (!mapping?.template?.fields?.length) return null;
-        // Don't return draft templates' sections
-        if ((mapping.template as any).status === "draft") return null;
+        if (!mapping) return null;
 
-        const sectionMeta = parseJSON<DBTemplateSection[]>(mapping.template.sections, []);
-        const sections = dbFieldsToSections(mapping.template.fields, sectionMeta);
+        // Query template separately
+        const template = await db.listingTemplate.findUnique({
+          where: { id: mapping.templateId },
+        }).catch(() => null);
+
+        if (!template) return null;
+
+        // Query fields separately (avoids stale include data)
+        const fields = await db.templateField.findMany({
+          where: { templateId: template.id, enabled: true },
+          orderBy: [{ section: "asc" }, { sortOrder: "asc" }],
+        }).catch(() => null);
+
+        const rawResult = await db.$queryRaw`SELECT key, label FROM template_fields WHERE "templateId" = ${template.id} AND enabled = 1`.catch(() => []);
+
+
+        if (!fields || fields.length === 0) return null;
+        // Don't return draft templates' sections
+        if ((template as any).status === "draft") return null;
+
+        const sectionMeta = parseJSON<DBTemplateSection[]>(template.sections, []);
+        const sections = dbFieldsToSections(fields, sectionMeta);
 
         logger.info("template-engine-v3", "Resolved sections from DB (cache miss)", {
           category,
-          templateSlug: mapping.template.slug,
+          templateSlug: template.slug,
           sectionCount: sections.length,
         });
 
@@ -299,8 +326,6 @@ export async function resolveProductInfoSectionsFromDB(
         return null;
       }
     }
-  );
-}
 
 /**
  * Resolve Product Information sections for a specific product (by ID).
@@ -668,37 +693,51 @@ export interface JoshAIFieldMetadata {
  * Josh receives: field labels, descriptions, AI prompts, priority, visibility.
  * This lets Josh understand templates automatically without hardcoded mapping.
  */
+/**
+ * Helper: resolve template + fields using separate queries (avoids Prisma include stale-read issue).
+ */
+async function resolveTemplateAndFields(
+  category: string,
+  fieldFilter?: Record<string, boolean>
+): Promise<{ template: any; fields: any[] } | null> {
+  try {
+    const mapping = await db.templateMapping.findFirst({
+      where: { categoryId: category, subcategory: null },
+    }).catch(() => null);
+    if (!mapping) return null;
+
+    const template = await db.listingTemplate.findUnique({
+      where: { id: mapping.templateId },
+    }).catch(() => null);
+    if (!template) return null;
+
+    const where: Record<string, unknown> = { templateId: template.id, enabled: true };
+    if (fieldFilter) Object.assign(where, fieldFilter);
+
+    const fields = await db.templateField.findMany({
+      where,
+      orderBy: [{ priority: "desc" }, { sortOrder: "asc" }],
+    }).catch(() => []);
+    if (!fields || fields.length === 0) return null;
+
+    return { template, fields };
+  } catch {
+    return null;
+  }
+}
+
 export async function getJoshAIFieldMetadata(
   category: string | null | undefined
 ): Promise<JoshAIFieldMetadata[] | null> {
   if (!category) return null;
 
   try {
-    const mapping = await db.templateMapping.findFirst({
-      where: { categoryId: category, subcategory: null },
-      include: {
-        template: {
-          include: {
-            fields: {
-              where: { enabled: true, aiEnabled: true },
-              select: {
-                key: true, label: true, type: true, section: true,
-                helpText: true, aiEnabled: true, seoIndexed: true,
-                priority: true, placeholder: true,
-              },
-              orderBy: [{ priority: "desc" }, { sortOrder: "asc" }],
-            },
-          },
-        },
-      },
-    }).catch(() => null);
+    const result = await resolveTemplateAndFields(category, { aiEnabled: true });
+    if (!result) return null;
 
-    if (!mapping?.template?.fields?.length) return null;
+    const aiConfig = parseJSON<Record<string, any>>(result.template.aiConfig, {});
 
-    // Parse AI config for field-level prompts
-    const aiConfig = parseJSON<Record<string, any>>(mapping.template.aiConfig, {});
-
-    return mapping.template.fields.map((f) => ({
+    return result.fields.map((f) => ({
       key: f.key,
       label: f.label,
       description: f.helpText || f.placeholder || undefined,
@@ -733,24 +772,10 @@ export async function getSearchableFieldMetadata(
   if (!category) return null;
 
   try {
-    const mapping = await db.templateMapping.findFirst({
-      where: { categoryId: category, subcategory: null },
-      include: {
-        template: {
-          include: {
-            fields: {
-              where: { enabled: true, searchable: true },
-              select: { key: true, label: true, type: true, priority: true },
-              orderBy: [{ priority: "desc" }],
-            },
-          },
-        },
-      },
-    }).catch(() => null);
+    const result = await resolveTemplateAndFields(category, { searchable: true });
+    if (!result) return null;
 
-    if (!mapping?.template?.fields?.length) return null;
-
-    return mapping.template.fields.map((f) => ({
+    return result.fields.map((f) => ({
       key: f.key,
       label: f.label,
       type: f.type,
@@ -780,24 +805,10 @@ export async function getSEOFieldMetadata(
   if (!category) return null;
 
   try {
-    const mapping = await db.templateMapping.findFirst({
-      where: { categoryId: category, subcategory: null },
-      include: {
-        template: {
-          include: {
-            fields: {
-              where: { enabled: true, seoIndexed: true },
-              select: { key: true, label: true, type: true, priority: true },
-              orderBy: [{ priority: "desc" }],
-            },
-          },
-        },
-      },
-    }).catch(() => null);
+    const result = await resolveTemplateAndFields(category, { seoIndexed: true });
+    if (!result) return null;
 
-    if (!mapping?.template?.fields?.length) return null;
-
-    return mapping.template.fields.map((f) => ({
+    return result.fields.map((f) => ({
       key: f.key,
       label: f.label,
       type: f.type,
@@ -870,27 +881,10 @@ export async function getFilterFacets(
   if (!category) return null;
 
   try {
-    const mapping = await db.templateMapping.findFirst({
-      where: { categoryId: category, subcategory: null },
-      include: {
-        template: {
-          include: {
-            fields: {
-              where: { enabled: true, filterable: true },
-              select: {
-                key: true, label: true, type: true,
-                staticOptions: true, filterGroupName: true,
-              },
-              orderBy: [{ priority: "desc" }, { sortOrder: "asc" }],
-            },
-          },
-        },
-      },
-    }).catch(() => null);
+    const result = await resolveTemplateAndFields(category, { filterable: true });
+    if (!result) return null;
 
-    if (!mapping?.template?.fields?.length) return null;
-
-    return mapping.template.fields.map((f) => ({
+    return result.fields.map((f) => ({
       key: f.key,
       label: f.label,
       type: f.type,
