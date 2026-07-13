@@ -8,6 +8,7 @@ import {
   Boxes, Clock, CalendarDays, Bell, Tags,
   DollarSign, Package, Info, CheckCircle2,
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,8 @@ import { toast } from "sonner";
 import type { Vendor } from "@/lib/types";
 import { GalleryUpload } from "./image-upload";
 import { AttributeSelector } from "./attribute-selector";
+import { ProductInfoForm } from "./product-info-form";
+import type { ProductInfo } from "@/lib/products/product-info";
 import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
 
 interface ProductWizardProps {
@@ -55,6 +58,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const [published, setPublished] = React.useState(false);
   // Global Attribute System — product attribute IDs
   const [productAttributeIds, setProductAttributeIds] = React.useState<string[]>([]);
+  const [productInfo, setProductInfo] = React.useState<ProductInfo>({});
   const [productSubcategories, setProductSubcategories] = React.useState<{id: string; name: string}[]>([]);
 
   const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
@@ -443,6 +447,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       bookingNoticeHours: form.bookingNoticeHours === "" ? null : Number(form.bookingNoticeHours),
       availabilityStart: form.availabilityStart ? new Date(form.availabilityStart).toISOString() : null,
       availabilityEnd: form.availabilityEnd ? new Date(form.availabilityEnd).toISOString() : null,
+      // Product Information System (stored in extraFields JSON)
+      productInfo: Object.keys(productInfo).length > 0 ? productInfo : undefined,
     };
     localStorage.removeItem(`product-draft-${vendor.id}`);
     setPublishError(null);
@@ -488,6 +494,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       bookingNoticeHours: form.bookingNoticeHours === "" ? null : Number(form.bookingNoticeHours),
       availabilityStart: form.availabilityStart ? new Date(form.availabilityStart).toISOString() : null,
       availabilityEnd: form.availabilityEnd ? new Date(form.availabilityEnd).toISOString() : null,
+      // Product Information System (stored in extraFields JSON)
+      productInfo: Object.keys(productInfo).length > 0 ? productInfo : undefined,
     };
     localStorage.removeItem(`product-draft-${vendor.id}`);
     await onSave(payload);
@@ -1054,6 +1062,23 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                       groups={isFood ? ["dietary", "product_feature", "service"] : ["product_feature", "service"]}
                     />
                   </div>
+
+                  {/* Product Information System — category-aware structured info */}
+                  <div>
+                    <h4 className="mb-1 flex items-center gap-2 text-sm font-bold">
+                      <Info className="size-4 text-amber-600" />
+                      Product Information
+                    </h4>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      Structured details shown on your product page. Improves SEO and customer trust.
+                    </p>
+                    <ProductInfoForm
+                      productInfo={productInfo}
+                      onChange={setProductInfo}
+                      category={vendor.category}
+                    />
+                  </div>
+
                   <div className="grid grid-cols-2 gap-2">
                     <label className="flex items-center gap-2 text-sm">
                       <input type="checkbox" checked={form.deliveryAvailable} onChange={e => set("deliveryAvailable", e.target.checked)} className="size-4 rounded border-border" />

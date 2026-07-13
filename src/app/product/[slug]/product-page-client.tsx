@@ -54,6 +54,7 @@ import {
 import { SmartEnquiryForm } from "@/components/marketplace/smart-enquiry-form";
 import { ProductAvailabilityBanner } from "@/components/inventory/product-availability-banner";
 import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
+import { ProductInfoDisplay } from "@/components/dashboard/product-info-display";
 import type { VendorWithRelations } from "@/lib/types";
 
 interface Props {
@@ -506,6 +507,14 @@ export function ProductPageClient({ slug }: Props) {
                         {product.customisationNotes || "Contact the vendor to customise this product to your needs."}
                       </p>
                     </div>
+                  )}
+
+                  {/* Product Information System — Ingredients, Packaging, Storage, etc. */}
+                  {(product as any).productInfo && Object.keys((product as any).productInfo).length > 0 && (
+                    <ProductInfoDisplay
+                      productInfo={(product as any).productInfo}
+                      category={product.category}
+                    />
                   )}
                 </div>
               )}

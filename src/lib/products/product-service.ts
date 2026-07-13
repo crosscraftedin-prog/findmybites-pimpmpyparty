@@ -5,6 +5,7 @@
  */
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
+import { extractFromExtraFields, mergeIntoExtraFields, type ProductInfo } from "./product-info";
 
 // ── Type normalization helper ──────────────────────────────────────────────
 // HTML form inputs arrive as strings. Prisma Int fields reject strings.
@@ -83,6 +84,8 @@ export interface ProductDetail {
   lowStockThreshold: number;
   orderCount: number;
   lastViewedAt: string | null;
+  // ── Product Information System (stored in extraFields JSON) ──
+  productInfo: import("./product-info").ProductInfo;
 }
 
 function toDetail(p: any): ProductDetail {
@@ -140,6 +143,8 @@ function toDetail(p: any): ProductDetail {
     lowStockThreshold: p.lowStockThreshold ?? 10,
     orderCount: p.orderCount ?? 0,
     lastViewedAt: p.lastViewedAt ? (p.lastViewedAt instanceof Date ? p.lastViewedAt.toISOString() : p.lastViewedAt) : null,
+    // ── Product Information System (stored in extraFields JSON) ──
+    productInfo: extractFromExtraFields((p as any).extraFields),
   };
 }
 
@@ -265,6 +270,8 @@ export async function createProduct(vendorId: string, data: any): Promise<Produc
     serviceAreaType: data.serviceAreaType || null,
     serviceCities: Array.isArray(data.serviceCities) && data.serviceCities.length ? JSON.stringify(data.serviceCities) : null,
     seasonLabel: data.seasonLabel || null,
+    // ── Product Information System (stored in extraFields JSON) ──
+    extraFields: mergeIntoExtraFields(null, data.productInfo),
   }});
   return toDetail(p);
 }
@@ -310,6 +317,10 @@ export async function updateProduct(productId: string, vendorId: string, data: a
   // Normalise date fields
   if (data.availabilityStart !== undefined) updateData.availabilityStart = data.availabilityStart ? new Date(data.availabilityStart) : null;
   if (data.availabilityEnd !== undefined) updateData.availabilityEnd = data.availabilityEnd ? new Date(data.availabilityEnd) : null;
+  // ── Product Information System (stored in extraFields JSON) ──
+  if (data.productInfo !== undefined) {
+    updateData.extraFields = mergeIntoExtraFields(existing.extraFields, data.productInfo);
+  }
   const p = await db.product.update({ where: { id: productId }, data: updateData });
   return toDetail(p);
 }

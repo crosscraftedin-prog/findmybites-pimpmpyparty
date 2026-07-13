@@ -1,4 +1,5 @@
 import type { Ecosystem } from "./types";
+import type { ProductInfo } from "./product-info";
 
 export interface ProductTemplate {
   name: string;
@@ -9,14 +10,92 @@ export interface ProductTemplate {
   duration?: string;
   includes: string[];
   dietaryTags?: string[];
+  /**
+   * Default product information (Ingredients, Packaging, Storage, etc.)
+   * for this template. Only present for bakery templates — other categories
+   * may add their own productInfo defaults in the future.
+   */
+  productInfo?: ProductInfo;
 }
 
 const TEMPLATES: Record<string, ProductTemplate[]> = {
   // ── FINDMYBITES ──
   "bakers-bakery": [
-    { name: "Custom Wedding Cake", packageType: "premium", description: "3-tier custom wedding cake, feeds 80 guests. Your choice of flavours and design.", suggestedPrice: 850, capacity: 80, includes: ["3 tiers", "Custom design", "Tasting session", "Delivery included"] },
-    { name: "Birthday Cake", packageType: "standard", description: "Custom birthday cake design, feeds 20 guests.", suggestedPrice: 120, capacity: 20, includes: ["Custom design", "Choice of flavours", "Candles included"] },
-    { name: "Cupcake Tower", packageType: "standard", description: "50 assorted cupcakes with decorative display.", suggestedPrice: 150, capacity: 50, includes: ["50 cupcakes", "Assorted flavours", "Display stand", "Decorative toppings"] },
+    {
+      name: "Custom Wedding Cake",
+      packageType: "premium",
+      description: "3-tier custom wedding cake, feeds 80 guests. Your choice of flavours and design.",
+      suggestedPrice: 850, capacity: 80,
+      includes: ["3 tiers", "Custom design", "Tasting session", "Delivery included"],
+      productInfo: {
+        ingredients: "Refined Wheat Flour, Butter, Sugar, Eggs, Cocoa Powder, Vanilla Extract, Baking Powder",
+        dietaryBadges: ["Customizable"],
+        packageType: "Cake Box",
+        packageContents: "1 Wedding Cake (3 tiers)",
+        packagingNotes: "Packed securely in a premium food-grade cake box with sturdy base.",
+        shelfLife: "2 Days",
+        storageType: "Refrigerate",
+        storageInstructions: "Store refrigerated. Bring to room temperature for 30 minutes before serving.",
+        servingSuggestion: "Serve at room temperature.",
+        deliveryAvailable: true,
+        sameDayDelivery: false,
+        deliveryRadius: "Within city limits",
+        estimatedDeliveryTime: "2-4 hours",
+        allergens: ["Milk", "Eggs", "Wheat", "Gluten"],
+        facilityWarning: "Manufactured in a facility that also processes Dairy, Eggs, Peanuts and Tree Nuts.",
+        highlights: ["Made to Order", "Premium Ingredients", "Handcrafted", "Customizable", "Chef Recommended"],
+      },
+    },
+    {
+      name: "Birthday Cake",
+      packageType: "standard",
+      description: "Custom birthday cake design, feeds 20 guests.",
+      suggestedPrice: 120, capacity: 20,
+      includes: ["Custom design", "Choice of flavours", "Candles included"],
+      productInfo: {
+        ingredients: "Refined Wheat Flour, Butter, Sugar, Eggs, Cocoa Powder, Vanilla Extract, Baking Powder",
+        dietaryBadges: ["Customizable"],
+        packageType: "Cake Box",
+        packageContents: "1 Birthday Cake",
+        packagingNotes: "Packed in a premium food-grade cake box.",
+        shelfLife: "3 Days",
+        storageType: "Refrigerate",
+        storageInstructions: "Store refrigerated. Bring to room temperature for 30 minutes before serving.",
+        servingSuggestion: "Serve at room temperature.",
+        deliveryAvailable: true,
+        sameDayDelivery: true,
+        deliveryRadius: "Within 15 km",
+        estimatedDeliveryTime: "2-4 hours",
+        allergens: ["Milk", "Eggs", "Wheat", "Gluten"],
+        facilityWarning: "Manufactured in a facility that also processes Dairy, Eggs and Tree Nuts.",
+        highlights: ["Freshly Baked", "Made to Order", "Customizable", "Best Seller"],
+      },
+    },
+    {
+      name: "Cupcake Tower",
+      packageType: "standard",
+      description: "50 assorted cupcakes with decorative display.",
+      suggestedPrice: 150, capacity: 50,
+      includes: ["50 cupcakes", "Assorted flavours", "Display stand", "Decorative toppings"],
+      productInfo: {
+        ingredients: "Refined Wheat Flour, Butter, Sugar, Eggs, Cocoa Powder, Vanilla Extract, Baking Powder, Cream Cheese",
+        dietaryBadges: ["Customizable"],
+        packageType: "Tray",
+        packageContents: "50 Cupcakes",
+        packagingNotes: "Packed in food-grade cupcake trays with protective covers.",
+        shelfLife: "2 Days",
+        storageType: "Room Temperature",
+        storageInstructions: "Store in a cool, dry place. Best consumed within 24 hours.",
+        servingSuggestion: "Serve at room temperature.",
+        deliveryAvailable: true,
+        sameDayDelivery: true,
+        deliveryRadius: "Within 15 km",
+        estimatedDeliveryTime: "1-3 hours",
+        allergens: ["Milk", "Eggs", "Wheat", "Gluten"],
+        facilityWarning: "Manufactured in a facility that also processes Dairy, Eggs and Tree Nuts.",
+        highlights: ["Freshly Baked", "Made to Order", "Customizable", "Best Seller"],
+      },
+    },
   ],
   "caterers": [
     { name: "Wedding Buffet Package", packageType: "standard", description: "Per head buffet catering, minimum 50 guests.", suggestedPrice: 45, capacity: 50, includes: ["3-course buffet", "Serving staff", "Setup and cleanup", "Customizable menu"] },
