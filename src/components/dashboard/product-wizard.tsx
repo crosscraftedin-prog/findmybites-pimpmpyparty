@@ -6,7 +6,7 @@ import {
   Check, ChevronLeft, ChevronRight, Loader2, Sparkles, Upload, X,
   Image as ImageIcon, Eye, Star, AlertCircle, AlertTriangle, Wand2, Plus, PartyPopper, Monitor, Tablet, Smartphone,
   Boxes, Clock, CalendarDays, Bell, Tags,
-  DollarSign, Package, Info, CheckCircle2, Search,
+  DollarSign, Package, Info, CheckCircle2, Search, Truck,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -40,23 +40,25 @@ interface ProductWizardProps {
 // template defines a wizard. Admins can override by editing the template's
 // `wizard` JSON column — no code changes needed.
 
+// V3.1: Wizard reduced from 10 steps to 5 steps.
+//   1. Basic     — name, category, photos, price, description + Publish button
+//   2. Details   — Template Engine fields + attributes + recipe cost
+//   3. Options   — variants + customisation
+//   4. Delivery  — inventory + delivery/pickup
+//   5. Marketing — SEO + featured toggle
+// A `success` stepType is also registered for the post-publish success screen.
 const FALLBACK_STEPS: DynamicStep[] = [
-  { id: 1, title: "Basic Info", icon: Star, stepType: "basic" },
-  { id: 2, title: "Photos", icon: ImageIcon, stepType: "photos" },
-  { id: 3, title: "Pricing", icon: DollarSign, stepType: "pricing" },
-  { id: 4, title: "Variants", icon: Package, stepType: "variants" },
-  { id: 5, title: "Attributes", icon: Tags, stepType: "attributes" },
-  { id: 6, title: "Product Info", icon: Info, stepType: "fields" },
-  { id: 7, title: "Customisation", icon: Star, stepType: "fields", sections: ["customisation"] },
-  { id: 8, title: "SEO", icon: Search, stepType: "seo" },
-  { id: 9, title: "Inventory", icon: Boxes, stepType: "inventory" },
-  { id: 10, title: "Preview", icon: Eye, stepType: "preview" },
+  { id: 1, title: "Basic", icon: Star, stepType: "basic" },
+  { id: 2, title: "Details", icon: Info, stepType: "details" },
+  { id: 3, title: "Options", icon: Package, stepType: "options" },
+  { id: 4, title: "Delivery", icon: Truck, stepType: "delivery" },
+  { id: 5, title: "Marketing", icon: Search, stepType: "marketing" },
 ];
 
 // Icon resolver — maps icon names from the template to lucide components
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Star, ImageIcon, DollarSign, Package, Tags, Info, Search, Boxes, Eye,
-  Clock, CalendarDays, Bell, Sparkles, Upload, Check, AlertCircle,
+  Clock, CalendarDays, Bell, Sparkles, Upload, Check, AlertCircle, Truck,
 };
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -77,6 +79,10 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const [productSubcategories, setProductSubcategories] = React.useState<{id: string; name: string}[]>([]);
   // V3: Dynamic wizard steps from Template Engine
   const [dynamicSteps, setDynamicSteps] = React.useState<DynamicStep[] | null>(null);
+  // V3.1: 5-step wizard UX — post-publish success screen + floating preview
+  const [showSuccess, setShowSuccess] = React.useState(false);
+  const [completenessPercent, setCompletenessPercent] = React.useState(0);
+  const [showPreview, setShowPreview] = React.useState(false);
 
   // Fetch wizard steps from the Template Engine
   React.useEffect(() => {
@@ -86,11 +92,16 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (cancelled || !data?.steps?.length) return;
-        // Map template steps to DynamicStep format
+        // Map template steps to DynamicStep format.
+        // V3.1: pass through `stepType` from the template so the new 5-step
+        // flow (basic/details/options/delivery/marketing) works when a template
+        // is configured. If a template doesn't specify stepType, default to
+        // "basic" so the renderer always finds a match.
         const steps: DynamicStep[] = data.steps.map((s: any) => ({
           id: s.step,
           title: s.title,
           icon: ICON_MAP[s.icon] || Star,
+          stepType: (s.stepType as StepType) || "basic",
           sections: s.sections,
         }));
         setDynamicSteps(steps);
@@ -513,6 +524,10 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         } catch { /* non-fatal — attributes can be saved later */ }
       }
       setPublished(true);
+      // V3.1: Show the success screen with a completeness progress bar.
+      // The user can continue editing (Step 2+) or go to the dashboard.
+      setCompletenessPercent(qualityScore);
+      setShowSuccess(true);
     } catch (e: any) {
       const msg = e?.message || "Failed to publish product. Please try again.";
       setPublishError(msg);
@@ -543,9 +558,10 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   };
 
   const canProceed = React.useMemo(() => {
-    if (step === 1) return !!form.name?.trim() && !!form.category;
-    if (step === 2) return true; // photos optional on this step
-    if (step === 3) return !!form.price || form.priceOnRequest;
+    // V3.1: Step 1 now collects name + category + photos + price + description.
+    // The product is published from Step 1, so all required fields must be set
+    // before the user can proceed to Step 2.
+    if (step === 1) return !!form.name?.trim() && !!form.category && (!!form.price || form.priceOnRequest) && (form.images?.length > 0);
     return true;
   }, [step, form]);
 
@@ -595,10 +611,18 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     onPublish: handlePublish,
     onClose,
     router: { push: () => {} },
+    // V3.1: 5-step wizard UX props — used by the new composed renderers.
+    onQuickPublish: handlePublish,
+    onContinueEditing: () => { setShowSuccess(false); setStep(2); },
+    completenessPercent,
+    showPreview,
+    setShowPreview,
   };
 
-  const STEP_RENDERERS: Record<StepType, StepRenderer> = {
-    basic: () => (
+  // ── V3.1: Internal render helpers (composed by the new step renderers) ──
+  // Old "basic" renderer content (Product Name, Category, Subcategory, Short
+  // Description, AI Writer). Composed into the new `basic` step (Step 1).
+  const renderBasicFields: StepRenderer = () => (
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold">Basic Information</h3>
                   <div>
@@ -660,84 +684,14 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     </Button>
                   </div>
                 </div>
-    ),
-    photos: () => (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-bold">Photos & Video</h3>
-                  <div>
-                    <Label>Product Images</Label>
-                    <p className="mb-2 text-xs text-muted-foreground">
-                      Drag & drop or click to upload. First image is the cover.
-                    </p>
-                    <GalleryUpload
-                      images={form.images || []}
-                      onChange={(urls) => { set("images", urls); autoSave(); }}
-                      maxImages={10}
-                      vendorId={vendor.id}
-                      folder="products"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="p-video">Product Video URL (optional)</Label>
-                    <Input id="p-video" value={form.videoUrl} onChange={e => set("videoUrl", e.target.value)}
-                      placeholder="YouTube or Instagram Reel URL" className="mt-1" />
-                  </div>
-                </div>
-    ),
-    pricing: () => (
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="flex items-center gap-2 text-lg font-bold">
-                      <DollarSign className="size-5 text-amber-600" />
-                      Default Price
-                    </h3>
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                      This price will be used when your product has no variants.
-                    </p>
-                  </div>
+  );
 
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="p-price">Regular Price ({symbol})</Label>
-                        <Input id="p-price" type="number" value={form.price} onChange={e => set("price", e.target.value)}
-                          placeholder="0" className="mt-1" disabled={form.priceOnRequest} />
-                      </div>
-                      <div>
-                        <Label htmlFor="p-offer">Offer Price ({symbol})</Label>
-                        <Input id="p-offer" type="number" value={form.offerPrice} onChange={e => set("offerPrice", e.target.value)}
-                          placeholder="0" className="mt-1" disabled={form.priceOnRequest || form.hidePrice} />
-                      </div>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      <label className="flex items-center gap-2 text-sm">
-                        <input type="checkbox" checked={form.startingFromPrice} onChange={e => set("startingFromPrice", e.target.checked)}
-                          className="size-4 rounded border-border" />
-                        Show "Starting from" prefix
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input type="checkbox" checked={form.priceOnRequest} onChange={e => { set("priceOnRequest", e.target.checked); if (e.target.checked) set("hidePrice", false); }}
-                          className="size-4 rounded border-border" />
-                        Price on request (hide price, show "Contact for price")
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input type="checkbox" checked={form.hidePrice} onChange={e => { set("hidePrice", e.target.checked); if (e.target.checked) set("priceOnRequest", false); }}
-                          className="size-4 rounded border-border" />
-                        Hide price completely
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Info box */}
-                  <div className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900 dark:bg-blue-950/20">
-                    <Info className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400" />
-                    <p className="text-xs text-blue-800 dark:text-blue-300">
-                      If you later add variants such as different sizes, flavours or packages, each variant can have its own price.
-                    </p>
-                  </div>
-                </div>
-    ),
-    variants: () => (
+  // Variant cards only — extracted from the old `variants` renderer.
+  // Used by both `variants` (backward-compat stepType) and the new `options` step (Step 3).
+  // The inventory/scheduling/featured cards that used to live in `variants` are
+  // NOT included here — they are rendered by the new `delivery` and `marketing`
+  // composed renderers to avoid duplication in the 5-step flow.
+  const renderVariantCards: StepRenderer = () => (
                 <div className="space-y-4">
                   <div>
                     <h3 className="flex items-center gap-2 text-lg font-bold">
@@ -911,68 +865,191 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                   }} className="gap-1.5">
                     <Plus className="size-3.5" /> Add Variant
                   </Button>
+                </div>
+  );
 
-                  {/* Inventory card */}
-                  <div className="rounded-xl border border-border p-4">
-                    <div className="mb-3 flex items-center gap-2">
-                      <Boxes className="size-4 text-amber-600" />
-                      <Label className="text-sm font-semibold">Inventory</Label>
-                    </div>
-                    <div className="flex gap-2 mb-2">
-                      {["unlimited", "limited", "out_of_stock"].map(s => (
-                        <button key={s} onClick={() => set("stockType", s)}
-                          className={cn("rounded-lg border px-3 py-1.5 text-xs font-medium",
-                            form.stockType === s ? "border-brand bg-brand/10 text-brand" : "border-border text-muted-foreground")}>
-                          {s === "unlimited" ? "Unlimited" : s === "limited" ? "Limited" : "Out of Stock"}
-                        </button>
-                      ))}
-                    </div>
-                    {form.stockType === "limited" && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label htmlFor="p-stock" className="text-xs">Quantity Available</Label>
-                          <Input id="p-stock" type="number" value={form.stockCount} onChange={e => set("stockCount", e.target.value)}
-                            placeholder="50" className="mt-1 h-9" />
-                        </div>
-                        <div>
-                          <Label htmlFor="p-low" className="text-xs">Low Stock Alert At</Label>
-                          <Input id="p-low" type="number" value={form.lowStockThreshold} onChange={e => set("lowStockThreshold", e.target.value)}
-                            placeholder="5" className="mt-1 h-9" />
-                        </div>
-                      </div>
-                    )}
+  const STEP_RENDERERS: Record<StepType, StepRenderer> = {
+    // V3.1: Composed `basic` step (Step 1) — merges basic fields + photos +
+    // pricing + description, then a Publish Product button that creates the
+    // product immediately. The user can continue editing after publish.
+    basic: (props) => (
+      <>
+        {renderBasicFields(props)}
+        {STEP_RENDERERS.photos(props)}
+        {STEP_RENDERERS.pricing(props)}
+        {/* Description (renamed from "Full Description") — pulled in from the old attributes renderer */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-bold">Description</h3>
+          <div>
+            <Label htmlFor="p-desc">Description *</Label>
+            <Textarea id="p-desc" value={form.description} onChange={e => set("description", e.target.value)}
+              placeholder="Describe your product in detail…" className="mt-1 min-h-[100px]" />
+          </div>
+        </div>
+        {/* Publish error (if any) — shown inline so the user can retry */}
+        {props.publishError && (
+          <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+            <AlertCircle className="mb-1 inline size-4" /> {props.publishError}
+          </div>
+        )}
+        {/* Publish button — creates the product immediately (no footer publish) */}
+        <div className="border-t border-border pt-4">
+          <Button onClick={props.onQuickPublish} disabled={props.saving || props.published}
+            className="w-full gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
+            {props.saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            Publish Product
+          </Button>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            Publish now to make your product live, then complete the remaining details.
+          </p>
+        </div>
+      </>
+    ),
+    photos: () => (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold">Photos & Video</h3>
+                  <div>
+                    <Label>Product Images</Label>
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      Drag & drop or click to upload. First image is the cover.
+                    </p>
+                    <GalleryUpload
+                      images={form.images || []}
+                      onChange={(urls) => { set("images", urls); autoSave(); }}
+                      maxImages={10}
+                      vendorId={vendor.id}
+                      folder="products"
+                    />
                   </div>
-
-                  {/* Scheduling card */}
-                  <div className="rounded-xl border border-border p-4">
-                    <div className="mb-3 flex items-center gap-2">
-                      <CalendarDays className="size-4 text-amber-600" />
-                      <Label className="text-sm font-semibold">Scheduling (optional)</Label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="p-pub" className="text-xs">Schedule Publish Date</Label>
-                        <Input id="p-pub" type="datetime-local" value={form.scheduledPublishAt} onChange={e => set("scheduledPublishAt", e.target.value)}
-                          className="mt-1 h-9 text-sm" />
-                      </div>
-                      <div>
-                        <Label htmlFor="p-exp" className="text-xs">Schedule Expiry Date</Label>
-                        <Input id="p-exp" type="datetime-local" value={form.scheduledExpiryAt} onChange={e => set("scheduledExpiryAt", e.target.value)}
-                          className="mt-1 h-9 text-sm" />
-                      </div>
-                    </div>
-                    <p className="mt-2 text-[10px] text-muted-foreground">Leave empty to publish immediately. Expiry auto-hides the product.</p>
-                  </div>
-
-                  {/* Featured card */}
-                  <div className="flex items-center gap-2 rounded-xl border border-border p-4">
-                    <input type="checkbox" id="p-featured" checked={form.featured} onChange={e => set("featured", e.target.checked)}
-                      className="size-4 rounded border-border" />
-                    <Label htmlFor="p-featured" className="text-sm cursor-pointer">
-                      Feature this product <span className="text-xs text-muted-foreground">(appears first on your profile — Free plan: max 2)</span>
-                    </Label>
+                  <div>
+                    <Label htmlFor="p-video">Product Video URL (optional)</Label>
+                    <Input id="p-video" value={form.videoUrl} onChange={e => set("videoUrl", e.target.value)}
+                      placeholder="YouTube or Instagram Reel URL" className="mt-1" />
                   </div>
                 </div>
+    ),
+    pricing: () => (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="flex items-center gap-2 text-lg font-bold">
+                      <DollarSign className="size-5 text-amber-600" />
+                      Default Price
+                    </h3>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      This price will be used when your product has no variants.
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="p-price">Regular Price ({symbol})</Label>
+                        <Input id="p-price" type="number" value={form.price} onChange={e => set("price", e.target.value)}
+                          placeholder="0" className="mt-1" disabled={form.priceOnRequest} />
+                      </div>
+                      <div>
+                        <Label htmlFor="p-offer">Offer Price ({symbol})</Label>
+                        <Input id="p-offer" type="number" value={form.offerPrice} onChange={e => set("offerPrice", e.target.value)}
+                          placeholder="0" className="mt-1" disabled={form.priceOnRequest || form.hidePrice} />
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={form.startingFromPrice} onChange={e => set("startingFromPrice", e.target.checked)}
+                          className="size-4 rounded border-border" />
+                        Show "Starting from" prefix
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={form.priceOnRequest} onChange={e => { set("priceOnRequest", e.target.checked); if (e.target.checked) set("hidePrice", false); }}
+                          className="size-4 rounded border-border" />
+                        Price on request (hide price, show "Contact for price")
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={form.hidePrice} onChange={e => { set("hidePrice", e.target.checked); if (e.target.checked) set("priceOnRequest", false); }}
+                          className="size-4 rounded border-border" />
+                        Hide price completely
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Info box */}
+                  <div className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900 dark:bg-blue-950/20">
+                    <Info className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                    <p className="text-xs text-blue-800 dark:text-blue-300">
+                      If you later add variants such as different sizes, flavours or packages, each variant can have its own price.
+                    </p>
+                  </div>
+                </div>
+    ),
+    // V3.1: `variants` stepType kept for backward compat with old templates.
+    // The new 5-step flow uses `options` (which composes renderVariantCards +
+    // customisation). This entry keeps the original inventory/scheduling/featured
+    // cards so old templates that reference `variants` still work.
+    variants: (props) => (
+      <>
+        {renderVariantCards(props)}
+
+        {/* Inventory card */}
+        <div className="rounded-xl border border-border p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Boxes className="size-4 text-amber-600" />
+            <Label className="text-sm font-semibold">Inventory</Label>
+          </div>
+          <div className="flex gap-2 mb-2">
+            {["unlimited", "limited", "out_of_stock"].map(s => (
+              <button key={s} onClick={() => set("stockType", s)}
+                className={cn("rounded-lg border px-3 py-1.5 text-xs font-medium",
+                  form.stockType === s ? "border-brand bg-brand/10 text-brand" : "border-border text-muted-foreground")}>
+                {s === "unlimited" ? "Unlimited" : s === "limited" ? "Limited" : "Out of Stock"}
+              </button>
+            ))}
+          </div>
+          {form.stockType === "limited" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="p-stock" className="text-xs">Quantity Available</Label>
+                <Input id="p-stock" type="number" value={form.stockCount} onChange={e => set("stockCount", e.target.value)}
+                  placeholder="50" className="mt-1 h-9" />
+              </div>
+              <div>
+                <Label htmlFor="p-low" className="text-xs">Low Stock Alert At</Label>
+                <Input id="p-low" type="number" value={form.lowStockThreshold} onChange={e => set("lowStockThreshold", e.target.value)}
+                  placeholder="5" className="mt-1 h-9" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Scheduling card */}
+        <div className="rounded-xl border border-border p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <CalendarDays className="size-4 text-amber-600" />
+            <Label className="text-sm font-semibold">Scheduling (optional)</Label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="p-pub" className="text-xs">Schedule Publish Date</Label>
+              <Input id="p-pub" type="datetime-local" value={form.scheduledPublishAt} onChange={e => set("scheduledPublishAt", e.target.value)}
+                className="mt-1 h-9 text-sm" />
+            </div>
+            <div>
+              <Label htmlFor="p-exp" className="text-xs">Schedule Expiry Date</Label>
+              <Input id="p-exp" type="datetime-local" value={form.scheduledExpiryAt} onChange={e => set("scheduledExpiryAt", e.target.value)}
+                className="mt-1 h-9 text-sm" />
+            </div>
+          </div>
+          <p className="mt-2 text-[10px] text-muted-foreground">Leave empty to publish immediately. Expiry auto-hides the product.</p>
+        </div>
+
+        {/* Featured card */}
+        <div className="flex items-center gap-2 rounded-xl border border-border p-4">
+          <input type="checkbox" id="p-featured" checked={form.featured} onChange={e => set("featured", e.target.checked)}
+            className="size-4 rounded border-border" />
+          <Label htmlFor="p-featured" className="text-sm cursor-pointer">
+            Feature this product <span className="text-xs text-muted-foreground">(appears first on your profile — Free plan: max 2)</span>
+          </Label>
+        </div>
+      </>
     ),
     attributes: () => (
                 <div className="space-y-4">
@@ -1519,6 +1596,114 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                   )}
                 </div>
     ),
+    // ── V3.1: New composed step types (5-step wizard) ────────────────────────
+    // Step 2 — Details: ALL Template Engine fields (ProductInfoForm with no
+    // sectionFilter) + Recipe Cost Calculator (both rendered by the `fields`
+    // renderer with stepSections=undefined) + Product Attributes (AttributeSelector).
+    details: (props) => (
+      <>
+        {STEP_RENDERERS.fields({ ...props, stepSections: undefined })}
+        {/* Product Attributes — pulled in from the old `attributes` renderer.
+            Delivery/pickup checkboxes are NOT included here (they live in Step 4). */}
+        <div className="rounded-lg border border-border bg-muted/30 p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <Tags className="size-4 text-brand" />
+            <Label className="text-sm font-semibold">Product Attributes</Label>
+          </div>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Select dietary, service &amp; feature badges. These appear on the product
+            card and power attribute filtering.
+          </p>
+          <AttributeSelector
+            selectedIds={productAttributeIds}
+            onChange={setProductAttributeIds}
+            ecosystem={vendor.ecosystem}
+            groups={isFood ? ["dietary", "product_feature", "service"] : ["product_feature", "service"]}
+          />
+        </div>
+      </>
+    ),
+    // Step 3 — Options: variant cards (renderVariantCards) + Customisation
+    // (the `fields` renderer with sectionFilter=["customisation"]).
+    options: (props) => (
+      <>
+        {renderVariantCards(props)}
+        {STEP_RENDERERS.fields({ ...props, stepSections: ["customisation"] })}
+      </>
+    ),
+    // Step 4 — Delivery: full inventory (stock, availability, prep time, max
+    // orders, service area — from the `inventory` renderer) + delivery/pickup
+    // checkboxes (from the old `attributes` renderer). Delivery/pickup appear
+    // ONLY here in the 5-step flow — not in Step 2.
+    delivery: (props) => (
+      <>
+        {STEP_RENDERERS.inventory(props)}
+        {/* Delivery/Pickup — from the old `attributes` renderer */}
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.deliveryAvailable} onChange={e => set("deliveryAvailable", e.target.checked)} className="size-4 rounded border-border" />
+            Delivery Available
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.pickupAvailable} onChange={e => set("pickupAvailable", e.target.checked)} className="size-4 rounded border-border" />
+            Pickup Available
+          </label>
+        </div>
+      </>
+    ),
+    // Step 5 — Marketing: SEO fields (from the `seo` renderer) + featured
+    // toggle (from the old `variants` renderer).
+    marketing: (props) => (
+      <>
+        {STEP_RENDERERS.seo(props)}
+        {/* Featured card — from the old `variants` renderer */}
+        <div className="flex items-center gap-2 rounded-xl border border-border p-4">
+          <input type="checkbox" id="p-featured" checked={form.featured} onChange={e => set("featured", e.target.checked)}
+            className="size-4 rounded border-border" />
+          <Label htmlFor="p-featured" className="text-sm cursor-pointer">
+            Feature this product <span className="text-xs text-muted-foreground">(appears first on your profile — Free plan: max 2)</span>
+          </Label>
+        </div>
+      </>
+    ),
+    // Post-publish success screen — shown after the user clicks "Publish Product"
+    // on Step 1. Displays a completeness progress bar and a "Continue Editing"
+    // button that dismisses the success screen and advances to Step 2.
+    success: (props) => (
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="py-12 text-center">
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring" }}
+          className="mx-auto mb-4 grid size-16 place-items-center rounded-full bg-emerald-500">
+          <PartyPopper className="size-8 text-white" />
+        </motion.div>
+        <h3 className="text-xl font-bold text-emerald-700">🎉 Product Published Successfully</h3>
+        <p className="mt-2 text-sm text-muted-foreground">Complete your listing to improve ranking.</p>
+        {/* Completeness progress bar */}
+        <div className="mx-auto mt-6 max-w-sm">
+          <div className="mb-1 flex items-center justify-between text-xs">
+            <span className="font-medium">Listing Completeness</span>
+            <span className="font-bold">{props.completenessPercent ?? 0}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-emerald-500 transition-all"
+              style={{ width: `${props.completenessPercent ?? 0}%` }} />
+          </div>
+        </div>
+        {/* Continue Editing + secondary actions */}
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Button onClick={props.onContinueEditing} className="gap-1.5 bg-brand text-brand-foreground hover:bg-brand/90">
+            Continue Editing <ChevronRight className="size-4" />
+          </Button>
+          {props.savedProductSlug && (
+            <Button onClick={() => window.open(`/product/${props.savedProductSlug}`, "_blank")} variant="outline" className="gap-1.5">
+              <Eye className="size-4" /> View Live Product
+            </Button>
+          )}
+          <Button onClick={props.onClose} variant="outline" className="gap-1.5">
+            Go to Dashboard
+          </Button>
+        </div>
+      </motion.div>
+    ),
   };
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
@@ -1612,54 +1797,132 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         <div className="mx-auto max-w-2xl">
           <AnimatePresence mode="wait">
             <motion.div
-              key={step}
+              key={showSuccess ? "success" : step}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
-              <DynamicWizardRenderer
-                steps={STEPS}
-                currentStep={step}
-                renderers={STEP_RENDERERS}
-                sharedProps={sharedProps}
-              />
+              {showSuccess ? (
+                // V3.1: Post-publish success screen — rendered via the
+                // registered `success` stepType renderer (not via
+                // DynamicWizardRenderer, since `success` is not in STEPS).
+                STEP_RENDERERS.success(sharedProps)
+              ) : (
+                <DynamicWizardRenderer
+                  steps={STEPS}
+                  currentStep={step}
+                  renderers={STEP_RENDERERS}
+                  sharedProps={sharedProps}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
 
-      {/* Footer — permanently visible (shrink-0) + safe-area */}
-      <div className="shrink-0 border-t border-border bg-card px-4 py-3 [padding-bottom:calc(env(safe-area-inset-bottom)+0.75rem)]">
-        {/* Swipe hint (mobile only) */}
-        <p className="mb-1.5 text-center text-[10px] text-muted-foreground sm:hidden">
-          ← Swipe to navigate steps →
-        </p>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex shrink-0 gap-2">
-            {step > 1 && (
-              <Button variant="outline" onClick={() => setStep(step - 1)} className="gap-1" size="sm">
-                <ChevronLeft className="size-4" /> Back
-              </Button>
-            )}
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <Button variant="ghost" onClick={handleSaveDraft} disabled={saving} size="sm" className="hidden sm:inline-flex">
-              Save Draft
-            </Button>
-            {step < 8 ? (
-              <Button onClick={() => setStep(step + 1)} disabled={!canProceed} className="gap-1 bg-brand text-brand-foreground hover:bg-brand/90" size="sm">
-                Next <ChevronRight className="size-4" />
-              </Button>
-            ) : (
-              <Button onClick={handlePublish} disabled={saving || !validation.allPassed || published} className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700" size="sm">
-                {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-                Publish
-              </Button>
-            )}
+      {/* V3.1: Floating Preview button — opens a live preview modal */}
+      {!showSuccess && (
+        <button
+          onClick={() => setShowPreview(true)}
+          className="fixed bottom-20 right-4 z-40 flex items-center gap-1.5 rounded-full bg-brand text-brand-foreground px-4 py-2 shadow-lg hover:bg-brand/90"
+          aria-label="Preview product"
+        >
+          <Eye className="size-4" /> Preview
+        </button>
+      )}
+
+      {/* V3.1: Preview modal — reuses ProductDetailView (same as the old preview step) */}
+      {showPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowPreview(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-background p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-bold">Preview</h3>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="grid size-8 place-items-center rounded-full hover:bg-muted"
+                aria-label="Close preview"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <ProductDetailView
+              mode="preview"
+              product={{
+                id: "preview",
+                name: form.name || "Untitled Product",
+                description: form.description || null,
+                shortDescription: form.shortDescription || null,
+                price: Number(form.price) || 0,
+                offerPrice: form.offerPrice ? Number(form.offerPrice) : null,
+                currency: form.currency || "INR",
+                currencySymbol: symbol,
+                image: form.images?.[0] || null,
+                images: form.images || [],
+                isFeatured: form.featured || false,
+                isAvailable: form.isAvailable ?? true,
+                variants: form.variants || [],
+                deliveryAvailable: form.deliveryAvailable || false,
+                pickupAvailable: form.pickupAvailable || false,
+                vegetarian: form.vegetarian || false,
+                vegan: form.vegan || false,
+                eggless: form.eggless || false,
+                category: form.category || null,
+              } as ProductViewData}
+              vendor={{
+                id: vendor.id,
+                name: vendor.name,
+                slug: vendor.slug,
+                city: vendor.city || "",
+                avatarImage: vendor.avatarImage || null,
+                verified: vendor.verified,
+                rating: vendor.rating,
+                reviewCount: vendor.reviewCount,
+                whatsapp: vendor.whatsapp || null,
+              }}
+              selectedVariant={0}
+              onVariantSelect={() => { /* preview only */ }}
+            />
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Footer — permanently visible (shrink-0) + safe-area.
+          V3.1: No Publish button in the footer — publish happens on Step 1.
+          Back/Next are hidden while the success screen is showing. */}
+      {!showSuccess && (
+        <div className="shrink-0 border-t border-border bg-card px-4 py-3 [padding-bottom:calc(env(safe-area-inset-bottom)+0.75rem)]">
+          {/* Swipe hint (mobile only) */}
+          <p className="mb-1.5 text-center text-[10px] text-muted-foreground sm:hidden">
+            ← Swipe to navigate steps →
+          </p>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex shrink-0 gap-2">
+              {step > 1 && (
+                <Button variant="outline" onClick={() => setStep(step - 1)} className="gap-1" size="sm">
+                  <ChevronLeft className="size-4" /> Back
+                </Button>
+              )}
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button variant="ghost" onClick={handleSaveDraft} disabled={saving} size="sm" className="hidden sm:inline-flex">
+                Save Draft
+              </Button>
+              {step < STEPS.length && (
+                <Button onClick={() => setStep(step + 1)} disabled={!canProceed} className="gap-1 bg-brand text-brand-foreground hover:bg-brand/90" size="sm">
+                  Next <ChevronRight className="size-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
