@@ -5,10 +5,12 @@ import { callZAIChat } from "@/lib/zai-server";
  * POST /api/vendor/ai/generate-ingredients
  *
  * Generates ingredient suggestions (or other rich-text fields) from the
- * product name + description using ZAI (GLM).
+ * product context using ZAI (GLM).
  *
- * Body: { productName, productDescription?, field }
+ * Body: { productName, productDescription?, field, category?, template?, productType? }
  * Returns: { ingredients: string }
+ *
+ * The frontend handles replace-vs-append logic (this endpoint only generates).
  */
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,10 +19,13 @@ export const maxDuration = 30;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { productName, productDescription, field } = body as {
+    const { productName, productDescription, field, category, template, productType } = body as {
       productName?: string;
       productDescription?: string;
       field?: string;
+      category?: string;
+      template?: string;
+      productType?: string;
     };
 
     if (!productName?.trim()) {
@@ -33,10 +38,17 @@ export async function POST(req: NextRequest) {
       targetField === "storageInstructions" ? "storage instructions" :
       targetField;
 
-    const prompt = `You are a professional bakery consultant. Based on the following product, suggest the ${label}.
+    const contextParts = [
+      `Product Name: ${productName.trim()}`,
+      productDescription?.trim() ? `Description: ${productDescription.trim()}` : "",
+      category ? `Category: ${category}` : "",
+      template ? `Template: ${template}` : "",
+      productType ? `Product Type: ${productType}` : "",
+    ].filter(Boolean).join("\n");
 
-Product Name: ${productName.trim()}
-${productDescription?.trim() ? `Description: ${productDescription.trim()}` : ""}
+    const prompt = `You are a professional food consultant. Based on the following product, suggest the ${label}.
+
+${contextParts}
 
 Generate a realistic ${label} list for this product. Use common, recognizable ingredient names.
 ${targetField === "ingredients" ? "Format: comma-separated list of ingredients (e.g. Refined Wheat Flour, Butter, Sugar, Eggs, Cocoa Powder, Vanilla Extract, Baking Powder). Do not include quantities. Do not include any preamble or explanation." : ""}
@@ -45,7 +57,7 @@ ${targetField === "storageInstructions" ? "Format: 1-3 short sentences with stor
 Respond with ONLY the ${label}, nothing else.`;
 
     const messages = [
-      { role: "system", content: "You are a helpful bakery assistant. Respond concisely and accurately." },
+      { role: "system", content: "You are a helpful food consultant. Respond concisely and accurately." },
       { role: "user", content: prompt },
     ];
 

@@ -515,7 +515,6 @@ export function ProductPageClient({ slug }: Props) {
                     <>
                       <ProductInfoDisplay
                         productInfo={(product as any).productInfo}
-                        category={product.category}
                       />
                       {/* Auto-generated FAQs from Product Information for SEO */}
                       <ProductFAQSection

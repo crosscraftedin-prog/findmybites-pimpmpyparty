@@ -64,45 +64,93 @@ function renderProduct(p: JoshProduct): string {
   if (p.featured) parts.push("featured: yes");
   if (p.description) parts.push(`desc: "${p.description.slice(0, 100)}"`);
 
-  // ── Product Information System ──
-  // Give the LLM access to structured product details so it can answer
-  // questions like "Does this contain eggs?" or "How should I store it?"
+  // ── Product Information System V2 ──
+  // Give Josh AI access to ALL structured product details so it can answer
+  // questions like "Does this contain eggs?", "Can I freeze this?",
+  // "Do you deliver today?", "Can I customise the flavour?", etc.
   if (p.productInfo) {
     const info = p.productInfo;
+
+    // Ingredients
     if (info.ingredients) parts.push(`ingredients: ${info.ingredients.slice(0, 200)}`);
     if (info.dietaryBadges?.length) parts.push(`dietary: ${info.dietaryBadges.join(", ")}`);
+
+    // Allergens
     if (info.allergens?.length) parts.push(`allergens: ${info.allergens.join(", ")}`);
-    if (info.customAllergens) parts.push(`custom allergens: ${info.customAllergens}`);
-    if (info.shelfLife) parts.push(`shelf life: ${info.shelfLife}`);
-    if (info.storageType) parts.push(`storage: ${info.storageType}`);
-    if (info.storageInstructions) parts.push(`storage instructions: ${info.storageInstructions.slice(0, 150)}`);
-    if (info.careInstructions?.length) parts.push(`care: ${info.careInstructions.join(", ")}`);
-    if (info.packageType) parts.push(`packaging: ${info.packageType}`);
-    if (info.giftWrapping) parts.push("gift wrapping: yes");
-    if (info.ecoFriendly) parts.push("eco friendly: yes");
-    if (info.highlights?.length) parts.push(`highlights: ${info.highlights.join(", ")}`);
+    if (info.customAllergens) parts.push(`other allergens: ${info.customAllergens}`);
+    if (info.facilityWarning) parts.push(`facility warning: ${info.facilityWarning.slice(0, 100)}`);
+
+    // Nutrition
     if (info.nutritionEnabled) {
       const nutrition = [];
       if (info.calories) nutrition.push(`${info.calories} cal`);
       if (info.protein) nutrition.push(`${info.protein} protein`);
       if (info.fat) nutrition.push(`${info.fat} fat`);
       if (info.carbohydrates) nutrition.push(`${info.carbohydrates} carbs`);
+      if (info.sugar) nutrition.push(`${info.sugar} sugar`);
+      if (info.servingSize) nutrition.push(`per ${info.servingSize}`);
       if (nutrition.length) parts.push(`nutrition: ${nutrition.join(", ")}`);
     }
+
+    // Packaging
+    if (info.packageType) parts.push(`packaging: ${info.packageType}`);
+    if (info.giftWrapping) parts.push("gift wrapping: yes");
+    if (info.ecoFriendly) parts.push("eco friendly: yes");
+    if (info.packagingNotes) parts.push(`packaging notes: ${info.packagingNotes.slice(0, 100)}`);
+
+    // Storage
+    if (info.storageType?.length) parts.push(`storage type: ${info.storageType.join(", ")}`);
+    if (info.storageInstructions) parts.push(`storage instructions: ${info.storageInstructions.slice(0, 150)}`);
+
+    // Shelf Life (with custom support)
+    if (info.shelfLife) {
+      const shelfLifeText = info.shelfLife === "Custom" && info.customShelfLifeValue
+        ? `${info.customShelfLifeValue} ${info.customShelfLifeUnit || "Days"}`
+        : info.shelfLife;
+      parts.push(`shelf life: ${shelfLifeText}`);
+    }
+
+    // Serving & Care
+    if (info.servingCare?.length) parts.push(`serving & care: ${info.servingCare.join(", ")}`);
+    if (info.servingCareCustom) parts.push(`care notes: ${info.servingCareCustom}`);
+    // Legacy care instructions
+    if (info.careInstructions?.length) parts.push(`care: ${info.careInstructions.join(", ")}`);
+
+    // Highlights (built-in + custom)
+    const allHighlights = [
+      ...(info.highlights ?? []),
+      ...(Array.isArray(info.customHighlights) ? info.customHighlights : []),
+    ];
+    if (allHighlights.length > 0) parts.push(`highlights: ${allHighlights.join(", ")}`);
+
     // Logistics
     if (info.deliveryAvailable) parts.push("delivery: yes");
     if (info.pickupAvailable) parts.push("pickup: yes");
     if (info.sameDayDelivery) parts.push("same day delivery: yes");
+    if (info.nextDayDelivery) parts.push("next day delivery: yes");
+    if (info.expressDelivery) parts.push("express delivery: yes");
     if (info.deliveryRadius) parts.push(`delivery radius: ${info.deliveryRadius}`);
     if (info.deliveryCharges) parts.push(`delivery charges: ${info.deliveryCharges}`);
     if (info.minimumOrder) parts.push(`minimum order: ${info.minimumOrder}`);
+    if (info.deliverySlots?.length) parts.push(`delivery slots: ${info.deliverySlots.join(", ")}`);
+    if (info.deliveryNotes) parts.push(`delivery notes: ${info.deliveryNotes.slice(0, 100)}`);
+
     // Customisation
     if (info.customisation?.length) parts.push(`customisation: ${info.customisation.join(", ")}`);
-    // Occasion tags
+    if (info.customisationNotes) parts.push(`customisation notes: ${info.customisationNotes.slice(0, 100)}`);
+
+    // Occasion Tags
     if (info.occasionTags?.length) parts.push(`occasions: ${info.occasionTags.join(", ")}`);
+
+    // Stored FAQs
+    if (info.faqs?.length) {
+      const faqText = info.faqs.map((f) => `Q: ${f.question} A: ${f.answer}`).join(" | ");
+      parts.push(`FAQs: ${faqText.slice(0, 300)}`);
+    }
+
     // Category-specific fields
     if (info.flowerTypes) parts.push(`flowers: ${info.flowerTypes.slice(0, 100)}`);
-    if (info.careInstructionsFlorist) parts.push(`care: ${info.careInstructionsFlorist.slice(0, 100)}`);
+    if (info.careInstructionsFlorist) parts.push(`flower care: ${info.careInstructionsFlorist.slice(0, 100)}`);
     if (info.menuItems) parts.push(`menu: ${info.menuItems.slice(0, 150)}`);
     if (info.setupTime) parts.push(`setup time: ${info.setupTime}`);
     if (info.performanceDuration) parts.push(`performance: ${info.performanceDuration}`);

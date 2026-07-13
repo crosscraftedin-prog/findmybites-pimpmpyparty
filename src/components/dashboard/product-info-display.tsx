@@ -4,52 +4,59 @@ import * as React from "react";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  getLegacySectionsForCategory,
+  getSectionsForTemplate,
   getAllergenWarningText,
+  getAllHighlights,
+  getShelfLifeText,
   type ProductInfo,
   type InfoSection,
   type InfoField,
 } from "@/lib/products/product-info";
 
 /**
- * ProductInfoDisplay — renders structured product information on the public
- * product page as SEPARATE COLLAPSIBLE CARDS (not one long section).
+ * ProductInfoDisplay V2 — renders structured product information on the public
+ * product page as SEPARATE COLLAPSIBLE CARDS.
  *
- * Each section (Ingredients, Packaging, Storage, Allergens, Nutrition, etc.)
- * is its own card with an H2 heading for SEO. Cards collapse on mobile and
- * expand on desktop.
- *
- * Template-driven: sections come from the `infoSections` prop (from the
- * active template) or fall back to the legacy category lookup.
+ * - Lazy-loads sections (only renders sections with data).
+ * - Semantic HTML: H2 headings, H3 subheadings, lists, structured paragraphs.
+ * - Mobile: accordion (collapsible cards).
+ * - Desktop: expanded cards.
+ * - Filters out vendor-only sections (Recipe Cost Calculator never shown publicly).
+ * - Template-driven: sections come from `infoSections` prop.
  */
 export function ProductInfoDisplay({
   productInfo,
   infoSections,
-  category,
 }: {
   productInfo: ProductInfo;
-  /** Template-driven sections. If omitted, falls back to category. */
   infoSections?: InfoSection[];
-  category?: string | null;
 }) {
-  const sections = React.useMemo(() => {
-    if (infoSections && infoSections.length > 0) return infoSections;
-    return getLegacySectionsForCategory(category);
-  }, [infoSections, category]);
+  const sections = React.useMemo(
+    () => getSectionsForTemplate({ infoSections }),
+    [infoSections]
+  );
 
-  // Filter to only sections that have data, respecting showWhen
+  // Filter to only sections that have data, respecting showWhen + vendorOnly
   const visibleSections = sections.filter((section) => {
-    // Check showWhen condition
+    // Never show vendor-only sections publicly
+    const isVendorOnly = section.fields.every((f) => f.vendorOnly);
+    if (isVendorOnly) return false;
+
+    // Check showWhen
     if (section.showWhen) {
       const val = (productInfo as any)[section.showWhen.field];
       if (section.showWhen.truthy && !val) return false;
       if (!section.showWhen.truthy && val) return false;
     }
+
     // Check if any visible field has data
     const visibleFields = section.fields.filter((field) => {
-      if (!field.showWhen) return true;
-      const val = (productInfo as any)[field.showWhen.field];
-      return val === field.showWhen.equals;
+      if (field.vendorOnly) return false;
+      if (field.showWhen) {
+        const val = getNestedValue(productInfo, field.showWhen.field);
+        return val === field.showWhen.equals;
+      }
+      return true;
     });
     return visibleFields.some((field) => fieldHasData(field, productInfo));
   });
@@ -66,7 +73,7 @@ export function ProductInfoDisplay({
         />
       ))}
 
-      {/* Allergen warning banner (auto-generated if allergens are selected) */}
+      {/* Allergen warning banner */}
       {getAllergenWarningText(productInfo) && (
         <AllergenWarning productInfo={productInfo} />
       )}
@@ -74,9 +81,17 @@ export function ProductInfoDisplay({
   );
 }
 
+function getNestedValue(obj: any, key: string): unknown {
+  if (key.includes(".")) {
+    const [parent, child] = key.split(".");
+    return obj[parent]?.[child];
+  }
+  return obj[key];
+}
+
 function fieldHasData(field: InfoField, info: ProductInfo): boolean {
-  const val = (info as any)[field.key];
-  if (val === undefined || val === null || val === "") return false;
+  const val = getNestedValue(info, field.key);
+  if (val === undefined || val === null || val === "" || val === false) return false;
   if (Array.isArray(val) && val.length === 0) return false;
   return true;
 }
@@ -90,11 +105,13 @@ function SectionDisplay({
 }) {
   const [collapsed, setCollapsed] = React.useState(false);
 
-  // Filter fields by showWhen and data presence
   const visibleFields = section.fields.filter((field) => {
-    if (!field.showWhen) return true;
-    const val = (productInfo as any)[field.showWhen.field];
-    return val === field.showWhen.equals;
+    if (field.vendorOnly) return false;
+    if (field.showWhen) {
+      const val = getNestedValue(productInfo, field.showWhen.field);
+      return val === field.showWhen.equals;
+    }
+    return true;
   });
 
   const fieldsWithData = visibleFields.filter((field) =>
@@ -105,7 +122,6 @@ function SectionDisplay({
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
-      {/* Desktop header (always visible) + Mobile collapsible header */}
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
@@ -123,7 +139,8 @@ function SectionDisplay({
             <FieldDisplay
               key={field.key}
               field={field}
-              value={(productInfo as any)[field.key]}
+              value={getNestedValue(productInfo, field.key)}
+              productInfo={productInfo}
             />
           ))}
         </div>
@@ -135,16 +152,40 @@ function SectionDisplay({
 function FieldDisplay({
   field,
   value,
+  productInfo,
 }: {
   field: InfoField;
   value: unknown;
+  productInfo: ProductInfo;
 }) {
   if (field.type === "checkboxes") {
     const selected: string[] = Array.isArray(value) ? value : [];
+
+    // Special handling for highlights — combine built-in + custom
+    if (field.key === "highlights") {
+      const allHighlights = getAllHighlights(productInfo);
+      if (allHighlights.length === 0) return null;
+      return (
+        <div>
+          <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">{field.label}</h3>
+          <div className="flex flex-wrap gap-1.5">
+            {allHighlights.map((item) => (
+              <span
+                key={item}
+                className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     if (selected.length === 0) return null;
     return (
       <div>
-        <p className="mb-1.5 text-xs font-medium text-muted-foreground">{field.label}</p>
+        <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">{field.label}</h3>
         <div className="flex flex-wrap gap-1.5">
           {selected.map((item) => (
             <span
@@ -171,16 +212,37 @@ function FieldDisplay({
     );
   }
 
-  // text, richtext, textarea, select — all render as text
-  // richtext preserves line breaks (whitespace-pre-line)
-  const strVal = String(value);
+  if (field.type === "images") {
+    const images: string[] = Array.isArray(value) ? value : [];
+    if (images.length === 0) return null;
+    return (
+      <div>
+        <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">{field.label}</h3>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {images.map((img, idx) => (
+            <div key={idx} className="aspect-square overflow-hidden rounded-lg border border-border">
+              <img src={img} alt={`${field.label} ${idx + 1}`} className="h-full w-full object-cover" loading="lazy" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // text, richtext, textarea, select
+  let strVal: string;
+  if (field.key === "shelfLife") {
+    strVal = getShelfLifeText(productInfo) ?? "";
+  } else {
+    strVal = String(value ?? "");
+  }
   if (!strVal.trim()) return null;
 
   const isRichText = field.type === "richtext" || field.type === "textarea";
 
   return (
     <div className="grid grid-cols-1 gap-1 sm:grid-cols-[140px_1fr] sm:gap-3">
-      <p className="text-xs font-medium text-muted-foreground sm:text-sm">{field.label}</p>
+      <h3 className="text-xs font-medium text-muted-foreground sm:text-sm">{field.label}</h3>
       <p className={cn("text-sm text-foreground/90", isRichText && "whitespace-pre-line")}>{strVal}</p>
     </div>
   );
@@ -211,9 +273,9 @@ function AllergenWarning({ productInfo }: { productInfo: ProductInfo }) {
       <div className="flex items-start gap-2.5">
         <AlertTriangle className="mt-0.5 size-5 shrink-0 text-red-600 dark:text-red-400" />
         <div className="flex-1">
-          <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+          <h2 className="text-sm font-semibold text-red-800 dark:text-red-300">
             ⚠️ Allergen Warning
-          </p>
+          </h2>
           <p className="mt-0.5 text-sm text-red-700 dark:text-red-400">
             This product contains: <strong>{warningText}</strong>
           </p>

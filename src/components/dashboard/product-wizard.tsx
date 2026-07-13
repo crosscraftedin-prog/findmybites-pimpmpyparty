@@ -21,7 +21,7 @@ import type { Vendor } from "@/lib/types";
 import { GalleryUpload } from "./image-upload";
 import { AttributeSelector } from "./attribute-selector";
 import { ProductInfoForm } from "./product-info-form";
-import { CUSTOMISATION_SECTION as CUSTOMISATION_SECTIONS_FALLBACK } from "@/lib/products/product-info";
+import { CUSTOMISATION_SECTION, RECIPE_COST_SECTION } from "@/lib/products/product-info";
 import type { ProductInfo } from "@/lib/products/product-info";
 import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
 
@@ -1095,10 +1095,29 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                   <ProductInfoForm
                     productInfo={productInfo}
                     onChange={setProductInfo}
-                    category={vendor.category}
                     productName={form.name}
                     productDescription={form.description}
                   />
+
+                  {/* Recipe Cost Calculator (vendor-only, never public) */}
+                  <div className="mt-6 rounded-xl border border-muted bg-muted/30 p-4">
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="text-lg">🧮</span>
+                      <h4 className="text-sm font-bold">Recipe Cost Calculator</h4>
+                      <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                        Vendor Only — Never shown publicly
+                      </span>
+                    </div>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      Track your production costs and calculate profit margins. This data is private and never displayed to customers.
+                    </p>
+                    <ProductInfoForm
+                      productInfo={productInfo}
+                      onChange={setProductInfo}
+                      infoSections={[RECIPE_COST_SECTION]}
+                      showVendorOnly
+                    />
+                  </div>
                 </div>
               )}
 
@@ -1117,8 +1136,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                   <ProductInfoForm
                     productInfo={productInfo}
                     onChange={setProductInfo}
-                    infoSections={CUSTOMISATION_SECTIONS_FALLBACK}
-                    category={vendor.category}
+                    infoSections={[CUSTOMISATION_SECTION]}
                   />
                 </div>
               )}

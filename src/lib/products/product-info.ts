@@ -1,31 +1,35 @@
 /**
- * Product Information System — template-engine driven.
+ * Product Information System V2 — Final Architecture (Template-Engine Driven).
  * ─────────────────────────────────────────────────────────────────────────
- * Provides structured product information for product pages.
+ * NO hardcoded category logic. Every section is defined by the Template Engine.
  *
- * Sections (bakery): Ingredients, Allergens, Nutrition, Packaging, Storage,
- * Shelf Life, Care Instructions, Product Highlights, Logistics, Occasion Tags.
+ * This file provides:
+ *   1. Composable section BUILDER constants (templates mix-and-match these).
+ *   2. The ProductInfo data shape (stored in extraFields JSON).
+ *   3. Serialization helpers.
+ *   4. FAQ generation + allergen warning helpers.
  *
- * Storage: all productInfo is stored as a JSON string in the existing
- * `Product.extraFields` column — NO schema migration required.
+ * Templates in product-templates.ts define: infoSections, customisationSections, faqSections.
+ * React components read from templates — no `if (category === "bakery")` anywhere.
  *
- * Template-driven: sections come from the template's `infoSections` field.
- * Falls back to legacy category lookup when no template is active.
+ * Backward compatibility: when a template doesn't define sections, we fall back
+ * to a GENERIC set (just Highlights + Occasion Tags). Existing products with
+ * old productInfo continue to work.
  */
 
 // ── ProductInfo data shape (stored in extraFields JSON) ────────────────────
 
 export interface ProductInfo {
   // ── Ingredients ──
-  ingredients?: string; // rich text (newline-separated)
+  ingredients?: string;
   dietaryBadges?: string[];
 
   // ── Allergens ──
   allergens?: string[];
-  customAllergens?: string; // comma-separated free-text
+  customAllergens?: string;
   facilityWarning?: string;
 
-  // ── Nutrition (optional — hidden unless enabled) ──
+  // ── Nutrition ──
   nutritionEnabled?: boolean;
   calories?: string;
   protein?: string;
@@ -34,35 +38,42 @@ export interface ProductInfo {
   sugar?: string;
   servingSize?: string;
 
-  // ── Packaging (simplified) ──
+  // ── Packaging ──
   packageType?: string;
+  packageImages?: string[]; // multiple package photo URLs
   giftWrapping?: boolean;
   ecoFriendly?: boolean;
   customMessage?: string;
   packagingNotes?: string;
 
   // ── Storage ──
-  storageType?: string; // Room Temperature | Refrigerate | Freeze
-  storageInstructions?: string; // rich text
-  servingSuggestion?: string;
+  storageType?: string[];
+  storageInstructions?: string;
 
-  // ── Shelf Life (own section) ──
+  // ── Shelf Life ──
   shelfLife?: string;
+  customShelfLifeValue?: string;
+  customShelfLifeUnit?: string;
 
-  // ── Care Instructions (bakery) ──
-  careInstructions?: string[];
-  careInstructionsCustom?: string;
+  // ── Serving & Care (renamed from Care Instructions) ──
+  servingCare?: string[];
+  servingCareCustom?: string;
 
   // ── Product Highlights ──
   highlights?: string[];
+  customHighlights?: string[];
 
   // ── Logistics ──
   deliveryAvailable?: boolean;
   pickupAvailable?: boolean;
   sameDayDelivery?: boolean;
+  nextDayDelivery?: boolean;
+  expressDelivery?: boolean;
   deliveryRadius?: string;
   deliveryCharges?: string;
   minimumOrder?: string;
+  deliverySlots?: string[];
+  deliveryNotes?: string;
 
   // ── Customisation ──
   customisation?: string[];
@@ -71,34 +82,44 @@ export interface ProductInfo {
   // ── Occasion Tags ──
   occasionTags?: string[];
 
+  // ── FAQs (stored, editable) ──
+  faqs?: { question: string; answer: string }[];
+
+  // ── Recipe Cost Calculator (vendor-only, never public) ──
+  recipeCost?: {
+    ingredients?: { name: string; quantity: string; unitCost: string; totalCost: string }[];
+    packagingCost?: string;
+    labourCost?: string;
+    electricityCost?: string;
+    deliveryCost?: string;
+    totalProductionCost?: string;
+    profitPercent?: string;
+    suggestedSellingPrice?: string;
+  };
+
   // ── Legacy fields (kept for backward compat, not shown in wizard) ──
   midnightDelivery?: boolean;
-  expressDelivery?: boolean;
   estimatedDeliveryTime?: string;
-  deliveryNotes?: string;
   packageContents?: string;
   packageWeight?: string;
   netWeight?: string;
   dimensions?: string;
   packageIncludes?: string;
   otherAllergens?: string;
+  careInstructions?: string[];
+  careInstructionsCustom?: string;
+  servingSuggestion?: string;
 
-  // ── Florist-specific ──
+  // ── Category-specific (legacy) ──
   flowerTypes?: string;
   careInstructionsFlorist?: string;
   freshnessGuarantee?: string;
-
-  // ── Catering-specific ──
   menuItems?: string;
   servingSizeCatering?: string;
   dietaryOptions?: string;
-
-  // ── Decorator-specific ──
   setupTime?: string;
   cleanupTime?: string;
   materialsIncluded?: string;
-
-  // ── Entertainer-specific ──
   performanceDuration?: string;
   languagesSpoken?: string;
   travelDistance?: string;
@@ -107,7 +128,15 @@ export interface ProductInfo {
 
 // ── Section / Field definitions ────────────────────────────────────────────
 
-export type FieldType = "text" | "richtext" | "textarea" | "select" | "checkboxes" | "checkbox";
+export type FieldType =
+  | "text"
+  | "richtext"
+  | "textarea"
+  | "select"
+  | "checkboxes"
+  | "checkbox"
+  | "images"
+  | "table";
 
 export interface InfoField {
   key: string;
@@ -117,8 +146,11 @@ export interface InfoField {
   placeholder?: string;
   optional?: boolean;
   showWhen?: { field: string; equals: unknown };
-  /** Supports AI generation (shows a "Generate with AI" button). */
   aiGeneratable?: boolean;
+  /** For "table" type — column definitions. */
+  columns?: { key: string; label: string; type: "text" | "number" }[];
+  /** Vendor-only fields are never displayed publicly. */
+  vendorOnly?: boolean;
 }
 
 export interface InfoSection {
@@ -129,7 +161,9 @@ export interface InfoSection {
   fields: InfoField[];
 }
 
-// ── Reusable section builders ──────────────────────────────────────────────
+// ── Composable section builders (templates reference these) ────────────────
+// These are the building blocks. Templates mix-and-match them.
+// NO category logic here — just reusable section definitions.
 
 export const INGREDIENTS_SECTION: InfoSection = {
   key: "ingredients",
@@ -163,20 +197,8 @@ export const ALLERGENS_SECTION: InfoSection = {
       type: "checkboxes",
       options: ["Milk", "Egg", "Nuts", "Soy", "Gluten", "Sesame", "Mustard", "Fish", "Shellfish"],
     },
-    {
-      key: "customAllergens",
-      label: "Other",
-      type: "text",
-      placeholder: "e.g. Contains traces of peanuts",
-      optional: true,
-    },
-    {
-      key: "facilityWarning",
-      label: "Facility Warning (optional)",
-      type: "textarea",
-      placeholder: "Manufactured in a facility that also processes Dairy, Eggs, Peanuts and Tree Nuts.",
-      optional: true,
-    },
+    { key: "customAllergens", label: "Other", type: "text", placeholder: "e.g. Contains traces of peanuts", optional: true },
+    { key: "facilityWarning", label: "Facility Warning (optional)", type: "textarea", placeholder: "Manufactured in a facility that also processes Dairy, Eggs, Peanuts and Tree Nuts.", optional: true },
   ],
 };
 
@@ -206,6 +228,12 @@ export const PACKAGING_SECTION: InfoSection = {
       label: "Package Type",
       type: "select",
       options: ["", "Cake Box", "Cupcake Box", "Gift Box", "Tray", "Bottle", "Jar", "Custom"],
+    },
+    {
+      key: "packageImages",
+      label: "Package Photos",
+      type: "images",
+      optional: true,
     },
     { key: "giftWrapping", label: "Gift Wrapping Available", type: "checkbox" },
     { key: "ecoFriendly", label: "Eco Friendly Packaging", type: "checkbox" },
@@ -243,57 +271,78 @@ export const SHELF_LIFE_SECTION: InfoSection = {
       key: "shelfLife",
       label: "Shelf Life",
       type: "select",
-      options: ["", "Same Day", "1 Day", "2 Days", "3 Days", "5 Days", "1 Week", "2 Weeks", "1 Month", "Other"],
+      options: ["", "Same Day", "1 Day", "2 Days", "3 Days", "5 Days", "1 Week", "2 Weeks", "1 Month", "Custom"],
+    },
+    {
+      key: "customShelfLifeValue",
+      label: "Custom Shelf Life",
+      type: "text",
+      placeholder: "e.g. 45",
+      showWhen: { field: "shelfLife", equals: "Custom" },
+    },
+    {
+      key: "customShelfLifeUnit",
+      label: "Unit",
+      type: "select",
+      options: ["", "Days", "Weeks", "Months"],
+      showWhen: { field: "shelfLife", equals: "Custom" },
     },
   ],
 };
 
-export const CARE_INSTRUCTIONS_SECTION: InfoSection = {
-  key: "careInstructions",
-  heading: "Care Instructions",
+export const SERVING_CARE_SECTION: InfoSection = {
+  key: "servingCare",
+  heading: "Serving & Care",
   icon: "💝",
   fields: [
     {
-      key: "careInstructions",
-      label: "Care Instructions",
+      key: "servingCare",
+      label: "Serving & Care Instructions",
       type: "checkboxes",
       options: [
+        "Serve after 30 minutes",
         "Keep refrigerated",
-        "Remove 30 minutes before serving",
-        "Cut using warm knife",
+        "Freeze if required",
+        "Use warm knife",
+        "Handle fondant carefully",
+        "Store below 5°C",
         "Do not expose to sunlight",
         "Consume within 48 hours",
-        "Handle fondant carefully",
-        "Keep away from heat",
-        "Store in airtight container",
-        "Do not freeze",
         "Best served chilled",
+        "Bring to room temperature before serving",
       ],
     },
     {
-      key: "careInstructionsCustom",
-      label: "Additional Care Instructions (optional)",
+      key: "servingCareCustom",
+      label: "Custom Instructions (optional)",
       type: "text",
-      placeholder: "Any other care tips",
+      placeholder: "Any other serving or care tips",
       optional: true,
     },
   ],
 };
 
-export const PRODUCT_HIGHLIGHTS_SECTION: InfoSection = {
+export const HIGHLIGHTS_SECTION: InfoSection = {
   key: "highlights",
   heading: "Product Highlights",
   icon: "✨",
   fields: [
     {
       key: "highlights",
-      label: "Highlights",
+      label: "Built-in Highlights",
       type: "checkboxes",
       options: [
         "Eggless", "Vegan", "Sugar Free", "Gluten Free", "No Preservatives",
         "Handmade", "Freshly Baked", "Organic", "Premium Ingredients",
         "Customizable", "Kids Favorite", "Bestseller", "New",
       ],
+    },
+    {
+      key: "customHighlights",
+      label: "Custom Highlights (press Enter to add)",
+      type: "text",
+      placeholder: "e.g. Award Winning, Chef's Favourite, 100% Belgian Chocolate",
+      optional: true,
     },
   ],
 };
@@ -306,9 +355,18 @@ export const LOGISTICS_SECTION: InfoSection = {
     { key: "deliveryAvailable", label: "Delivery Available", type: "checkbox" },
     { key: "pickupAvailable", label: "Pickup Available", type: "checkbox" },
     { key: "sameDayDelivery", label: "Same Day Delivery", type: "checkbox" },
+    { key: "nextDayDelivery", label: "Next Day Delivery", type: "checkbox" },
+    { key: "expressDelivery", label: "Express Delivery", type: "checkbox" },
     { key: "deliveryRadius", label: "Delivery Radius", type: "text", placeholder: "Within 10 km" },
     { key: "deliveryCharges", label: "Delivery Charges", type: "text", placeholder: "Free above ₹999" },
     { key: "minimumOrder", label: "Minimum Order", type: "text", placeholder: "₹500" },
+    {
+      key: "deliverySlots",
+      label: "Delivery Slots",
+      type: "checkboxes",
+      options: ["Morning", "Afternoon", "Evening"],
+    },
+    { key: "deliveryNotes", label: "Delivery Notes (optional)", type: "textarea", placeholder: "Custom delivery instructions or policies.", optional: true },
   ],
 };
 
@@ -322,15 +380,9 @@ export const CUSTOMISATION_SECTION: InfoSection = {
       label: "Customisation Options",
       type: "checkboxes",
       options: [
-        "Can change colour",
-        "Can change flavour",
-        "Can add name",
-        "Can add photo",
-        "Can add topper",
-        "Can change size",
-        "Can change theme",
-        "Can make eggless",
-        "Can make sugar free",
+        "Can change colour", "Can change flavour", "Can add name", "Can add photo",
+        "Can add topper", "Can change size", "Can change theme",
+        "Can make eggless", "Can make sugar free",
       ],
     },
     {
@@ -361,115 +413,88 @@ export const OCCASION_TAGS_SECTION: InfoSection = {
   ],
 };
 
-// ── Category-specific section sets ─────────────────────────────────────────
+export const RECIPE_COST_SECTION: InfoSection = {
+  key: "recipeCost",
+  heading: "Recipe Cost Calculator",
+  icon: "🧮",
+  fields: [
+    {
+      key: "recipeCost",
+      label: "Cost Breakdown",
+      type: "table",
+      columns: [
+        { key: "name", label: "Ingredient", type: "text" },
+        { key: "quantity", label: "Quantity", type: "text" },
+        { key: "unitCost", label: "Unit Cost", type: "number" },
+        { key: "totalCost", label: "Total Cost", type: "number" },
+      ],
+    },
+    { key: "recipeCost.packagingCost", label: "Packaging Cost", type: "text", placeholder: "₹50", vendorOnly: true },
+    { key: "recipeCost.labourCost", label: "Labour Cost", type: "text", placeholder: "₹100", vendorOnly: true },
+    { key: "recipeCost.electricityCost", label: "Electricity Cost", type: "text", placeholder: "₹20", vendorOnly: true },
+    { key: "recipeCost.deliveryCost", label: "Delivery Cost", type: "text", placeholder: "₹40", vendorOnly: true },
+    { key: "recipeCost.totalProductionCost", label: "Total Production Cost", type: "text", placeholder: "₹350", vendorOnly: true },
+    { key: "recipeCost.profitPercent", label: "Profit %", type: "text", placeholder: "60%", vendorOnly: true },
+    { key: "recipeCost.suggestedSellingPrice", label: "Suggested Selling Price", type: "text", placeholder: "₹875", vendorOnly: true },
+  ],
+};
 
-const BAKERY_INFO_SECTIONS: InfoSection[] = [
-  INGREDIENTS_SECTION,
-  ALLERGENS_SECTION,
-  NUTRITION_SECTION,
-  PACKAGING_SECTION,
-  STORAGE_SECTION,
-  SHELF_LIFE_SECTION,
-  CARE_INSTRUCTIONS_SECTION,
-  PRODUCT_HIGHLIGHTS_SECTION,
+// ── Default sections (used when a template doesn't define its own) ─────────
+
+const DEFAULT_INFO_SECTIONS: InfoSection[] = [
+  HIGHLIGHTS_SECTION,
+  OCCASION_TAGS_SECTION,
 ];
 
-const BAKERY_CUSTOMISATION_SECTIONS: InfoSection[] = [
+const DEFAULT_CUSTOMISATION_SECTIONS: InfoSection[] = [
   CUSTOMISATION_SECTION,
 ];
 
-const FLORIST_SECTIONS: InfoSection[] = [
-  {
-    key: "flowers",
-    heading: "Flower Information",
-    icon: "🌸",
-    fields: [
-      { key: "flowerTypes", label: "Flower Types", type: "richtext", placeholder: "Roses, Lilies, Carnations, Baby Breath…" },
-      { key: "careInstructionsFlorist", label: "Care Instructions", type: "richtext", placeholder: "Change water daily. Keep away from direct sunlight." },
-      { key: "freshnessGuarantee", label: "Freshness Guarantee", type: "text", placeholder: "Fresh for 5-7 days with proper care" },
-    ],
-  },
-  PACKAGING_SECTION,
-  SHELF_LIFE_SECTION,
-  PRODUCT_HIGHLIGHTS_SECTION,
-  OCCASION_TAGS_SECTION,
-];
+const DEFAULT_FAQ_SECTIONS: InfoSection[] = [];
 
-const CATERING_SECTIONS: InfoSection[] = [
-  {
-    key: "menu",
-    heading: "Menu Details",
-    icon: "🍽️",
-    fields: [
-      { key: "menuItems", label: "Menu Items", type: "richtext", placeholder: "Starter: Paneer Tikka\nMain: Butter Paneer, Dal Makhani\nDessert: Gulab Jamun" },
-      { key: "servingSizeCatering", label: "Serving Size", type: "text", placeholder: "Serves 50 guests" },
-      { key: "dietaryOptions", label: "Dietary Options", type: "text", placeholder: "Veg, Non-Veg, Jain options available" },
-    ],
-  },
-  PACKAGING_SECTION,
-  PRODUCT_HIGHLIGHTS_SECTION,
-  OCCASION_TAGS_SECTION,
-];
-
-const DECORATOR_SECTIONS: InfoSection[] = [
-  {
-    key: "setup",
-    heading: "Setup Information",
-    icon: "🎨",
-    fields: [
-      { key: "setupTime", label: "Setup Time", type: "text", placeholder: "2-3 hours" },
-      { key: "cleanupTime", label: "Cleanup Time", type: "text", placeholder: "1 hour" },
-      { key: "materialsIncluded", label: "Materials Included", type: "richtext", placeholder: "Balloon arch, backdrop, table centerpieces, lighting" },
-    ],
-  },
-  PRODUCT_HIGHLIGHTS_SECTION,
-  OCCASION_TAGS_SECTION,
-];
-
-const ENTERTAINER_SECTIONS: InfoSection[] = [
-  {
-    key: "performance",
-    heading: "Performance Details",
-    icon: "🎭",
-    fields: [
-      { key: "performanceDuration", label: "Performance Duration", type: "text", placeholder: "1 hour / 2 hours" },
-      { key: "languagesSpoken", label: "Languages", type: "text", placeholder: "English, Hindi, Telugu" },
-      { key: "travelDistance", label: "Travel Distance", type: "text", placeholder: "Within 30 km" },
-      { key: "equipmentRequired", label: "Equipment Required", type: "richtext", placeholder: "Sound system, microphone, stage space (10x10 ft)" },
-    ],
-  },
-  PRODUCT_HIGHLIGHTS_SECTION,
-  OCCASION_TAGS_SECTION,
-];
-
-const GENERIC_SECTIONS: InfoSection[] = [
-  PRODUCT_HIGHLIGHTS_SECTION,
-  OCCASION_TAGS_SECTION,
-];
-
-// ── Legacy category lookup (backward compatibility) ────────────────────────
-
-const LEGACY_SECTION_REGISTRY: Record<string, InfoSection[]> = {
-  "bakers-bakery": BAKERY_INFO_SECTIONS,
-  "florists": FLORIST_SECTIONS,
-  "caterers": CATERING_SECTIONS,
-  "decorators": DECORATOR_SECTIONS,
-  "entertainers": ENTERTAINER_SECTIONS,
-};
-
-export function getLegacySectionsForCategory(category: string | null | undefined): InfoSection[] {
-  if (!category) return GENERIC_SECTIONS;
-  return LEGACY_SECTION_REGISTRY[category] ?? GENERIC_SECTIONS;
-}
-
+/**
+ * Get sections from a template's `infoSections` field.
+ * Falls back to DEFAULT_INFO_SECTIONS (Highlights + Occasion Tags) — NOT a
+ * category lookup. This is the backward-compatibility path.
+ */
 export function getSectionsForTemplate(
-  template: { infoSections?: InfoSection[] } | null | undefined,
-  category: string | null | undefined
+  template: { infoSections?: InfoSection[] } | null | undefined
 ): InfoSection[] {
   if (template?.infoSections && template.infoSections.length > 0) {
     return template.infoSections;
   }
-  return getLegacySectionsForCategory(category);
+  return DEFAULT_INFO_SECTIONS;
+}
+
+/**
+ * Get customisation sections from a template.
+ */
+export function getCustomisationSectionsForTemplate(
+  template: { customisationSections?: InfoSection[] } | null | undefined
+): InfoSection[] {
+  if (template?.customisationSections && template.customisationSections.length > 0) {
+    return template.customisationSections;
+  }
+  return DEFAULT_CUSTOMISATION_SECTIONS;
+}
+
+/**
+ * Get FAQ sections from a template.
+ */
+export function getFaqSectionsForTemplate(
+  template: { faqSections?: InfoSection[] } | null | undefined
+): InfoSection[] {
+  if (template?.faqSections && template.faqSections.length > 0) {
+    return template.faqSections;
+  }
+  return DEFAULT_FAQ_SECTIONS;
+}
+
+// ── Legacy backward-compat (kept for existing products, not used by wizard) ─
+
+export function getLegacySectionsForCategory(_category: string | null | undefined): InfoSection[] {
+  // V2: no category lookup. Return defaults.
+  return DEFAULT_INFO_SECTIONS;
 }
 
 // ── Serialization helpers ──────────────────────────────────────────────────
@@ -538,20 +563,46 @@ export function getAllergenWarningText(info: ProductInfo): string | null {
   return all.join(", ");
 }
 
-// ── FAQ generation from ProductInfo ─────────────────────────────────────────
+// ── Highlights helper (combines built-in + custom) ──────────────────────────
+
+export function getAllHighlights(info: ProductInfo): string[] {
+  const builtIn: string[] = info.highlights ?? [];
+  const custom: string[] = Array.isArray(info.customHighlights) ? info.customHighlights : [];
+  return [...builtIn, ...custom.filter(Boolean)];
+}
+
+// ── Shelf life helper (handles custom) ──────────────────────────────────────
+
+export function getShelfLifeText(info: ProductInfo): string | null {
+  if (!info.shelfLife) return null;
+  if (info.shelfLife === "Custom" && info.customShelfLifeValue) {
+    return `${info.customShelfLifeValue} ${info.customShelfLifeUnit || "Days"}`;
+  }
+  return info.shelfLife;
+}
+
+// ── FAQ helpers ─────────────────────────────────────────────────────────────
 
 export interface GeneratedFAQ {
   question: string;
   answer: string;
 }
 
+/**
+ * Deterministically generate FAQs from ProductInfo (instant, no API call).
+ * Used as the default; vendors can regenerate with AI for richer FAQs.
+ */
 export function generateFAQsFromProductInfo(
   info: ProductInfo,
   productName: string
 ): GeneratedFAQ[] {
+  // If the vendor has saved FAQs, use those.
+  if (info.faqs?.length) {
+    return info.faqs;
+  }
+
   const faqs: GeneratedFAQ[] = [];
 
-  // Ingredients
   if (info.ingredients?.trim()) {
     const dietary = info.dietaryBadges?.length
       ? ` This product is ${info.dietaryBadges.join(", ")}.`
@@ -562,18 +613,17 @@ export function generateFAQsFromProductInfo(
     });
   }
 
-  // Shelf Life
-  if (info.shelfLife) {
+  const shelfLifeText = getShelfLifeText(info);
+  if (shelfLifeText) {
     faqs.push({
       question: `What is the shelf life of ${productName}?`,
-      answer: `The shelf life is ${info.shelfLife}.`,
+      answer: `The shelf life is ${shelfLifeText}.`,
     });
   }
 
-  // Storage
-  if (info.storageType || info.storageInstructions?.trim()) {
+  if (info.storageType?.length || info.storageInstructions?.trim()) {
     const parts: string[] = [];
-    if (info.storageType) parts.push(`Storage: ${info.storageType}`);
+    if (info.storageType?.length) parts.push(`Storage: ${info.storageType.join(", ")}`);
     if (info.storageInstructions?.trim()) parts.push(info.storageInstructions.trim());
     faqs.push({
       question: `How should I store ${productName}?`,
@@ -581,15 +631,13 @@ export function generateFAQsFromProductInfo(
     });
   }
 
-  // Care Instructions
-  if (info.careInstructions?.length) {
+  if (info.servingCare?.length) {
     faqs.push({
-      question: `How do I care for ${productName}?`,
-      answer: info.careInstructions.join(". ") + ".",
+      question: `How do I serve and care for ${productName}?`,
+      answer: info.servingCare.join(". ") + ".",
     });
   }
 
-  // Packaging
   if (info.packageType || info.packagingNotes?.trim()) {
     const parts: string[] = [];
     if (info.packageType) parts.push(`Packaged in a ${info.packageType}`);
@@ -602,7 +650,6 @@ export function generateFAQsFromProductInfo(
     });
   }
 
-  // Allergens
   const allergenText = getAllergenWarningText(info);
   if (allergenText) {
     faqs.push({
@@ -611,7 +658,6 @@ export function generateFAQsFromProductInfo(
     });
   }
 
-  // Nutrition
   if (info.nutritionEnabled && info.calories) {
     const parts: string[] = [];
     if (info.servingSize) parts.push(`Per ${info.servingSize}:`);
@@ -626,22 +672,23 @@ export function generateFAQsFromProductInfo(
     });
   }
 
-  // Logistics
   if (info.deliveryAvailable || info.pickupAvailable || info.deliveryRadius) {
     const parts: string[] = [];
     if (info.deliveryAvailable) parts.push("Delivery available");
     if (info.pickupAvailable) parts.push("pickup available");
-    if (info.sameDayDelivery) parts.push("same-day delivery available");
+    if (info.sameDayDelivery) parts.push("same-day delivery");
+    if (info.nextDayDelivery) parts.push("next-day delivery");
+    if (info.expressDelivery) parts.push("express delivery");
     if (info.deliveryRadius) parts.push(`delivery radius: ${info.deliveryRadius}`);
     if (info.deliveryCharges) parts.push(`delivery charges: ${info.deliveryCharges}`);
     if (info.minimumOrder) parts.push(`minimum order: ${info.minimumOrder}`);
+    if (info.deliverySlots?.length) parts.push(`slots: ${info.deliverySlots.join(", ")}`);
     faqs.push({
       question: `What are the delivery options for ${productName}?`,
       answer: parts.join(". ") + ".",
     });
   }
 
-  // Customisation
   if (info.customisation?.length) {
     faqs.push({
       question: `Can I customise ${productName}?`,
@@ -649,15 +696,14 @@ export function generateFAQsFromProductInfo(
     });
   }
 
-  // Highlights
-  if (info.highlights?.length) {
+  const allHighlights = getAllHighlights(info);
+  if (allHighlights.length > 0) {
     faqs.push({
       question: `What makes ${productName} special?`,
-      answer: `This product is ${info.highlights.join(", ")}.`,
+      answer: `This product is ${allHighlights.join(", ")}.`,
     });
   }
 
-  // Occasion Tags
   if (info.occasionTags?.length) {
     faqs.push({
       question: `What occasions is ${productName} suitable for?`,
@@ -665,22 +711,16 @@ export function generateFAQsFromProductInfo(
     });
   }
 
-  // Florist-specific
+  // Legacy category-specific
   if (info.flowerTypes?.trim()) {
     faqs.push({ question: `What flowers are included?`, answer: info.flowerTypes.trim() });
   }
-
-  // Catering-specific
   if (info.menuItems?.trim()) {
     faqs.push({ question: `What is included in the menu?`, answer: info.menuItems.trim() });
   }
-
-  // Decorator-specific
   if (info.setupTime?.trim()) {
     faqs.push({ question: `How long does setup take?`, answer: `Setup takes ${info.setupTime}.` });
   }
-
-  // Entertainer-specific
   if (info.performanceDuration?.trim()) {
     faqs.push({ question: `How long is the performance?`, answer: `The performance duration is ${info.performanceDuration}.` });
   }
