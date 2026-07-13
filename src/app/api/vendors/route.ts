@@ -127,11 +127,10 @@ export async function GET(req: NextRequest) {
       : [];
 
     // Structured (non-search) filters
-    // Public visibility: only show approved listings. The listingStatus filter
-    // is applied via raw SQL after the Prisma query to avoid schema drift issues
-    // (the column was added by migration but may not be in Prisma's generated client).
+    // Public visibility: only show published or claimed listings (not draft/hidden/rejected).
     const where: Prisma.VendorWhereInput = {
       approved: true,
+      listingStatus: { in: ["published", "claimed"] },
     };
     if (ecosystem) where.ecosystem = ecosystem;
     if (category) where.category = category;
@@ -563,6 +562,7 @@ export async function POST(req: NextRequest) {
         // listings are automatically approved so they go live immediately.
         // Admin can still suspend/reject later if a listing violates policies.
         approved: autoApprove,
+        listingStatus: "published",
         responseTime,
         yearsActive,
         completedBookings: 0,
@@ -580,31 +580,6 @@ export async function POST(req: NextRequest) {
         owner_user_id: ownerId ?? undefined,
       },
     });
-
-    // Set listingStatus via raw SQL — the column was added by migration but
-    // may not be in the Prisma generated client yet on production. Using raw
-    // SQL ensures it works regardless of schema drift.
-    try {
-      await db.$executeRaw`
-        UPDATE vendor_listings SET "listingStatus" = 'published'
-        WHERE id = ${created.id}
-      `;
-    } catch (statusErr) {
-      console.error("[api/vendors] listingStatus update failed (non-fatal):", statusErr);
-    }
-
-    // Set ownership_status = 'pending' via raw SQL (the column was added by
-    // supabase_addon.sql and isn't in the Prisma schema). Must use the real
-    // table name "vendor_listings" (not "Vendor") because raw SQL bypasses
-    // Prisma's @@map mapping.
-    try {
-      await db.$executeRaw`
-        UPDATE vendor_listings SET ownership_status = 'pending'
-        WHERE id = ${created.id}
-      `;
-    } catch (statusErr) {
-      console.error("[api/vendors] ownership_status update failed (non-fatal):", statusErr);
-    }
 
     // ── Flag custom subcategories for admin review ──
     if (subcategory && subcategory.trim()) {

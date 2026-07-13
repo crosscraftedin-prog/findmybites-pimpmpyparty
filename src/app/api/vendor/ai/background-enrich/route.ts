@@ -91,27 +91,11 @@ Only return valid JSON, no markdown.`;
       generatedAt: new Date().toISOString(),
     };
 
-    // Store suggestions in the vendor's extraFields or a dedicated column.
-    // We use a raw SQL approach since aiSuggestions column may not exist yet.
-    try {
-      await (db as any).$executeRaw`
-        UPDATE vendor_listings SET
-          "aiSuggestions" = ${JSON.stringify(suggestions)}::text
-        WHERE id = ${vendorId}
-      `;
-    } catch {
-      // Column doesn't exist — try adding it first
-      try {
-        await (db as any).$executeRaw`ALTER TABLE "vendor_listings" ADD COLUMN IF NOT EXISTS "aiSuggestions" TEXT`;
-        await (db as any).$executeRaw`
-          UPDATE vendor_listings SET
-            "aiSuggestions" = ${JSON.stringify(suggestions)}::text
-          WHERE id = ${vendorId}
-        `;
-      } catch (alterErr) {
-        console.error("[background-enrich] could not store suggestions (non-fatal):", alterErr);
-      }
-    }
+    // Store suggestions in the aiSuggestions column via Prisma
+    await db.vendor.update({
+      where: { id: vendorId },
+      data: { aiSuggestions: JSON.stringify(suggestions) },
+    });
 
     return NextResponse.json({ success: true, stored: "suggestions" });
   } catch (error: any) {

@@ -161,6 +161,8 @@ model Vendor {
   // Claim tracking
   claimedAt         DateTime?
   claimedByUserId   String?
+  // AI Suggestions (stored separately — never overwrites vendor content)
+  aiSuggestions     String?
 
   // ── Business Profile Management ──
   businessType       String? // "home" | "shop" | "studio" | "cloud_kitchen" | "event_company" | "freelancer"
