@@ -1022,7 +1022,64 @@ export function MyListing({ vendor }: MyListingProps) {
               {hasGst && <Input value={form.gstVatNumber} onChange={e => set("gstVatNumber", e.target.value)} placeholder="GST number" className="mt-1" />}
             </div>
           </div>
-          <div><Label>Languages Spoken</Label><Input value={form.languagesSpoken} onChange={e => set("languagesSpoken", e.target.value)} placeholder="English, Hindi, Arabic" className="mt-1" /></div>
+          <div>
+            <Label>Languages Spoken</Label>
+            <p className="mb-2 text-xs text-muted-foreground">Type a language and press Enter to add it.</p>
+            <div className="flex flex-wrap gap-1.5 rounded-md border border-border bg-background p-2 min-h-[40px]">
+              {(form.languagesSpoken || "").split(",").map((lang, i) => {
+                const trimmed = lang.trim();
+                if (!trimmed) return null;
+                return (
+                  <span key={i} className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand-soft-foreground">
+                    {trimmed}
+                    <button type="button" onClick={() => {
+                      const langs = (form.languagesSpoken || "").split(",").map(l => l.trim()).filter(Boolean);
+                      const newLangs = langs.filter(l => l !== trimmed);
+                      set("languagesSpoken", newLangs.join(", "));
+                    }} className="text-muted-foreground hover:text-foreground" aria-label={`Remove ${trimmed}`}>
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                );
+              })}
+              <input
+                type="text"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (!val) return;
+                    const langs = (form.languagesSpoken || "").split(",").map(l => l.trim()).filter(Boolean);
+                    if (!langs.includes(val)) {
+                      set("languagesSpoken", [...langs, val].join(", "));
+                    }
+                    (e.target as HTMLInputElement).value = "";
+                  }
+                }}
+                placeholder="Add language…"
+                className="flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                list="common-languages"
+              />
+              <datalist id="common-languages">
+                <option value="English" />
+                <option value="Hindi" />
+                <option value="Telugu" />
+                <option value="Tamil" />
+                <option value="Kannada" />
+                <option value="Malayalam" />
+                <option value="Bengali" />
+                <option value="Marathi" />
+                <option value="Gujarati" />
+                <option value="Punjabi" />
+                <option value="Urdu" />
+                <option value="Arabic" />
+                <option value="Spanish" />
+                <option value="French" />
+                <option value="German" />
+                <option value="Mandarin" />
+              </datalist>
+            </div>
+          </div>
         </TabsContent>
 
         {/* Location — address autocomplete + GPS + service radius */}

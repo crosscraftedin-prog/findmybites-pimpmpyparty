@@ -58,6 +58,28 @@ export interface Vendor {
   userEmail?: string | null;
   owner_user_id?: string | null;
   ownership_status?: string | null;
+  // Business profile management
+  businessType?: string | null;
+  yearStarted?: number | null;
+  businessRegNumber?: string | null;
+  gstVatNumber?: string | null;
+  languagesSpoken?: string | null;
+  hideAddress?: boolean;
+  holidayMode?: boolean;
+  vacationMode?: boolean;
+  emergencyClosure?: boolean;
+  homeService?: boolean;
+  onlineConsultation?: boolean;
+  maxOrder?: number | null;
+  prepTime?: string | null;
+  bookingNotice?: string | null;
+  responseRate?: number;
+  profileViews?: number;
+  productViews?: number;
+  galleryViews?: number;
+  pinterest?: string | null;
+  linkedin?: string | null;
+  telegram?: string | null;
   // Admin-Created Business Listings
   claimToken?: string | null;
   listingStatus?: string | null;
