@@ -1,26 +1,42 @@
 import { NextResponse } from "next/server";
 import { verifyDatabaseSchema } from "@/lib/db-health-check";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/constants";
 
 /**
  * GET /api/health/db
  * ─────────────────────────────────────────────────────────────────────────
- * Lightweight database schema health check (cached 60s).
- * Never blocks production requests — runs only when this endpoint is called.
+ * Public: returns only { healthy: true/false } — no internal details.
+ * Admin:  returns full diagnostics (missingTables, missingColumns) when
+ *         authenticated as admin.
  *
- * 200: { healthy: true, prisma: true, missingTables: [], missingColumns: [] }
- * 503: { healthy: false, prisma: false, missingTables: [...], missingColumns: [...] }
- *
- * Never exposes internal SQL or Prisma stack traces.
+ * Cached 60 seconds server-side. Never blocks production requests.
  */
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(req: Request) {
   const result = await verifyDatabaseSchema();
 
+  // Check if the caller is an admin (for detailed diagnostics)
+  let isAdmin = false;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    isAdmin = !!user && isAdminEmail(user.email);
+  } catch { /* not authenticated — public response */ }
+
   if (!result.healthy) {
-    return NextResponse.json(result, { status: 503 });
+    // Public: only show healthy=false
+    // Admin: show full details
+    return NextResponse.json(
+      isAdmin ? result : { healthy: false },
+      { status: 503 }
+    );
   }
 
-  return NextResponse.json(result);
+  // Healthy — same response for everyone
+  return NextResponse.json(
+    isAdmin ? result : { healthy: true }
+  );
 }

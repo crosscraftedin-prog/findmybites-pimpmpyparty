@@ -151,90 +151,94 @@ export async function adminCreateVendor(
 ): Promise<{ id: string; slug: string; claimToken: string }> {
   const slug = generateUniqueSlug(input.name);
   const claimToken = generateClaimToken();
-  const claimTokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+  const claimTokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-  const vendor = await db.vendor.create({
-    data: {
-      name: input.name,
-      slug,
-      ecosystem: input.ecosystem,
-      category: input.category,
-      subcategory: input.subcategory || null,
-      tagline: input.tagline || input.name,
-      description: input.description || "",
-      city: input.city,
-      state: input.state || null,
-      country: input.country,
-      countryCode: input.countryCode,
-      continent: input.continent || "",
-      currency: input.currency || "USD",
-      priceRange: input.priceRange || "$$",
-      basePrice: input.basePrice || 0,
-      rating: 0,
-      reviewCount: 0,
-      heroImage: input.heroImage || "",
-      avatarImage: input.avatarImage || "",
-      gallery: JSON.stringify(input.gallery || []),
-      tags: JSON.stringify(input.tags || []),
-      featured: input.featured || false,
-      verified: input.verified ?? true, // admin-created = verified by default
-      approved: true, // admin-created = immediately approved/live
-      responseTime: "24 hours",
-      yearsActive: 1,
-      completedBookings: 0,
-      phone: input.phone || null,
-      whatsapp: input.whatsapp || null,
-      userEmail: input.userEmail || null,
-      website: input.website || null,
-      instagram: input.instagram || null,
-      facebook: input.facebook || null,
-      address: input.address || null,
-      zipCode: input.zipCode || null,
-      latitude: input.latitude || null,
-      longitude: input.longitude || null,
-      serviceRadiusKm: input.serviceRadiusKm || null,
-      deliveryAvailable: input.deliveryAvailable || false,
-      pickupAvailable: input.pickupAvailable || false,
-      openHours: input.openHours || null,
-      metaTitle: input.metaTitle || null,
-      metaDescription: input.metaDescription || null,
-      // Admin-created listing fields
-      listingStatus: input.listingStatus || "published",
-      businessSource: input.businessSource || "manual",
-      adminCreated: true,
-      ownership_status: "unclaimed",
-      invite_type: "admin",
-      claimToken,
-      claimTokenExpiresAt,
-    },
-    select: { id: true, slug: true },
+  // Atomic transaction — vendor + audit trail + admin log, or nothing
+  const result = await db.$transaction(async (tx) => {
+    const vendor = await tx.vendor.create({
+      data: {
+        name: input.name,
+        slug,
+        ecosystem: input.ecosystem,
+        category: input.category,
+        subcategory: input.subcategory || null,
+        tagline: input.tagline || input.name,
+        description: input.description || "",
+        city: input.city,
+        state: input.state || null,
+        country: input.country,
+        countryCode: input.countryCode,
+        continent: input.continent || "",
+        currency: input.currency || "USD",
+        priceRange: input.priceRange || "$$",
+        basePrice: input.basePrice || 0,
+        rating: 0,
+        reviewCount: 0,
+        heroImage: input.heroImage || "",
+        avatarImage: input.avatarImage || "",
+        gallery: JSON.stringify(input.gallery || []),
+        tags: JSON.stringify(input.tags || []),
+        featured: input.featured || false,
+        verified: input.verified ?? true,
+        approved: true,
+        responseTime: "24 hours",
+        yearsActive: 1,
+        completedBookings: 0,
+        phone: input.phone || null,
+        whatsapp: input.whatsapp || null,
+        userEmail: input.userEmail || null,
+        website: input.website || null,
+        instagram: input.instagram || null,
+        facebook: input.facebook || null,
+        address: input.address || null,
+        zipCode: input.zipCode || null,
+        latitude: input.latitude || null,
+        longitude: input.longitude || null,
+        serviceRadiusKm: input.serviceRadiusKm || null,
+        deliveryAvailable: input.deliveryAvailable || false,
+        pickupAvailable: input.pickupAvailable || false,
+        openHours: input.openHours || null,
+        metaTitle: input.metaTitle || null,
+        metaDescription: input.metaDescription || null,
+        listingStatus: input.listingStatus || "published",
+        businessSource: input.businessSource || "manual",
+        adminCreated: true,
+        ownership_status: "unclaimed",
+        invite_type: "admin",
+        claimToken,
+        claimTokenExpiresAt,
+      },
+      select: { id: true, slug: true },
+    });
+
+    // Audit trail (inside transaction — rollback if this fails)
+    await tx.vendorClaim.create({
+      data: {
+        vendorId: vendor.id,
+        eventType: "admin_created",
+        initiatedBy: "admin",
+        adminId,
+        adminEmail,
+        tokenSnippet: claimToken.slice(-8),
+        notes: `Admin created listing: ${input.name}`,
+      },
+    });
+
+    await tx.adminAuditLog.create({
+      data: {
+        action: "vendor_admin_create",
+        adminId,
+        adminEmail,
+        targetId: vendor.id,
+        targetName: input.name,
+        metadata: JSON.stringify({ slug: vendor.slug, source: input.businessSource || "manual" }),
+      },
+    });
+
+    return vendor;
   });
 
-  // Log to audit trail
-  await db.vendorClaim.create({
-    data: {
-      vendorId: vendor.id,
-      eventType: "admin_created",
-      initiatedBy: "admin",
-      adminId,
-      adminEmail,
-      tokenSnippet: claimToken.slice(-8),
-      notes: `Admin created listing: ${input.name}`,
-    },
-  });
-
-  await db.adminAuditLog.create({
-    data: {
-      action: "vendor_admin_create",
-      adminId,
-      adminEmail,
-      targetId: vendor.id,
-      targetName: input.name,
-      metadata: JSON.stringify({ slug: vendor.slug, source: input.businessSource || "manual" }),
-    },
-  });
-
-  return { id: vendor.id, slug: vendor.slug, claimToken };
+  return { id: result.id, slug: result.slug, claimToken };
 }
 
 // ── Claim Link ─────────────────────────────────────────────────────────────

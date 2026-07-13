@@ -20,6 +20,7 @@ import {
   sanitizeFtsQuery,
 } from "@/lib/search";
 import { getVendorAttributesBatch, findVendorIdsByAttributes } from "@/lib/attributes/attribute-service";
+import { logger } from "@/lib/logger";
 import type { Vendor as ApiVendor } from "@/lib/types";
 
 function transformVendor(v: DbVendor): ApiVendor {
@@ -163,7 +164,7 @@ export async function GET(req: NextRequest) {
           where.id = { in: [] };
         }
       } catch (attrErr) {
-        console.error("[api/vendors] attribute filter failed:", attrErr);
+        logger.error("api/vendors", "attribute filter failed (non-fatal)", attrErr);
         // Fail gracefully — ignore attribute filter if service unavailable
       }
     }
@@ -246,7 +247,7 @@ export async function GET(req: NextRequest) {
         }
       }
     } catch (attrErr) {
-      console.error("[api/vendors] attribute batch fetch failed (non-fatal):", attrErr);
+      logger.error("api/vendors", "attribute batch fetch failed (non-fatal)", attrErr);
     }
 
     const res = NextResponse.json({ vendors, total });
@@ -254,7 +255,7 @@ export async function GET(req: NextRequest) {
     res.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
     return res;
   } catch (err) {
-    console.error("[api/vendors] GET failed:", err);
+    logger.error("api/vendors", "GET failed", err);
     // Return empty list instead of 500 so the homepage doesn't break
     // entirely when the DB is unreachable.
     return NextResponse.json({ vendors: [], total: 0 });
@@ -485,7 +486,7 @@ export async function POST(req: NextRequest) {
         ownerId = supaSession?.user?.id ?? null;
       }
     } catch (authErr) {
-      console.error("[api/vendors] auth read failed (non-fatal):", authErr);
+      logger.error("api/vendors", "auth read failed (non-fatal)", authErr);
     }
 
     // If we still couldn't get the user, return an error — don't create
@@ -590,7 +591,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    console.error("[api/vendors] POST failed:", err);
+    logger.error("api/vendors", "POST failed", err);
     return NextResponse.json(
       { error: "We couldn't complete your request. Please try again." },
       { status: 500 }

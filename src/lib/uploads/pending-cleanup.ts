@@ -25,7 +25,7 @@ import { db } from "@/lib/db";
 
 const BUCKET_NAME = "vendor-uploads";
 const PENDING_PREFIX = "pending";
-export const MAX_AGE_DAYS = 30;
+export const MAX_AGE_DAYS = 1; // 24 hours — pending uploads expire quickly
 const MAX_AGE_MS = MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
 
 export interface PendingCleanupResult {

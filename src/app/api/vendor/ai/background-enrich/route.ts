@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
@@ -70,7 +71,7 @@ Only return valid JSON, no markdown.`;
       const cleaned = aiResponse.replace(/```json/gi, "").replace(/```/g, "").trim();
       aiData = JSON.parse(cleaned);
     } catch (aiErr) {
-      console.error("[background-enrich] AI generation failed (non-fatal):", aiErr);
+      logger.error("background-enrich", "AI generation failed (non-fatal)", aiErr);
       return NextResponse.json({ success: false, reason: "AI generation failed" });
     }
 
@@ -99,7 +100,7 @@ Only return valid JSON, no markdown.`;
 
     return NextResponse.json({ success: true, stored: "suggestions" });
   } catch (error: any) {
-    console.error("[background-enrich] failed:", error);
+    logger.error("background-enrich", "failed", error);
     return NextResponse.json({ error: "Background enrichment failed" }, { status: 500 });
   }
 }
