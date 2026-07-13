@@ -46,7 +46,12 @@ export type StepType =
   | "fields"
   | "seo"
   | "inventory"
-  | "preview";
+  | "preview"
+  | "details"    // V3.1: merged Product Info + Customisation + Attributes
+  | "options"    // V3.1: merged Variants + Customisation + Add-ons
+  | "delivery"   // V3.1: merged Inventory + Scheduling + Delivery
+  | "marketing"  // V3.1: merged SEO + FAQ + Tags + Featured
+  | "success";   // V3.1: post-publish success screen
 
 export interface DynamicStep {
   id: number;
@@ -84,6 +89,12 @@ export interface WizardRenderProps {
   onPublish: () => void;
   onClose: () => void;
   router: { push: (url: string) => void };
+  // V3.1: Simplified wizard props
+  onQuickPublish?: () => void;        // early publish from Step 1
+  onContinueEditing?: () => void;     // dismiss success screen, go to Step 2
+  completenessPercent?: number;       // progress bar after publish
+  showPreview?: boolean;              // floating preview modal toggle
+  setShowPreview?: (v: boolean) => void;
   [key: string]: unknown;
 }
 
