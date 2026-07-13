@@ -82,7 +82,7 @@ function renderProduct(p: JoshProduct): string {
 
     // Nutrition
     if (info.nutritionEnabled) {
-      const nutrition = [];
+      const nutrition: string[] = [];
       if (info.calories) nutrition.push(`${info.calories} cal`);
       if (info.protein) nutrition.push(`${info.protein} protein`);
       if (info.fat) nutrition.push(`${info.fat} fat`);

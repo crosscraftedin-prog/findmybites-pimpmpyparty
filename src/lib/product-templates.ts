@@ -1,5 +1,5 @@
 import type { Ecosystem } from "./types";
-import type { ProductInfo, InfoSection } from "./product-info";
+import type { ProductInfo, InfoSection } from "./products/product-info";
 import {
   INGREDIENTS_SECTION,
   ALLERGENS_SECTION,
@@ -13,7 +13,7 @@ import {
   CUSTOMISATION_SECTION,
   OCCASION_TAGS_SECTION,
   RECIPE_COST_SECTION,
-} from "./product-info";
+} from "./products/product-info";
 
 export interface ProductTemplate {
   name: string;
