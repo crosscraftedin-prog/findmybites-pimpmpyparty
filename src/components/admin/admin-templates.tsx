@@ -1426,9 +1426,11 @@ function TemplateEditorPanel({
     icon: template.icon ?? "",
     active: template.active !== false,
   });
-  const [fields, setFields] = React.useState<TemplateField[]>(template.fields);
+  const [fields, setFields] = React.useState<TemplateField[]>(
+    Array.isArray(template.fields) ? template.fields : []
+  );
   const [sections, setSections] = React.useState<TemplateSection[]>(
-    template.sections
+    Array.isArray(template.sections) ? template.sections : []
   );
 
   // editor dialog state
@@ -1473,8 +1475,9 @@ function TemplateEditorPanel({
       icon: template.icon ?? "",
       active: template.active !== false,
     });
-    setFields(template.fields);
-    setSections(template.sections);
+    // Defensive: ensure fields and sections are always arrays
+    setFields(Array.isArray(template.fields) ? template.fields : []);
+    setSections(Array.isArray(template.sections) ? template.sections : []);
   }, [template]);
 
   const sensors = useSensors(

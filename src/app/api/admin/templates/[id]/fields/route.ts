@@ -39,6 +39,39 @@ function toJsonStr(value: unknown): string | null {
 }
 
 /**
+ * Parse a JSON string column into an array/object. Defensive.
+ */
+function parseJsonArray<T>(value: unknown, fallback: T[] = []): T[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
+  if (!value) return fallback;
+  try { return JSON.parse(value) as T; } catch { return fallback; }
+}
+
+/**
+ * Normalize a field's JSON-string columns into arrays/objects for the frontend.
+ */
+function normalizeField(f: any) {
+  return {
+    ...f,
+    staticOptions: parseJsonArray(f.staticOptions),
+    condition: typeof f.condition === "string" ? safeJsonParse(f.condition, null) : f.condition,
+    subFields: typeof f.subFields === "string" ? safeJsonParse(f.subFields, null) : f.subFields,
+    toggleOptions: typeof f.toggleOptions === "string" ? safeJsonParse(f.toggleOptions, null) : f.toggleOptions,
+    repeatFields: typeof f.repeatFields === "string" ? safeJsonParse(f.repeatFields, null) : f.repeatFields,
+  };
+}
+
+/**
  * GET /api/admin/templates/[id]/fields — list all fields for a template,
  * ordered by sortOrder ascending.
  */
@@ -57,7 +90,9 @@ export async function GET(
       orderBy: { sortOrder: "asc" },
     });
 
-    return NextResponse.json(fields ?? []);
+    // Normalize: parse JSON-string columns into arrays for the frontend
+    const normalized = (fields ?? []).map(normalizeField);
+    return NextResponse.json(normalized);
   } catch (error: any) {
     console.error("[admin/templates/[id]/fields] GET failed:", error?.message);
     return NextResponse.json(

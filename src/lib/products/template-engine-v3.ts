@@ -933,8 +933,9 @@ export async function compareProducts(
     if (!productA || !productB) return null;
 
     // Get template fields for the category
+    const category = productA.category || undefined;
     const mapping = await db.templateMapping.findFirst({
-      where: { categoryId: productA.category, subcategory: null },
+      where: { categoryId: category, subcategory: null },
       include: {
         template: {
           include: {

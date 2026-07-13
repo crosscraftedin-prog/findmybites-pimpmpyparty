@@ -3,7 +3,46 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin-guard";
 
 /**
+ * Parse a JSON string column into an array. Defensive — returns [] for
+ * null/undefined/empty/malformed. Prevents frontend TypeErrors.
+ */
+function parseJsonArray<T>(value: unknown, fallback: T[] = []): T[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
+  if (!value) return fallback;
+  try { return JSON.parse(value) as T; } catch { return fallback; }
+}
+
+/**
+ * Normalize a template's JSON-string columns into arrays/objects.
+ */
+function normalizeTemplate(t: any) {
+  return {
+    ...t,
+    sections: parseJsonArray(t.sections),
+    fields: (t.fields ?? []).map((f: any) => ({
+      ...f,
+      staticOptions: parseJsonArray(f.staticOptions),
+      condition: typeof f.condition === "string" ? safeJsonParse(f.condition, null) : f.condition,
+      subFields: typeof f.subFields === "string" ? safeJsonParse(f.subFields, null) : f.subFields,
+      toggleOptions: typeof f.toggleOptions === "string" ? safeJsonParse(f.toggleOptions, null) : f.toggleOptions,
+      repeatFields: typeof f.repeatFields === "string" ? safeJsonParse(f.repeatFields, null) : f.repeatFields,
+    })),
+  };
+}
+
+/**
  * GET /api/admin/templates/[id] — fetch a single template with fields + mappings.
+ * V3 Fix: normalizes JSON-string columns into arrays for the frontend.
  */
 export async function GET(
   _req: NextRequest,
@@ -30,7 +69,8 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(template);
+    // Normalize: parse JSON-string columns into arrays
+    return NextResponse.json(normalizeTemplate(template));
   } catch (error: any) {
     console.error("[admin/templates/[id]] GET failed:", error?.message);
     return NextResponse.json(
@@ -80,7 +120,8 @@ export async function PUT(
       data,
     });
 
-    return NextResponse.json(updated);
+    // Normalize: parse JSON-string columns into arrays for the frontend
+    return NextResponse.json(normalizeTemplate(updated));
   } catch (error: any) {
     console.error("[admin/templates/[id]] PUT failed:", error?.message);
     return NextResponse.json(
