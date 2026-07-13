@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin-guard";
+import { invalidateAllTemplateCaches } from "@/lib/products/template-cache";
 
 /**
  * Parse a JSON string column into an array. Defensive — returns [] for
@@ -120,6 +121,9 @@ export async function PUT(
       data,
     });
 
+    // Invalidate template cache so metadata changes are visible immediately
+    invalidateAllTemplateCaches();
+
     // Normalize: parse JSON-string columns into arrays for the frontend
     return NextResponse.json(normalizeTemplate(updated));
   } catch (error: any) {
@@ -147,6 +151,9 @@ export async function DELETE(
     const { id } = await params;
 
     await db.listingTemplate.delete({ where: { id } });
+
+    // Invalidate template cache so deletion is visible immediately
+    invalidateAllTemplateCaches();
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

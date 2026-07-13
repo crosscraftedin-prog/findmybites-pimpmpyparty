@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin-guard";
+import { invalidateAllTemplateCaches } from "@/lib/products/template-cache";
 
 interface FieldInput {
   key?: string;
@@ -88,6 +89,9 @@ export async function PUT(
       data,
     });
 
+    // Invalidate template cache so field update is visible immediately
+    invalidateAllTemplateCaches();
+
     return NextResponse.json(updated);
   } catch (error: any) {
     console.error("[admin/templates/[id]/fields/[fieldId]] PUT failed:", error?.message);
@@ -124,6 +128,9 @@ export async function DELETE(
     }
 
     await db.templateField.delete({ where: { id: fieldId } });
+
+    // Invalidate template cache so field deletion is visible immediately
+    invalidateAllTemplateCaches();
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

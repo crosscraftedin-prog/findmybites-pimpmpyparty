@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin-guard";
+import { invalidateAllTemplateCaches } from "@/lib/products/template-cache";
 
 /**
  * Field shape coming from the admin UI. Arrays/objects are JSON-encoded before
@@ -163,7 +164,10 @@ export async function POST(
       },
     });
 
-    return NextResponse.json(created, { status: 201 });
+    // Invalidate template cache so new field is visible immediately
+    invalidateAllTemplateCaches();
+
+    return NextResponse.json(normalizeField(created), { status: 201 });
   } catch (error: any) {
     console.error("[admin/templates/[id]/fields] POST failed:", error?.message);
     return NextResponse.json(
@@ -259,7 +263,10 @@ export async function PUT(
       orderBy: { sortOrder: "asc" },
     });
 
-    return NextResponse.json(refreshed);
+    // Invalidate template cache so field changes are visible immediately
+    invalidateAllTemplateCaches();
+
+    return NextResponse.json(refreshed.map(normalizeField));
   } catch (error: any) {
     console.error("[admin/templates/[id]/fields] PUT failed:", error?.message);
     return NextResponse.json(

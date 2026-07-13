@@ -247,17 +247,11 @@ function dbFieldsToSections(
  */
 export async function resolveProductInfoSectionsFromDB(
   category: string | null | undefined,
-  subcategory?: string | null,
-  opts?: { bypassCache?: boolean }
+  subcategory?: string | null
 ): Promise<InfoSection[] | null> {
   if (!category) return null;
 
   // Use runtime cache — prevents repeated DB queries for the same category
-  // bypassCache option is for testing — forces a fresh DB query
-  if (opts?.bypassCache) {
-    return resolveSectionsFromDBUncached(category, subcategory);
-  }
-
   return getCached<InfoSection[] | null>(
     "sections",
     category,
@@ -300,9 +294,6 @@ async function resolveSectionsFromDBUncached(
           where: { templateId: template.id, enabled: true },
           orderBy: [{ section: "asc" }, { sortOrder: "asc" }],
         }).catch(() => null);
-
-        const rawResult = await db.$queryRaw`SELECT key, label FROM template_fields WHERE "templateId" = ${template.id} AND enabled = 1`.catch(() => []);
-
 
         if (!fields || fields.length === 0) return null;
         // Don't return draft or archived templates' sections publicly
