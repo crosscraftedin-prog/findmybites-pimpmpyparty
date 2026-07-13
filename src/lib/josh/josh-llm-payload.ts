@@ -76,10 +76,8 @@ function renderProduct(p: JoshProduct): string {
     if (info.shelfLife) parts.push(`shelf life: ${info.shelfLife}`);
     if (info.storageType) parts.push(`storage: ${info.storageType}`);
     if (info.storageInstructions) parts.push(`storage instructions: ${info.storageInstructions.slice(0, 150)}`);
-    if (info.servingSuggestion) parts.push(`serving: ${info.servingSuggestion}`);
+    if (info.careInstructions?.length) parts.push(`care: ${info.careInstructions.join(", ")}`);
     if (info.packageType) parts.push(`packaging: ${info.packageType}`);
-    if (info.netWeight) parts.push(`net weight: ${info.netWeight}`);
-    if (info.packageIncludes) parts.push(`package includes: ${info.packageIncludes}`);
     if (info.giftWrapping) parts.push("gift wrapping: yes");
     if (info.ecoFriendly) parts.push("eco friendly: yes");
     if (info.highlights?.length) parts.push(`highlights: ${info.highlights.join(", ")}`);
@@ -91,9 +89,20 @@ function renderProduct(p: JoshProduct): string {
       if (info.carbohydrates) nutrition.push(`${info.carbohydrates} carbs`);
       if (nutrition.length) parts.push(`nutrition: ${nutrition.join(", ")}`);
     }
+    // Logistics
+    if (info.deliveryAvailable) parts.push("delivery: yes");
+    if (info.pickupAvailable) parts.push("pickup: yes");
+    if (info.sameDayDelivery) parts.push("same day delivery: yes");
+    if (info.deliveryRadius) parts.push(`delivery radius: ${info.deliveryRadius}`);
+    if (info.deliveryCharges) parts.push(`delivery charges: ${info.deliveryCharges}`);
+    if (info.minimumOrder) parts.push(`minimum order: ${info.minimumOrder}`);
+    // Customisation
+    if (info.customisation?.length) parts.push(`customisation: ${info.customisation.join(", ")}`);
+    // Occasion tags
+    if (info.occasionTags?.length) parts.push(`occasions: ${info.occasionTags.join(", ")}`);
     // Category-specific fields
     if (info.flowerTypes) parts.push(`flowers: ${info.flowerTypes.slice(0, 100)}`);
-    if (info.careInstructions) parts.push(`care: ${info.careInstructions.slice(0, 100)}`);
+    if (info.careInstructionsFlorist) parts.push(`care: ${info.careInstructionsFlorist.slice(0, 100)}`);
     if (info.menuItems) parts.push(`menu: ${info.menuItems.slice(0, 150)}`);
     if (info.setupTime) parts.push(`setup time: ${info.setupTime}`);
     if (info.performanceDuration) parts.push(`performance: ${info.performanceDuration}`);

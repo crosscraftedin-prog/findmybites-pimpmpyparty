@@ -6,7 +6,7 @@ import {
   Check, ChevronLeft, ChevronRight, Loader2, Sparkles, Upload, X,
   Image as ImageIcon, Eye, Star, AlertCircle, AlertTriangle, Wand2, Plus, PartyPopper, Monitor, Tablet, Smartphone,
   Boxes, Clock, CalendarDays, Bell, Tags,
-  DollarSign, Package, Info, CheckCircle2,
+  DollarSign, Package, Info, CheckCircle2, Search,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import type { Vendor } from "@/lib/types";
 import { GalleryUpload } from "./image-upload";
 import { AttributeSelector } from "./attribute-selector";
 import { ProductInfoForm } from "./product-info-form";
+import { CUSTOMISATION_SECTION as CUSTOMISATION_SECTIONS_FALLBACK } from "@/lib/products/product-info";
 import type { ProductInfo } from "@/lib/products/product-info";
 import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
 
@@ -36,13 +37,14 @@ interface ProductWizardProps {
 const STEPS = [
   { id: 1, title: "Basic Info", icon: Star },
   { id: 2, title: "Photos", icon: ImageIcon },
-  { id: 3, title: "Default Price", icon: DollarSign },
+  { id: 3, title: "Pricing", icon: DollarSign },
   { id: 4, title: "Variants", icon: Package },
-  { id: 5, title: "Details", icon: Star },
+  { id: 5, title: "Attributes", icon: Tags },
   { id: 6, title: "Product Info", icon: Info },
-  { id: 7, title: "SEO", icon: Star },
-  { id: 8, title: "Inventory", icon: Boxes },
-  { id: 9, title: "Preview", icon: Eye },
+  { id: 7, title: "Customisation", icon: Star },
+  { id: 8, title: "SEO", icon: Search },
+  { id: 9, title: "Inventory", icon: Boxes },
+  { id: 10, title: "Preview", icon: Eye },
 ];
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -518,7 +520,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     if (touchStartX.current === null) return;
     const dx = (e.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current;
     const threshold = 60; // px
-    if (dx < -threshold && step < 9 && canProceed) {
+    if (dx < -threshold && step < 10 && canProceed) {
       setStep(step + 1); // swipe left → next
     } else if (dx > threshold && step > 1) {
       setStep(step - 1); // swipe right → back
@@ -1094,12 +1096,35 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     productInfo={productInfo}
                     onChange={setProductInfo}
                     category={vendor.category}
+                    productName={form.name}
+                    productDescription={form.description}
                   />
                 </div>
               )}
 
-              {/* Step 7: SEO */}
+              {/* Step 7: Customisation */}
               {step === 7 && (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="flex items-center gap-2 text-lg font-bold">
+                      <Star className="size-5 text-amber-600" />
+                      Customisation
+                    </h3>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      Let customers know what they can personalise about this product.
+                    </p>
+                  </div>
+                  <ProductInfoForm
+                    productInfo={productInfo}
+                    onChange={setProductInfo}
+                    infoSections={CUSTOMISATION_SECTIONS_FALLBACK}
+                    category={vendor.category}
+                  />
+                </div>
+              )}
+
+              {/* Step 8: SEO */}
+              {step === 8 && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-bold">SEO Settings</h3>
@@ -1127,8 +1152,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                 </div>
               )}
 
-              {/* Step 8: Inventory & Availability */}
-              {step === 8 && (
+              {/* Step 9: Inventory & Availability */}
+              {step === 9 && (
                 <div className="space-y-5">
                   <div>
                     <h3 className="flex items-center gap-2 text-lg font-bold">
@@ -1325,8 +1350,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                 </div>
               )}
 
-              {/* Step 9: Preview & Publish */}
-              {step === 9 && (
+              {/* Step 10: Preview & Publish */}
+              {step === 10 && (
                 <div className="space-y-4">
                   {/* Publish Error (never show fake success) */}
                   {publishError ? (

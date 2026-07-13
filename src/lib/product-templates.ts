@@ -2,11 +2,16 @@ import type { Ecosystem } from "./types";
 import type { ProductInfo, InfoSection } from "./product-info";
 import {
   INGREDIENTS_SECTION,
-  PACKAGING_SECTION,
-  STORAGE_SECTION,
   ALLERGENS_SECTION,
   NUTRITION_SECTION,
-  HIGHLIGHTS_SECTION_BAKERY,
+  PACKAGING_SECTION,
+  STORAGE_SECTION,
+  SHELF_LIFE_SECTION,
+  CARE_INSTRUCTIONS_SECTION,
+  PRODUCT_HIGHLIGHTS_SECTION,
+  LOGISTICS_SECTION,
+  CUSTOMISATION_SECTION,
+  OCCASION_TAGS_SECTION,
   getLegacySectionsForCategory,
 } from "./product-info";
 
@@ -19,30 +24,27 @@ export interface ProductTemplate {
   duration?: string;
   includes: string[];
   dietaryTags?: string[];
-  /**
-   * Default product information (Ingredients, Packaging, Storage, etc.)
-   * for this template. Pre-filled when the vendor selects this template.
-   */
   productInfo?: ProductInfo;
-  /**
-   * Template-driven Product Information sections.
-   * Each template defines which sections to show in the wizard + product page.
-   * If omitted, falls back to legacy category-based lookup.
-   */
   infoSections?: InfoSection[];
+  /** Sections for the Customisation step (separate from Product Information). */
+  customisationSections?: InfoSection[];
 }
 
 // ── Shared section sets per category (template-driven) ─────────────────────
-// Templates reference these to define which Product Information sections
-// to show in the wizard + product page.
 
 const BAKERY_INFO_SECTIONS: InfoSection[] = [
   INGREDIENTS_SECTION,
-  PACKAGING_SECTION,
-  STORAGE_SECTION,
   ALLERGENS_SECTION,
   NUTRITION_SECTION,
-  HIGHLIGHTS_SECTION_BAKERY,
+  PACKAGING_SECTION,
+  STORAGE_SECTION,
+  SHELF_LIFE_SECTION,
+  CARE_INSTRUCTIONS_SECTION,
+  PRODUCT_HIGHLIGHTS_SECTION,
+];
+
+const BAKERY_CUSTOMISATION_SECTIONS: InfoSection[] = [
+  CUSTOMISATION_SECTION,
 ];
 
 const FLORIST_INFO_SECTIONS: InfoSection[] = getLegacySectionsForCategory("florists");
@@ -211,15 +213,18 @@ const CATEGORY_INFO_SECTIONS: Record<string, InfoSection[]> = {
   "videographers": GENERIC_INFO_SECTIONS,
 };
 
+const CATEGORY_CUSTOMISATION_SECTIONS: Record<string, InfoSection[]> = {
+  "bakers-bakery": BAKERY_CUSTOMISATION_SECTIONS,
+};
+
 export function getTemplates(ecosystem: Ecosystem, category: string): ProductTemplate[] {
   const list = TEMPLATES[category] ?? [];
-  // Auto-assign infoSections from the category if the template doesn't
-  // define its own. This keeps templates DRY — you only need to set
-  // infoSections on a template when it differs from the category default.
   const categorySections = CATEGORY_INFO_SECTIONS[category] ?? GENERIC_INFO_SECTIONS;
+  const categoryCustomisation = CATEGORY_CUSTOMISATION_SECTIONS[category] ?? [];
   return list.map((t) => ({
     ...t,
     infoSections: t.infoSections ?? categorySections,
+    customisationSections: t.customisationSections ?? categoryCustomisation,
   }));
 }
 

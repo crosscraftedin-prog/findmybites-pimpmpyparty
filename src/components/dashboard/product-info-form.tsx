@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Info } from "lucide-react";
+import { ChevronDown, Info, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import {
   getLegacySectionsForCategory,
   type ProductInfo,
@@ -16,25 +17,25 @@ import {
 /**
  * ProductInfoForm — template-engine driven product information editor.
  *
- * Sections are NOT hardcoded by category. They come from:
- *   1. The `infoSections` prop (passed from the active template), OR
- *   2. The legacy category fallback (backward compatibility).
- *
- * Supports field types: text, richtext, textarea, select, checkbox, checkboxes.
- * Fields and sections can be conditionally shown via `showWhen`.
+ * Sections come from the `infoSections` prop (template-driven) or the legacy
+ * category fallback. Supports AI generation for fields with `aiGeneratable`.
  */
 export function ProductInfoForm({
   productInfo,
   onChange,
   infoSections,
   category,
+  productName,
+  productDescription,
 }: {
   productInfo: ProductInfo;
   onChange: (info: ProductInfo) => void;
-  /** Template-driven sections. If omitted, falls back to category. */
   infoSections?: InfoSection[];
-  /** Category for legacy fallback. */
   category?: string | null;
+  /** Product name — used as context for AI ingredient generation. */
+  productName?: string;
+  /** Product description — used as context for AI ingredient generation. */
+  productDescription?: string;
 }) {
   const sections = React.useMemo(() => {
     if (infoSections && infoSections.length > 0) return infoSections;
@@ -54,7 +55,6 @@ export function ProductInfoForm({
     }
   };
 
-  // Filter sections by showWhen condition
   const visibleSections = sections.filter((section) => {
     if (!section.showWhen) return true;
     const val = (productInfo as any)[section.showWhen.field];
@@ -80,6 +80,8 @@ export function ProductInfoForm({
           productInfo={productInfo}
           setField={setField}
           toggleArrayValue={toggleArrayValue}
+          productName={productName}
+          productDescription={productDescription}
         />
       ))}
     </div>
@@ -91,22 +93,24 @@ function SectionCard({
   productInfo,
   setField,
   toggleArrayValue,
+  productName,
+  productDescription,
 }: {
   section: InfoSection;
   productInfo: ProductInfo;
   setField: (key: string, value: unknown) => void;
   toggleArrayValue: (key: string, value: string) => void;
+  productName?: string;
+  productDescription?: string;
 }) {
   const [collapsed, setCollapsed] = React.useState(false);
 
-  // Filter fields by showWhen condition
   const visibleFields = section.fields.filter((field) => {
     if (!field.showWhen) return true;
     const val = (productInfo as any)[field.showWhen.field];
     return val === field.showWhen.equals;
   });
 
-  // Check if this section has any data filled in
   const hasData = visibleFields.some((f) => {
     const val = (productInfo as any)[f.key];
     return val && (typeof val !== "object" || (Array.isArray(val) && val.length > 0));
@@ -149,6 +153,8 @@ function SectionCard({
               value={(productInfo as any)[field.key]}
               setField={setField}
               toggleArrayValue={toggleArrayValue}
+              productName={productName}
+              productDescription={productDescription}
             />
           ))}
         </div>
@@ -162,12 +168,47 @@ function FieldInput({
   value,
   setField,
   toggleArrayValue,
+  productName,
+  productDescription,
 }: {
   field: InfoField;
   value: unknown;
   setField: (key: string, value: unknown) => void;
   toggleArrayValue: (key: string, value: string) => void;
+  productName?: string;
+  productDescription?: string;
 }) {
+  const [aiLoading, setAiLoading] = React.useState(false);
+
+  // AI generation for ingredients
+  const generateWithAI = async () => {
+    if (!productName?.trim()) {
+      toast.error("Enter a product name first");
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/vendor/ai/generate-ingredients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productName,
+          productDescription: productDescription || "",
+          field: field.key,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "AI generation failed");
+      if (data.ingredients) {
+        setField(field.key, data.ingredients);
+        toast.success("Ingredients generated!");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate ingredients");
+    }
+    setAiLoading(false);
+  };
+
   if (field.type === "text") {
     return (
       <div>
@@ -186,14 +227,25 @@ function FieldInput({
   }
 
   if (field.type === "richtext") {
-    // Rich text = textarea with a hint that line breaks are supported.
-    // We use a textarea with a small "supports line breaks" hint.
     return (
       <div>
-        <Label className="text-xs">
-          {field.label}
-          {field.optional && <span className="ml-1 text-muted-foreground">(optional)</span>}
-        </Label>
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">
+            {field.label}
+            {field.optional && <span className="ml-1 text-muted-foreground">(optional)</span>}
+          </Label>
+          {field.aiGeneratable && (
+            <button
+              type="button"
+              onClick={generateWithAI}
+              disabled={aiLoading}
+              className="flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+            >
+              {aiLoading ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
+              {aiLoading ? "Generating…" : "Generate with AI"}
+            </button>
+          )}
+        </div>
         <Textarea
           value={(value as string) ?? ""}
           onChange={(e) => setField(field.key, e.target.value)}
