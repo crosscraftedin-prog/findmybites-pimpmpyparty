@@ -21,8 +21,8 @@ import type { Vendor } from "@/lib/types";
 import { GalleryUpload } from "./image-upload";
 import { AttributeSelector } from "./attribute-selector";
 import { ProductInfoForm } from "./product-info-form";
-import { CUSTOMISATION_SECTION, RECIPE_COST_SECTION } from "@/lib/products/product-info";
 import type { ProductInfo } from "@/lib/products/product-info";
+import { DynamicWizardRenderer, type DynamicStep, type StepType, type StepRenderer, type WizardRenderProps } from "./dynamic-wizard-renderer";
 import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
 
 interface ProductWizardProps {
@@ -36,27 +36,21 @@ interface ProductWizardProps {
 
 // ── Dynamic Wizard Steps ───────────────────────────────────────────────────
 // V3: Steps are resolved from the Template Engine at runtime.
-// The hardcoded STEPS below are the FALLBACK used when no DB template defines a wizard.
-// Admins can override these by editing the template's `wizard` JSON column.
-
-interface DynamicStep {
-  id: number;
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  sections?: string[];
-}
+// The FALLBACK_STEPS below are the EMERGENCY FALLBACK used ONLY when no DB
+// template defines a wizard. Admins can override by editing the template's
+// `wizard` JSON column — no code changes needed.
 
 const FALLBACK_STEPS: DynamicStep[] = [
-  { id: 1, title: "Basic Info", icon: Star },
-  { id: 2, title: "Photos", icon: ImageIcon },
-  { id: 3, title: "Pricing", icon: DollarSign },
-  { id: 4, title: "Variants", icon: Package },
-  { id: 5, title: "Attributes", icon: Tags },
-  { id: 6, title: "Product Info", icon: Info },
-  { id: 7, title: "Customisation", icon: Star },
-  { id: 8, title: "SEO", icon: Search },
-  { id: 9, title: "Inventory", icon: Boxes },
-  { id: 10, title: "Preview", icon: Eye },
+  { id: 1, title: "Basic Info", icon: Star, stepType: "basic" },
+  { id: 2, title: "Photos", icon: ImageIcon, stepType: "photos" },
+  { id: 3, title: "Pricing", icon: DollarSign, stepType: "pricing" },
+  { id: 4, title: "Variants", icon: Package, stepType: "variants" },
+  { id: 5, title: "Attributes", icon: Tags, stepType: "attributes" },
+  { id: 6, title: "Product Info", icon: Info, stepType: "fields" },
+  { id: 7, title: "Customisation", icon: Star, stepType: "fields", sections: ["customisation"] },
+  { id: 8, title: "SEO", icon: Search, stepType: "seo" },
+  { id: 9, title: "Inventory", icon: Boxes, stepType: "inventory" },
+  { id: 10, title: "Preview", icon: Eye, stepType: "preview" },
 ];
 
 // Icon resolver — maps icon names from the template to lucide components
@@ -572,106 +566,39 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     touchStartX.current = null;
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      {/* Header — permanently visible (shrink-0) */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-3">
-        <div className="flex items-center gap-3">
-          <button onClick={onClose} className="grid size-8 place-items-center rounded-full hover:bg-muted">
-            <X className="size-5" />
-          </button>
-          <div>
-            <h2 className="text-sm font-bold">{initialData ? "Edit" : "New"} {isFood ? "Product" : "Package"}</h2>
-            <p className="text-[10px] text-muted-foreground">
-              {autoSaving ? "Saving…" : lastSaved ? `Last saved ${lastSaved}` : "Auto-save enabled"}
-            </p>
-          </div>
-        </div>
-        {/* Quality Score */}
-        <div className="flex items-center gap-2">
-          <div className="flex">
-            {[1, 2, 3, 4, 5].map(i => (
-              <Star key={i} className={cn("size-3", i <= qualityStars ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30")} />
-            ))}
-          </div>
-          <span className="text-xs font-bold">{qualityScore}%</span>
-        </div>
-      </div>
 
-      {/* Step Progress — permanently visible (shrink-0). Mobile: "Step X of Y" + progress bar; desktop: full indicator */}
-      <div className="shrink-0 border-b border-border bg-card">
-        {/* Mobile: compact Step X of Y */}
-        <div className="flex items-center justify-between px-4 py-1.5 sm:hidden">
-          <span className="text-xs font-semibold">
-            Step {step} of {STEPS.length}
-          </span>
-          <span className="text-xs text-muted-foreground">{STEPS[step - 1]?.title}</span>
-        </div>
-        {/* Progress bar (both mobile + desktop) */}
-        <div className="flex gap-0.5 px-4 pb-1.5 sm:gap-1">
-          {STEPS.map((s) => {
-            const isCompleted = step > s.id;
-            const isActive = step === s.id;
-            return (
-              <div
-                key={s.id}
-                className={cn(
-                  "h-1 flex-1 rounded-full transition-colors",
-                  isCompleted ? "bg-emerald-500" : isActive ? "bg-brand" : "bg-muted"
-                )}
-              />
-            );
-          })}
-        </div>
-        {/* Desktop: full step indicator with labels */}
-        <div className="hidden items-center justify-between px-4 py-2 sm:flex">
-          {STEPS.map((s, i) => {
-            const Icon = s.icon;
-            const isActive = step === s.id;
-            const isCompleted = step > s.id;
-            return (
-              <React.Fragment key={s.id}>
-                <button
-                  onClick={() => step > s.id && setStep(s.id)}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium transition-colors",
-                    isActive ? "bg-brand/10 text-brand" : isCompleted ? "text-emerald-600" : "text-muted-foreground"
-                  )}
-                >
-                  <div className={cn(
-                    "grid size-5 place-items-center rounded-full text-[10px]",
-                    isActive ? "bg-brand text-white" : isCompleted ? "bg-emerald-500 text-white" : "bg-muted"
-                  )}>
-                    {isCompleted ? <Check className="size-3" /> : s.id}
-                  </div>
-                  <span>{s.title}</span>
-                </button>
-                {i < STEPS.length - 1 && (
-                  <div className={cn("h-0.5 flex-1", isCompleted ? "bg-emerald-400" : "bg-muted")} />
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      </div>
+  // ── Dynamic Wizard Step Renderers ──────────────────────────────────────────
+  // V3: Step content is rendered by DynamicWizardRenderer, which looks up the
+  // current step's stepType and calls the matching render function below.
+  // No more `step === N` conditionals — the wizard is fully template-driven.
+  // Render functions close over wizard state (form, set, vendor, etc.).
+  const sharedProps: WizardRenderProps = {
+    form,
+    set,
+    vendor,
+    isFood,
+    symbol,
+    productInfo,
+    setProductInfo,
+    productAttributeIds,
+    setProductAttributeIds,
+    productSubcategories,
+    autoSave,
+    generateWithAI,
+    generateSEO,
+    aiGenerating,
+    aiSeoLoading: false,
+    saving,
+    published,
+    publishError,
+    savedProductSlug,
+    onPublish: handlePublish,
+    onClose,
+    router: { push: () => {} },
+  };
 
-      {/* Step Content — swipeable on mobile */}
-      <div
-        className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
-        <div className="mx-auto max-w-2xl">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={step}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-            >
-              {/* Step 1: Basic Info */}
-              {step === 1 && (
+  const STEP_RENDERERS: Record<StepType, StepRenderer> = {
+    basic: () => (
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold">Basic Information</h3>
                   <div>
@@ -733,10 +660,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     </Button>
                   </div>
                 </div>
-              )}
-
-              {/* Step 2: Photos */}
-              {step === 2 && (
+    ),
+    photos: () => (
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold">Photos & Video</h3>
                   <div>
@@ -758,10 +683,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                       placeholder="YouTube or Instagram Reel URL" className="mt-1" />
                   </div>
                 </div>
-              )}
-
-              {/* Step 3: Default Price */}
-              {step === 3 && (
+    ),
+    pricing: () => (
                 <div className="space-y-4">
                   <div>
                     <h3 className="flex items-center gap-2 text-lg font-bold">
@@ -813,10 +736,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     </p>
                   </div>
                 </div>
-              )}
-
-              {/* Step 4: Product Variants (Optional) */}
-              {step === 4 && (
+    ),
+    variants: () => (
                 <div className="space-y-4">
                   <div>
                     <h3 className="flex items-center gap-2 text-lg font-bold">
@@ -1052,10 +973,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     </Label>
                   </div>
                 </div>
-              )}
-
-              {/* Step 5: Details (dynamic by ecosystem) */}
-              {step === 5 && (
+    ),
+    attributes: () => (
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold">{isFood ? "Food Product Details" : "Package Details"}</h3>
                   <div>
@@ -1121,10 +1040,33 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     </label>
                   </div>
                 </div>
-              )}
-
-              {/* Step 6: Product Information (template-driven) */}
-              {step === 6 && (
+    ),
+    fields: (props) => {
+      const stepSections = (props.stepSections as string[] | undefined) ?? [];
+      // Step with sections filter (e.g. Customisation step) — render ONLY those sections
+      if (stepSections.length > 0) {
+        return (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="flex items-center gap-2 text-lg font-bold">
+                      <Star className="size-5 text-amber-600" />
+                      Customisation
+                    </h3>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      Let customers know what they can personalise about this product.
+                    </p>
+                  </div>
+                  <ProductInfoForm
+                    productInfo={productInfo}
+                    onChange={setProductInfo}
+                    category={vendor.category}
+                    sectionFilter={stepSections}
+                  />
+                </div>
+        );
+      }
+      // No sections → full Product Info step (with Recipe Cost Calculator)
+      return (
                 <div className="space-y-4">
                   <div>
                     <h3 className="flex items-center gap-2 text-lg font-bold">
@@ -1159,35 +1101,15 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     <ProductInfoForm
                       productInfo={productInfo}
                       onChange={setProductInfo}
-                      infoSections={[RECIPE_COST_SECTION]}
+                      category={vendor.category}
                       showVendorOnly
+                      sectionFilter={["recipeCost"]}
                     />
                   </div>
                 </div>
-              )}
-
-              {/* Step 7: Customisation */}
-              {step === 7 && (
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="flex items-center gap-2 text-lg font-bold">
-                      <Star className="size-5 text-amber-600" />
-                      Customisation
-                    </h3>
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                      Let customers know what they can personalise about this product.
-                    </p>
-                  </div>
-                  <ProductInfoForm
-                    productInfo={productInfo}
-                    onChange={setProductInfo}
-                    infoSections={[CUSTOMISATION_SECTION]}
-                  />
-                </div>
-              )}
-
-              {/* Step 8: SEO */}
-              {step === 8 && (
+      );
+    },
+    seo: () => (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-bold">SEO Settings</h3>
@@ -1213,10 +1135,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                       placeholder="wedding cake, chocolate, eggless" className="mt-1" />
                   </div>
                 </div>
-              )}
-
-              {/* Step 9: Inventory & Availability */}
-              {step === 9 && (
+    ),
+    inventory: () => (
                 <div className="space-y-5">
                   <div>
                     <h3 className="flex items-center gap-2 text-lg font-bold">
@@ -1411,10 +1331,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     </WizardCard>
                   )}
                 </div>
-              )}
-
-              {/* Step 10: Preview & Publish */}
-              {step === 10 && (
+    ),
+    preview: () => (
                 <div className="space-y-4">
                   {/* Publish Error (never show fake success) */}
                   {publishError ? (
@@ -1600,7 +1518,112 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     </>
                   )}
                 </div>
-              )}
+    ),
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+      {/* Header — permanently visible (shrink-0) */}
+      <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-3">
+        <div className="flex items-center gap-3">
+          <button onClick={onClose} className="grid size-8 place-items-center rounded-full hover:bg-muted">
+            <X className="size-5" />
+          </button>
+          <div>
+            <h2 className="text-sm font-bold">{initialData ? "Edit" : "New"} {isFood ? "Product" : "Package"}</h2>
+            <p className="text-[10px] text-muted-foreground">
+              {autoSaving ? "Saving…" : lastSaved ? `Last saved ${lastSaved}` : "Auto-save enabled"}
+            </p>
+          </div>
+        </div>
+        {/* Quality Score */}
+        <div className="flex items-center gap-2">
+          <div className="flex">
+            {[1, 2, 3, 4, 5].map(i => (
+              <Star key={i} className={cn("size-3", i <= qualityStars ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30")} />
+            ))}
+          </div>
+          <span className="text-xs font-bold">{qualityScore}%</span>
+        </div>
+      </div>
+
+      {/* Step Progress — permanently visible (shrink-0). Mobile: "Step X of Y" + progress bar; desktop: full indicator */}
+      <div className="shrink-0 border-b border-border bg-card">
+        {/* Mobile: compact Step X of Y */}
+        <div className="flex items-center justify-between px-4 py-1.5 sm:hidden">
+          <span className="text-xs font-semibold">
+            Step {step} of {STEPS.length}
+          </span>
+          <span className="text-xs text-muted-foreground">{STEPS[step - 1]?.title}</span>
+        </div>
+        {/* Progress bar (both mobile + desktop) */}
+        <div className="flex gap-0.5 px-4 pb-1.5 sm:gap-1">
+          {STEPS.map((s) => {
+            const isCompleted = step > s.id;
+            const isActive = step === s.id;
+            return (
+              <div
+                key={s.id}
+                className={cn(
+                  "h-1 flex-1 rounded-full transition-colors",
+                  isCompleted ? "bg-emerald-500" : isActive ? "bg-brand" : "bg-muted"
+                )}
+              />
+            );
+          })}
+        </div>
+        {/* Desktop: full step indicator with labels */}
+        <div className="hidden items-center justify-between px-4 py-2 sm:flex">
+          {STEPS.map((s, i) => {
+            const Icon = s.icon;
+            const isActive = step === s.id;
+            const isCompleted = step > s.id;
+            return (
+              <React.Fragment key={s.id}>
+                <button
+                  onClick={() => step > s.id && setStep(s.id)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium transition-colors",
+                    isActive ? "bg-brand/10 text-brand" : isCompleted ? "text-emerald-600" : "text-muted-foreground"
+                  )}
+                >
+                  <div className={cn(
+                    "grid size-5 place-items-center rounded-full text-[10px]",
+                    isActive ? "bg-brand text-white" : isCompleted ? "bg-emerald-500 text-white" : "bg-muted"
+                  )}>
+                    {isCompleted ? <Check className="size-3" /> : s.id}
+                  </div>
+                  <span>{s.title}</span>
+                </button>
+                {i < STEPS.length - 1 && (
+                  <div className={cn("h-0.5 flex-1", isCompleted ? "bg-emerald-400" : "bg-muted")} />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Step Content — swipeable on mobile */}
+      <div
+        className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        <div className="mx-auto max-w-2xl">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={step}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <DynamicWizardRenderer
+                steps={STEPS}
+                currentStep={step}
+                renderers={STEP_RENDERERS}
+                sharedProps={sharedProps}
+              />
             </motion.div>
           </AnimatePresence>
         </div>

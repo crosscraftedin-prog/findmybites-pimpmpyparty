@@ -39,6 +39,7 @@ export function ProductInfoForm({
   productDescription,
   showVendorOnly = false,
   category,
+  sectionFilter,
 }: {
   productInfo: ProductInfo;
   onChange: (info: ProductInfo) => void;
@@ -50,6 +51,8 @@ export function ProductInfoForm({
   showVendorOnly?: boolean;
   /** Vendor category — used to resolve sections from DB Template Engine. */
   category?: string | null;
+  /** Filter: only show sections with these keys (from DB template). NOT a hardcoded array — it's a filter on template-resolved sections. */
+  sectionFilter?: string[];
 }) {
   // State for DB-resolved sections
   const [dbSections, setDbSections] = React.useState<InfoSection[] | null>(null);
@@ -69,13 +72,21 @@ export function ProductInfoForm({
   }, [category, infoSections]);
 
   const sections = React.useMemo(() => {
-    // Priority 1: explicit infoSections prop
+    // Priority 1: explicit infoSections prop (being phased out — only for backward compat)
     if (infoSections && infoSections.length > 0) return infoSections;
     // Priority 2: DB-resolved sections
-    if (dbSections && dbSections.length > 0) return dbSections;
+    let resolved = dbSections;
     // Priority 3: code fallback
-    return getSectionsForTemplate({ infoSections });
-  }, [infoSections, dbSections]);
+    if (!resolved || resolved.length === 0) {
+      resolved = getSectionsForTemplate({ infoSections });
+    }
+    // Apply sectionFilter — only show sections whose key is in the filter list
+    // This is NOT a hardcoded section array; it's a filter on template-resolved sections
+    if (sectionFilter && sectionFilter.length > 0 && resolved) {
+      resolved = resolved.filter((s) => sectionFilter.includes(s.key));
+    }
+    return resolved;
+  }, [infoSections, dbSections, sectionFilter]);
 
   const setField = (key: string, value: unknown) => {
     onChange({ ...productInfo, [key]: value });
