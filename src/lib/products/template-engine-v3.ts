@@ -305,8 +305,9 @@ async function resolveSectionsFromDBUncached(
 
 
         if (!fields || fields.length === 0) return null;
-        // Don't return draft templates' sections
-        if ((template as any).status === "draft") return null;
+        // Don't return draft or archived templates' sections publicly
+        const status = (template as any).status || "published";
+        if (status !== "published") return null;
 
         const sectionMeta = parseJSON<DBTemplateSection[]>(template.sections, []);
         const sections = dbFieldsToSections(fields, sectionMeta);
@@ -663,8 +664,9 @@ export async function resolveWizardSteps(
     }).catch(() => null);
 
     if (!mapping?.template) return null;
-    // Don't return draft templates' wizard steps
-    if (mapping.template.status === "draft") return null;
+    // Don't return draft or archived templates' wizard steps
+    const wizStatus = mapping.template.status || "published";
+    if (wizStatus !== "published") return null;
 
     const wizard = parseJSON<WizardStep[]>(mapping.template.wizard, []);
     if (wizard.length === 0) return null;
