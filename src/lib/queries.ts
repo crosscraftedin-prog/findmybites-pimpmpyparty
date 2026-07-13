@@ -238,15 +238,24 @@ export function useCreateBooking(): UseMutationResult<
 export function useCreateVendor(): UseMutationResult<
   CreateVendorResponse,
   Error,
-  CreateVendorInput
+  CreateVendorInput & { _idempotencyKey?: string }
 > {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: CreateVendorInput) => {
+    mutationFn: async (input) => {
+      // Extract idempotency key (generated client-side to prevent duplicate submissions)
+      const idempotencyKey = input._idempotencyKey;
+      const { _idempotencyKey, ...payload } = input;
+
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (idempotencyKey) {
+        headers["Idempotency-Key"] = idempotencyKey;
+      }
+
       const res = await fetch("/api/vendors", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
+        headers,
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

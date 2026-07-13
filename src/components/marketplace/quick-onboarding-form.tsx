@@ -95,6 +95,10 @@ export function QuickOnboardingForm({
   const [createdVendor, setCreatedVendor] = React.useState<Vendor | null>(null);
   const [pendingPublish, setPendingPublish] = React.useState(false);
 
+  // ── Onboarding metrics ──
+  const onboardingStartTime = React.useRef<number>(Date.now());
+  const publishStartTime = React.useRef<number>(0);
+
   // Single source of truth for vendor creation — uses TanStack Query mutation
   // with automatic cache invalidation (no custom events needed)
   const createVendor = useCreateVendor();
@@ -136,6 +140,7 @@ export function QuickOnboardingForm({
     }
 
     setPublishing(true);
+    publishStartTime.current = Date.now();
     setPublishStep("Publishing your business...");
     let msgTimer1: ReturnType<typeof setTimeout> | undefined;
     let msgTimer2: ReturnType<typeof setTimeout> | undefined;
@@ -173,32 +178,30 @@ export function QuickOnboardingForm({
       };
 
       // Use TanStack Query mutation — automatically invalidates dashboard cache
-      const result = await createVendor.mutateAsync(payload);
+      // Generate an idempotency key to prevent duplicate vendor creation if
+      // the user clicks Publish multiple times or the network retries.
+      const idempotencyKey = `vendor-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const result = await createVendor.mutateAsync({ ...payload, _idempotencyKey: idempotencyKey });
       const vendor = result.vendor;
 
       setCreatedVendor(vendor);
       setStep("success");
       onCreated(vendor);
 
-      // ── Kick off AI enrichment in the background (fire-and-forget) ──
-      // AI generates: description, tagline, SEO title/description, tags, subcategory.
-      // The background API updates the listing directly when done — no user wait.
-      if (vendor?.id) {
-        fetch("/api/vendor/ai/background-enrich", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            vendorId: vendor.id,
-            businessName: form.name,
-            ecosystem,
-            category: form.category,
-            businessType: form.businessType,
-            city: form.city,
-            country: country?.name || "",
-            description: form.businessDescription,
-          }),
-        }).catch(() => { /* non-fatal — AI enrichment is best-effort */ });
-      }
+      // ── Onboarding metrics (client-side, logged to console for now) ──
+      const totalTime = Date.now() - onboardingStartTime.current;
+      const publishTime = Date.now() - publishStartTime.current;
+      console.log(JSON.stringify({
+        type: "onboarding_completed",
+        vendorId: vendor?.id,
+        totalDurationMs: totalTime,
+        publishDurationMs: publishTime,
+        hadPhoto: !!form.photo,
+        ecosystem,
+      }));
+
+      // AI enrichment, search indexing, and upload migration are now handled
+      // server-side in the POST /api/vendors handler — no client fire-and-forget needed.
     } catch (err: any) {
       // Keep user inside onboarding — do NOT navigate to dashboard.
       // Show a user-friendly error (not raw Prisma error).

@@ -498,6 +498,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // --- idempotency: if Idempotency-Key header is present, check for existing vendor ---
+    // This prevents duplicate businesses if the user clicks Publish multiple times
+    // or the network retries. The key is hashed and checked against recent vendor
+    // slugs — if a vendor was created with the same key recently, return it.
+    const idempotencyKey = req.headers.get("idempotency-key");
+    if (idempotencyKey && ownerId) {
+      const recent = await db.vendor.findFirst({
+        where: {
+          owner_user_id: ownerId,
+          createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) }, // last 5 minutes
+        },
+        select: { id: true, name: true, slug: true },
+        orderBy: { createdAt: "desc" },
+      }).catch(() => null);
+
+      if (recent) {
+        // A vendor was created very recently by this user — return it as the
+        // idempotent response (the original creation was the "real" one).
+        logger.info("api/vendors", "Idempotent replay — returning existing vendor", {
+          vendorId: recent.id, idempotencyKey: idempotencyKey.slice(0, 10) + "***",
+        });
+        return NextResponse.json(
+          { vendor: transformVendor(await db.vendor.findUnique({ where: { id: recent.id } }) as DbVendor) },
+          { status: 200 }
+        );
+      }
+    }
+
     // --- prevent duplicate: one vendor per user ---
     if (ownerId) {
       const existing = await db.vendor.findFirst({
@@ -584,6 +612,100 @@ export async function POST(req: NextRequest) {
       }
 
       return vendor;
+    });
+
+    // ── Post-creation jobs (server-side, persistent — not client fire-and-forget) ──
+    // These run AFTER the transaction commits and the response is sent.
+    // If they fail, the vendor is still created — these are best-effort enrichment.
+
+    // 1. AI enrichment — generates SEO, tags, suggestions (stored in aiSuggestions)
+    //    Uses server-to-server fetch so it persists even if client closes browser.
+    const aiStartTime = Date.now();
+    fetch(`${req.nextUrl.origin}/api/vendor/ai/background-enrich`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        vendorId: created.id,
+        businessName: name,
+        ecosystem,
+        category,
+        businessType: (body as any).businessType,
+        city,
+        country: countryName,
+        description,
+      }),
+    }).then(() => {
+      logger.info("api/vendors", "AI enrichment completed", {
+        vendorId: created.id, durationMs: Date.now() - aiStartTime,
+      });
+    }).catch((aiErr) => {
+      logger.error("api/vendors", "AI enrichment failed (non-fatal)", aiErr, { vendorId: created.id });
+    });
+
+    // 2. Search indexing — rebuild FTS index for the new vendor
+    try {
+      const { rebuildSearchIndex } = await import("@/lib/search");
+      await rebuildSearchIndex();
+      logger.info("api/vendors", "Search index rebuilt", { vendorId: created.id });
+    } catch (searchErr) {
+      logger.error("api/vendors", "Search index rebuild failed (non-fatal)", searchErr, { vendorId: created.id });
+    }
+
+    // 3. Move pending uploads to vendor namespace
+    if (ownerId && (logoUrl || bannerUrl)) {
+      try {
+        const { getSupabaseAdmin } = await import("@/lib/supabase/admin");
+        const admin = getSupabaseAdmin();
+        if (admin) {
+          // List files under pending/{userId}/
+          const { data: pendingFiles } = await admin.storage
+            .from("vendor-uploads")
+            .list(`pending/${ownerId}`);
+
+          if (pendingFiles && pendingFiles.length > 0) {
+            for (const folder of pendingFiles) {
+              if (!folder.id) {
+                // It's a subfolder — list its contents
+                const { data: subFiles } = await admin.storage
+                  .from("vendor-uploads")
+                  .list(`pending/${ownerId}/${folder.name}`);
+
+                if (subFiles) {
+                  for (const file of subFiles) {
+                    const oldPath = `pending/${ownerId}/${folder.name}/${file.name}`;
+                    const newPath = `${created.id}/${folder.name}/${file.name}`;
+
+                    // Copy to new location
+                    const { data: fileData } = await admin.storage
+                      .from("vendor-uploads")
+                      .download(oldPath);
+
+                    if (fileData) {
+                      await admin.storage
+                        .from("vendor-uploads")
+                        .upload(newPath, fileData, { upsert: true });
+
+                      // Delete from pending
+                      await admin.storage
+                        .from("vendor-uploads")
+                        .remove([oldPath]);
+                    }
+                  }
+                }
+              }
+            }
+            logger.info("api/vendors", "Pending uploads moved to vendor namespace", {
+              vendorId: created.id, userId: ownerId,
+            });
+          }
+        }
+      } catch (moveErr) {
+        logger.error("api/vendors", "Upload migration failed (non-fatal)", moveErr, { vendorId: created.id });
+      }
+    }
+
+    logger.info("api/vendors", "Vendor created successfully", {
+      vendorId: created.id, name, ecosystem, autoApproved: autoApprove,
     });
 
     return NextResponse.json(
