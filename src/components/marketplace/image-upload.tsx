@@ -40,6 +40,10 @@ export function ImageUpload({
   const [dragging, setDragging] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
+  // Track image-load errors so a broken URL (e.g. a stale pending/ path)
+  // shows the empty upload state instead of retrying and 400-looping.
+  const [imgErrored, setImgErrored] = React.useState(false);
+  React.useEffect(() => { setImgErrored(false); }, [value]);
 
   const aspectClass = compact
     ? "h-[120px] sm:h-[160px]"
@@ -131,7 +135,7 @@ export function ImageUpload({
     onChange("");
   };
 
-  const hasImage = !!value;
+  const hasImage = !!value && !imgErrored;
 
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -173,6 +177,7 @@ export function ImageUpload({
             <img
               src={value}
               alt={label}
+              onError={() => setImgErrored(true)}
               className="absolute inset-0 h-full w-full object-cover"
             />
             <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/30" />

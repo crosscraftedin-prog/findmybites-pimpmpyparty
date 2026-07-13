@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 /**
- * Reusable attribute selector — a grouped checkbox panel.
+ * Reusable attribute selector — a grouped multi-select chip panel.
  *
  * Used by:
  *   - Vendor dashboard (MyListing) — select vendor specialties
@@ -17,7 +17,11 @@ import { toast } from "sonner";
  *
  * Props:
  *   - selectedIds: string[] — currently selected attribute IDs
- *   - onChange: (ids: string[]) => void — called on every toggle
+ *   - onChange: React state setter (accepts value OR updater fn).
+ *       Because React state setters accept functional updaters, we pass
+ *       `(prev) => next` so toggling always operates on the LATEST state —
+ *       eliminating stale-closure / stale-ref bugs that caused chips to
+ *       behave as single-select under rapid interaction.
  *   - ecosystem: "FINDMYBITES" | "PIMPMYPARTY" — filters which attributes show
  *   - groups?: string[] — restrict to specific groups (e.g. ["dietary","product_feature"])
  *   - maxSelectable?: number — optional limit
@@ -72,7 +76,14 @@ export function AttributeSelector({
   maxSelectable,
 }: {
   selectedIds: string[];
-  onChange: (ids: string[]) => void;
+  /**
+   * Accepts a React state setter (Dispatch<SetStateAction<string[]>>).
+   * We call it with a functional updater `(prev) => next` so that toggling
+   * always reads the most recent state — even when multiple toggles fire
+   * before a re-render commits. This is the canonical fix for the
+   * "selecting one chip deselects another" stale-state bug.
+   */
+  onChange: React.Dispatch<React.SetStateAction<string[]>>;
   ecosystem?: string;
   groups?: string[];
   maxSelectable?: number;
@@ -80,12 +91,12 @@ export function AttributeSelector({
   const [groupedAttrs, setGroupedAttrs] = React.useState<AttributeGroup[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
-  const selectedSet = React.useRef(new Set(selectedIds));
 
-  // Keep ref in sync with props
-  React.useEffect(() => {
-    selectedSet.current = new Set(selectedIds);
-  }, [selectedIds]);
+  // Derive the selected set directly from props on every render — no ref,
+  // no effect, no stale closure. For typical attribute counts (< 100) this
+  // Set allocation is negligible and guarantees the UI never disagrees with
+  // the actual selected array.
+  const selectedSet = React.useMemo(() => new Set(selectedIds), [selectedIds]);
 
   // Fetch attributes
   React.useEffect(() => {
@@ -118,17 +129,26 @@ export function AttributeSelector({
     };
   }, [ecosystem, groups?.join(",")]);
 
-  const toggle = (id: string) => {
-    if (selectedSet.current.has(id)) {
-      onChange(selectedIds.filter((x) => x !== id));
-    } else {
-      if (maxSelectable && selectedIds.length >= maxSelectable) {
-        toast.error(`Maximum ${maxSelectable} attributes allowed.`);
-        return;
-      }
-      onChange([...selectedIds, id]);
-    }
-  };
+  // Toggle a single attribute. Uses a functional updater so the parent's
+  // state setter applies the change to the LATEST committed state — not a
+  // potentially stale snapshot captured in this render's closure.
+  const toggle = React.useCallback(
+    (id: string) => {
+      onChange((prev) => {
+        if (prev.includes(id)) {
+          // Already selected → remove it
+          return prev.filter((x) => x !== id);
+        }
+        // Not yet selected → add it (respecting maxSelectable)
+        if (maxSelectable && prev.length >= maxSelectable) {
+          toast.error(`Maximum ${maxSelectable} attributes allowed.`);
+          return prev; // no change
+        }
+        return [...prev, id];
+      });
+    },
+    [onChange, maxSelectable]
+  );
 
   if (loading) {
     return (
@@ -185,7 +205,7 @@ export function AttributeSelector({
             </h4>
             <div className="flex flex-wrap gap-2">
               {g.attributes.map((a) => {
-                const isSelected = selectedSet.current.has(a.id);
+                const isSelected = selectedSet.has(a.id);
                 const colorClass = a.color
                   ? COLOR_CLASSES[a.color] ?? "bg-muted text-foreground border-border"
                   : "bg-muted text-foreground border-border";
@@ -195,6 +215,7 @@ export function AttributeSelector({
                     type="button"
                     onClick={() => toggle(a.id)}
                     title={a.description ?? undefined}
+                    aria-pressed={isSelected}
                     className={cn(
                       "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
                       isSelected

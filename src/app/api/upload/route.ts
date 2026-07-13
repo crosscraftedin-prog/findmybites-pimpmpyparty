@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 4. Resolve vendor ID from session (never trust client) ──
+    // ── 4. Resolve identity from session (never trust client) ──
     // SECURITY: Require authentication — anonymous uploads are NOT allowed.
     const supabase = await createSupabaseServerClient();
     let userId: string | null = null;
@@ -96,27 +96,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let vendorId: string;
+    // ── 5. Resolve the storage namespace ──
+    //   - Existing vendor  →  vendor-uploads/{vendorId}/{folder}/…
+    //   - First-time onboarding (no vendor yet)  →  vendor-uploads/pending/{userId}/{folder}/…
+    //
+    // The pending namespace is temporary: when the vendor is later created,
+    // POST /api/vendors moves these files into the permanent vendor folder
+    // AND rewrites the stored URLs so the DB never references pending/.
+    // A cron job (cleanup-pending) garbage-collects orphaned pending files
+    // after 24 h.
+    let storagePath: string;
     try {
       const vendor = await db.vendor.findFirst({
         where: { owner_user_id: userId },
         select: { id: true },
       }).catch(() => null);
-      if (!vendor) {
-        return NextResponse.json(
-          { error: "No vendor listing found. Complete your vendor profile first." },
-          { status: 403 }
-        );
+
+      if (vendor) {
+        storagePath = `${vendor.id}/${folder}`;
+      } else {
+        // Authenticated but no vendor yet — onboarding in progress.
+        storagePath = `pending/${userId}/${folder}`;
+        logger.info("upload", "Pending upload (no vendor yet)", { userId, folder });
       }
-      vendorId = vendor.id;
     } catch {
       return NextResponse.json(
-        { error: "Failed to verify vendor account." },
+        { error: "Failed to verify account." },
         { status: 500 }
       );
     }
 
-    // ── 5. Check Supabase Storage is configured ──
+    // ── 6. Check Supabase Storage is configured ──
     if (!isStorageAdminConfigured) {
       logger.error("upload", "Supabase Storage not configured", {
         hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -128,11 +138,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 6. Upload to Supabase Storage ──
+    // ── 7. Upload to Supabase Storage ──
     const admin = getSupabaseAdmin()!;
     const ext = file.type.split("/")[1] || "jpg";
     const fileName = secureFilename(ext);
-    const path = `${vendorId}/${folder}/${fileName}`;
+    const path = `${storagePath}/${fileName}`;
 
     logger.info("upload", "Uploading to Supabase Storage", {
       bucket: BUCKET_NAME,

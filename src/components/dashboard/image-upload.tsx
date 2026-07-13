@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Upload, X, Loader2, AlertCircle, Crown } from "lucide-react";
+import { Upload, X, Loader2, AlertCircle, Crown, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -171,8 +171,14 @@ export function ImageUpload({
   const [dragOver, setDragOver] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [retryFile, setRetryFile] = React.useState<File | null>(null);
+  // Track image-load errors so a broken URL (e.g. a stale pending/ path)
+  // shows a placeholder instead of hammering the server with 400s.
+  const [imgErrored, setImgErrored] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
+
+  // Reset the image-error flag whenever the URL changes (new upload / clear).
+  React.useEffect(() => { setImgErrored(false); }, [value]);
 
   const uploadFile = async (file: File) => {
     setError(null);
@@ -290,10 +296,16 @@ export function ImageUpload({
         aria-label={label}
       />
 
-      {value ? (
+      {value && !imgErrored ? (
         <div className="relative group">
           <div className={cn("overflow-hidden rounded-xl border border-border bg-muted", previewClass)}>
-            <img loading="lazy" src={value} alt={label} className="h-full w-full object-cover" />
+            <img
+              loading="lazy"
+              src={value}
+              alt={label}
+              onError={() => setImgErrored(true)}
+              className="h-full w-full object-cover"
+            />
           </div>
           <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
             <Button size="sm" variant="outline" className="bg-white/90 text-xs"
@@ -370,6 +382,32 @@ export function ImageUpload({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Single gallery thumbnail with graceful placeholder on load error.
+ * If the URL is broken (e.g. a stale pending/ path), the <img> is swapped
+ * for a muted placeholder so the browser stops retrying — no 400 loop.
+ */
+function GalleryImage({ src, alt }: { src: string; alt: string }) {
+  const [errored, setErrored] = React.useState(false);
+  React.useEffect(() => { setErrored(false); }, [src]);
+  if (errored || !src) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-muted">
+        <ImageIcon className="size-5 text-muted-foreground/50" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="h-full w-full object-cover"
+      loading="lazy"
+      onError={() => setErrored(true)}
+    />
   );
 }
 
@@ -497,7 +535,7 @@ export function GalleryUpload({
         <div className="grid grid-cols-3 gap-2 mb-3 sm:grid-cols-4">
           {images.map((img, idx) => (
             <div
-              key={idx}
+              key={img + idx}
               draggable
               onDragStart={() => setDragIndex(idx)}
               onDragOver={(e) => { e.preventDefault(); setDragOverIndex(idx); }}
@@ -512,7 +550,7 @@ export function GalleryUpload({
                 dragIndex === idx && "opacity-50"
               )}
             >
-              <img src={img} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" loading="lazy" />
+              <GalleryImage src={img} alt={`Gallery ${idx + 1}`} />
               {idx === 0 && (
                 <span className="absolute left-1 top-1 rounded bg-brand px-1 py-0.5 text-[8px] font-bold text-white">COVER</span>
               )}

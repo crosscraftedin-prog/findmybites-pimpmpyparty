@@ -651,53 +651,121 @@ export async function POST(req: NextRequest) {
       logger.error("api/vendors", "Search index rebuild failed (non-fatal)", searchErr, { vendorId: created.id });
     }
 
-    // 3. Move pending uploads to vendor namespace
-    if (ownerId && (logoUrl || bannerUrl)) {
+    // 3. Move pending uploads to the permanent vendor namespace AND rewrite
+    //    the stored URLs so the DB never references pending/.
+    //
+    //    Before this fix the files were moved in storage but the vendor row
+    //    still held the old `…/pending/{userId}/…` URLs — which 404'd because
+    //    the source files had just been deleted. Now we:
+    //      a) enumerate every file under pending/{userId}/,
+    //      b) move each to {vendorId}/… (Supabase `.move` is atomic),
+    //      c) build a old→new URL rewrite map,
+    //      d) update heroImage / avatarImage / gallery in a single Prisma call.
+    if (ownerId) {
       try {
         const { getSupabaseAdmin } = await import("@/lib/supabase/admin");
         const admin = getSupabaseAdmin();
         if (admin) {
-          // List files under pending/{userId}/
-          const { data: pendingFiles } = await admin.storage
-            .from("vendor-uploads")
-            .list(`pending/${ownerId}`);
+          const pendingPrefix = `pending/${ownerId}`;
+          let movedCount = 0;
+          // We rewrite URLs by replacing the pending path segment with the
+          // vendor id segment. This works for both the full public URL form
+          // (…/object/public/vendor-uploads/pending/{userId}/…) and any
+          // future relative form.
+          const pendingSegment = `/pending/${ownerId}/`;
+          const vendorSegment = `/${created.id}/`;
 
-          if (pendingFiles && pendingFiles.length > 0) {
-            for (const folder of pendingFiles) {
-              if (!folder.id) {
-                // It's a subfolder — list its contents
+          // pending/{userId}/ may contain sub-folders (logo, banner, gallery…)
+          const { data: topEntries } = await admin.storage
+            .from("vendor-uploads")
+            .list(pendingPrefix);
+
+          if (topEntries && topEntries.length > 0) {
+            for (const entry of topEntries) {
+              if (entry.id) {
+                // A file sitting directly under pending/{userId}/
+                const oldPath = `${pendingPrefix}/${entry.name}`;
+                const newPath = `${created.id}/${entry.name}`;
+                const { error: moveErr } = await admin.storage
+                  .from("vendor-uploads")
+                  .move(oldPath, newPath);
+                if (moveErr) {
+                  logger.error("api/vendors", "move pending file failed", {
+                    oldPath, error: moveErr.message,
+                  });
+                } else {
+                  movedCount++;
+                }
+              } else {
+                // A sub-folder — list and move each file inside it
+                const subPrefix = `${pendingPrefix}/${entry.name}`;
                 const { data: subFiles } = await admin.storage
                   .from("vendor-uploads")
-                  .list(`pending/${ownerId}/${folder.name}`);
+                  .list(subPrefix);
 
                 if (subFiles) {
                   for (const file of subFiles) {
-                    const oldPath = `pending/${ownerId}/${folder.name}/${file.name}`;
-                    const newPath = `${created.id}/${folder.name}/${file.name}`;
-
-                    // Copy to new location
-                    const { data: fileData } = await admin.storage
+                    if (!file.id) continue; // skip nested folders
+                    const oldPath = `${subPrefix}/${file.name}`;
+                    const newPath = `${created.id}/${entry.name}/${file.name}`;
+                    const { error: moveErr } = await admin.storage
                       .from("vendor-uploads")
-                      .download(oldPath);
-
-                    if (fileData) {
-                      await admin.storage
-                        .from("vendor-uploads")
-                        .upload(newPath, fileData, { upsert: true });
-
-                      // Delete from pending
-                      await admin.storage
-                        .from("vendor-uploads")
-                        .remove([oldPath]);
+                      .move(oldPath, newPath);
+                    if (moveErr) {
+                      logger.error("api/vendors", "move pending file failed", {
+                        oldPath, error: moveErr.message,
+                      });
+                    } else {
+                      movedCount++;
                     }
                   }
                 }
               }
             }
-            logger.info("api/vendors", "Pending uploads moved to vendor namespace", {
-              vendorId: created.id, userId: ownerId,
-            });
           }
+
+          // ── Rewrite the stored URLs ──
+          // Replace every occurrence of `/pending/{userId}/` with `/{vendorId}/`
+          // in heroImage, avatarImage, and gallery. Only update if something
+          // actually changed (avoid a needless write when there were no
+          // pending uploads).
+          if (movedCount > 0 || logoUrl || bannerUrl) {
+            const cur = await db.vendor.findUnique({
+              where: { id: created.id },
+              select: { heroImage: true, avatarImage: true, gallery: true },
+            });
+            if (cur) {
+              const rewrite = (s: string | null) =>
+                s ? s.split(pendingSegment).join(vendorSegment) : s;
+
+              const newHero = rewrite(cur.heroImage);
+              const newAvatar = rewrite(cur.avatarImage);
+              const newGallery = rewrite(cur.gallery);
+
+              const changed =
+                newHero !== cur.heroImage ||
+                newAvatar !== cur.avatarImage ||
+                newGallery !== cur.gallery;
+
+              if (changed) {
+                await db.vendor.update({
+                  where: { id: created.id },
+                  data: {
+                    heroImage: newHero,
+                    avatarImage: newAvatar,
+                    gallery: newGallery,
+                  },
+                });
+                logger.info("api/vendors", "Rewrote image URLs from pending/ to vendor namespace", {
+                  vendorId: created.id, movedCount,
+                });
+              }
+            }
+          }
+
+          logger.info("api/vendors", "Pending uploads migrated", {
+            vendorId: created.id, userId: ownerId, movedCount,
+          });
         }
       } catch (moveErr) {
         logger.error("api/vendors", "Upload migration failed (non-fatal)", moveErr, { vendorId: created.id });
@@ -708,8 +776,14 @@ export async function POST(req: NextRequest) {
       vendorId: created.id, name, ecosystem, autoApproved: autoApprove,
     });
 
+    // Re-fetch the vendor so the response reflects any URL rewrites done by
+    // the pending-upload migration above. Without this, the client would
+    // receive the stale `created` object whose heroImage/avatarImage still
+    // point at pending/ — causing broken images on the success screen.
+    const finalVendor = await db.vendor.findUnique({ where: { id: created.id } }) ?? created;
+
     return NextResponse.json(
-      { vendor: transformVendor(created) },
+      { vendor: transformVendor(finalVendor) },
       { status: 201 }
     );
   } catch (err) {

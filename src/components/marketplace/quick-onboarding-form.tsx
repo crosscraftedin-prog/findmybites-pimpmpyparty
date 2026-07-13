@@ -522,7 +522,12 @@ function SuccessScreen({ vendor, onGoToDashboard }: { vendor: Vendor; onGoToDash
       <div className="overflow-hidden rounded-xl border border-border text-left">
         {vendor.heroImage && (
           <div className="aspect-[16/9] bg-muted">
-            <img src={vendor.heroImage} alt={vendor.name} className="h-full w-full object-cover" />
+            <img
+              src={vendor.heroImage}
+              alt={vendor.name}
+              className="h-full w-full object-cover"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
           </div>
         )}
         <div className="p-4">
