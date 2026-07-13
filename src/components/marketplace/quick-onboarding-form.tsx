@@ -200,7 +200,9 @@ export function QuickOnboardingForm({
         }).catch(() => { /* non-fatal — AI enrichment is best-effort */ });
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to publish. Please try again.");
+      // Keep user inside onboarding — do NOT navigate to dashboard.
+      // Show a user-friendly error (not raw Prisma error).
+      toast.error(err.message || "We couldn't create your business right now. Please try again.");
     }
     if (msgTimer1) clearTimeout(msgTimer1);
     if (msgTimer2) clearTimeout(msgTimer2);
