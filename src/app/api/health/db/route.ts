@@ -4,43 +4,23 @@ import { verifyDatabaseSchema } from "@/lib/db-health-check";
 /**
  * GET /api/health/db
  * ─────────────────────────────────────────────────────────────────────────
- * Lightweight database schema health check.
+ * Lightweight database schema health check (cached 60s).
+ * Never blocks production requests — runs only when this endpoint is called.
  *
- * Returns 200 if the database schema matches the application's expectations.
- * Returns 503 if the schema is out of sync (missing columns/tables).
+ * 200: { healthy: true, prisma: true, missingTables: [], missingColumns: [] }
+ * 503: { healthy: false, prisma: false, missingTables: [...], missingColumns: [...] }
  *
- * Used by:
- *   - Vercel deployment health checks
- *   - CI/CD pipeline to verify post-deploy schema
- *   - Dashboard startup (client-side fetch)
+ * Never exposes internal SQL or Prisma stack traces.
  */
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
-  try {
-    const result = await verifyDatabaseSchema();
+  const result = await verifyDatabaseSchema();
 
-    if (!result.healthy) {
-      return NextResponse.json(
-        {
-          status: "unhealthy",
-          missingColumns: result.missingColumns,
-          missingTables: result.missingTables,
-          error: result.error,
-        },
-        { status: 503 }
-      );
-    }
-
-    return NextResponse.json({
-      status: "healthy",
-      message: "Database schema is in sync",
-    });
-  } catch (error: any) {
-    return NextResponse.json(
-      { status: "error", error: error.message },
-      { status: 500 }
-    );
+  if (!result.healthy) {
+    return NextResponse.json(result, { status: 503 });
   }
+
+  return NextResponse.json(result);
 }

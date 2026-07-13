@@ -532,90 +532,58 @@ export async function POST(req: NextRequest) {
     const totalVendors = await db.vendor.count().catch(() => 0);
     const autoApprove = vendorAutoApproval && totalVendors < autoApprovalThreshold;
 
-    // --- create ---
-    const created = await db.vendor.create({
-      data: {
-        name,
-        slug,
-        ecosystem,
-        category: migrateCategory(category), // migrate old slugs → new 6-category architecture
-        tagline,
-        description,
-        city,
-        country: countryName,
-        countryCode,
-        continent,
-        currency,
-        priceRange,
-        basePrice,
-        rating: 0,
-        reviewCount: 0,
-        heroImage,
-        avatarImage,
-        gallery: JSON.stringify(
-          gallery.length > 0 ? gallery : [fallbackImage]
-        ),
-        tags: JSON.stringify(tags),
-        featured: false,
-        verified: false, // Only admin approval should grant verified badge
-        // AUTO-APPROVAL: For the first N vendors (marketplace growth phase),
-        // listings are automatically approved so they go live immediately.
-        // Admin can still suspend/reject later if a listing violates policies.
-        approved: autoApprove,
-        listingStatus: "published",
-        responseTime,
-        yearsActive,
-        completedBookings: 0,
-        subcategory,
-        state,
-        address,
-        zipCode,
-        instagram,
-        website,
-        whatsapp,
-        latitude: geo?.lat ?? null,
-        longitude: geo?.lng ?? null,
-        serviceRadiusKm,
-        userEmail: ownerEmail,
-        owner_user_id: ownerId ?? undefined,
-      },
-    });
+    // --- create (atomic transaction — rollback on any failure) ---
+    const created = await db.$transaction(async (tx) => {
+      const vendor = await tx.vendor.create({
+        data: {
+          name, slug, ecosystem,
+          category: migrateCategory(category),
+          tagline, description,
+          city, country: countryName, countryCode, continent, currency,
+          priceRange, basePrice,
+          rating: 0, reviewCount: 0,
+          heroImage, avatarImage,
+          gallery: JSON.stringify(gallery.length > 0 ? gallery : [fallbackImage]),
+          tags: JSON.stringify(tags),
+          featured: false, verified: false,
+          approved: autoApprove,
+          listingStatus: "published",
+          responseTime, yearsActive, completedBookings: 0,
+          subcategory, state, address, zipCode,
+          instagram, website, whatsapp,
+          latitude: geo?.lat ?? null, longitude: geo?.lng ?? null,
+          serviceRadiusKm,
+          userEmail: ownerEmail,
+          owner_user_id: ownerId ?? undefined,
+        },
+      });
 
-    // ── Flag custom subcategories for admin review ──
-    if (subcategory && subcategory.trim()) {
-      try {
-        // Check if subcategory already exists in DB
-        const existingSub = await db.subcategory.findFirst({
-          where: {
-            label: { equals: subcategory.trim(), mode: "insensitive" },
-          },
+      // Flag custom subcategories for admin review (inside transaction)
+      if (subcategory && subcategory.trim()) {
+        const existingSub = await tx.subcategory.findFirst({
+          where: { label: { equals: subcategory.trim(), mode: "insensitive" } },
         });
-
         if (!existingSub) {
-          // Custom subcategory — find the matching category and create as pending
-          const matchingCat = await db.category.findFirst({
+          const matchingCat = await tx.category.findFirst({
             where: { slug: migrateCategory(category), active: true },
           });
-
           if (matchingCat) {
             const subSlug = subcategory.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-            await db.subcategory.create({
+            await tx.subcategory.create({
               data: {
                 slug: `${subSlug}-${Date.now().toString(36)}`,
                 label: subcategory.trim(),
                 categoryId: matchingCat.id,
-                active: true,
-                isPending: true,
-                addedByVendorId: created.id,
+                active: true, isPending: true,
+                addedByVendorId: vendor.id,
               },
             });
-            console.log("[api/vendors] Custom subcategory flagged for review:", subcategory);
           }
         }
-      } catch (subErr) {
-        console.error("[api/vendors] Custom subcategory flag failed (non-fatal):", subErr);
       }
-    }
+
+      return vendor;
+    });
 
     return NextResponse.json(
       { vendor: transformVendor(created) },
@@ -623,9 +591,8 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     console.error("[api/vendors] POST failed:", err);
-    // Log the real error server-side, return a user-friendly message
     return NextResponse.json(
-      { error: "We couldn't create your business right now. Please try again in a moment." },
+      { error: "We couldn't complete your request. Please try again." },
       { status: 500 }
     );
   }
