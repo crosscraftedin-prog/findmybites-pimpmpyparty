@@ -63,6 +63,8 @@ interface DBTemplateField {
   searchable: boolean;
   seoIndexed: boolean;
   aiEnabled: boolean;
+  filterable: boolean;
+  priority: number;
   globalRef: string | null;
 }
 
@@ -587,5 +589,547 @@ export async function importTemplate(json: Record<string, unknown>): Promise<str
       error: err instanceof Error ? err.message : String(err),
     });
     return null;
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// V3 EXPANDED CAPABILITIES
+// ───────────────────────────────────────────────────────────────────────────
+// The following functions make EVERY consumer of product metadata
+// template-driven: Wizard, Product Page, Josh AI, Search, SEO, Filters,
+// Compare, and Admin Preview.
+
+// ── 1. Dynamic Wizard Resolver ─────────────────────────────────────────────
+
+export interface WizardStep {
+  step: number;
+  title: string;
+  description?: string;
+  icon?: string;
+  sections: string[]; // section names
+}
+
+/**
+ * Resolve wizard steps from the DB template.
+ * The template's `wizard` JSON column defines:
+ *   [{ step, title, description, sections: ["Basic Information", ...] }]
+ *
+ * If the template doesn't define a wizard, returns null (caller falls back
+ * to the hardcoded STEPS array in product-wizard.tsx).
+ *
+ * This makes the wizard 100% template-driven — admins can add/remove/reorder
+ * steps without code changes.
+ */
+export async function resolveWizardSteps(
+  category: string | null | undefined
+): Promise<WizardStep[] | null> {
+  if (!category) return null;
+
+  try {
+    const mapping = await db.templateMapping.findFirst({
+      where: { categoryId: category, subcategory: null },
+      include: { template: { select: { wizard: true, status: true } } },
+    }).catch(() => null);
+
+    if (!mapping?.template) return null;
+    // Don't return draft templates' wizard steps
+    if (mapping.template.status === "draft") return null;
+
+    const wizard = parseJSON<WizardStep[]>(mapping.template.wizard, []);
+    if (wizard.length === 0) return null;
+
+    return wizard.sort((a, b) => a.step - b.step);
+  } catch {
+    return null;
+  }
+}
+
+// ── 2. Josh AI Metadata (not just field keys) ──────────────────────────────
+
+export interface JoshAIFieldMetadata {
+  key: string;
+  label: string;
+  description?: string;
+  aiPrompt?: string;
+  priority: number;
+  visibility: "public" | "vendor-only";
+  type: string;
+  section: string;
+}
+
+/**
+ * Get full field metadata for Josh AI — not just field keys.
+ * Josh receives: field labels, descriptions, AI prompts, priority, visibility.
+ * This lets Josh understand templates automatically without hardcoded mapping.
+ */
+export async function getJoshAIFieldMetadata(
+  category: string | null | undefined
+): Promise<JoshAIFieldMetadata[] | null> {
+  if (!category) return null;
+
+  try {
+    const mapping = await db.templateMapping.findFirst({
+      where: { categoryId: category, subcategory: null },
+      include: {
+        template: {
+          include: {
+            fields: {
+              where: { enabled: true, aiEnabled: true },
+              select: {
+                key: true, label: true, type: true, section: true,
+                helpText: true, aiEnabled: true, seoIndexed: true,
+                priority: true, placeholder: true,
+              },
+              orderBy: [{ priority: "desc" }, { sortOrder: "asc" }],
+            },
+          },
+        },
+      },
+    }).catch(() => null);
+
+    if (!mapping?.template?.fields?.length) return null;
+
+    // Parse AI config for field-level prompts
+    const aiConfig = parseJSON<Record<string, any>>(mapping.template.aiConfig, {});
+
+    return mapping.template.fields.map((f) => ({
+      key: f.key,
+      label: f.label,
+      description: f.helpText || f.placeholder || undefined,
+      aiPrompt: aiConfig[f.key]?.prompt || aiConfig.descriptionPrompt,
+      priority: f.priority,
+      visibility: "public" as const,
+      type: f.type,
+      section: f.section,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+// ── 3. Searchable Fields (for marketplace search indexing) ─────────────────
+
+export interface SearchableField {
+  key: string;
+  label: string;
+  type: string;
+  boost: number; // higher = more relevant in search results
+}
+
+/**
+ * Get fields that should be indexed for marketplace search.
+ * Search automatically indexes any field with `searchable=true`.
+ * The `priority` field acts as a search boost factor.
+ */
+export async function getSearchableFieldMetadata(
+  category: string | null | undefined
+): Promise<SearchableField[] | null> {
+  if (!category) return null;
+
+  try {
+    const mapping = await db.templateMapping.findFirst({
+      where: { categoryId: category, subcategory: null },
+      include: {
+        template: {
+          include: {
+            fields: {
+              where: { enabled: true, searchable: true },
+              select: { key: true, label: true, type: true, priority: true },
+              orderBy: [{ priority: "desc" }],
+            },
+          },
+        },
+      },
+    }).catch(() => null);
+
+    if (!mapping?.template?.fields?.length) return null;
+
+    return mapping.template.fields.map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      boost: f.priority,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+// ── 4. Dynamic SEO Schema Generator ────────────────────────────────────────
+
+export interface SEOFieldMetadata {
+  key: string;
+  label: string;
+  type: string;
+  priority: number;
+}
+
+/**
+ * Get fields flagged `seoIndexed` for dynamic SEO schema generation.
+ * The SEO generator builds Product/FAQ/Offer schema from these fields.
+ */
+export async function getSEOFieldMetadata(
+  category: string | null | undefined
+): Promise<SEOFieldMetadata[] | null> {
+  if (!category) return null;
+
+  try {
+    const mapping = await db.templateMapping.findFirst({
+      where: { categoryId: category, subcategory: null },
+      include: {
+        template: {
+          include: {
+            fields: {
+              where: { enabled: true, seoIndexed: true },
+              select: { key: true, label: true, type: true, priority: true },
+              orderBy: [{ priority: "desc" }],
+            },
+          },
+        },
+      },
+    }).catch(() => null);
+
+    if (!mapping?.template?.fields?.length) return null;
+
+    return mapping.template.fields.map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      priority: f.priority,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Generate JSON-LD Product schema from productInfo + template SEO fields.
+ * Automatically includes all fields flagged `seoIndexed`.
+ */
+export function generateProductSchema(
+  product: { name: string; description?: string | null; price: number; currency?: string | null; image?: string | null },
+  productInfo: Record<string, unknown>,
+  seoFields: SEOFieldMetadata[]
+): Record<string, unknown> {
+  const schema: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description || undefined,
+    image: product.image || undefined,
+    offers: {
+      "@type": "Offer",
+      price: product.price,
+      priceCurrency: product.currency || "INR",
+    },
+  };
+
+  // Add additional properties from seoIndexed fields
+  const additionalProperties: Record<string, unknown> = {};
+  for (const field of seoFields) {
+    const value = productInfo[field.key];
+    if (value !== undefined && value !== null && value !== "") {
+      additionalProperties[field.key] = value;
+    }
+  }
+  if (Object.keys(additionalProperties).length > 0) {
+    schema.additionalProperty = Object.entries(additionalProperties).map(([name, value]) => ({
+      "@type": "PropertyValue",
+      name,
+      value,
+    }));
+  }
+
+  return schema;
+}
+
+// ── 5. Dynamic Filter Builder ──────────────────────────────────────────────
+
+export interface FilterFacet {
+  key: string;
+  label: string;
+  type: string; // select, chips, toggle, etc.
+  options?: string[];
+  filterGroupName?: string;
+}
+
+/**
+ * Get filter facets from the template.
+ * Any field with `filterable=true` becomes a marketplace filter facet.
+ * Options come from staticOptions or the Universal Filter Engine (filterGroupName).
+ */
+export async function getFilterFacets(
+  category: string | null | undefined
+): Promise<FilterFacet[] | null> {
+  if (!category) return null;
+
+  try {
+    const mapping = await db.templateMapping.findFirst({
+      where: { categoryId: category, subcategory: null },
+      include: {
+        template: {
+          include: {
+            fields: {
+              where: { enabled: true, filterable: true },
+              select: {
+                key: true, label: true, type: true,
+                staticOptions: true, filterGroupName: true,
+              },
+              orderBy: [{ priority: "desc" }, { sortOrder: "asc" }],
+            },
+          },
+        },
+      },
+    }).catch(() => null);
+
+    if (!mapping?.template?.fields?.length) return null;
+
+    return mapping.template.fields.map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      options: f.staticOptions ? parseJSON<string[]>(f.staticOptions, []) : undefined,
+      filterGroupName: f.filterGroupName || undefined,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+// ── 6. Compare Products ────────────────────────────────────────────────────
+
+export interface CompareResult {
+  field: { key: string; label: string; type: string };
+  productA: { value: unknown; productName: string };
+  productB: { value: unknown; productName: string };
+}
+
+/**
+ * Compare two products by their template fields.
+ * Automatically compares every field defined in the template.
+ */
+export async function compareProducts(
+  productIdA: string,
+  productIdB: string
+): Promise<CompareResult[] | null> {
+  try {
+    const [productA, productB] = await Promise.all([
+      db.product.findUnique({
+        where: { id: productIdA },
+        select: { id: true, name: true, category: true, extraFields: true, price: true, currency: true },
+      }).catch(() => null),
+      db.product.findUnique({
+        where: { id: productIdB },
+        select: { id: true, name: true, category: true, extraFields: true, price: true, currency: true },
+      }).catch(() => null),
+    ]);
+
+    if (!productA || !productB) return null;
+
+    // Get template fields for the category
+    const mapping = await db.templateMapping.findFirst({
+      where: { categoryId: productA.category, subcategory: null },
+      include: {
+        template: {
+          include: {
+            fields: {
+              where: { enabled: true },
+              select: { key: true, label: true, type: true, sortOrder: true },
+              orderBy: [{ sortOrder: "asc" }],
+            },
+          },
+        },
+      },
+    }).catch(() => null);
+
+    if (!mapping?.template?.fields?.length) return null;
+
+    // Extract productInfo from extraFields
+    const { extractFromExtraFields } = await import("./product-info");
+    const infoA = extractFromExtraFields(productA.extraFields);
+    const infoB = extractFromExtraFields(productB.extraFields);
+
+    // Build comparison rows
+    const results: CompareResult[] = mapping.template.fields.map((f) => ({
+      field: { key: f.key, label: f.label, type: f.type },
+      productA: { value: (infoA as any)[f.key] ?? null, productName: productA.name },
+      productB: { value: (infoB as any)[f.key] ?? null, productName: productB.name },
+    }));
+
+    // Add price as the first comparison row
+    results.unshift({
+      field: { key: "price", label: "Price", type: "currency" },
+      productA: { value: `${productA.currency || "₹"}${productA.price}`, productName: productA.name },
+      productB: { value: `${productB.currency || "₹"}${productB.price}`, productName: productB.name },
+    });
+
+    return results;
+  } catch (err) {
+    logger.error("template-engine-v3", "compareProducts failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+// ── 7. Admin Preview ───────────────────────────────────────────────────────
+
+export interface TemplatePreview {
+  template: {
+    id: string;
+    slug: string;
+    name: string;
+    description: string;
+    icon: string | null;
+    status: string;
+    version: number;
+  };
+  wizardSteps: WizardStep[];
+  sections: InfoSection[];
+  filterFacets: FilterFacet[];
+  seoFields: SEOFieldMetadata[];
+  aiFields: JoshAIFieldMetadata[];
+  searchableFields: SearchableField[];
+}
+
+/**
+ * Get a complete preview of a template for the Admin Preview panel.
+ * Admins can see exactly how the template will render (wizard, product page,
+ * filters, SEO, AI) without publishing.
+ *
+ * Works with draft templates — `status: "draft"` templates are returned here
+ * but NOT by resolveProductInfoSectionsFromDB (which only returns published).
+ */
+export async function getTemplatePreview(
+  templateId: string
+): Promise<TemplatePreview | null> {
+  try {
+    const template = await db.listingTemplate.findUnique({
+      where: { id: templateId },
+      include: {
+        fields: {
+          where: { enabled: true },
+          orderBy: [{ section: "asc" }, { sortOrder: "asc" }],
+        },
+      },
+    }).catch(() => null);
+
+    if (!template) return null;
+
+    const sectionMeta = parseJSON<DBTemplateSection[]>(template.sections, []);
+    const sections = dbFieldsToSections(template.fields, sectionMeta);
+    const wizardSteps = parseJSON<WizardStep[]>(template.wizard, []).sort((a, b) => a.step - b.step);
+
+    // Build filter facets from filterable fields
+    const filterFacets: FilterFacet[] = template.fields
+      .filter((f) => (f as any).filterable)
+      .map((f) => ({
+        key: f.key,
+        label: f.label,
+        type: f.type,
+        options: f.staticOptions ? parseJSON<string[]>(f.staticOptions, []) : undefined,
+        filterGroupName: f.filterGroupName || undefined,
+      }));
+
+    // Build SEO fields
+    const seoFields: SEOFieldMetadata[] = template.fields
+      .filter((f) => f.seoIndexed)
+      .map((f) => ({ key: f.key, label: f.label, type: f.type, priority: (f as any).priority || 0 }))
+      .sort((a, b) => b.priority - a.priority);
+
+    // Build AI fields
+    const aiConfig = parseJSON<Record<string, any>>(template.aiConfig, {});
+    const aiFields: JoshAIFieldMetadata[] = template.fields
+      .filter((f) => f.aiEnabled)
+      .map((f) => ({
+        key: f.key,
+        label: f.label,
+        description: f.helpText || f.placeholder || undefined,
+        aiPrompt: aiConfig[f.key]?.prompt || aiConfig.descriptionPrompt,
+        priority: (f as any).priority || 0,
+        visibility: "public" as const,
+        type: f.type,
+        section: f.section,
+      }))
+      .sort((a, b) => b.priority - a.priority);
+
+    // Build searchable fields
+    const searchableFields: SearchableField[] = template.fields
+      .filter((f) => f.searchable)
+      .map((f) => ({ key: f.key, label: f.label, type: f.type, boost: (f as any).priority || 0 }));
+
+    return {
+      template: {
+        id: template.id,
+        slug: template.slug,
+        name: template.name,
+        description: template.description,
+        icon: template.icon,
+        status: (template as any).status || "published",
+        version: template.version,
+      },
+      wizardSteps,
+      sections,
+      filterFacets,
+      seoFields,
+      aiFields,
+      searchableFields,
+    };
+  } catch (err) {
+    logger.error("template-engine-v3", "getTemplatePreview failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+// ── 8. Template Status Management ──────────────────────────────────────────
+
+/**
+ * Update a template's status (draft → published → archived).
+ * Draft templates are not shown to vendors.
+ * Archived templates keep working for existing products but can't be selected for new ones.
+ */
+export async function updateTemplateStatus(
+  templateId: string,
+  status: "draft" | "published" | "archived"
+): Promise<boolean> {
+  try {
+    await db.listingTemplate.update({
+      where: { id: templateId },
+      data: { status },
+    });
+    return true;
+  } catch (err) {
+    logger.error("template-engine-v3", "updateTemplateStatus failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+}
+
+/**
+ * Get all templates by status (for admin dashboard).
+ */
+export async function getTemplatesByStatus(
+  status?: "draft" | "published" | "archived"
+): Promise<Array<{ id: string; name: string; slug: string; status: string; version: number; ecosystem: string }>> {
+  try {
+    const where = status ? { status } : {};
+    const templates = await db.listingTemplate.findMany({
+      where,
+      select: { id: true, name: true, slug: true, status: true, version: true, ecosystem: true },
+      orderBy: { updatedAt: "desc" },
+    }).catch(() => []);
+    return templates.map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      slug: t.slug,
+      status: t.status || "published",
+      version: t.version,
+      ecosystem: t.ecosystem,
+    }));
+  } catch {
+    return [];
   }
 }

@@ -881,6 +881,11 @@ model ListingTemplate {
   ecosystem   String  @default("BOTH") // "FINDMYBITES" | "PIMPMYPARTY" | "BOTH"
   icon        String? // lucide icon name
   active      Boolean @default(true)
+  // ── V3: Template lifecycle status ──
+  // draft = admin is still editing (not shown to vendors)
+  // published = live, vendors use this template
+  // archived = retired, existing products keep using it but new products can't select it
+  status      String  @default("published") // "draft" | "published" | "archived"
   // Sections JSON: [{ name, icon, defaultOpen, sortOrder, step? }]
   // step: optional step number for multi-step wizard forms
   sections    String  @default("[]")
@@ -1020,13 +1025,17 @@ model TemplateField {
   // (enables grouped repeaters like multiple menu items with name+price+desc)
   repeatFields String?
 
-  // ── Search / SEO / AI flags (v2) ──
+  // ── Search / SEO / AI / Filter flags (v2/v3) ──
   // searchable: field value is indexed for marketplace search & filtering
   searchable Boolean @default(false)
   // seoIndexed: field value is included in auto-generated SEO pages
   seoIndexed Boolean @default(false)
   // aiEnabled: field is available for AI features (description gen, tag suggestions)
   aiEnabled  Boolean @default(false)
+  // filterable: field appears as a marketplace filter facet (auto-generated filter UI)
+  filterable Boolean @default(false)
+  // priority: controls field display order in Josh AI context + SEO (higher = more prominent)
+  priority  Int     @default(0)
 
   // ── Global field reference ──
   // If this field was inherited from a global template, this stores the
