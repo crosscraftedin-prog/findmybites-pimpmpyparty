@@ -65,9 +65,28 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   INR: "₹", USD: "$", GBP: "£", AED: "AED", AUD: "A$", CAD: "CA$", SGD: "S$", EUR: "€",
 };
 
+// V3.2: Quick Tags chip options for Step 1 of the Product Wizard.
+// Dietary tags map to existing boolean form fields; allergens + occasion tags
+// are stored as string arrays in `productInfo`.
+const DIETARY_OPTIONS: { key: string; label: string }[] = [
+  { key: "eggless", label: "Eggless" },
+  { key: "vegetarian", label: "Vegetarian" },
+  { key: "vegan", label: "Vegan" },
+  { key: "halal", label: "Halal" },
+  { key: "glutenFree", label: "Gluten Free" },
+  { key: "sugarFree", label: "Sugar Free" },
+];
+
+const ALLERGEN_OPTIONS: string[] = ["Milk", "Eggs", "Nuts", "Peanuts", "Soy", "Sesame", "Gluten"];
+
+const OCCASION_OPTIONS: string[] = ["Birthday", "Wedding", "Anniversary", "Baby Shower", "Corporate", "Christmas", "Valentine", "Diwali"];
+
 export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: ProductWizardProps) {
   const [step, setStep] = React.useState(1);
   const [aiGenerating, setAiGenerating] = React.useState(false);
+  // V3.2: Track whether Josh AI has auto-generated content for this product.
+  // Used by Step 1 to auto-trigger the AI writer on product-name blur (only once).
+  const [hasGeneratedAI, setHasGeneratedAI] = React.useState(false);
   const [lastSaved, setLastSaved] = React.useState<string | null>(null);
   const [autoSaving, setAutoSaving] = React.useState(false);
   const [publishError, setPublishError] = React.useState<string | null>(null);
@@ -450,6 +469,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     }
 
     toast.success("AI generated content — review and edit!");
+    setHasGeneratedAI(true);
     setAiGenerating(false);
   };
 
@@ -620,16 +640,15 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   };
 
   // ── V3.1: Internal render helpers (composed by the new step renderers) ──
-  // Old "basic" renderer content (Product Name, Category, Subcategory, Short
-  // Description, AI Writer). Composed into the new `basic` step (Step 1).
+  // V3.2: Step 1 "basic" fields — Category + Subcategory + Product Name.
+  // The Product Name input auto-triggers Josh AI on blur (once per product).
+  // The old Short Description input and AI Writer button card have been removed —
+  // the AI generation now happens automatically. A "Regenerate with AI" link
+  // lives next to the Description label in the `basic` stepType renderer below.
   const renderBasicFields: StepRenderer = () => (
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold">Basic Information</h3>
-                  <div>
-                    <Label htmlFor="p-name">{isFood ? "Product" : "Package"} Name *</Label>
-                    <Input id="p-name" value={form.name} onChange={e => set("name", e.target.value)}
-                      placeholder={isFood ? "e.g. Chocolate Truffle Cake" : "e.g. Premium Wedding Photography"} className="mt-1" />
-                  </div>
+                  {/* 1. Category + Subcategory */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label htmlFor="p-cat">Category *</Label>
@@ -664,24 +683,23 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                       </Select>
                     </div>
                   </div>
+                  {/* 2. Product Name — auto-triggers Josh AI on blur (once per product) */}
                   <div>
-                    <Label htmlFor="p-short">Short Description</Label>
-                    <Input id="p-short" value={form.shortDescription} onChange={e => set("shortDescription", e.target.value)}
-                      placeholder="One-line summary shown in product cards" className="mt-1" maxLength={120} />
-                    <p className="mt-1 text-[10px] text-muted-foreground">{(form.shortDescription || "").length}/120</p>
-                  </div>
-                  {/* AI Writer */}
-                  <div className="rounded-xl border border-purple-200 bg-purple-50 p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="size-4 text-purple-600" />
-                      <span className="text-sm font-semibold text-purple-900">AI Product Writer</span>
-                    </div>
-                    <p className="text-xs text-purple-700 mb-2">Generate description, SEO, and tags from the product name.</p>
-                    <Button onClick={generateWithAI} disabled={aiGenerating || !form.name}
-                      size="sm" className="gap-1.5 bg-purple-600 text-white hover:bg-purple-700">
-                      {aiGenerating ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
-                      {aiGenerating ? "Generating…" : "Generate with AI"}
-                    </Button>
+                    <Label htmlFor="p-name">{isFood ? "Product" : "Package"} Name *</Label>
+                    <Input id="p-name" value={form.name} onChange={e => set("name", e.target.value)}
+                      onBlur={() => {
+                        if (form.name?.trim().length >= 3 && !hasGeneratedAI && !aiGenerating) {
+                          setHasGeneratedAI(true);
+                          generateWithAI();
+                        }
+                      }}
+                      placeholder={isFood ? "e.g. Chocolate Truffle Cake" : "e.g. Premium Wedding Photography"} className="mt-1" />
+                    {aiGenerating && (
+                      <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-purple-600">
+                        <Sparkles className="size-3 animate-pulse" />
+                        ✨ Generating with AI…
+                      </p>
+                    )}
                   </div>
                 </div>
   );
@@ -874,16 +892,103 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     // product immediately. The user can continue editing after publish.
     basic: (props) => (
       <>
+        {/* 1. Category + Subcategory + 2. Product Name (auto-triggers Josh AI on blur) */}
         {renderBasicFields(props)}
-        {STEP_RENDERERS.photos(props)}
+        {/* 3. Regular Price + Offer Price */}
         {STEP_RENDERERS.pricing(props)}
-        {/* Description (renamed from "Full Description") — pulled in from the old attributes renderer */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-bold">Description</h3>
+        {/* 4. Product Images */}
+        {STEP_RENDERERS.photos(props)}
+        {/* 5. Description — auto-generated by Josh AI, editable.
+            A small "Regenerate with AI" link lets the vendor re-run the AI writer. */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold">Description</h3>
+            <button
+              type="button"
+              onClick={() => { setHasGeneratedAI(true); generateWithAI(); }}
+              disabled={aiGenerating || !form.name}
+              className="inline-flex items-center gap-1 text-xs font-medium text-purple-600 hover:text-purple-700 disabled:opacity-50"
+            >
+              {aiGenerating ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
+              {aiGenerating ? "Generating…" : "✨ Regenerate with AI"}
+            </button>
+          </div>
           <div>
             <Label htmlFor="p-desc">Description *</Label>
             <Textarea id="p-desc" value={form.description} onChange={e => set("description", e.target.value)}
               placeholder="Describe your product in detail…" className="mt-1 min-h-[100px]" />
+          </div>
+        </div>
+        {/* 6. Quick Tags — dietary, allergens, occasions, free-form tags */}
+        <div className="space-y-4 rounded-xl border border-border bg-card p-4">
+          <div>
+            <h3 className="text-lg font-bold">Quick Tags</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Tap the chips that apply. These power filtering and product badges.
+            </p>
+          </div>
+          {/* Dietary Tags — toggles existing boolean form fields */}
+          <div>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dietary Tags</Label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {DIETARY_OPTIONS.map(opt => (
+                <ChipToggle
+                  key={opt.key}
+                  label={opt.label}
+                  active={!!form[opt.key]}
+                  onClick={() => set(opt.key, !form[opt.key])}
+                />
+              ))}
+            </div>
+          </div>
+          {/* Allergens — stored in productInfo.allergens */}
+          <div>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Allergens</Label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {ALLERGEN_OPTIONS.map(a => (
+                <ChipToggle
+                  key={a}
+                  label={a}
+                  active={(productInfo.allergens ?? []).includes(a)}
+                  onClick={() => {
+                    const current = productInfo.allergens ?? [];
+                    const next = current.includes(a)
+                      ? current.filter(x => x !== a)
+                      : [...current, a];
+                    setProductInfo({ ...productInfo, allergens: next });
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+          {/* Occasion Tags — stored in productInfo.occasionTags */}
+          <div>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Occasion Tags</Label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {OCCASION_OPTIONS.map(o => (
+                <ChipToggle
+                  key={o}
+                  label={o}
+                  active={(productInfo.occasionTags ?? []).includes(o)}
+                  onClick={() => {
+                    const current = productInfo.occasionTags ?? [];
+                    const next = current.includes(o)
+                      ? current.filter(x => x !== o)
+                      : [...current, o];
+                    setProductInfo({ ...productInfo, occasionTags: next });
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+          {/* Tags (comma-separated) — existing form.tags field */}
+          <div>
+            <Label htmlFor="p-tags">Tags (comma-separated)</Label>
+            <Input id="p-tags" value={form.tags} onChange={e => set("tags", e.target.value)}
+              placeholder="wedding cake, chocolate, eggless" className="mt-1" />
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              AI may have suggested tags above — edit freely.
+            </p>
           </div>
         </div>
         {/* Publish error (if any) — shown inline so the user can retry */}
@@ -892,7 +997,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
             <AlertCircle className="mb-1 inline size-4" /> {props.publishError}
           </div>
         )}
-        {/* Publish button — creates the product immediately (no footer publish) */}
+        {/* 7. Publish button — creates the product immediately (no footer publish) */}
         <div className="border-t border-border pt-4">
           <Button onClick={props.onQuickPublish} disabled={props.saving || props.published}
             className="w-full gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
@@ -1937,5 +2042,28 @@ function WizardCard({ icon, title, children }: { icon: React.ReactNode; title: s
       </h4>
       {children}
     </div>
+  );
+}
+
+/**
+ * V3.2: Toggleable chip used by the Quick Tags section in Step 1 of the
+ * Product Wizard. Clicking toggles `active` (selected = amber, unselected =
+ * muted). Renders a Check icon when active.
+ */
+function ChipToggle({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
+        active
+          ? "border-amber-400 bg-amber-100 text-amber-800"
+          : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:bg-muted/50"
+      )}
+    >
+      {active && <Check className="size-3" />}
+      {label}
+    </button>
   );
 }
