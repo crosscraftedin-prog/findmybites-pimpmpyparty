@@ -252,6 +252,63 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     };
   }, [autoSave]);
 
+  // ── Josh AI auto-generation ──
+  // Automatically generates description, SEO, tags, etc. when the product
+  // name changes. No "Generate" button — runs silently 1.5s after the user
+  // stops typing. Only runs once per name change, and never overwrites
+  // fields the vendor has manually edited.
+  const aiTriggeredRef = React.useRef<string>("");
+  const hasEditedDescription = React.useRef(false);
+  const hasEditedSeoTitle = React.useRef(false);
+  const hasEditedSeoDesc = React.useRef(false);
+  const hasEditedTags = React.useRef(false);
+
+  React.useEffect(() => {
+    const name = form.name?.trim();
+    if (!name || name.length < 3) return;
+    // Don't re-trigger for the same name
+    if (aiTriggeredRef.current === name) return;
+    // Don't auto-generate in edit mode if the product already has a description
+    if (initialData?.description && aiTriggeredRef.current === "") {
+      aiTriggeredRef.current = name;
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      aiTriggeredRef.current = name;
+      setAiGenerating(true);
+      try {
+        const res = await fetch("/api/ai/product-writer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, category: form.category, ecosystem: vendor.ecosystem, city: vendor.city }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        // Only set fields the vendor hasn't manually edited
+        if (data.description && !hasEditedDescription.current && !form.description) {
+          set("description", data.description);
+        }
+        // shortDescription is deliberately NOT set — the spec calls for ONE description only.
+        if (data.metaTitle && !hasEditedSeoTitle.current && !form.metaTitle) {
+          set("metaTitle", data.metaTitle);
+        }
+        if (data.metaDescription && !hasEditedSeoDesc.current && !form.metaDescription) {
+          set("metaDescription", data.metaDescription);
+        }
+        if (data.tags && !hasEditedTags.current && !form.tags) {
+          set("tags", data.tags);
+        }
+      } catch {
+        // Silent fail — vendor can still use the manual Generate button
+      } finally {
+        setAiGenerating(false);
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [form.name]);
+
   // Restore draft on mount — ONLY for new products (no initialData)
   // and ONLY if a genuine draft exists (has a name and was saved recently)
   React.useEffect(() => {
@@ -435,7 +492,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
 
     // ── Success — apply content ──
     if (data.description) set("description", data.description);
-    if (data.shortDescription) set("shortDescription", data.shortDescription);
+    // shortDescription deliberately NOT set — ONE description only.
     if (data.metaTitle) set("metaTitle", data.metaTitle);
     if (data.metaDescription) set("metaDescription", data.metaDescription);
     if (data.tags) set("tags", data.tags);
@@ -469,7 +526,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const handlePublish = async () => {
     if (!validation.allPassed) {
       toast.error("Please complete all required fields before publishing");
-      setStep(1);
+      // Scroll to the top so the user sees the Quick Publish card
+      document.querySelector(".overflow-y-auto")?.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     // ── Pre-publish validation warnings ──
@@ -557,34 +615,14 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     await onSave(payload);
   };
 
-  const canProceed = React.useMemo(() => {
-    // V3.1: Step 1 now collects name + category + photos + price + description.
-    // The product is published from Step 1, so all required fields must be set
-    // before the user can proceed to Step 2.
-    if (step === 1) return !!form.name?.trim() && !!form.category && (!!form.price || form.priceOnRequest) && (form.images?.length > 0);
-    return true;
-  }, [step, form]);
-
-  // ── Touch swipe navigation (mobile) ──
-  const touchStartX = React.useRef<number | null>(null);
-  const onTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0]?.clientX ?? null;
-  };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const dx = (e.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current;
-    const threshold = 60; // px
-    if (dx < -threshold && step < STEPS.length && canProceed) {
-      setStep(step + 1); // swipe left → next
-    } else if (dx > threshold && step > 1) {
-      setStep(step - 1); // swipe right → back
-    }
-    touchStartX.current = null;
-  };
+  // canProceed is kept for validation messaging (used by handlePublish checks).
+  // Touch swipe navigation was removed — the collapsible card layout doesn't
+  // need swipe since all cards are visible on one page.
 
 
   // ── Dynamic Wizard Step Renderers ──────────────────────────────────────────
-  // V3: Step content is rendered by DynamicWizardRenderer, which looks up the
+  // V3: Step content is rendered by the renderers below. The wizard shell
+  // now uses CollapsibleCard (one-page layout) instead of a stepper.
   // current step's stepType and calls the matching render function below.
   // No more `step === N` conditionals — the wizard is fully template-driven.
   // Render functions close over wizard state (form, set, vendor, etc.).
@@ -613,7 +651,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     router: { push: () => {} },
     // V3.1: 5-step wizard UX props — used by the new composed renderers.
     onQuickPublish: handlePublish,
-    onContinueEditing: () => { setShowSuccess(false); setStep(2); },
+    onContinueEditing: () => { setShowSuccess(false); /* Collapsible cards are all visible — user can scroll to any card */ },
     completenessPercent,
     showPreview,
     setShowPreview,
@@ -629,6 +667,11 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     <Label htmlFor="p-name">{isFood ? "Product" : "Package"} Name *</Label>
                     <Input id="p-name" value={form.name} onChange={e => set("name", e.target.value)}
                       placeholder={isFood ? "e.g. Chocolate Truffle Cake" : "e.g. Premium Wedding Photography"} className="mt-1" />
+                    {aiGenerating && (
+                      <p className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600">
+                        <Loader2 className="size-3 animate-spin" /> Josh AI is generating description, SEO & tags…
+                      </p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -664,25 +707,73 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                       </Select>
                     </div>
                   </div>
+                  {/* Quick Tags — clickable chips */}
                   <div>
-                    <Label htmlFor="p-short">Short Description</Label>
-                    <Input id="p-short" value={form.shortDescription} onChange={e => set("shortDescription", e.target.value)}
-                      placeholder="One-line summary shown in product cards" className="mt-1" maxLength={120} />
-                    <p className="mt-1 text-[10px] text-muted-foreground">{(form.shortDescription || "").length}/120</p>
-                  </div>
-                  {/* AI Writer */}
-                  <div className="rounded-xl border border-purple-200 bg-purple-50 p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="size-4 text-purple-600" />
-                      <span className="text-sm font-semibold text-purple-900">AI Product Writer</span>
+                    <Label>Quick Tags</Label>
+                    <p className="mb-2 text-xs text-muted-foreground">Click all that apply</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {["Birthday", "Wedding", "Anniversary", "Baby Shower", "Corporate", "Festival", "Christmas", "Diwali", "Eid"].map(tag => {
+                        const current = typeof form.tags === "string" ? form.tags : "";
+                        const active = current.split(",").map(s => s.trim().toLowerCase()).includes(tag.toLowerCase());
+                        return (
+                          <button key={tag} type="button" onClick={() => {
+                            hasEditedTags.current = true;
+                            const tags = current ? current.split(",").map(s => s.trim()).filter(Boolean) : [];
+                            const next = active ? tags.filter(t => t.toLowerCase() !== tag.toLowerCase()) : [...tags, tag];
+                            set("tags", next.join(", "));
+                          }}
+                          className={cn("rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                            active ? "border-brand bg-brand/10 text-brand" : "border-border text-muted-foreground hover:border-brand/50")}>
+                            {tag}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <p className="text-xs text-purple-700 mb-2">Generate description, SEO, and tags from the product name.</p>
-                    <Button onClick={generateWithAI} disabled={aiGenerating || !form.name}
-                      size="sm" className="gap-1.5 bg-purple-600 text-white hover:bg-purple-700">
-                      {aiGenerating ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
-                      {aiGenerating ? "Generating…" : "Generate with AI"}
-                    </Button>
                   </div>
+                  {/* Dietary chips */}
+                  {isFood && (
+                    <div>
+                      <Label>Dietary</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { key: "eggless", label: "Eggless" },
+                          { key: "vegetarian", label: "Vegetarian" },
+                          { key: "vegan", label: "Vegan" },
+                          { key: "halal", label: "Halal" },
+                          { key: "glutenFree", label: "Gluten Free" },
+                        ].map(d => (
+                          <button key={d.key} type="button" onClick={() => set(d.key as string, !form[d.key as string])}
+                            className={cn("rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                              form[d.key as string] ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30" : "border-border text-muted-foreground hover:border-emerald-400")}>
+                            {d.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Allergens chips */}
+                  {isFood && (
+                    <div>
+                      <Label>Allergens</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {["Milk", "Egg", "Nuts", "Soy", "Gluten"].map(a => {
+                          const current = typeof form.allergenInfo === "string" ? form.allergenInfo : "";
+                          const active = current.toLowerCase().includes(a.toLowerCase());
+                          return (
+                            <button key={a} type="button" onClick={() => {
+                              const items = current ? current.split(",").map(s => s.trim()).filter(Boolean) : [];
+                              const next = active ? items.filter(t => t.toLowerCase() !== a.toLowerCase()) : [...items, a];
+                              set("allergenInfo", next.join(", "));
+                            }}
+                            className={cn("rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                              active ? "border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950/30" : "border-border text-muted-foreground hover:border-amber-400")}>
+                              {a}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
   );
 
@@ -877,13 +968,19 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         {renderBasicFields(props)}
         {STEP_RENDERERS.photos(props)}
         {STEP_RENDERERS.pricing(props)}
-        {/* Description (renamed from "Full Description") — pulled in from the old attributes renderer */}
+        {/* Description — the ONE description (no short/full/product description duplicates) */}
         <div className="space-y-4">
           <h3 className="text-lg font-bold">Description</h3>
           <div>
             <Label htmlFor="p-desc">Description *</Label>
-            <Textarea id="p-desc" value={form.description} onChange={e => set("description", e.target.value)}
-              placeholder="Describe your product in detail…" className="mt-1 min-h-[100px]" />
+            <Textarea id="p-desc" value={form.description}
+              onChange={e => { hasEditedDescription.current = true; set("description", e.target.value); }}
+              placeholder="Describe your product in detail… Josh AI will generate this automatically after you enter the name." className="mt-1 min-h-[100px]" />
+            {aiGenerating && !form.description && (
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-purple-600">
+                <Loader2 className="size-3 animate-spin" /> Generating…
+              </p>
+            )}
           </div>
         </div>
         {/* Publish error (if any) — shown inline so the user can retry */}
@@ -893,7 +990,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
           </div>
         )}
         {/* Publish button — creates the product immediately (no footer publish) */}
-        <div className="border-t border-border pt-4">
+        <div className="sticky bottom-0 border-t border-border bg-card pt-4">
           <Button onClick={props.onQuickPublish} disabled={props.saving || props.published}
             className="w-full gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
             {props.saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
@@ -1206,11 +1303,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                       placeholder="Auto-generated from description" className="mt-1 min-h-[60px]" maxLength={160} />
                     <p className="mt-1 text-[10px] text-muted-foreground">{(form.metaDescription || "").length}/160</p>
                   </div>
-                  <div>
-                    <Label htmlFor="p-tags">Tags (comma-separated)</Label>
-                    <Input id="p-tags" value={form.tags} onChange={e => set("tags", e.target.value)}
-                      placeholder="wedding cake, chocolate, eggless" className="mt-1" />
-                  </div>
+                  {/* Tags are managed via Quick Tags chips in Card 1 (Quick Publish).
+                      Do NOT render a duplicate tags input here. */}
                 </div>
     ),
     inventory: () => (
@@ -1453,7 +1547,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                           setPublished(false);
                           setSavedProductSlug(null);
                           setPublishError(null);
-                          setStep(1);
+                          // Scroll to top so the user sees the Quick Publish card
+                          document.querySelector(".overflow-y-auto")?.scrollTo({ top: 0, behavior: "smooth" });
                           // Reset to a completely fresh form — don't carry over any previous data
                           setForm({
                             name: "", category: vendor.category || "", subCategory: "",
@@ -1618,7 +1713,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
             selectedIds={productAttributeIds}
             onChange={setProductAttributeIds}
             ecosystem={vendor.ecosystem}
-            groups={isFood ? ["dietary", "product_feature", "service"] : ["product_feature", "service"]}
+            // Dietary is managed via chips in Card 1 (Quick Publish) — don't duplicate here.
+            groups={isFood ? ["product_feature", "service"] : ["product_feature", "service"]}
           />
         </div>
       </>
@@ -1720,108 +1816,87 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
             </p>
           </div>
         </div>
-        {/* Quality Score */}
+        {/* Quality Score + Save Draft */}
         <div className="flex items-center gap-2">
-          <div className="flex">
-            {[1, 2, 3, 4, 5].map(i => (
-              <Star key={i} className={cn("size-3", i <= qualityStars ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30")} />
-            ))}
+          <div className="hidden items-center gap-1.5 sm:flex">
+            <div className="flex">
+              {[1, 2, 3, 4, 5].map(i => (
+                <Star key={i} className={cn("size-3", i <= qualityStars ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30")} />
+              ))}
+            </div>
+            <span className="text-xs font-bold">{qualityScore}%</span>
           </div>
-          <span className="text-xs font-bold">{qualityScore}%</span>
+          <Button variant="ghost" onClick={handleSaveDraft} disabled={saving} size="sm" className="text-xs">
+            Save Draft
+          </Button>
         </div>
       </div>
 
-      {/* Step Progress — permanently visible (shrink-0). Mobile: "Step X of Y" + progress bar; desktop: full indicator */}
-      <div className="shrink-0 border-b border-border bg-card">
-        {/* Mobile: compact Step X of Y */}
-        <div className="flex items-center justify-between px-4 py-1.5 sm:hidden">
-          <span className="text-xs font-semibold">
-            Step {step} of {STEPS.length}
-          </span>
-          <span className="text-xs text-muted-foreground">{STEPS[step - 1]?.title}</span>
-        </div>
-        {/* Progress bar (both mobile + desktop) */}
-        <div className="flex gap-0.5 px-4 pb-1.5 sm:gap-1">
-          {STEPS.map((s) => {
-            const isCompleted = step > s.id;
-            const isActive = step === s.id;
-            return (
-              <div
-                key={s.id}
-                className={cn(
-                  "h-1 flex-1 rounded-full transition-colors",
-                  isCompleted ? "bg-emerald-500" : isActive ? "bg-brand" : "bg-muted"
-                )}
-              />
-            );
-          })}
-        </div>
-        {/* Desktop: full step indicator with labels */}
-        <div className="hidden items-center justify-between px-4 py-2 sm:flex">
-          {STEPS.map((s, i) => {
-            const Icon = s.icon;
-            const isActive = step === s.id;
-            const isCompleted = step > s.id;
-            return (
-              <React.Fragment key={s.id}>
-                <button
-                  onClick={() => step > s.id && setStep(s.id)}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium transition-colors",
-                    isActive ? "bg-brand/10 text-brand" : isCompleted ? "text-emerald-600" : "text-muted-foreground"
-                  )}
-                >
-                  <div className={cn(
-                    "grid size-5 place-items-center rounded-full text-[10px]",
-                    isActive ? "bg-brand text-white" : isCompleted ? "bg-emerald-500 text-white" : "bg-muted"
-                  )}>
-                    {isCompleted ? <Check className="size-3" /> : s.id}
-                  </div>
-                  <span>{s.title}</span>
-                </button>
-                {i < STEPS.length - 1 && (
-                  <div className={cn("h-0.5 flex-1", isCompleted ? "bg-emerald-400" : "bg-muted")} />
-                )}
-              </React.Fragment>
-            );
-          })}
+      {/* ── Collapsible Card Layout (replaces the wizard stepper) ──
+          Card 1 (Quick Publish) is always expanded by default.
+          Cards 2-5 are collapsed; click the header to expand.
+          No Next/Back, no progress circles, no wizard pages. */}
+
+      {/* Card content — scrollable */}
+      <div className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="mx-auto max-w-2xl space-y-4">
+          {showSuccess ? (
+            // Post-publish success screen
+            STEP_RENDERERS.success(sharedProps)
+          ) : (
+            <>
+              {/* ── CARD 1: Quick Publish (always expanded) ── */}
+              <CollapsibleCard
+                icon={<Star className="size-5 text-emerald-500" />}
+                title="Quick Publish"
+                subtitle="Required fields — publish in 30 seconds"
+                badge={qualityScore > 0 ? `${qualityScore}% complete` : undefined}
+                defaultOpen
+              >
+                {STEP_RENDERERS.basic(sharedProps)}
+              </CollapsibleCard>
+
+              {/* ── CARD 2: Product Details (Template Engine) ── */}
+              <CollapsibleCard
+                icon={<Info className="size-5 text-blue-500" />}
+                title="Product Details"
+                subtitle="Template-driven fields + Recipe Cost Calculator"
+              >
+                {STEP_RENDERERS.details(sharedProps)}
+              </CollapsibleCard>
+
+              {/* ── CARD 3: Variants & Customisation ── */}
+              <CollapsibleCard
+                icon={<Package className="size-5 text-amber-500" />}
+                title="Variants & Customisation"
+                subtitle="Sizes, flavours, packages, add-ons"
+              >
+                {STEP_RENDERERS.options(sharedProps)}
+              </CollapsibleCard>
+
+              {/* ── CARD 4: Delivery ── */}
+              <CollapsibleCard
+                icon={<Truck className="size-5 text-purple-500" />}
+                title="Delivery"
+                subtitle="Inventory, scheduling, pickup, delivery"
+              >
+                {STEP_RENDERERS.delivery(sharedProps)}
+              </CollapsibleCard>
+
+              {/* ── CARD 5: Marketing ── */}
+              <CollapsibleCard
+                icon={<Search className="size-5 text-pink-500" />}
+                title="Marketing"
+                subtitle="SEO, tags, featured, visibility"
+              >
+                {STEP_RENDERERS.marketing(sharedProps)}
+              </CollapsibleCard>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Step Content — swipeable on mobile */}
-      <div
-        className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
-        <div className="mx-auto max-w-2xl">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={showSuccess ? "success" : step}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-            >
-              {showSuccess ? (
-                // V3.1: Post-publish success screen — rendered via the
-                // registered `success` stepType renderer (not via
-                // DynamicWizardRenderer, since `success` is not in STEPS).
-                STEP_RENDERERS.success(sharedProps)
-              ) : (
-                <DynamicWizardRenderer
-                  steps={STEPS}
-                  currentStep={step}
-                  renderers={STEP_RENDERERS}
-                  sharedProps={sharedProps}
-                />
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {/* V3.1: Floating Preview button — opens a live preview modal */}
+      {/* Floating Preview button — opens a live preview modal */}
       {!showSuccess && (
         <button
           onClick={() => setShowPreview(true)}
@@ -1893,36 +1968,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         </div>
       )}
 
-      {/* Footer — permanently visible (shrink-0) + safe-area.
-          V3.1: No Publish button in the footer — publish happens on Step 1.
-          Back/Next are hidden while the success screen is showing. */}
-      {!showSuccess && (
-        <div className="shrink-0 border-t border-border bg-card px-4 py-3 [padding-bottom:calc(env(safe-area-inset-bottom)+0.75rem)]">
-          {/* Swipe hint (mobile only) */}
-          <p className="mb-1.5 text-center text-[10px] text-muted-foreground sm:hidden">
-            ← Swipe to navigate steps →
-          </p>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex shrink-0 gap-2">
-              {step > 1 && (
-                <Button variant="outline" onClick={() => setStep(step - 1)} className="gap-1" size="sm">
-                  <ChevronLeft className="size-4" /> Back
-                </Button>
-              )}
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <Button variant="ghost" onClick={handleSaveDraft} disabled={saving} size="sm" className="hidden sm:inline-flex">
-                Save Draft
-              </Button>
-              {step < STEPS.length && (
-                <Button onClick={() => setStep(step + 1)} disabled={!canProceed} className="gap-1 bg-brand text-brand-foreground hover:bg-brand/90" size="sm">
-                  Next <ChevronRight className="size-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* No footer — the Publish button lives inside Card 1 (Quick Publish).
+          Save Draft is available via the header dropdown if needed. */}
     </div>
   );
 }
@@ -1936,6 +1983,59 @@ function WizardCard({ icon, title, children }: { icon: React.ReactNode; title: s
         {title}
       </h4>
       {children}
+    </div>
+  );
+}
+
+/**
+ * CollapsibleCard — a single-page card that can be expanded/collapsed.
+ * Replaces the wizard stepper. Card 1 (Quick Publish) is always open by default.
+ */
+function CollapsibleCard({
+  icon, title, subtitle, badge, defaultOpen = false, children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  return (
+    <div className={cn(
+      "overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow",
+      open ? "border-border" : "border-border/60 hover:shadow-md",
+    )}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+      >
+        <div className="shrink-0">{icon}</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-bold leading-tight">{title}</h3>
+            {badge && (
+              <Badge variant="secondary" className="text-[10px]">{badge}</Badge>
+            )}
+          </div>
+          {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
+        </div>
+        <ChevronRight className={cn("size-5 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} />
+      </button>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="border-t border-border p-4"
+        >
+          {children}
+        </motion.div>
+      )}
     </div>
   );
 }
