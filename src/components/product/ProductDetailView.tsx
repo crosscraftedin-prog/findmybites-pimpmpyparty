@@ -81,6 +81,8 @@ export interface ProductDetailViewProps {
   onWhatsApp?: () => void;
   onWishlist?: () => void;
   isWishlisted?: boolean;
+  /** Called when the main gallery image is clicked (opens lightbox). */
+  onImageClick?: (index: number) => void;
 }
 
 export function ProductDetailView({
@@ -93,6 +95,7 @@ export function ProductDetailView({
   onWhatsApp,
   onWishlist,
   isWishlisted,
+  onImageClick,
 }: ProductDetailViewProps) {
   const symbol = product.currencySymbol || "₹";
   const gallery: string[] = product.images?.length
@@ -132,7 +135,17 @@ export function ProductDetailView({
     <div className="space-y-6">
       {/* Gallery */}
       <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-        <div className="group relative aspect-square overflow-hidden rounded-2xl border border-border bg-muted sm:aspect-[4/3]">
+        <div
+          className={cn(
+            "group relative aspect-square overflow-hidden rounded-2xl border border-border bg-muted sm:aspect-[4/3]",
+            onImageClick && "cursor-zoom-in",
+          )}
+          onClick={() => onImageClick?.(0)}
+          role={onImageClick ? "button" : undefined}
+          tabIndex={onImageClick ? 0 : undefined}
+          onKeyDown={onImageClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onImageClick(0); } } : undefined}
+          aria-label={onImageClick ? "Open photo in fullscreen" : undefined}
+        >
           {gallery[0] ? (
             <img src={gallery[0]} alt={product.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="eager" />
           ) : (
@@ -145,13 +158,24 @@ export function ProductDetailView({
           {gallery.length > 1 && (
             <div className="absolute bottom-4 right-4 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">{gallery.length} photos</div>
           )}
+          {onImageClick && gallery[0] && (
+            <div className="absolute bottom-4 left-4 grid size-9 place-items-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition-opacity duration-300 group-hover:opacity-100">
+              <svg viewBox="0 0 24 24" className="size-4 fill-current" aria-hidden><path d="M21 3h-6v2h2.5l-3.2 3.2 1.4 1.4L19 6.4V9h2V3h-2zM5 5h6V3H3v8h2V5zm14 14h-6v2h8v-8h-2v6zM5 15H3v8h8v-2H5v-6z"/></svg>
+            </div>
+          )}
         </div>
         {gallery.length > 1 && (
           <div className="flex gap-2 overflow-x-auto sm:flex-col sm:overflow-visible sm:w-24">
             {gallery.slice(0, 4).map((img, i) => (
-              <div key={i} className="relative aspect-square shrink-0 overflow-hidden rounded-xl border-2 border-border bg-muted sm:w-24">
+              <button
+                key={i}
+                type="button"
+                onClick={() => onImageClick?.(i)}
+                className="relative aspect-square shrink-0 overflow-hidden rounded-xl border-2 border-border bg-muted transition-colors hover:border-brand sm:w-24 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                aria-label={`Open photo ${i + 1} in fullscreen`}
+              >
                 <img src={img ?? undefined} alt={`${product.name} ${i + 1}`} className="h-full w-full object-cover" loading="lazy" />
-              </div>
+              </button>
             ))}
           </div>
         )}

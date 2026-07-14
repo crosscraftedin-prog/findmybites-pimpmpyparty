@@ -96,64 +96,78 @@ export function TrendingProductsSection() {
           </p>
         ) : (
           <div ref={scrollerRef} className="no-scrollbar mt-8 flex w-full snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
-            {products.map((p, i) => (
-              <div
-                key={p.id}
-                
-                
-                
-                
-                className="w-60 shrink-0 snap-start"
-              >
-                <a href={`/product/${p.slug}`} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-                  <div className="relative aspect-square overflow-hidden">
-                    {p.image ? (
-                      <img loading="lazy" src={p.image} alt={p.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                    ) : (
-                      <div className={cn("h-full w-full bg-gradient-to-br", ecosystem === "FINDMYBITES" ? "from-amber-200 to-orange-300" : "from-fuchsia-200 to-purple-300")} />
-                    )}
-                    {p.isFeatured && (
-                      <Badge className="absolute left-2 top-2 border-0 bg-brand text-brand-foreground shadow-sm">
-                        Featured
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex flex-1 flex-col p-3">
-                    <h3 className="line-clamp-1 text-sm font-bold">{p.name}</h3>
-                    {p.description && (
-                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{p.description}</p>
-                    )}
-                    <div className="mt-auto flex items-center justify-between pt-2">
-                      <span className="text-sm font-bold text-brand">
-                        {(p as any).offerPrice ? (
-                          <>
-                            {p.currencySymbol}{Number((p as any).offerPrice).toLocaleString()}
-                            <span className="ml-1 text-xs font-normal text-muted-foreground line-through">
-                              {p.currencySymbol}{p.price.toLocaleString()}
-                            </span>
-                          </>
-                        ) : (
-                          p.currencySymbol + p.price.toLocaleString()
-                        )}
-                      </span>
+            {products.map((p, i) => {
+              const offerPrice = (p as any).offerPrice as number | undefined;
+              const hasOffer = offerPrice != null && offerPrice < p.price;
+              const displayPrice = offerPrice ?? p.price;
+              return (
+                <div key={p.id} className="w-60 shrink-0 snap-start">
+                  <a
+                    href={`/product/${p.slug}`}
+                    className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
+                  >
+                    {/* Image-first — dominant */}
+                    <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+                      {p.image ? (
+                        <img
+                          loading="lazy"
+                          src={p.image}
+                          alt={p.name}
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        />
+                      ) : (
+                        <div className={cn("h-full w-full bg-gradient-to-br", ecosystem === "FINDMYBITES" ? "from-amber-200 to-orange-300" : "from-fuchsia-200 to-purple-300")} />
+                      )}
+                      {/* gradient for text legibility */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                      {/* Featured badge top-left */}
+                      {p.isFeatured && (
+                        <Badge className="absolute left-2 top-2 border-0 bg-amber-500 text-white shadow-sm">
+                          ★ Featured
+                        </Badge>
+                      )}
+                      {/* Savings badge top-right */}
+                      {hasOffer && (
+                        <Badge className="absolute right-2 top-2 border-0 bg-emerald-500 text-white shadow-sm">
+                          Save {Math.round(((p.price - displayPrice) / p.price) * 100)}%
+                        </Badge>
+                      )}
+                      {/* Vendor city on image bottom-left */}
                       {p.vendor && (
-                        <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                          <MapPin className="size-2.5" />
+                        <span className="absolute bottom-2 left-2 flex items-center gap-0.5 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur">
+                          <MapPin className="size-2.5" aria-hidden />
                           {p.vendor.city}
                         </span>
                       )}
                     </div>
-                    {p.vendor && (
-                      <span
-                        className="mt-2 truncate text-[10px] font-medium text-brand"
-                      >
-                        by {p.vendor.name}
+                    {/* Body — minimal text */}
+                    <div className="flex flex-1 flex-col p-3">
+                      <h3 className="line-clamp-1 text-sm font-bold leading-tight">{p.name}</h3>
+                      {p.vendor && (
+                        <p className="mt-0.5 truncate text-[10px] font-medium text-brand">
+                          by {p.vendor.name}
+                        </p>
+                      )}
+                      {/* Price — obvious */}
+                      <div className="mt-auto flex items-baseline gap-1.5 pt-2">
+                        <span className="text-base font-extrabold text-foreground">
+                          {p.currencySymbol}{displayPrice.toLocaleString()}
+                        </span>
+                        {hasOffer && (
+                          <span className="text-[10px] font-medium text-muted-foreground line-through">
+                            {p.currencySymbol}{p.price.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      {/* View CTA */}
+                      <span className="mt-2 inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition-colors group-hover:bg-emerald-700">
+                        View Details
                       </span>
-                    )}
-                  </div>
-                </a>
-              </div>
-            ))}
+                    </div>
+                  </a>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

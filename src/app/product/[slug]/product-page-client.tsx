@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -27,6 +28,7 @@ import {
   X,
   Package,
   ArrowRight,
+  ZoomIn,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -52,6 +54,7 @@ import {
   ProductBadge,
 } from "@/components/marketplace/vendor-highlights";
 import { SmartEnquiryForm } from "@/components/marketplace/smart-enquiry-form";
+import { StickyBookingBar } from "@/components/marketplace/sticky-booking-bar";
 import { ProductAvailabilityBanner } from "@/components/inventory/product-availability-banner";
 import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
 import { ProductInfoDisplay } from "@/components/dashboard/product-info-display";
@@ -273,7 +276,7 @@ export function ProductPageClient({ slug }: Props) {
   }
 
   const { product, vendor, related } = data;
-  const gallery = product.images.length > 0 ? product.images : [product.image].filter(Boolean);
+  const gallery: string[] = product.images.length > 0 ? product.images : [product.image].filter((x): x is string => Boolean(x));
   const isFood = vendor?.ecosystem === "FINDMYBITES";
   const symbol = product.currencySymbol;
 
@@ -302,7 +305,7 @@ export function ProductPageClient({ slug }: Props) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
-      <main className="flex-1">
+      <main className="flex-1 pb-24 lg:pb-0">
         {/* Breadcrumbs */}
         <div className="mx-auto max-w-7xl px-4 pt-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -387,6 +390,7 @@ export function ProductPageClient({ slug }: Props) {
                 }}
                 onWishlist={toggleWishlist}
                 isWishlisted={wishlisted}
+                onImageClick={(i) => setLightboxIndex(i)}
               />
 
               {/* Availability banner */}
@@ -620,7 +624,7 @@ export function ProductPageClient({ slug }: Props) {
             </div>
 
             {/* ── Right column: Sticky smart enquiry form ────────────── */}
-            <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+            <aside id="booking-sidebar" className="space-y-4 lg:sticky lg:top-6 lg:self-start">
               {vendor && (() => {
                 const variants = (() => {
                   const v = (product as any).variants;
@@ -646,6 +650,29 @@ export function ProductPageClient({ slug }: Props) {
           </div>
         </div>
       </main>
+
+      {/* ── Sticky booking bar — always-visible Book Now (desktop top + mobile bottom) ── */}
+      <StickyBookingBar
+        priceLabel={`${symbol}${(product.offerPrice || product.price).toLocaleString()}`}
+        subLabel={
+          product.minGuests
+            ? `Min ${product.minGuests} guests`
+            : vendor?.city
+              ? vendor.city
+              : undefined
+        }
+        rating={vendor?.rating}
+        reviewCount={vendor?.reviewCount}
+        whatsappLink={
+          vendor?.whatsapp
+            ? `https://wa.me/${vendor.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi, I'm interested in ${product.name}`)}`
+            : undefined
+        }
+        onBook={() => {
+          document.getElementById("booking-sidebar")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }}
+      />
+
       <SiteFooter />
 
       {/* Josh AI */}
@@ -658,43 +685,130 @@ export function ProductPageClient({ slug }: Props) {
         />
       )}
 
-      {/* Lightbox */}
-      {lightboxIndex !== null && gallery[lightboxIndex] && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
-          onClick={() => setLightboxIndex(null)}
-        >
-          <button
-            onClick={() => setLightboxIndex(null)}
-            className="absolute right-4 top-4 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20"
-          >
-            <X className="size-6" />
-          </button>
-          {gallery.length > 1 && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => i === null ? 0 : (i - 1 + gallery.length) % gallery.length); }}
-              className="absolute left-4 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20"
-            >
-              <ChevronLeft className="size-6" />
-            </button>
-          )}
-          <img
-            src={gallery[lightboxIndex]}
-            alt={`${product.name} photo ${lightboxIndex + 1}`}
-            className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
-            onClick={(e) => e.stopPropagation()}
+      {/* Lightbox — keyboard nav, mobile swipe, click-to-zoom */}
+      <AnimatePresence>
+        {lightboxIndex !== null && gallery[lightboxIndex] && (
+          <Lightbox
+            images={gallery}
+            index={lightboxIndex}
+            name={product.name}
+            onClose={() => setLightboxIndex(null)}
+            onNavigate={setLightboxIndex}
           />
-          {gallery.length > 1 && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => i === null ? 0 : (i + 1) % gallery.length); }}
-              className="absolute right-4 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20"
-            >
-              <ChevronRight className="size-6" />
-            </button>
-          )}
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+/* ============================================================================
+ * Lightbox — premium fullscreen gallery viewer
+ * Keyboard: ←/→ navigate, Esc close, click image to zoom
+ * Mobile: swipe left/right to navigate
+ * ========================================================================== */
+
+function Lightbox({
+  images, index, name, onClose, onNavigate,
+}: {
+  images: string[];
+  index: number;
+  name: string;
+  onClose: () => void;
+  onNavigate: (i: number) => void;
+}) {
+  const [zoomed, setZoomed] = React.useState(false);
+  const touchStartX = React.useRef<number | null>(null);
+
+  // Keyboard navigation
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { onClose(); setZoomed(false); }
+      else if (e.key === "ArrowRight") { onNavigate((index + 1) % images.length); setZoomed(false); }
+      else if (e.key === "ArrowLeft") { onNavigate((index - 1 + images.length) % images.length); setZoomed(false); }
+    };
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [index, images.length, onClose, onNavigate]);
+
+  const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(delta) > 50) {
+      if (delta < 0) onNavigate((index + 1) % images.length);
+      else onNavigate((index - 1 + images.length) % images.length);
+      setZoomed(false);
+    }
+    touchStartX.current = null;
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
+      onClick={onClose}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* Close */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+        aria-label="Close gallery"
+        className="absolute right-4 top-4 z-10 grid size-12 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+      >
+        <X className="size-6" aria-hidden />
+      </button>
+
+      {/* Prev */}
+      {images.length > 1 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onNavigate((index - 1 + images.length) % images.length); setZoomed(false); }}
+          aria-label="Previous photo"
+          className="absolute left-4 top-1/2 z-10 grid size-12 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+        >
+          <ChevronLeft className="size-6" aria-hidden />
+        </button>
+      )}
+
+      {/* Next */}
+      {images.length > 1 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onNavigate((index + 1) % images.length); setZoomed(false); }}
+          aria-label="Next photo"
+          className="absolute right-4 top-1/2 z-10 grid size-12 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+        >
+          <ChevronRight className="size-6" aria-hidden />
+        </button>
+      )}
+
+      {/* Image */}
+      <motion.img
+        key={index}
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: zoomed ? 1.8 : 1 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        transition={{ duration: 0.3 }}
+        src={images[index]}
+        alt={`${name} photo ${index + 1}`}
+        onClick={(e) => { e.stopPropagation(); setZoomed((z) => !z); }}
+        className="max-h-[85vh] max-w-[90vw] cursor-zoom-in rounded-lg object-contain shadow-2xl"
+      />
+
+      {/* Counter + hint */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-white backdrop-blur">
+        {index + 1} / {images.length}
+      </div>
+      <div className="absolute bottom-6 right-6 hidden items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs text-white/70 backdrop-blur sm:flex">
+        <ZoomIn className="size-3.5" aria-hidden /> Click to zoom · ← → to navigate
+      </div>
+    </motion.div>
   );
 }
 
