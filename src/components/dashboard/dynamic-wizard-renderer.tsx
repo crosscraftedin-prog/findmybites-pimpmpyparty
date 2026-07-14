@@ -3,67 +3,30 @@
 import * as React from "react";
 
 /**
- * DynamicWizardRenderer — the ONLY component that renders wizard step content.
- * ─────────────────────────────────────────────────────────────────────────
- * V3 Final: The wizard step LIST and step CONTENT are both 100% template-driven.
+ * Type definitions for the Product Wizard step renderers.
  *
- * How it works:
- *   1. The wizard fetches steps from /api/templates/v3/wizard (or FALLBACK_STEPS).
- *   2. Each step has a `stepType` field (from template metadata).
- *   3. DynamicWizardRenderer looks up the current step's stepType.
- *   4. It calls the render function registered for that stepType.
- *   5. The render function receives shared props (form, set, etc.).
- *
- * Step types:
- *   "basic"      — Basic Info form (name, category, description, AI writer)
- *   "photos"     — Photo/video upload
- *   "pricing"    — Price fields + options
- *   "variants"   — Variant cards (add/remove/resize)
- *   "attributes" — Product attributes + delivery/pickup
- *   "fields"     — Dynamic fields from template sections (Product Info, Customisation, etc.)
- *   "seo"        — SEO settings + AI generate
- *   "inventory"  — Stock, scheduling, featured
- *   "preview"    — Live preview + publish button
- *
- * Admins can:
- *   - Reorder steps (change the `step` field in template.wizard JSON)
- *   - Rename steps (change the `title` field)
- *   - Add steps (add a new entry to template.wizard JSON)
- *   - Remove steps (remove an entry)
- *   - Move fields between steps (change the `section` field on TemplateField rows,
- *     and update which sections belong to each step in template.wizard JSON)
- *
- * No `step === N` conditionals exist in the wizard. The renderer is the single
- * entry point for all step content.
+ * The wizard uses a CollapsibleCard layout (not a stepper). Each card directly
+ * calls its renderer from the STEP_RENDERERS registry — no DynamicWizardRenderer
+ * component is needed anymore. These types remain for the registry shape.
  */
 
+/**
+ * Step types supported by the wizard's STEP_RENDERERS registry.
+ * Each card in the wizard maps to one of these types.
+ */
 export type StepType =
-  | "basic"
-  | "photos"
-  | "pricing"
-  | "variants"
-  | "attributes"
-  | "fields"
-  | "seo"
-  | "inventory"
-  | "preview"
-  | "details"    // V3.1: merged Product Info + Customisation + Attributes
-  | "options"    // V3.1: merged Variants + Customisation + Add-ons
-  | "delivery"   // V3.1: merged Inventory + Scheduling + Delivery
-  | "marketing"  // V3.1: merged SEO + FAQ + Tags + Featured
-  | "success"    // V3.1: post-publish success screen
-  | "recipeCost"     // V3.2: Recipe Cost Calculator (vendor-only, separate card)
-  | "attributesCard" // V3.2: Product Attributes (separate card)
-  | "inventoryCard"; // V3.2: Inventory (separate card)
-
-export interface DynamicStep {
-  id: number;
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  stepType: StepType;
-  sections?: string[]; // for "fields" type: which section keys to render
-  showVendorOnly?: boolean; // for "fields" type: show vendor-only sections
-}
+  | "basic"       // Card 1: Basic Information
+  | "photos"      // Sub-renderer (composed into basic)
+  | "pricing"     // Sub-renderer (composed into basic)
+  | "fields"      // Sub-renderer (composed into details + options)
+  | "seo"         // Sub-renderer (composed into marketing)
+  | "inventory"   // Sub-renderer (composed into delivery)
+  | "details"     // Card 2: Product Details
+  | "options"     // Card 3: Variants & Customisation
+  | "delivery"    // Card 4: Delivery & Availability
+  | "marketing"   // Card 5: Marketing & SEO
+  | "success"     // Post-publish success screen
+  | "recipeCost"; // Card 6: Recipe Cost Calculator
 
 /**
  * Props passed to every step render function.
@@ -84,86 +47,20 @@ export interface WizardRenderProps {
   generateWithAI: () => void;
   generateSEO: () => void;
   aiGenerating: boolean;
-  aiSeoLoading: boolean;
   saving: boolean;
   published: boolean;
   publishError: string | null;
   savedProductSlug: string | null;
-  onPublish: () => void;
   onClose: () => void;
-  router: { push: (url: string) => void };
-  // V3.1: Simplified wizard props
-  onQuickPublish?: () => void;        // early publish from Step 1
-  onContinueEditing?: () => void;     // dismiss success screen, go to Step 2
+  onContinueEditing?: () => void;     // dismiss success screen
   completenessPercent?: number;       // progress bar after publish
-  showPreview?: boolean;              // floating preview modal toggle
+  showPreview?: boolean;              // preview modal toggle
   setShowPreview?: (v: boolean) => void;
   [key: string]: unknown;
 }
 
 /**
  * Registry: stepType → render function.
- * The wizard provides this registry. DynamicWizardRenderer looks up the
- * current step's type and calls the render function.
+ * The wizard calls the render function directly for each card.
  */
 export type StepRenderer = (props: WizardRenderProps) => React.ReactNode;
-
-export interface DynamicWizardRendererProps {
-  steps: DynamicStep[];
-  currentStep: number;
-  renderers: Record<StepType, StepRenderer>;
-  sharedProps: WizardRenderProps;
-}
-
-/**
- * DynamicWizardRenderer — renders the current step's content.
- *
- * Usage:
- *   <DynamicWizardRenderer
- *     steps={STEPS}
- *     currentStep={step}
- *     renderers={STEP_RENDERERS}
- *     sharedProps={{ form, set, vendor, ... }}
- *   />
- */
-export function DynamicWizardRenderer({
-  steps,
-  currentStep,
-  renderers,
-  sharedProps,
-}: DynamicWizardRendererProps) {
-  // Find the current step
-  const currentStepData = steps.find((s) => s.id === currentStep);
-
-  if (!currentStepData) {
-    return (
-      <div className="py-12 text-center text-sm text-muted-foreground">
-        Step not found. This may happen if the template was edited while the wizard was open.
-      </div>
-    );
-  }
-
-  // Look up the renderer for this step type
-  const renderer = renderers[currentStepData.stepType];
-
-  if (!renderer) {
-    return (
-      <div className="py-12 text-center text-sm text-muted-foreground">
-        No renderer registered for step type "{currentStepData.stepType}".
-        <br />
-        Add a renderer for this step type in the wizard's STEP_RENDERERS registry.
-      </div>
-    );
-  }
-
-  // Call the renderer with shared props + step-specific props
-  return (
-    <>
-      {renderer({
-        ...sharedProps,
-        stepSections: currentStepData.sections,
-        stepShowVendorOnly: currentStepData.showVendorOnly,
-      })}
-    </>
-  );
-}

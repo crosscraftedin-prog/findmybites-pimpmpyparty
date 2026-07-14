@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
-  Check, ChevronLeft, ChevronRight, Loader2, Sparkles, Upload, X,
-  Image as ImageIcon, Eye, Star, AlertCircle, AlertTriangle, Wand2, Plus, PartyPopper, Monitor, Tablet, Smartphone,
-  Boxes, Clock, CalendarDays, Bell, Tags,
-  DollarSign, Package, Info, CheckCircle2, Search, Truck,
+  Check, ChevronRight, Loader2, Sparkles, X,
+  Image as ImageIcon, Eye, Star, AlertCircle, Wand2, Plus, PartyPopper,
+  Boxes, Clock, CalendarDays, Bell, Tags, CheckCircle2,
+  DollarSign, Package, Info, Search, Truck,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ import { GalleryUpload } from "./image-upload";
 import { AttributeSelector } from "./attribute-selector";
 import { ProductInfoForm } from "./product-info-form";
 import type { ProductInfo } from "@/lib/products/product-info";
-import { DynamicWizardRenderer, type DynamicStep, type StepType, type StepRenderer, type WizardRenderProps } from "./dynamic-wizard-renderer";
+import { type StepType, type StepRenderer, type WizardRenderProps } from "./dynamic-wizard-renderer";
 import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
 
 interface ProductWizardProps {
@@ -34,39 +34,11 @@ interface ProductWizardProps {
   saving: boolean;
 }
 
-// ── Dynamic Wizard Steps ───────────────────────────────────────────────────
-// V3: Steps are resolved from the Template Engine at runtime.
-// The FALLBACK_STEPS below are the EMERGENCY FALLBACK used ONLY when no DB
-// template defines a wizard. Admins can override by editing the template's
-// `wizard` JSON column — no code changes needed.
-
-// V3.1: Wizard reduced from 10 steps to 5 steps.
-//   1. Basic     — name, category, photos, price, description + Publish button
-//   2. Details   — Template Engine fields + attributes + recipe cost
-//   3. Options   — variants + customisation
-//   4. Delivery  — inventory + delivery/pickup
-//   5. Marketing — SEO + featured toggle
-// A `success` stepType is also registered for the post-publish success screen.
-const FALLBACK_STEPS: DynamicStep[] = [
-  { id: 1, title: "Basic", icon: Star, stepType: "basic" },
-  { id: 2, title: "Details", icon: Info, stepType: "details" },
-  { id: 3, title: "Options", icon: Package, stepType: "options" },
-  { id: 4, title: "Delivery", icon: Truck, stepType: "delivery" },
-  { id: 5, title: "Marketing", icon: Search, stepType: "marketing" },
-];
-
-// Icon resolver — maps icon names from the template to lucide components
-const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  Star, ImageIcon, DollarSign, Package, Tags, Info, Search, Boxes, Eye,
-  Clock, CalendarDays, Bell, Sparkles, Upload, Check, AlertCircle, Truck,
-};
-
 const CURRENCY_SYMBOLS: Record<string, string> = {
   INR: "₹", USD: "$", GBP: "£", AED: "AED", AUD: "A$", CAD: "CA$", SGD: "S$", EUR: "€",
 };
 
 export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: ProductWizardProps) {
-  const [step, setStep] = React.useState(1);
   const [aiGenerating, setAiGenerating] = React.useState(false);
   const [lastSaved, setLastSaved] = React.useState<string | null>(null);
   const [autoSaving, setAutoSaving] = React.useState(false);
@@ -79,41 +51,9 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const [productAttributeIds, setProductAttributeIds] = React.useState<string[]>([]);
   const [productInfo, setProductInfo] = React.useState<ProductInfo>({});
   const [productSubcategories, setProductSubcategories] = React.useState<{id: string; name: string}[]>([]);
-  // V3: Dynamic wizard steps from Template Engine
-  const [dynamicSteps, setDynamicSteps] = React.useState<DynamicStep[] | null>(null);
-  // V3.1: 5-step wizard UX — post-publish success screen + floating preview
   const [showSuccess, setShowSuccess] = React.useState(false);
   const [completenessPercent, setCompletenessPercent] = React.useState(0);
   const [showPreview, setShowPreview] = React.useState(false);
-
-  // Fetch wizard steps from the Template Engine
-  React.useEffect(() => {
-    if (!vendor.category) return;
-    let cancelled = false;
-    fetch(`/api/templates/v3/wizard?category=${encodeURIComponent(vendor.category)}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (cancelled || !data?.steps?.length) return;
-        // Map template steps to DynamicStep format.
-        // V3.1: pass through `stepType` from the template so the new 5-step
-        // flow (basic/details/options/delivery/marketing) works when a template
-        // is configured. If a template doesn't specify stepType, default to
-        // "basic" so the renderer always finds a match.
-        const steps: DynamicStep[] = data.steps.map((s: any) => ({
-          id: s.step,
-          title: s.title,
-          icon: ICON_MAP[s.icon] || Star,
-          stepType: (s.stepType as StepType) || "basic",
-          sections: s.sections,
-        }));
-        setDynamicSteps(steps);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [vendor.category]);
-
-  // Use dynamic steps if available, otherwise fallback
-  const STEPS = dynamicSteps ?? FALLBACK_STEPS;
 
   const symbol = CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency ?? "$";
   const isFood = vendor.ecosystem === "FINDMYBITES";
@@ -395,29 +335,6 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     return Math.min(score, 100);
   }, [form]);
 
-  const qualityStars = Math.round(qualityScore / 20);
-
-  // ── SEO Score ──
-  const seoScore = React.useMemo(() => {
-    let score = 0;
-    if (form.metaTitle?.trim()) {
-      score += 25;
-      if (form.metaTitle.length >= 30 && form.metaTitle.length <= 60) score += 10;
-    }
-    if (form.metaDescription?.trim()) {
-      score += 25;
-      if (form.metaDescription.length >= 120 && form.metaDescription.length <= 160) score += 10;
-    }
-    if (typeof form.tags === "string" && form.tags.trim()) score += 20;
-    if (form.images?.length > 0) score += 10;
-    return Math.min(score, 100);
-  }, [form]);
-
-  const seoLabel = seoScore >= 80 ? "Excellent" : seoScore >= 50 ? "Good" : "Poor";
-
-  // ── Success state ──
-  const [previewDevice, setPreviewDevice] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
-
   // ── AI Product Writer ──
   const generateWithAI = async () => {
     if (!form.name?.trim()) {
@@ -604,7 +521,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       }
       setPublished(true);
       // V3.1: Show the success screen with a completeness progress bar.
-      // The user can continue editing (Step 2+) or go to the dashboard.
+      // The user can continue editing or go to the dashboard.
       setCompletenessPercent(qualityScore);
       setShowSuccess(true);
     } catch (e: any) {
@@ -662,17 +579,12 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     generateWithAI,
     generateSEO,
     aiGenerating,
-    aiSeoLoading: false,
     saving,
     published,
     publishError,
     savedProductSlug,
-    onPublish: handlePublish,
     onClose,
-    router: { push: () => {} },
-    // V3.1: 5-step wizard UX props — used by the new composed renderers.
-    onQuickPublish: handlePublish,
-    onContinueEditing: () => { setShowSuccess(false); /* Collapsible cards are all visible — user can scroll to any card */ },
+    onContinueEditing: () => { setShowSuccess(false); },
     completenessPercent,
     showPreview,
     setShowPreview,
@@ -1090,143 +1002,6 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                   </div>
                 </div>
     ),
-    // V3.1: `variants` stepType kept for backward compat with old templates.
-    // The new 5-step flow uses `options` (which composes renderVariantCards +
-    // customisation). This entry keeps the original inventory/scheduling/featured
-    // cards so old templates that reference `variants` still work.
-    variants: (props) => (
-      <>
-        {renderVariantCards(props)}
-
-        {/* Inventory card */}
-        <div className="rounded-xl border border-border p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Boxes className="size-4 text-amber-600" />
-            <Label className="text-sm font-semibold">Inventory</Label>
-          </div>
-          <div className="flex gap-2 mb-2">
-            {["unlimited", "limited", "out_of_stock"].map(s => (
-              <button key={s} onClick={() => set("stockType", s)}
-                className={cn("rounded-lg border px-3 py-1.5 text-xs font-medium",
-                  form.stockType === s ? "border-brand bg-brand/10 text-brand" : "border-border text-muted-foreground")}>
-                {s === "unlimited" ? "Unlimited" : s === "limited" ? "Limited" : "Out of Stock"}
-              </button>
-            ))}
-          </div>
-          {form.stockType === "limited" && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="p-stock" className="text-xs">Quantity Available</Label>
-                <Input id="p-stock" type="number" value={form.stockCount} onChange={e => set("stockCount", e.target.value)}
-                  placeholder="50" className="mt-1 h-9" />
-              </div>
-              <div>
-                <Label htmlFor="p-low" className="text-xs">Low Stock Alert At</Label>
-                <Input id="p-low" type="number" value={form.lowStockThreshold} onChange={e => set("lowStockThreshold", e.target.value)}
-                  placeholder="5" className="mt-1 h-9" />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Scheduling card */}
-        <div className="rounded-xl border border-border p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <CalendarDays className="size-4 text-amber-600" />
-            <Label className="text-sm font-semibold">Scheduling (optional)</Label>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="p-pub" className="text-xs">Schedule Publish Date</Label>
-              <Input id="p-pub" type="datetime-local" value={form.scheduledPublishAt} onChange={e => set("scheduledPublishAt", e.target.value)}
-                className="mt-1 h-9 text-sm" />
-            </div>
-            <div>
-              <Label htmlFor="p-exp" className="text-xs">Schedule Expiry Date</Label>
-              <Input id="p-exp" type="datetime-local" value={form.scheduledExpiryAt} onChange={e => set("scheduledExpiryAt", e.target.value)}
-                className="mt-1 h-9 text-sm" />
-            </div>
-          </div>
-          <p className="mt-2 text-[10px] text-muted-foreground">Leave empty to publish immediately. Expiry auto-hides the product.</p>
-        </div>
-
-        {/* Featured card */}
-        <div className="flex items-center gap-2 rounded-xl border border-border p-4">
-          <input type="checkbox" id="p-featured" checked={form.featured} onChange={e => set("featured", e.target.checked)}
-            className="size-4 rounded border-border" />
-          <Label htmlFor="p-featured" className="text-sm cursor-pointer">
-            Feature this product <span className="text-xs text-muted-foreground">(appears first on your profile — Free plan: max 2)</span>
-          </Label>
-        </div>
-      </>
-    ),
-    attributes: () => (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-bold">{isFood ? "Food Product Details" : "Package Details"}</h3>
-                  <div>
-                    <Label htmlFor="p-desc">Full Description</Label>
-                    <Textarea id="p-desc" value={form.description} onChange={e => set("description", e.target.value)}
-                      placeholder="Describe your product in detail…" className="mt-1 min-h-[100px]" />
-                  </div>
-                  {isFood ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><Label htmlFor="p-flav">Flavours</Label><Input id="p-flav" value={form.flavours} onChange={e => set("flavours", e.target.value)} placeholder="Chocolate, Vanilla…" className="mt-1" /></div>
-                      <div><Label htmlFor="p-wt">Weight</Label><Input id="p-wt" value={form.weight} onChange={e => set("weight", e.target.value)} placeholder="1kg, 2kg…" className="mt-1" /></div>
-                      <div><Label htmlFor="p-serv">Serves</Label><Input id="p-serv" value={form.servings} onChange={e => set("servings", e.target.value)} placeholder="10-12 people" className="mt-1" /></div>
-                      <div><Label htmlFor="p-prep">Preparation Time</Label><Input id="p-prep" value={form.prepTime} onChange={e => set("prepTime", e.target.value)} placeholder="24 hours" className="mt-1" /></div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><Label htmlFor="p-dur">Duration</Label><Input id="p-dur" value={form.duration} onChange={e => set("duration", e.target.value)} placeholder="4 hours" className="mt-1" /></div>
-                      <div><Label htmlFor="p-cap">Guest Capacity</Label><Input id="p-cap" type="number" value={form.capacity} onChange={e => set("capacity", e.target.value)} placeholder="100" className="mt-1" /></div>
-                      <div><Label htmlFor="p-inc">Included Services</Label><Input id="p-inc" value={form.includedServices} onChange={e => set("includedServices", e.target.value)} placeholder="Photography, Album…" className="mt-1" /></div>
-                      <div><Label htmlFor="p-eqp">Equipment Included</Label><Input id="p-eqp" value={form.equipmentIncluded} onChange={e => set("equipmentIncluded", e.target.value)} placeholder="Camera, Lights…" className="mt-1" /></div>
-                    </div>
-                  )}
-                  {isFood && (
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { k: "eggless", l: "Eggless" }, { k: "vegetarian", l: "Vegetarian" },
-                        { k: "vegan", l: "Vegan" }, { k: "halal", l: "Halal" },
-                        { k: "glutenFree", l: "Gluten Free" },
-                      ].map(o => (
-                        <label key={o.k} className="flex items-center gap-2 text-sm">
-                          <input type="checkbox" checked={form[o.k]} onChange={e => set(o.k, e.target.checked)} className="size-4 rounded border-border" />
-                          {o.l}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  {/* Global Attribute System — product attributes */}
-                  <div className="rounded-lg border border-border bg-muted/30 p-3">
-                    <div className="mb-2 flex items-center gap-2">
-                      <Tags className="size-4 text-brand" />
-                      <Label className="text-sm font-semibold">Product Attributes</Label>
-                    </div>
-                    <p className="mb-2 text-xs text-muted-foreground">
-                      Select dietary, service & feature badges. These appear on the product
-                      card and power attribute filtering.
-                    </p>
-                    <AttributeSelector
-                      selectedIds={productAttributeIds}
-                      onChange={setProductAttributeIds}
-                      ecosystem={vendor.ecosystem}
-                      groups={isFood ? ["dietary", "product_feature", "service"] : ["product_feature", "service"]}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={form.deliveryAvailable} onChange={e => set("deliveryAvailable", e.target.checked)} className="size-4 rounded border-border" />
-                      Delivery Available
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={form.pickupAvailable} onChange={e => set("pickupAvailable", e.target.checked)} className="size-4 rounded border-border" />
-                      Pickup Available
-                    </label>
-                  </div>
-                </div>
-    ),
     fields: (props) => {
       const stepSections = (props.stepSections as string[] | undefined) ?? [];
       // Step with sections filter (e.g. Customisation step) — render ONLY those sections
@@ -1500,194 +1275,6 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                   )}
                 </div>
     ),
-    preview: () => (
-                <div className="space-y-4">
-                  {/* Publish Error (never show fake success) */}
-                  {publishError ? (
-                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="py-12 text-center">
-                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring" }}
-                        className="mx-auto mb-4 grid size-16 place-items-center rounded-full bg-red-500">
-                        <AlertTriangle className="size-8 text-white" />
-                      </motion.div>
-                      <h3 className="text-xl font-bold text-red-700">Publish failed</h3>
-                      <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">{publishError}</p>
-                      <div className="mt-6 flex flex-wrap justify-center gap-2">
-                        <Button onClick={() => setPublishError(null)} className="bg-brand text-brand-foreground hover:bg-brand/90">
-                          Try Again
-                        </Button>
-                      </div>
-                    </motion.div>
-                  ) : published ? (
-                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="py-12 text-center">
-                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring" }}
-                        className="mx-auto mb-4 grid size-16 place-items-center rounded-full bg-emerald-500">
-                        <PartyPopper className="size-8 text-white" />
-                      </motion.div>
-                      <h3 className="text-xl font-bold text-emerald-700">Your product is now live!</h3>
-                      <p className="mt-2 text-sm text-muted-foreground">Customers can now find and order this product.</p>
-                      <div className="mt-6 flex flex-wrap justify-center gap-2">
-                        <Button
-                          onClick={() => {
-                            // Use the slug returned from the API (savedProductSlug).
-                            // Fall back to a slug derived from form.name ONLY if the API
-                            // didn't return one (shouldn't happen with the fixed onSave).
-                            const slug = savedProductSlug || form.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-                            if (slug) window.open(`/product/${slug}`, "_blank");
-                          }}
-                          variant="outline"
-                          className="gap-1.5"
-                          disabled={!savedProductSlug}
-                        >
-                          <Eye className="size-4" /> View Product
-                        </Button>
-                        <Button onClick={() => {
-                          setPublished(false);
-                          setSavedProductSlug(null);
-                          setPublishError(null);
-                          // Scroll to top so the user sees the Quick Publish card
-                          document.querySelector(".overflow-y-auto")?.scrollTo({ top: 0, behavior: "smooth" });
-                          // Reset to a completely fresh form — don't carry over any previous data
-                          setForm({
-                            name: "", category: vendor.category || "", subCategory: "",
-                            shortDescription: "", description: "", images: [], videoUrl: "",
-                            price: "", offerPrice: "", startingFromPrice: false, priceOnRequest: false,
-                            hidePrice: false, currency: vendor.currency || "INR",
-                            isAvailable: true, status: "draft",
-                            flavours: "", weight: "", servings: "", prepTime: "",
-                            ingredients: "", allergenInfo: "", spicyLevel: "",
-                            eggless: false, vegetarian: false, vegan: false, halal: false,
-                            glutenFree: false, sugarFree: false,
-                            deliveryAvailable: false, pickupAvailable: false,
-                            customOrder: false, sameDay: false,
-                            duration: "", capacity: "", shape: "",
-                            metaTitle: "", metaDescription: "",
-                            tags: "",
-                            variants: [],
-                            stockType: "unlimited", stockCount: "", lowStockThreshold: 5,
-                            maxOrdersPerDay: "", bookingNoticeHours: "",
-                            availabilityMode: "always", availableDays: [],
-                            availabilityStart: "", availabilityEnd: "",
-                            preparationTimeCategory: "", preparationTimeCustom: "",
-                            serviceAreaType: "", serviceCities: [],
-                            seasonLabel: "",
-                          });
-                        }} variant="outline" className="gap-1.5">
-                          <Plus className="size-4" /> Add Another
-                        </Button>
-                        <Button onClick={onClose} className="bg-brand text-brand-foreground hover:bg-brand/90">Go to Dashboard</Button>
-                      </div>
-                      {!savedProductSlug && (
-                        <p className="mt-3 text-xs text-amber-600">Product saved, but the view link is unavailable. Refresh My Products to find it.</p>
-                      )}
-                    </motion.div>
-                  ) : (
-                    <>
-                  <h3 className="text-lg font-bold">Preview & Publish</h3>
-
-                  {/* Device Preview Toggle */}
-                  <div className="flex items-center justify-center gap-2 mb-3">
-                    {[
-                      { id: "desktop", icon: Monitor, label: "Desktop" },
-                      { id: "tablet", icon: Tablet, label: "Tablet" },
-                      { id: "mobile", icon: Smartphone, label: "Mobile" },
-                    ].map(d => {
-                      const Icon = d.icon;
-                      return (
-                        <button key={d.id} onClick={() => setPreviewDevice(d.id as "desktop" | "tablet" | "mobile")}
-                          className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium",
-                            previewDevice === d.id ? "border-brand bg-brand/10 text-brand" : "border-border text-muted-foreground")}>
-                          <Icon className="size-3.5" /> {d.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Product Preview — uses shared ProductDetailView component (same as live page) */}
-                  <div className={cn("mx-auto overflow-hidden transition-all",
-                    previewDevice === "desktop" ? "max-w-full" : previewDevice === "tablet" ? "max-w-2xl" : "max-w-sm")}>
-                    <ProductDetailView
-                      mode="preview"
-                      product={{
-                        id: "preview",
-                        name: form.name || "Untitled Product",
-                        description: form.description || null,
-                        shortDescription: form.shortDescription || null,
-                        price: Number(form.price) || 0,
-                        offerPrice: form.offerPrice ? Number(form.offerPrice) : null,
-                        currency: form.currency || "INR",
-                        currencySymbol: symbol,
-                        image: form.images?.[0] || null,
-                        images: form.images || [],
-                        isFeatured: form.featured || false,
-                        isAvailable: form.isAvailable ?? true,
-                        variants: form.variants || [],
-                        deliveryAvailable: form.deliveryAvailable || false,
-                        pickupAvailable: form.pickupAvailable || false,
-                        vegetarian: form.vegetarian || false,
-                        vegan: form.vegan || false,
-                        eggless: form.eggless || false,
-                        category: form.category || null,
-                      } as ProductViewData}
-                      vendor={{
-                        id: vendor.id,
-                        name: vendor.name,
-                        slug: vendor.slug,
-                        city: vendor.city || "",
-                        avatarImage: vendor.avatarImage || null,
-                        verified: vendor.verified,
-                        rating: vendor.rating,
-                        reviewCount: vendor.reviewCount,
-                        whatsapp: vendor.whatsapp || null,
-                      }}
-                      selectedVariant={0}
-                      onVariantSelect={(idx) => {/* preview only — no state change needed */}}
-                    />
-                  </div>
-
-                  {/* Validation + Scores */}
-                  <div className="rounded-xl border border-border bg-card p-4">
-                    <h4 className="mb-3 text-sm font-semibold">Publish Checklist</h4>
-                    <div className="space-y-2">
-                      {validation.checks.map(c => (
-                        <div key={c.id} className="flex items-center gap-2 text-sm">
-                          <div className={cn("grid size-5 place-items-center rounded-full", c.passed ? "bg-emerald-500" : "bg-muted")}>
-                            {c.passed ? <Check className="size-3 text-white" /> : <AlertCircle className="size-3 text-muted-foreground" />}
-                          </div>
-                          <span className={cn(c.passed ? "text-foreground" : "text-muted-foreground")}>{c.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-4 border-t border-border pt-3">
-                      <div>
-                        <span className="text-xs font-medium">Quality Score</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                            <div className={cn("h-full rounded-full", qualityScore >= 80 ? "bg-emerald-500" : qualityScore >= 50 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${qualityScore}%` }} />
-                          </div>
-                          <span className="text-xs font-bold">{qualityScore}%</span>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-xs font-medium">SEO Score: {seoLabel}</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                            <div className={cn("h-full rounded-full", seoScore >= 80 ? "bg-emerald-500" : seoScore >= 50 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${seoScore}%` }} />
-                          </div>
-                          <span className="text-xs font-bold">{seoScore}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {!validation.allPassed && (
-                    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-                      <AlertCircle className="mb-1 inline size-4" /> Complete the missing items above before publishing.
-                    </div>
-                  )}
-                    </>
-                  )}
-                </div>
-    ),
     // ── V3.2: 6-card layout ──────────────────────────────────────────────────
     // Card 2 — Product Details: Template Engine fields + Product Attributes.
     // Excludes "basic-information", "preparation-&-delivery", "logistics", "recipeCost"
@@ -1735,29 +1322,6 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         />
       </div>
     ),
-    // Card 5 — Product Attributes (dietary, service, feature badges)
-    attributesCard: (props) => (
-      <div className="rounded-lg border border-border bg-muted/30 p-3">
-        <div className="mb-2 flex items-center gap-2">
-          <Tags className="size-4 text-brand" />
-          <Label className="text-sm font-semibold">Product Attributes</Label>
-        </div>
-        <p className="mb-2 text-xs text-muted-foreground">
-          Select service &amp; feature badges. These appear on the product card and power attribute filtering.
-          (Dietary badges are managed via chips in Quick Publish.)
-        </p>
-        <AttributeSelector
-          selectedIds={productAttributeIds}
-          onChange={setProductAttributeIds}
-          ecosystem={vendor.ecosystem}
-          groups={isFood ? ["product_feature", "service"] : ["product_feature", "service"]}
-        />
-      </div>
-    ),
-    // Card 6 — Inventory (stock, availability, publishing status)
-    inventoryCard: (props) => STEP_RENDERERS.inventory(props),
-    // Step 3 — Options: variant cards (renderVariantCards) + Customisation
-    // (the `fields` renderer with sectionFilter=["customisation"]).
     options: (props) => (
       <>
         {renderVariantCards(props)}
@@ -1800,7 +1364,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     ),
     // Post-publish success screen — shown after the user clicks "Publish Product"
     // on Step 1. Displays a completeness progress bar and a "Continue Editing"
-    // button that dismisses the success screen and advances to Step 2.
+    // button that dismisses the success screen.
     success: (props) => (
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="py-12 text-center">
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring" }}
@@ -1987,7 +1551,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         </div>
       )}
 
-      {/* V3.1: Preview modal — reuses ProductDetailView (same as the old preview step) */}
+      {/* Preview modal — reuses ProductDetailView */}
       {showPreview && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -2048,8 +1612,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         </div>
       )}
 
-      {/* No footer — the Publish button lives inside Card 1 (Quick Publish).
-          Save Draft is available via the header dropdown if needed. */}
+      {/* No footer — Publish is in the sticky action bar. */}
     </div>
   );
 }
