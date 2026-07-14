@@ -144,11 +144,44 @@ export function LivePriceCalculator({
         ))}
       </div>
 
-      {/* Total */}
-      <div className="flex items-center justify-between border-t border-border pt-3">
-        <span className="text-base font-bold">Total</span>
-        <span className="text-xl font-extrabold text-emerald-600">{symbol}{total.toLocaleString()}</span>
+      {/* GST (5% catering GST in India) */}
+      {subtotal > 0 && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">GST (5%)</span>
+          <span className="font-medium text-muted-foreground">{symbol}{Math.round(subtotal * 0.05).toLocaleString()}</span>
+        </div>
+      )}
+
+      {/* Discount (auto-applied for large bookings) */}
+      {guests >= 100 && subtotal > 0 && (
+        <div className="flex items-center justify-between text-sm text-emerald-600">
+          <span className="font-medium">Bulk discount (10%)</span>
+          <span className="font-medium">-{symbol}{Math.round(subtotal * 0.10).toLocaleString()}</span>
+        </div>
+      )}
+
+      {/* Grand Total */}
+      <div className="flex items-center justify-between border-t-2 border-border pt-3">
+        <span className="text-base font-bold">Grand Total</span>
+        <span className="text-2xl font-extrabold text-emerald-600">
+          {symbol}{(() => {
+            const gst = Math.round(subtotal * 0.05);
+            const discount = guests >= 100 ? Math.round(subtotal * 0.10) : 0;
+            return (subtotal + addonsTotal + gst - discount).toLocaleString();
+          })()}
+        </span>
       </div>
+
+      {/* Per guest breakdown */}
+      {guests > 0 && (
+        <p className="text-center text-xs text-muted-foreground">
+          ≈ {symbol}{Math.round(((() => {
+            const gst = Math.round(subtotal * 0.05);
+            const discount = guests >= 100 ? Math.round(subtotal * 0.10) : 0;
+            return subtotal + addonsTotal + gst - discount;
+          })()) / guests).toLocaleString()} per guest (incl. GST{guests >= 100 ? " & discount" : ""})
+        </p>
+      )}
 
       <Button className="w-full gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
         <Calendar className="size-4" /> Book Package

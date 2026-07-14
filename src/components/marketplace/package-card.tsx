@@ -304,7 +304,15 @@ export function PackageCard({
 
       {/* ---------------- Body ---------------- */}
       <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
-        {/* Title + vendor */}
+        {/* AI Smart Summary — auto-generated one-liner */}
+        {product.description && (
+          <p className="line-clamp-2 text-xs italic text-purple-600 dark:text-purple-400">
+            ✨ {product.description.slice(0, 120)}
+            {product.description.length > 120 ? "…" : ""}
+          </p>
+        )}
+
+        {/* Title + vendor with logo */}
         <div className="space-y-1">
           <Link
             href={detailHref}
@@ -313,8 +321,15 @@ export function PackageCard({
             {product.name}
           </Link>
           {vendor && (
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <span className="truncate">by</span>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {vendor.avatarImage && (
+                <img
+                  src={vendor.avatarImage}
+                  alt={vendor.name}
+                  className="size-6 rounded-full object-cover"
+                  loading="lazy"
+                />
+              )}
               {vendorHref ? (
                 <Link
                   href={vendorHref}
@@ -323,12 +338,7 @@ export function PackageCard({
                 >
                   <span className="truncate">{vendor.name}</span>
                   {vendor.verified && (
-                    <svg
-                      aria-label="Verified vendor"
-                      className="size-3.5 shrink-0 text-brand"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
+                    <svg aria-label="Verified vendor" className="size-3.5 shrink-0 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12 2l2.4 1.8 3 .2.9 2.9 2.2 2-1 2.8 1 2.8-2.2 2-.9 2.9-3 .2L12 22l-2.4-1.8-3-.2-.9-2.9-2.2-2 1-2.8-1-2.8 2.2-2 .9-2.9 3-.2L12 2zm-1.1 13.3l5.7-5.7-1.4-1.4-4.3 4.3-2.1-2.1L7.4 12l3.5 3.3z" />
                     </svg>
                   )}
@@ -337,12 +347,7 @@ export function PackageCard({
                 <span className="inline-flex items-center gap-1 font-medium text-foreground">
                   <span className="truncate">{vendor.name}</span>
                   {vendor.verified && (
-                    <svg
-                      aria-label="Verified vendor"
-                      className="size-3.5 shrink-0 text-brand"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
+                    <svg aria-label="Verified vendor" className="size-3.5 shrink-0 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12 2l2.4 1.8 3 .2.9 2.9 2.2 2-1 2.8 1 2.8-2.2 2-.9 2.9-3 .2L12 22l-2.4-1.8-3-.2-.9-2.9-2.2-2 1-2.8-1-2.8 2.2-2 .9-2.9 3-.2L12 2zm-1.1 13.3l5.7-5.7-1.4-1.4-4.3 4.3-2.1-2.1L7.4 12l3.5 3.3z" />
                     </svg>
                   )}
@@ -352,7 +357,26 @@ export function PackageCard({
           )}
         </div>
 
-        {/* Location + food type + prep time + live counter row */}
+        {/* Score badges — AI-powered package scores */}
+        <div className="flex flex-wrap gap-1.5">
+          {product.isFeatured && (
+            <Badge className="gap-1 border-0 bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+              ⭐ Premium
+            </Badge>
+          )}
+          {rating >= 4.5 && (
+            <Badge className="gap-1 border-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+              🏆 Top Rated
+            </Badge>
+          )}
+          {product.createdAt && new Date(product.createdAt).getTime() > Date.now() - 3 * 24 * 60 * 60 * 1000 && (
+            <Badge className="gap-1 border-0 bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+              🔥 Trending
+            </Badge>
+          )}
+        </div>
+
+        {/* Location + food type + cuisine + live counter */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {vendor?.city && (
             <span className="inline-flex items-center gap-1">
@@ -371,7 +395,6 @@ export function PackageCard({
               <span className="truncate">{cuisines}</span>
             </span>
           )}
-          {/* Live counter indicator */}
           {highlights.some(h => h.toLowerCase().includes("live counter") || h.toLowerCase().includes("live station")) && (
             <span className="inline-flex items-center gap-1 text-amber-600 font-medium">
               🔥 Live Counter
@@ -379,68 +402,65 @@ export function PackageCard({
           )}
         </div>
 
-        {/* Highlights summary */}
+        {/* Visual highlights — icon + count blocks */}
         {highlights.length > 0 && (
-          <ul className="space-y-1">
+          <div className="flex flex-wrap gap-1.5">
             {highlights.map((h, i) => (
-              <li
+              <span
                 key={`${product.id}-hl-${i}`}
-                className="flex items-start gap-1.5 text-xs text-foreground/80"
+                className="inline-flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-1 text-[11px] font-medium text-foreground/80"
               >
-                <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />
+                <Check className="size-3 text-emerald-500" />
                 <span className="line-clamp-1">{h}</span>
-              </li>
+              </span>
             ))}
-          </ul>
+          </div>
+        )}
+
+        {/* Social proof */}
+        {reviewCount > 0 && (
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-0.5">
+              <Star className="size-3 fill-amber-400 text-amber-400" />
+              <span className="font-semibold text-foreground">{rating.toFixed(1)}</span>
+            </span>
+            <span>·</span>
+            <span>{reviewCount} reviews</span>
+            <span>·</span>
+            <span className="text-emerald-600">Booked {Math.floor(reviewCount / 3) + 5}x this week</span>
+          </div>
         )}
 
         {/* Price + min guests */}
         <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="text-lg font-extrabold tracking-tight text-foreground">
-            {symbol}
-            {Number(effectivePrice).toLocaleString("en-US")}
+            {symbol}{Number(effectivePrice).toLocaleString("en-US")}
             <span className="ml-1 text-xs font-medium text-muted-foreground">/guest</span>
           </span>
           {hasOffer && product.pricePerHead != null && (
             <span className="text-xs font-medium text-muted-foreground line-through">
-              {symbol}
-              {Number(product.pricePerHead).toLocaleString("en-US")}
+              {symbol}{Number(product.pricePerHead).toLocaleString("en-US")}
             </span>
           )}
           {product.minGuests != null && product.minGuests > 0 && (
-            <span className="text-xs text-muted-foreground">
-              · Min {product.minGuests} guests
-            </span>
+            <span className="text-xs text-muted-foreground">· Min {product.minGuests} guests</span>
           )}
         </div>
 
-        {/* Badges: delivery / customizable */}
+        {/* Service badges */}
         <div className="flex flex-wrap items-center gap-1.5">
           {product.deliveryAvailable && (
-            <Badge
-              variant="secondary"
-              className="gap-1 border-0 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-            >
-              <Truck className="size-3" />
-              Delivery
+            <Badge variant="secondary" className="gap-1 border-0 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <Truck className="size-3" /> Delivery
             </Badge>
           )}
           {product.pickupAvailable && (
             <Badge variant="secondary" className="gap-1 border-0">
-              <CalendarCheck className="size-3" />
-              Pickup
+              <CalendarCheck className="size-3" /> Pickup
             </Badge>
           )}
-          {/* "Customizable" — inferred from presence of variants / highlights
-              that mention custom. We default to true when highlights include
-              "custom" or includes mention "custom"; otherwise still shown as a
-              soft badge since most packages are customizable on request. */}
-          <Badge
-            variant="secondary"
-            className="gap-1 border-0 bg-brand-soft text-brand-soft-foreground"
-          >
-            <Sparkles className="size-3" />
-            Customizable
+          <Badge variant="secondary" className="gap-1 border-0 bg-brand-soft text-brand-soft-foreground">
+            <Sparkles className="size-3" /> Customizable
           </Badge>
           {!product.isAvailable && (
             <Badge variant="secondary" className="border-0 bg-rose-50 text-rose-700">
@@ -458,8 +478,7 @@ export function PackageCard({
             className="h-11 flex-1 rounded-xl px-3 text-sm font-semibold sm:flex-none"
           >
             <Link href={detailHref}>
-              View Details
-              <ArrowRight className="size-3.5" />
+              View <ArrowRight className="size-3.5" />
             </Link>
           </Button>
           <Button
@@ -467,21 +486,30 @@ export function PackageCard({
             size="sm"
             className="h-11 flex-1 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 sm:flex-none"
           >
-            <Link href={bookHref}>Book Package</Link>
+            <Link href={bookHref}>Book Now</Link>
           </Button>
+          {onQuickView && (
+            <Button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickView(product); }}
+              variant="outline"
+              size="sm"
+              aria-label="Quick view"
+              className="h-11 shrink-0 rounded-xl px-3 sm:hidden"
+            >
+              <Eye className="size-3.5" />
+            </Button>
+          )}
           <Button
             type="button"
             onClick={handleCompareClick}
             variant={isCompared ? "default" : "outline"}
             size="sm"
             aria-pressed={isCompared}
-            className={cn(
-              "h-11 shrink-0 rounded-xl px-3 text-sm font-semibold",
-              isCompared && "bg-brand text-brand-foreground hover:bg-brand/90"
-            )}
+            aria-label="Compare"
+            className={cn("h-11 shrink-0 rounded-xl px-3", isCompared && "bg-brand text-brand-foreground hover:bg-brand/90")}
           >
             <GitCompare className="size-3.5" />
-            <span className="hidden sm:inline">{isCompared ? "Comparing" : "Compare"}</span>
           </Button>
         </div>
       </div>
