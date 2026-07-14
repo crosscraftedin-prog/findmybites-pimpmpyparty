@@ -41,6 +41,7 @@
     "prisma",
     "scripts",
     "skills",
-    "seed_categories2.cjs"
+    "seed_categories2.cjs",
+    "src/_archive"
   ]
 }
