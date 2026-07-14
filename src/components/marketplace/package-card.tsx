@@ -13,6 +13,8 @@ import {
   ArrowRight,
   CalendarCheck,
   GitCompare,
+  Share2,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -155,6 +157,41 @@ export function PackageCard({
     onCompare?.(product);
   };
 
+  const handleShareClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = typeof window !== "undefined" ? `${window.location.origin}${detailHref}` : detailHref;
+    if (navigator.share) {
+      navigator.share({ title: product.name, url }).catch(() => {});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        // Could show a toast — keep it simple for now
+      });
+    }
+  };
+
+  // Persist saved state to localStorage
+  React.useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("saved-packages") || "[]");
+      if (saved.includes(product.id)) setSaved(true);
+    } catch {}
+  }, [product.id]);
+
+  const handleSaveClickWithPersistence = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSaved((v) => {
+      const next = !v;
+      try {
+        const saved = JSON.parse(localStorage.getItem("saved-packages") || "[]");
+        const updated = next ? [...saved, product.id] : saved.filter((id: string) => id !== product.id);
+        localStorage.setItem("saved-packages", JSON.stringify(updated));
+      } catch {}
+      return next;
+    });
+  };
+
   return (
     <article
       data-package-card
@@ -198,7 +235,7 @@ export function PackageCard({
           )}
           <button
             type="button"
-            onClick={handleSaveClick}
+            onClick={handleSaveClickWithPersistence}
             aria-pressed={saved}
             aria-label={saved ? "Remove from saved" : "Save package"}
             className={cn(
@@ -224,17 +261,44 @@ export function PackageCard({
           )}
         </div>
 
-        {/* Hover: Quick View button (desktop only) */}
+        {/* Hover: Quick action overlay (desktop only) */}
         {onQuickView && (
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickView(product); }}
-            className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          <div
+            className="absolute inset-0 flex items-center justify-center gap-2 bg-black/30 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
           >
-            <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-lg">
-              👁 Quick View
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickView(product); }}
+              className="rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-lg hover:bg-white/90"
+            >
+              <Eye className="mr-1 inline size-4" /> Quick View
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveClickWithPersistence}
+              aria-label="Save"
+              className="grid size-10 place-items-center rounded-full bg-white/90 shadow-lg hover:bg-white"
+            >
+              <Heart className={cn("size-4", saved && "fill-rose-500 text-rose-500")} />
+            </button>
+            <button
+              type="button"
+              onClick={handleCompareClick}
+              aria-label="Compare"
+              className="grid size-10 place-items-center rounded-full bg-white/90 shadow-lg hover:bg-white"
+            >
+              <GitCompare className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleShareClick}
+              aria-label="Share"
+              className="grid size-10 place-items-center rounded-full bg-white/90 shadow-lg hover:bg-white"
+            >
+              <Share2 className="size-4" />
+            </button>
+          </div>
         )}
       </Link>
 

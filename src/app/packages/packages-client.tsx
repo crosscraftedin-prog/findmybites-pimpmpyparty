@@ -101,7 +101,7 @@ export function PackagesClient({ initialPackages }: PackagesClientProps) {
     const exists = compareList.find(p => p.id === product.id);
     if (exists) {
       setCompareList(compareList.filter(p => p.id !== product.id));
-    } else if (compareList.length < 3) {
+    } else if (compareList.length < 4) {
       setCompareList([...compareList, product]);
     }
   };
@@ -166,9 +166,15 @@ export function PackagesClient({ initialPackages }: PackagesClientProps) {
             </div>
           ) : (
             <>
-              <p className="mb-4 text-sm text-muted-foreground">
+              <motion.p
+                key={filteredPackages.length}
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className="mb-4 text-sm font-medium text-muted-foreground"
+              >
                 {filteredPackages.length} package{filteredPackages.length !== 1 ? "s" : ""} found
-              </p>
+              </motion.p>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredPackages.map((pkg, idx) => (
                   <PackageCard
@@ -177,6 +183,7 @@ export function PackagesClient({ initialPackages }: PackagesClientProps) {
                     index={idx}
                     onCompare={handleCompare}
                     isCompared={isCompared(pkg.id)}
+                    onQuickView={(p) => setQuickViewProduct(p)}
                   />
                 ))}
               </div>
@@ -223,6 +230,17 @@ export function PackagesClient({ initialPackages }: PackagesClientProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Quick View Modal */}
+      {quickViewProduct && (
+        <QuickView
+          product={quickViewProduct}
+          open={!!quickViewProduct}
+          onClose={() => setQuickViewProduct(null)}
+          onCompare={handleCompare}
+          isCompared={isCompared(quickViewProduct.id)}
+        />
+      )}
 
       <SiteFooter />
     </div>

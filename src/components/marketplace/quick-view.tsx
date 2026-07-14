@@ -21,13 +21,22 @@ interface QuickViewProps {
 export function QuickView({ product, open, onClose, onCompare, isCompared }: QuickViewProps) {
   const [selectedImage, setSelectedImage] = React.useState(0);
   const [saved, setSaved] = React.useState(false);
+  const modalRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = ""; };
+      modalRef.current?.focus();
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === "Escape") onClose();
+      };
+      document.addEventListener("keydown", handleEscape);
+      return () => {
+        document.body.style.overflow = "";
+        document.removeEventListener("keydown", handleEscape);
+      };
     }
-  }, [open]);
+  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -45,9 +54,12 @@ export function QuickView({ product, open, onClose, onCompare, isCompared }: Qui
   const foodType = info?.foodType || "Both";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true">
       <div
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-background shadow-2xl"
+        ref={modalRef}
+        tabIndex={-1}
+        aria-label={`${product.name} quick view`}
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-background shadow-2xl focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
