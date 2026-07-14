@@ -214,25 +214,24 @@ export function PackageCard({
         {/* Bottom gradient overlay (Airbnb style) */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
 
-        {/* Top-left: rating badge */}
-        {rating > 0 && (
-          <div className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-foreground shadow-sm backdrop-blur">
-            <Star className="size-3.5 fill-amber-400 text-amber-400" />
-            <span className="tabular-nums">{rating.toFixed(1)}</span>
-            {reviewCount > 0 && (
-              <span className="font-medium text-muted-foreground">({reviewCount})</span>
-            )}
-          </div>
-        )}
-
-        {/* Top-right: featured badge + save heart */}
-        <div className="absolute right-3 top-3 flex items-center gap-1.5">
-          {(product.isFeatured || product.featured) && (
-            <Badge className="border-0 bg-brand text-brand-foreground shadow-sm">
-              <Sparkles className="size-3" />
-              Featured
-            </Badge>
+        {/* Top-left: premium badges (Best Seller, Trending, Premium, Limited Offer) */}
+        <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
+          {product.isFeatured && (
+            <Badge className="border-0 bg-amber-500 text-white shadow-sm">⭐ Best Seller</Badge>
           )}
+          {product.createdAt && new Date(product.createdAt).getTime() > Date.now() - 3 * 24 * 60 * 60 * 1000 && (
+            <Badge className="border-0 bg-rose-500 text-white shadow-sm">🔥 Trending</Badge>
+          )}
+          {rating >= 4.5 && (
+            <Badge className="border-0 bg-emerald-500 text-white shadow-sm">🏆 Top Rated</Badge>
+          )}
+          {product.offerPrice != null && product.pricePerHead != null && product.offerPrice < product.pricePerHead && (
+            <Badge className="border-0 bg-purple-500 text-white shadow-sm">⚡ Limited Offer</Badge>
+          )}
+        </div>
+
+        {/* Top-right: save + share + compare (always visible) */}
+        <div className="absolute right-3 top-3 flex items-center gap-1.5">
           <button
             type="button"
             onClick={handleSaveClickWithPersistence}
@@ -246,57 +245,40 @@ export function PackageCard({
           >
             <Heart className={cn("size-4 transition-all", saved && "fill-rose-500")} />
           </button>
+          <button
+            type="button"
+            onClick={handleShareClick}
+            aria-label="Share package"
+            className="grid size-9 place-items-center rounded-full bg-white/95 backdrop-blur transition-all hover:bg-white hover:shadow-md text-muted-foreground"
+          >
+            <Share2 className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleCompareClick}
+            aria-pressed={isCompared}
+            aria-label="Compare package"
+            className={cn(
+              "grid size-9 place-items-center rounded-full bg-white/95 backdrop-blur transition-all hover:bg-white hover:shadow-md",
+              isCompared ? "text-brand" : "text-muted-foreground"
+            )}
+          >
+            <GitCompare className="size-4" />
+          </button>
         </div>
 
-        {/* Top badges: Most Popular, Best Seller, Trending, Limited Offer */}
-        <div className="absolute left-3 bottom-3 flex flex-wrap gap-1.5">
-          {product.isFeatured && (
-            <Badge className="border-0 bg-amber-500 text-white shadow-sm">⭐ Most Popular</Badge>
-          )}
-          {product.offerPrice != null && product.pricePerHead != null && product.offerPrice < product.pricePerHead && (
-            <Badge className="border-0 bg-rose-500 text-white shadow-sm">🔥 Limited Offer</Badge>
-          )}
-          {product.createdAt && new Date(product.createdAt).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000 && (
-            <Badge className="border-0 bg-emerald-500 text-white shadow-sm">🆕 New</Badge>
-          )}
-        </div>
-
-        {/* Hover: Quick action overlay (desktop only) */}
+        {/* Hover: Quick View button (desktop only) */}
         {onQuickView && (
           <div
-            className="absolute inset-0 flex items-center justify-center gap-2 bg-black/30 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+            className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
           >
             <button
               type="button"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickView(product); }}
-              className="rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-lg hover:bg-white/90"
+              className="rounded-full bg-white px-5 py-2.5 text-sm font-bold shadow-lg hover:bg-white/90 transition-transform hover:scale-105"
             >
-              <Eye className="mr-1 inline size-4" /> Quick View
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveClickWithPersistence}
-              aria-label="Save"
-              className="grid size-10 place-items-center rounded-full bg-white/90 shadow-lg hover:bg-white"
-            >
-              <Heart className={cn("size-4", saved && "fill-rose-500 text-rose-500")} />
-            </button>
-            <button
-              type="button"
-              onClick={handleCompareClick}
-              aria-label="Compare"
-              className="grid size-10 place-items-center rounded-full bg-white/90 shadow-lg hover:bg-white"
-            >
-              <GitCompare className="size-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleShareClick}
-              aria-label="Share"
-              className="grid size-10 place-items-center rounded-full bg-white/90 shadow-lg hover:bg-white"
-            >
-              <Share2 className="size-4" />
+              <Eye className="mr-1.5 inline size-4" /> Quick View
             </button>
           </div>
         )}
@@ -431,19 +413,27 @@ export function PackageCard({
           </div>
         )}
 
-        {/* Price + min guests */}
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="text-lg font-extrabold tracking-tight text-foreground">
-            {symbol}{Number(effectivePrice).toLocaleString("en-US")}
-            <span className="ml-1 text-xs font-medium text-muted-foreground">/guest</span>
-          </span>
-          {hasOffer && product.pricePerHead != null && (
-            <span className="text-xs font-medium text-muted-foreground line-through">
-              {symbol}{Number(product.pricePerHead).toLocaleString("en-US")}
+        {/* Price + min guests — "Starting from" format */}
+        <div className="mt-1 space-y-0.5">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Starting from</span>
+            <span className="text-lg font-extrabold tracking-tight text-foreground">
+              {symbol}{Number(effectivePrice).toLocaleString("en-US")}
+              <span className="ml-1 text-xs font-medium text-muted-foreground">/guest</span>
             </span>
-          )}
+            {hasOffer && product.pricePerHead != null && (
+              <span className="text-xs font-medium text-muted-foreground line-through">
+                {symbol}{Number(product.pricePerHead).toLocaleString("en-US")}
+              </span>
+            )}
+            {hasOffer && product.pricePerHead != null && (
+              <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                Save {Math.round((1 - (product.offerPrice! / product.pricePerHead)) * 100)}%
+              </span>
+            )}
+          </div>
           {product.minGuests != null && product.minGuests > 0 && (
-            <span className="text-xs text-muted-foreground">· Min {product.minGuests} guests</span>
+            <p className="text-xs text-muted-foreground">Min {product.minGuests} guests</p>
           )}
         </div>
 
