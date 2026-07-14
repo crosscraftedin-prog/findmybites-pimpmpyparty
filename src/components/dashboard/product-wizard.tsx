@@ -73,6 +73,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   const [publishError, setPublishError] = React.useState<string | null>(null);
   const [savedProductSlug, setSavedProductSlug] = React.useState<string | null>(null);
   const [published, setPublished] = React.useState(false);
+  // Forces a specific card to open (e.g., on validation error)
+  const [forceOpenCardId, setForceOpenCardId] = React.useState<string | null>(null);
   // Global Attribute System — product attribute IDs
   const [productAttributeIds, setProductAttributeIds] = React.useState<string[]>([]);
   const [productInfo, setProductInfo] = React.useState<ProductInfo>({});
@@ -525,9 +527,28 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
   // ── Publish ──
   const handlePublish = async () => {
     if (!validation.allPassed) {
+      // Find the first failing required check and expand its card
+      const firstFailing = validation.checks.find(c => !c.optional && !c.passed);
+      if (firstFailing) {
+        // Map validation check ID to card ID
+        const cardMap: Record<string, string> = {
+          name: "basic",
+          category: "basic",
+          images: "basic",
+          description: "basic",
+          price: "basic",
+          seoTitle: "marketing",
+          seoDesc: "marketing",
+          availability: "delivery",
+        };
+        const cardId = cardMap[firstFailing.id] || "basic";
+        setForceOpenCardId(cardId);
+        // Scroll to the card
+        setTimeout(() => {
+          document.getElementById(`card-content-${cardId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 300);
+      }
       toast.error("Please complete all required fields before publishing");
-      // Scroll to the top so the user sees the Quick Publish card
-      document.querySelector(".overflow-y-auto")?.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     // ── Pre-publish validation warnings ──
@@ -989,17 +1010,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
             <AlertCircle className="mb-1 inline size-4" /> {props.publishError}
           </div>
         )}
-        {/* Publish button — creates the product immediately (no footer publish) */}
-        <div className="sticky bottom-0 border-t border-border bg-card pt-4">
-          <Button onClick={props.onQuickPublish} disabled={props.saving || props.published}
-            className="w-full gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
-            {props.saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-            Publish Product
-          </Button>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            Publish now to make your product live, then complete the remaining details.
-          </p>
-        </div>
+        {/* No inline Publish button — the sticky action bar at the bottom
+            has Preview / Save Draft / Publish. This reduces duplicate CTAs. */}
       </>
     ),
     photos: () => (
@@ -1676,13 +1688,29 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                   )}
                 </div>
     ),
-    // ── V3.1: New composed step types (5-step wizard) ────────────────────────
-    // Card 2 — Product Details: Template Engine fields ONLY (no Recipe Cost,
-    // no Attributes — those are separate cards now). Excludes "basic-information"
-    // and "preparation-&-delivery" sections which duplicate Card 1 + Card 4.
+    // ── V3.2: 6-card layout ──────────────────────────────────────────────────
+    // Card 2 — Product Details: Template Engine fields + Product Attributes.
+    // Excludes "basic-information", "preparation-&-delivery", "logistics", "recipeCost"
+    // (those are in Card 1, Card 4, and Card 6 respectively).
     details: (props) => (
       <>
         {STEP_RENDERERS.fields({ ...props, stepSections: undefined })}
+        {/* Product Attributes — service & feature badges */}
+        <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <Tags className="size-4 text-brand" />
+            <Label className="text-sm font-semibold">Product Attributes</Label>
+          </div>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Select service &amp; feature badges. These appear on the product card and power attribute filtering.
+          </p>
+          <AttributeSelector
+            selectedIds={productAttributeIds}
+            onChange={setProductAttributeIds}
+            ecosystem={vendor.ecosystem}
+            groups={isFood ? ["product_feature", "service"] : ["product_feature", "service"]}
+          />
+        </div>
       </>
     ),
     // Card 4 — Recipe Cost Calculator (vendor-only, never public)
@@ -1814,7 +1842,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       {/* Header — permanently visible (shrink-0) */}
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-3">
         <div className="flex items-center gap-3">
-          <button onClick={onClose} className="grid size-8 place-items-center rounded-full hover:bg-muted">
+          <button onClick={onClose} className="grid size-8 place-items-center rounded-full hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40" aria-label="Close wizard">
             <X className="size-5" />
           </button>
           <div>
@@ -1824,19 +1852,20 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
             </p>
           </div>
         </div>
-        {/* Quality Score + Save Draft */}
-        <div className="flex items-center gap-2">
-          <div className="hidden items-center gap-1.5 sm:flex">
-            <div className="flex">
-              {[1, 2, 3, 4, 5].map(i => (
-                <Star key={i} className={cn("size-3", i <= qualityStars ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30")} />
-              ))}
-            </div>
-            <span className="text-xs font-bold">{qualityScore}%</span>
+        {/* Checklist progress (replaces percentage) */}
+        <div className="hidden items-center gap-2 md:flex">
+          <div className="flex items-center gap-1.5">
+            {validation.checks.filter(c => !c.optional).map(c => (
+              <div key={c.id} className="flex items-center gap-0.5 text-[10px]" title={c.label}>
+                {c.passed ? (
+                  <Check className="size-3.5 text-emerald-500" />
+                ) : (
+                  <div className="grid size-3.5 place-items-center rounded-full border border-muted-foreground/30" />
+                )}
+              </div>
+            ))}
           </div>
-          <Button variant="ghost" onClick={handleSaveDraft} disabled={saving} size="sm" className="text-xs">
-            Save Draft
-          </Button>
+          <span className="text-xs font-bold">{validation.passedCount}/{validation.total}</span>
         </div>
       </div>
 
@@ -1853,84 +1882,109 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
             STEP_RENDERERS.success(sharedProps)
           ) : (
             <>
-              {/* ── CARD 1: Quick Publish (always expanded) ── */}
+              {/* ── CARD 1: Basic Information (always expanded) ── */}
               <CollapsibleCard
+                cardId="basic"
                 icon={<Star className="size-5 text-emerald-500" />}
-                title="Quick Publish"
-                subtitle="Required fields — publish in 30 seconds"
-                badge={qualityScore > 0 ? `${qualityScore}% complete` : undefined}
+                title="Basic Information"
+                subtitle="Everything customers see first."
+                badge={validation.passedCount === validation.total ? "✓ Complete" : undefined}
                 defaultOpen
+                forceOpen={forceOpenCardId === "basic"}
               >
                 {STEP_RENDERERS.basic(sharedProps)}
               </CollapsibleCard>
 
-              {/* ── CARD 2: Product Details (Template Engine fields only) ── */}
+              {/* ── CARD 2: Product Details (expanded by default) ── */}
               <CollapsibleCard
+                cardId="details"
                 icon={<Info className="size-5 text-blue-500" />}
                 title="Product Details"
-                subtitle="Template-driven fields (ingredients, nutrition, storage, etc.)"
+                subtitle="Information shown on your product page."
+                defaultOpen
+                forceOpen={forceOpenCardId === "details"}
               >
                 {STEP_RENDERERS.details(sharedProps)}
               </CollapsibleCard>
 
               {/* ── CARD 3: Variants & Customisation ── */}
               <CollapsibleCard
+                cardId="variants"
                 icon={<Package className="size-5 text-amber-500" />}
                 title="Variants & Customisation"
-                subtitle="Sizes, flavours, packages, add-ons"
+                subtitle="Sizes, flavours, packages, add-ons."
+                forceOpen={forceOpenCardId === "variants"}
               >
                 {STEP_RENDERERS.options(sharedProps)}
               </CollapsibleCard>
 
-              {/* ── CARD 4: Delivery ── */}
+              {/* ── CARD 4: Delivery & Availability ── */}
               <CollapsibleCard
+                cardId="delivery"
                 icon={<Truck className="size-5 text-purple-500" />}
-                title="Delivery"
-                subtitle="Delivery, pickup, preparation time, booking notice"
+                title="Delivery & Availability"
+                subtitle="How and when customers receive this product."
+                forceOpen={forceOpenCardId === "delivery"}
               >
                 {STEP_RENDERERS.delivery(sharedProps)}
               </CollapsibleCard>
 
-              {/* ── CARD 5: Recipe Cost Calculator (vendor-only, collapsed) ── */}
+              {/* ── CARD 5: Marketing & SEO ── */}
               <CollapsibleCard
-                icon={<DollarSign className="size-5 text-emerald-600" />}
-                title="Recipe Cost Calculator"
-                subtitle="Private — track costs & margins (never shown to customers)"
-              >
-                {STEP_RENDERERS.recipeCost(sharedProps)}
-              </CollapsibleCard>
-
-              {/* ── CARD 6: Product Attributes ── */}
-              <CollapsibleCard
-                icon={<Tags className="size-5 text-brand" />}
-                title="Product Attributes"
-                subtitle="Service & feature badges for filtering"
-              >
-                {STEP_RENDERERS.attributesCard(sharedProps)}
-              </CollapsibleCard>
-
-              {/* ── CARD 7: Marketing (collapsed by default) ── */}
-              <CollapsibleCard
+                cardId="marketing"
                 icon={<Search className="size-5 text-pink-500" />}
-                title="Marketing"
-                subtitle="SEO, featured product, visibility"
+                title="Marketing & SEO"
+                subtitle="Improve visibility in Google Search."
+                forceOpen={forceOpenCardId === "marketing"}
               >
                 {STEP_RENDERERS.marketing(sharedProps)}
+              </CollapsibleCard>
+
+              {/* ── CARD 6: Recipe Cost Calculator (vendor-only) ── */}
+              <CollapsibleCard
+                cardId="recipeCost"
+                icon={<DollarSign className="size-5 text-emerald-600" />}
+                title="Recipe Cost Calculator"
+                subtitle="Private production costs and profit tracking."
+                forceOpen={forceOpenCardId === "recipeCost"}
+              >
+                {STEP_RENDERERS.recipeCost(sharedProps)}
               </CollapsibleCard>
             </>
           )}
         </div>
       </div>
 
-      {/* Floating Preview button — opens a live preview modal */}
+      {/* ── Sticky Action Bar — always visible (Preview / Save Draft / Publish) ── */}
       {!showSuccess && (
-        <button
-          onClick={() => setShowPreview(true)}
-          className="fixed bottom-20 right-4 z-40 flex items-center gap-1.5 rounded-full bg-brand text-brand-foreground px-4 py-2 shadow-lg hover:bg-brand/90"
-          aria-label="Preview product"
-        >
-          <Eye className="size-4" /> Preview
-        </button>
+        <div className="shrink-0 border-t border-border bg-card px-4 py-3 [padding-bottom:calc(env(safe-area-inset-bottom)+0.75rem)]">
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-2">
+            {/* Save status */}
+            <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+              {saving ? (
+                <><Loader2 className="size-3.5 animate-spin" /> Saving…</>
+              ) : lastSaved ? (
+                <><Check className="size-3.5 text-emerald-500" /> Draft saved · {lastSaved}</>
+              ) : (
+                <><Check className="size-3.5 text-muted-foreground/50" /> Auto-save enabled</>
+              )}
+            </div>
+            {/* Actions */}
+            <div className="flex shrink-0 items-center gap-2">
+              <Button variant="ghost" onClick={() => setShowPreview(true)} size="sm" className="gap-1.5">
+                <Eye className="size-4" /> Preview
+              </Button>
+              <Button variant="outline" onClick={handleSaveDraft} disabled={saving} size="sm" className="gap-1.5">
+                Save Draft
+              </Button>
+              <Button onClick={handlePublish} disabled={saving || published} size="sm"
+                className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
+                {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                Publish
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* V3.1: Preview modal — reuses ProductDetailView (same as the old preview step) */}
@@ -2015,28 +2069,63 @@ function WizardCard({ icon, title, children }: { icon: React.ReactNode; title: s
 
 /**
  * CollapsibleCard — a single-page card that can be expanded/collapsed.
- * Replaces the wizard stepper. Card 1 (Quick Publish) is always open by default.
+ * Replaces the wizard stepper. Card 1 (Basic Information) is always open by default.
+ *
+ * Features:
+ * - Session-persisted open state (remembers which cards were expanded)
+ * - Lazy rendering (only mounts children when expanded, for performance)
+ * - Accessibility: aria-expanded, aria-controls, keyboard focus
+ * - Smooth height animation via framer-motion
+ * - Auto-expand via `forceOpen` prop (for validation error scrolling)
  */
 function CollapsibleCard({
-  icon, title, subtitle, badge, defaultOpen = false, children,
+  icon, title, subtitle, badge, defaultOpen = false, cardId, forceOpen, children,
 }: {
   icon: React.ReactNode;
   title: string;
   subtitle?: string;
   badge?: string;
   defaultOpen?: boolean;
+  /** Unique ID for session-persistence of open state. */
+  cardId: string;
+  /** When true, forces the card open (e.g., on validation error). */
+  forceOpen?: boolean;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = React.useState(defaultOpen);
+  const storageKey = `wizard-card-${cardId}`;
+  const [open, setOpen] = React.useState(() => {
+    if (typeof window === "undefined") return defaultOpen;
+    try {
+      const saved = sessionStorage.getItem(storageKey);
+      if (saved !== null) return saved === "true";
+    } catch {}
+    return defaultOpen;
+  });
+
+  // Sync open state to sessionStorage + respond to forceOpen
+  React.useEffect(() => {
+    if (forceOpen && !open) {
+      setOpen(true);
+      return;
+    }
+    try {
+      sessionStorage.setItem(storageKey, String(open));
+    } catch {}
+  }, [open, storageKey, forceOpen]);
+
+  const contentId = `card-content-${cardId}`;
+
   return (
     <div className={cn(
       "overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow",
       open ? "border-border" : "border-border/60 hover:shadow-md",
+      forceOpen && "ring-2 ring-red-400/50",
     )}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        aria-controls={contentId}
         className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       >
         <div className="shrink-0">{icon}</div>
@@ -2053,6 +2142,7 @@ function CollapsibleCard({
       </button>
       {open && (
         <motion.div
+          id={contentId}
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0 }}
