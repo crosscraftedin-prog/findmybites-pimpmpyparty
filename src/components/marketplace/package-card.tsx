@@ -68,6 +68,7 @@ export interface PackageCardProps {
   product: PackageCardProduct;
   onCompare?: (product: PackageCardProduct) => void;
   isCompared?: boolean;
+  onQuickView?: (product: PackageCardProduct) => void;
   index?: number;
   /** Override the detail-page URL prefix. Defaults to "/product/". */
   detailHrefPrefix?: string;
@@ -85,6 +86,7 @@ export function PackageCard({
   product,
   onCompare,
   isCompared = false,
+  onQuickView,
   index = 0,
   detailHrefPrefix = "/product/",
 }: PackageCardProps) {
@@ -208,6 +210,32 @@ export function PackageCard({
             <Heart className={cn("size-4 transition-all", saved && "fill-rose-500")} />
           </button>
         </div>
+
+        {/* Top badges: Most Popular, Best Seller, Trending, Limited Offer */}
+        <div className="absolute left-3 bottom-3 flex flex-wrap gap-1.5">
+          {product.isFeatured && (
+            <Badge className="border-0 bg-amber-500 text-white shadow-sm">⭐ Most Popular</Badge>
+          )}
+          {product.offerPrice != null && product.pricePerHead != null && product.offerPrice < product.pricePerHead && (
+            <Badge className="border-0 bg-rose-500 text-white shadow-sm">🔥 Limited Offer</Badge>
+          )}
+          {product.createdAt && new Date(product.createdAt).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000 && (
+            <Badge className="border-0 bg-emerald-500 text-white shadow-sm">🆕 New</Badge>
+          )}
+        </div>
+
+        {/* Hover: Quick View button (desktop only) */}
+        {onQuickView && (
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickView(product); }}
+            className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          >
+            <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-lg">
+              👁 Quick View
+            </span>
+          </button>
+        )}
       </Link>
 
       {/* ---------------- Body ---------------- */}
@@ -260,7 +288,7 @@ export function PackageCard({
           )}
         </div>
 
-        {/* Location + food type row */}
+        {/* Location + food type + prep time + live counter row */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {vendor?.city && (
             <span className="inline-flex items-center gap-1">
@@ -277,6 +305,12 @@ export function PackageCard({
           {cuisines && (
             <span className="inline-flex items-center gap-1">
               <span className="truncate">{cuisines}</span>
+            </span>
+          )}
+          {/* Live counter indicator */}
+          {highlights.some(h => h.toLowerCase().includes("live counter") || h.toLowerCase().includes("live station")) && (
+            <span className="inline-flex items-center gap-1 text-amber-600 font-medium">
+              🔥 Live Counter
             </span>
           )}
         </div>

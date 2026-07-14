@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/marketplace/site-header";
 import { SiteFooter } from "@/components/marketplace/site-footer";
 import { PackageCard, type PackageCardProduct } from "@/components/marketplace/package-card";
 import { PackageFilters, type PackageFilterState } from "@/components/marketplace/package-filters";
+import { QuickView } from "@/components/marketplace/quick-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +22,7 @@ export function PackagesClient({ initialPackages }: PackagesClientProps) {
   const [filters, setFilters] = React.useState<PackageFilterState>({});
   const [compareList, setCompareList] = React.useState<PackageCardProduct[]>([]);
   const [showCompareTray, setShowCompareTray] = React.useState(false);
+  const [quickViewProduct, setQuickViewProduct] = React.useState<PackageCardProduct | null>(null);
 
   // Filter packages based on search + filters
   const filteredPackages = React.useMemo(() => {
