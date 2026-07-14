@@ -40,6 +40,7 @@ export function ProductInfoForm({
   showVendorOnly = false,
   category,
   sectionFilter,
+  sectionExclusion,
 }: {
   productInfo: ProductInfo;
   onChange: (info: ProductInfo) => void;
@@ -53,6 +54,8 @@ export function ProductInfoForm({
   category?: string | null;
   /** Filter: only show sections with these keys (from DB template). NOT a hardcoded array — it's a filter on template-resolved sections. */
   sectionFilter?: string[];
+  /** Exclusion filter: hide sections with these keys (e.g., "basic-information", "preparation-&-delivery" which duplicate Card 1 + Card 4). */
+  sectionExclusion?: string[];
 }) {
   // State for DB-resolved sections
   const [dbSections, setDbSections] = React.useState<InfoSection[] | null>(null);
@@ -85,8 +88,15 @@ export function ProductInfoForm({
     if (sectionFilter && sectionFilter.length > 0 && resolved) {
       resolved = resolved.filter((s) => sectionFilter.includes(s.key));
     }
+    // Apply sectionExclusion — hide sections whose key is in the exclusion list.
+    // This prevents duplicates when ProductInfoForm renders ALL DB sections
+    // (e.g., "basic-information" and "preparation-&-delivery" are already
+    // covered by Card 1 and Card 4 in the wizard).
+    if (sectionExclusion && sectionExclusion.length > 0 && resolved) {
+      resolved = resolved.filter((s) => !sectionExclusion.includes(s.key));
+    }
     return resolved;
-  }, [infoSections, dbSections, sectionFilter]);
+  }, [infoSections, dbSections, sectionFilter, sectionExclusion]);
 
   const setField = (key: string, value: unknown) => {
     onChange({ ...productInfo, [key]: value });
