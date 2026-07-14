@@ -166,9 +166,6 @@ export type BookingStatus =
   | "pending"
   | "declined";
 
-/** Pre-qualification answers produced by AI from the customer's enquiry. */
-export type AiQualification = Record<string, string | number | boolean | null>;
-
 export interface Booking {
   id: string;
   vendorId: string;
@@ -205,18 +202,6 @@ export interface Booking {
 
 export interface VendorWithRelations extends Vendor {
   reviews: Review[];
-}
-
-export interface VendorFilters {
-  ecosystem?: Ecosystem;
-  category?: string | null;
-  continent?: string | null;
-  search?: string | null;
-  priceRange?: string | null;
-  minRating?: number;
-  sort?: string;
-  featured?: boolean;
-  limit?: number;
 }
 
 export interface PlatformStats {
