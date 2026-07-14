@@ -51,7 +51,10 @@ export type StepType =
   | "options"    // V3.1: merged Variants + Customisation + Add-ons
   | "delivery"   // V3.1: merged Inventory + Scheduling + Delivery
   | "marketing"  // V3.1: merged SEO + FAQ + Tags + Featured
-  | "success";   // V3.1: post-publish success screen
+  | "success"    // V3.1: post-publish success screen
+  | "recipeCost"     // V3.2: Recipe Cost Calculator (vendor-only, separate card)
+  | "attributesCard" // V3.2: Product Attributes (separate card)
+  | "inventoryCard"; // V3.2: Inventory (separate card)
 
 export interface DynamicStep {
   id: number;

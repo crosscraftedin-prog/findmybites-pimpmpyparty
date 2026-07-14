@@ -1258,28 +1258,13 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                     category={vendor.category}
                     productName={form.name}
                     productDescription={form.description}
+                    // Exclude sections that duplicate other cards:
+                    // "basic-information" → duplicates Card 1 (name + description)
+                    // "preparation-&-delivery" → duplicates Card 4 (delivery/pickup)
+                    // "logistics" → code-fallback that also has delivery/pickup
+                    // "recipeCost" → rendered in its own Card (Recipe Cost Calculator)
+                    sectionExclusion={["basic-information", "preparation-&-delivery", "logistics", "recipeCost"]}
                   />
-
-                  {/* Recipe Cost Calculator (vendor-only, never public) */}
-                  <div className="mt-6 rounded-xl border border-muted bg-muted/30 p-4">
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="text-lg">🧮</span>
-                      <h4 className="text-sm font-bold">Recipe Cost Calculator</h4>
-                      <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                        Vendor Only — Never shown publicly
-                      </span>
-                    </div>
-                    <p className="mb-3 text-xs text-muted-foreground">
-                      Track your production costs and calculate profit margins. This data is private and never displayed to customers.
-                    </p>
-                    <ProductInfoForm
-                      productInfo={productInfo}
-                      onChange={setProductInfo}
-                      category={vendor.category}
-                      showVendorOnly
-                      sectionFilter={["recipeCost"]}
-                    />
-                  </div>
                 </div>
       );
     },
@@ -1692,33 +1677,57 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                 </div>
     ),
     // ── V3.1: New composed step types (5-step wizard) ────────────────────────
-    // Step 2 — Details: ALL Template Engine fields (ProductInfoForm with no
-    // sectionFilter) + Recipe Cost Calculator (both rendered by the `fields`
-    // renderer with stepSections=undefined) + Product Attributes (AttributeSelector).
+    // Card 2 — Product Details: Template Engine fields ONLY (no Recipe Cost,
+    // no Attributes — those are separate cards now). Excludes "basic-information"
+    // and "preparation-&-delivery" sections which duplicate Card 1 + Card 4.
     details: (props) => (
       <>
         {STEP_RENDERERS.fields({ ...props, stepSections: undefined })}
-        {/* Product Attributes — pulled in from the old `attributes` renderer.
-            Delivery/pickup checkboxes are NOT included here (they live in Step 4). */}
-        <div className="rounded-lg border border-border bg-muted/30 p-3">
-          <div className="mb-2 flex items-center gap-2">
-            <Tags className="size-4 text-brand" />
-            <Label className="text-sm font-semibold">Product Attributes</Label>
-          </div>
-          <p className="mb-2 text-xs text-muted-foreground">
-            Select dietary, service &amp; feature badges. These appear on the product
-            card and power attribute filtering.
-          </p>
-          <AttributeSelector
-            selectedIds={productAttributeIds}
-            onChange={setProductAttributeIds}
-            ecosystem={vendor.ecosystem}
-            // Dietary is managed via chips in Card 1 (Quick Publish) — don't duplicate here.
-            groups={isFood ? ["product_feature", "service"] : ["product_feature", "service"]}
-          />
-        </div>
       </>
     ),
+    // Card 4 — Recipe Cost Calculator (vendor-only, never public)
+    recipeCost: (props) => (
+      <div className="rounded-xl border border-muted bg-muted/30 p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="text-lg">🧮</span>
+          <h4 className="text-sm font-bold">Recipe Cost Calculator</h4>
+          <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+            Vendor Only — Never shown publicly
+          </span>
+        </div>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Track your production costs and calculate profit margins. This data is private and never displayed to customers.
+        </p>
+        <ProductInfoForm
+          productInfo={productInfo}
+          onChange={setProductInfo}
+          category={vendor.category}
+          showVendorOnly
+          sectionFilter={["recipeCost"]}
+        />
+      </div>
+    ),
+    // Card 5 — Product Attributes (dietary, service, feature badges)
+    attributesCard: (props) => (
+      <div className="rounded-lg border border-border bg-muted/30 p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <Tags className="size-4 text-brand" />
+          <Label className="text-sm font-semibold">Product Attributes</Label>
+        </div>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Select service &amp; feature badges. These appear on the product card and power attribute filtering.
+          (Dietary badges are managed via chips in Quick Publish.)
+        </p>
+        <AttributeSelector
+          selectedIds={productAttributeIds}
+          onChange={setProductAttributeIds}
+          ecosystem={vendor.ecosystem}
+          groups={isFood ? ["product_feature", "service"] : ["product_feature", "service"]}
+        />
+      </div>
+    ),
+    // Card 6 — Inventory (stock, availability, publishing status)
+    inventoryCard: (props) => STEP_RENDERERS.inventory(props),
     // Step 3 — Options: variant cards (renderVariantCards) + Customisation
     // (the `fields` renderer with sectionFilter=["customisation"]).
     options: (props) => (
@@ -1727,14 +1736,11 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         {STEP_RENDERERS.fields({ ...props, stepSections: ["customisation"] })}
       </>
     ),
-    // Step 4 — Delivery: full inventory (stock, availability, prep time, max
-    // orders, service area — from the `inventory` renderer) + delivery/pickup
-    // checkboxes (from the old `attributes` renderer). Delivery/pickup appear
-    // ONLY here in the 5-step flow — not in Step 2.
+    // Card 3 — Delivery: delivery/pickup checkboxes + preparation time + booking
+    // notice + availability. Inventory (stock, max orders) is now a separate card.
     delivery: (props) => (
       <>
-        {STEP_RENDERERS.inventory(props)}
-        {/* Delivery/Pickup — from the old `attributes` renderer */}
+        {/* Delivery/Pickup checkboxes */}
         <div className="grid grid-cols-2 gap-2">
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={form.deliveryAvailable} onChange={e => set("deliveryAvailable", e.target.checked)} className="size-4 rounded border-border" />
@@ -1745,6 +1751,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
             Pickup Available
           </label>
         </div>
+        {/* Preparation time + booking notice + service area (from inventory renderer, minus stock) */}
+        {STEP_RENDERERS.inventory(props)}
       </>
     ),
     // Step 5 — Marketing: SEO fields (from the `seo` renderer) + featured
@@ -1856,11 +1864,11 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                 {STEP_RENDERERS.basic(sharedProps)}
               </CollapsibleCard>
 
-              {/* ── CARD 2: Product Details (Template Engine) ── */}
+              {/* ── CARD 2: Product Details (Template Engine fields only) ── */}
               <CollapsibleCard
                 icon={<Info className="size-5 text-blue-500" />}
                 title="Product Details"
-                subtitle="Template-driven fields + Recipe Cost Calculator"
+                subtitle="Template-driven fields (ingredients, nutrition, storage, etc.)"
               >
                 {STEP_RENDERERS.details(sharedProps)}
               </CollapsibleCard>
@@ -1878,16 +1886,34 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
               <CollapsibleCard
                 icon={<Truck className="size-5 text-purple-500" />}
                 title="Delivery"
-                subtitle="Inventory, scheduling, pickup, delivery"
+                subtitle="Delivery, pickup, preparation time, booking notice"
               >
                 {STEP_RENDERERS.delivery(sharedProps)}
               </CollapsibleCard>
 
-              {/* ── CARD 5: Marketing ── */}
+              {/* ── CARD 5: Recipe Cost Calculator (vendor-only, collapsed) ── */}
+              <CollapsibleCard
+                icon={<DollarSign className="size-5 text-emerald-600" />}
+                title="Recipe Cost Calculator"
+                subtitle="Private — track costs & margins (never shown to customers)"
+              >
+                {STEP_RENDERERS.recipeCost(sharedProps)}
+              </CollapsibleCard>
+
+              {/* ── CARD 6: Product Attributes ── */}
+              <CollapsibleCard
+                icon={<Tags className="size-5 text-brand" />}
+                title="Product Attributes"
+                subtitle="Service & feature badges for filtering"
+              >
+                {STEP_RENDERERS.attributesCard(sharedProps)}
+              </CollapsibleCard>
+
+              {/* ── CARD 7: Marketing (collapsed by default) ── */}
               <CollapsibleCard
                 icon={<Search className="size-5 text-pink-500" />}
                 title="Marketing"
-                subtitle="SEO, tags, featured, visibility"
+                subtitle="SEO, featured product, visibility"
               >
                 {STEP_RENDERERS.marketing(sharedProps)}
               </CollapsibleCard>

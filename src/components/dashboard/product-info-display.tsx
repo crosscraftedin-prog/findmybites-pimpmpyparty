@@ -52,10 +52,18 @@ export function ProductInfoDisplay({
     return () => { cancelled = true; };
   }, [category, infoSections]);
 
+  // Sections that duplicate the main product form fields (Card 1 + Card 4).
+  // These are excluded from the public display because their data is already
+  // shown via the main ProductDetailView (name, description, delivery, pickup).
+  const DUPLICATE_SECTION_KEYS = ["basic-information", "preparation-&-delivery", "logistics"];
+
   const sections = React.useMemo(() => {
-    if (infoSections && infoSections.length > 0) return infoSections;
-    if (dbSections && dbSections.length > 0) return dbSections;
-    return getSectionsForTemplate({ infoSections });
+    let resolved: InfoSection[] | null = null;
+    if (infoSections && infoSections.length > 0) resolved = infoSections;
+    else if (dbSections && dbSections.length > 0) resolved = dbSections;
+    else resolved = getSectionsForTemplate({ infoSections });
+    // Exclude sections that duplicate the main product form fields
+    return resolved.filter((s) => !DUPLICATE_SECTION_KEYS.includes(s.key));
   }, [infoSections, dbSections]);
 
   // Filter to only sections that have data, respecting showWhen + vendorOnly
