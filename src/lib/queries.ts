@@ -579,51 +579,6 @@ export function useDeleteReview(): UseMutationResult<
   });
 }
 
-export interface AdminStats {
-  totals: {
-    vendors: number;
-    reviews: number;
-    bookings: number;
-    pendingBookings: number;
-    confirmedBookings: number;
-    avgRating: number;
-  };
-  vendorsByEcosystem: { ecosystem: string; count: number }[];
-  vendorsByContinent: { continent: string; count: number }[];
-  vendorsByCategory: { category: string; count: number }[];
-  bookingsByStatus: { status: string; count: number }[];
-  recentBookings: {
-    id: string;
-    name: string;
-    eventType: string;
-    eventDate: string;
-    status: string;
-    createdAt: string;
-    vendorName: string;
-  }[];
-  recentVendors: {
-    id: string;
-    name: string;
-    slug: string;
-    ecosystem: string;
-    city: string;
-    country: string;
-    createdAt: string;
-  }[];
-}
-
-export function useAdminStats(): UseQueryResult<AdminStats, Error> {
-  return useQuery({
-    queryKey: ["admin", "stats"],
-    queryFn: async () => {
-      const res = await fetch("/api/admin/stats");
-      if (!res.ok) throw new Error("Failed to fetch admin stats");
-      return (await res.json()) as AdminStats;
-    },
-    staleTime: 30 * 1000,
-  });
-}
-
 // ── Vendor Dashboard hooks ─────────────────────────────────────────────────
 
 export interface VendorDashboardData {
@@ -673,53 +628,6 @@ export function useProducts(vendorId: string | null) {
       const res = await fetch(`/api/products?vendorId=${vendorId}`);
       if (!res.ok) throw new Error("Failed to fetch products");
       return (await res.json()) as { products: Product[] };
-    },
-  });
-}
-
-export function useCreateProduct() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: {
-      vendorId: string;
-      name: string;
-      description?: string;
-      price: number;
-      image?: string;
-      productType?: string;
-      sizes?: string;
-      flavours?: string;
-      weight?: string;
-      prepTime?: string;
-      deliveryAvailable?: boolean;
-      minGuests?: number;
-      pricePerHead?: number;
-      images?: string[];
-    }) => {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      if (!res.ok) throw new Error("Failed to create product");
-      return res.json();
-    },
-    onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ["products", variables.vendorId] });
-    },
-  });
-}
-
-export function useDeleteProduct() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, vendorId }: { id: string; vendorId: string }) => {
-      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete product");
-      return { vendorId };
-    },
-    onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ["products", variables.vendorId] });
     },
   });
 }
