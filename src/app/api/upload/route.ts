@@ -1,60 +1,143 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/upload
  *
  * SINGLE PRODUCTION UPLOAD API.
  *
- * All image uploads in the application route through this endpoint — both the
- * marketplace ImageUpload component and the dashboard ImageUpload/GalleryUpload
- * components call POST /api/upload.
+ * All image uploads in the application route through this endpoint via the
+ * shared `uploadToApi()` helper in src/lib/uploads/upload-to-api.ts.
  *
- * Architecture:
- *   - Client sends multipart/form-data with `file` (required) and `folder` (optional)
- *   - Server authenticates via Supabase session cookie
- *   - Server validates file type + size
- *   - Server resolves the storage path from the session:
- *       - Existing vendor → vendor-uploads/{vendorId}/{folder}/{timestamp}-{name}
- *       - First-time onboarding → vendor-uploads/pending/{userId}/{folder}/{timestamp}-{name}
- *   - Server uploads to Supabase Storage using the admin client (service role)
- *   - Server returns the public URL as JSON: { success: true, url: "..." }
+ * ── Hardening Features (V2) ──
  *
- * The client never calls Supabase Storage directly — this is the single source
- * of truth for auth, validation, storage path, and URL generation.
+ * 1. SECURITY
+ *   - Rejects dangerous extensions: svg, exe, html, php, js, etc.
+ *   - Rejects double extensions (image.jpg.exe)
+ *   - Rejects path traversal (../, ..\, /, \, null bytes)
+ *   - Validates MIME type matches extension
+ *   - Enforces max request body size (10MB)
  *
- * Security:
- *   - Authentication is ALWAYS required (401 if no session)
- *   - File type is validated server-side (never trust client)
- *   - File size is validated server-side (max 10MB)
- *   - The storage path is resolved from the session — the client cannot
- *     influence which vendor's folder the file is uploaded to
+ * 2. STRUCTURED LOGGING
+ *   - userId, vendorId, filename, size, folder, duration, status
  *
- * Request:
- *   Content-Type: multipart/form-data
- *   Body: file (File) + folder (string, optional — "logo" | "cover" | "gallery" | "package" | "free")
+ * 3. STORAGE
+ *   - Uploads to Supabase Storage via service role REST API
+ *   - Returns public URL
  *
- * Response:
- *   200: { success: true, url: "https://...supabase.co/storage/v1/object/public/vendor-uploads/..." }
- *   400: { error: "No file provided" | "Invalid file type" | "File too large" }
- *   401: { error: "Authentication required" }
- *   503: { error: "Storage not configured" }
+ * 4. ERROR HANDLING
+ *   - Always returns JSON (never HTML)
+ *   - Proper HTTP status codes (400, 401, 413, 502, 503)
  */
 
 // ── Validation constants ──────────────────────────────────────────────────
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const ACCEPTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_REQUEST_BODY_SIZE = 11 * 1024 * 1024; // 11MB (file + form overhead)
 const BUCKET_NAME = "vendor-uploads";
+
+// Dangerous extensions that must NEVER be allowed
+const DANGEROUS_EXTENSIONS = [
+  ".svg", ".svgz", ".exe", ".html", ".htm", ".php", ".js", ".jsx", ".ts",
+  ".tsx", ".bat", ".cmd", ".sh", ".py", ".rb", ".pl", ".cgi", ".asp",
+  ".aspx", ".jsp", ".sql", ".xml", ".zip", ".tar", ".gz", ".rar", ".7z",
+];
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
+function getExtension(filename: string): string {
+  const lastDot = filename.lastIndexOf(".");
+  if (lastDot === -1) return "";
+  return filename.slice(lastDot).toLowerCase();
+}
+
+function hasDoubleExtension(filename: string): boolean {
+  const matches = filename.match(/\./g);
+  return matches !== null && matches.length > 1;
+}
+
+function hasPathTraversal(filename: string): boolean {
+  return (
+    filename.includes("../") ||
+    filename.includes("..\\") ||
+    filename.includes("/") ||
+    filename.includes("\\") ||
+    filename.includes("\0")
+  );
+}
+
 function sanitizeFileName(name: string): string {
-  // Keep only alphanumeric, dash, underscore, dot. Remove everything else.
+  // Keep only alphanumeric, dash, underscore, dot
   const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, "-");
-  // Collapse multiple dashes
   return cleaned.replace(/-+/g, "-").toLowerCase();
+}
+
+/**
+ * Comprehensive server-side file validation.
+ * Returns an error message if invalid, null if valid.
+ */
+function validateFile(file: File): string | null {
+  // ── Basic presence check ──
+  if (!file || file.size === 0) {
+    return "File is empty or missing.";
+  }
+
+  // ── Size check ──
+  if (file.size > MAX_FILE_SIZE) {
+    return `File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Max: 10MB.`;
+  }
+
+  // ── MIME type check ──
+  if (!file.type || !ACCEPTED_TYPES.includes(file.type)) {
+    return `Invalid file type: ${file.type || "unknown"}. Accepted: JPG, PNG, WebP, GIF.`;
+  }
+
+  // ── Extension checks ──
+  const filename = file.name;
+  const ext = getExtension(filename);
+
+  if (!ext) {
+    return "File has no extension.";
+  }
+
+  if (!ACCEPTED_EXTENSIONS.includes(ext)) {
+    return `Invalid file extension: ${ext}. Accepted: ${ACCEPTED_EXTENSIONS.join(", ")}.`;
+  }
+
+  // ── Dangerous extension check ──
+  if (DANGEROUS_EXTENSIONS.includes(ext)) {
+    return `File type ${ext} is not allowed for security reasons.`;
+  }
+
+  // ── Double extension check ──
+  if (hasDoubleExtension(filename)) {
+    return "Double extensions are not allowed for security reasons.";
+  }
+
+  // ── Path traversal check ──
+  if (hasPathTraversal(filename)) {
+    return "Invalid filename.";
+  }
+
+  // ── MIME/extension mismatch check ──
+  // e.g. a .exe file with MIME image/jpeg (fake MIME type)
+  const extToMime: Record<string, string> = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+  };
+  const expectedMime = extToMime[ext];
+  if (expectedMime && expectedMime !== file.type) {
+    return `File extension ${ext} does not match MIME type ${file.type}.`;
+  }
+
+  return null;
 }
 
 async function resolveVendorId(userId: string): Promise<string | null> {
@@ -69,21 +152,43 @@ async function resolveVendorId(userId: string): Promise<string | null> {
   }
 }
 
-// ── Route Handler ─────────────────────────────────────────────────────────
+// ── POST route handler ────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+
   try {
+    // ── 0. Check Content-Length to reject oversized requests early ──
+    const contentLength = parseInt(req.headers.get("content-length") || "0", 10);
+    if (contentLength > MAX_REQUEST_BODY_SIZE) {
+      logger.warn("upload", "Request body too large", {
+        contentLength,
+        max: MAX_REQUEST_BODY_SIZE,
+      });
+      return NextResponse.json(
+        { error: `Request body too large (${(contentLength / 1024 / 1024).toFixed(1)}MB). Max: 10MB.` },
+        { status: 413 }
+      );
+    }
+
     // ── 1. Authenticate via Supabase session ──
     const supabase = await createSupabaseServerClient();
     let userId: string | null = null;
+    let userEmail: string | null = null;
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) userId = user.id;
+      if (user) {
+        userId = user.id;
+        userEmail = user.email ?? null;
+      }
     } catch {}
     if (!userId) {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.id) userId = session.user.id;
+        if (session?.user?.id) {
+          userId = session.user.id;
+          userEmail = session.user.email ?? null;
+        }
       } catch {}
     }
     if (!userId) {
@@ -105,47 +210,44 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 3. Validate file type ──
-    if (!ACCEPTED_TYPES.includes(file.type)) {
+    // ── 3. Validate file (security + type + size) ──
+    const validationError = validateFile(file);
+    if (validationError) {
+      logger.warn("upload", "File validation failed", {
+        userId,
+        filename: file.name,
+        size: file.size,
+        type: file.type,
+        error: validationError,
+      });
       return NextResponse.json(
-        { error: `Invalid file type: ${file.type}. Accepted: JPG, PNG, WebP, GIF.` },
+        { error: validationError },
         { status: 400 }
       );
     }
 
-    // ── 4. Validate file size ──
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: `File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Max: 10MB.` },
-        { status: 400 }
-      );
-    }
-
-    // ── 5. Resolve storage path ──
-    // Existing vendor → vendor-uploads/{vendorId}/{folder}/{timestamp}-{name}
-    // First-time onboarding → vendor-uploads/pending/{userId}/{folder}/{timestamp}-{name}
+    // ── 4. Resolve storage path ──
     const vendorId = await resolveVendorId(userId);
     const basePath = vendorId ?? `pending/${userId}`;
     const sanitized = sanitizeFileName(file.name);
     const timestamp = Date.now();
     const filePath = `${basePath}/${folder}/${timestamp}-${sanitized}`;
 
-    // ── 6. Upload to Supabase Storage ──
-    // Use the admin client (service role) so we bypass RLS and can upload
-    // from the server. The client's anon key doesn't have INSERT permission
-    // on the storage.objects table for the vendor-uploads bucket — only the
-    // service role can write.
+    // ── 5. Upload to Supabase Storage ──
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+      logger.error("upload", "Storage not configured", undefined, {
+        hasUrl: !!SUPABASE_URL,
+        hasKey: !!SERVICE_ROLE_KEY,
+      });
       return NextResponse.json(
         { error: "Storage not configured (missing SUPABASE_SERVICE_ROLE_KEY)" },
         { status: 503 }
       );
     }
 
-    // Convert File to ArrayBuffer for the Supabase REST API
     const arrayBuffer = await file.arrayBuffer();
 
     const uploadResponse = await fetch(
@@ -162,16 +264,35 @@ export async function POST(req: NextRequest) {
     );
 
     if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error("[upload] Supabase storage error:", uploadResponse.status, errorText);
+      const errorText = await uploadResponse.text().catch(() => "unknown");
+      logger.error("upload", "Supabase storage error", undefined, {
+        status: uploadResponse.status,
+        error: errorText.slice(0, 500),
+        filePath,
+      });
       return NextResponse.json(
         { error: `Storage upload failed (${uploadResponse.status})` },
         { status: 502 }
       );
     }
 
-    // ── 7. Construct the public URL ──
+    // ── 6. Construct the public URL ──
     const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${filePath}`;
+    const durationMs = Date.now() - startTime;
+
+    // ── 7. Structured logging ──
+    logger.info("upload", "Upload succeeded", {
+      userId,
+      userEmail: userEmail ?? undefined,
+      vendorId: vendorId ?? "pending",
+      filename: file.name,
+      size: file.size,
+      sizeMB: (file.size / 1024 / 1024).toFixed(2),
+      folder,
+      type: file.type,
+      durationMs,
+      path: filePath,
+    });
 
     return NextResponse.json({
       success: true,
@@ -179,7 +300,11 @@ export async function POST(req: NextRequest) {
       path: filePath,
     });
   } catch (error: any) {
-    console.error("[upload] Unexpected error:", error.message);
+    const durationMs = Date.now() - startTime;
+    logger.error("upload", "Unexpected error", error, {
+      durationMs,
+      message: error.message,
+    });
     return NextResponse.json(
       { error: `Upload failed: ${error.message}` },
       { status: 500 }
@@ -189,7 +314,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * GET /api/upload
- * Health check — confirms the upload endpoint is reachable and configured.
+ * Health check — confirms the upload endpoint is reachable.
  */
 export async function GET() {
   return NextResponse.json({
@@ -200,5 +325,6 @@ export async function GET() {
       process.env.NEXT_PUBLIC_SUPABASE_URL &&
       process.env.SUPABASE_SERVICE_ROLE_KEY
     ),
+    version: "2.0.0",
   });
 }

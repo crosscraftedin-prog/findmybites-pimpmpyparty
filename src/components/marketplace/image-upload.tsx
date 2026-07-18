@@ -38,6 +38,7 @@ export function ImageUpload({
   className,
 }: ImageUploadProps) {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const abortRef = React.useRef<AbortController | null>(null);
   const [dragging, setDragging] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
@@ -45,6 +46,16 @@ export function ImageUpload({
   // shows the empty upload state instead of retrying and 400-looping.
   const [imgErrored, setImgErrored] = React.useState(false);
   React.useEffect(() => { setImgErrored(false); }, [value]);
+
+  // Cleanup on unmount: abort any in-flight upload to prevent memory leaks.
+  React.useEffect(() => {
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+    };
+  }, []);
 
   const aspectClass = compact
     ? "h-[120px] sm:h-[160px]"
@@ -69,22 +80,34 @@ export function ImageUpload({
       toast.error(err);
       return;
     }
+    // Prevent double-upload: if already uploading, ignore
+    if (uploading) return;
+
     setUploading(true);
     setProgress(0);
+    abortRef.current = new AbortController();
+
     try {
       // Single production pipeline: uploadToApi() → POST /api/upload.
       // Server handles auth, validation, storage path, and URL generation.
+      // uploadToApi includes automatic retry (3 attempts) + dedup.
       const result = await uploadToApi(file, "free", {
         onProgress: setProgress,
+        signal: abortRef.current.signal,
       });
 
       onChange(result.url);
       toast.success("Image uploaded.");
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.name === "AbortError") {
+        // User cancelled — don't show error toast
+        return;
+      }
       toast.error(e instanceof Error ? e.message : "Upload failed.");
     } finally {
       setUploading(false);
       setProgress(0);
+      abortRef.current = null;
     }
   };
 

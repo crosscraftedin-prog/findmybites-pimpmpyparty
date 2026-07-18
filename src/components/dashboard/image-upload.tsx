@@ -127,6 +127,17 @@ export function ImageUpload({
   // Reset the image-error flag whenever the URL changes (new upload / clear).
   React.useEffect(() => { setImgErrored(false); }, [value]);
 
+  // Cleanup on unmount: abort any in-flight upload to prevent memory leaks
+  // and orphaned XHR requests.
+  React.useEffect(() => {
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+    };
+  }, []);
+
   const uploadFile = async (file: File) => {
     setError(null);
     setRetryFile(null);
@@ -380,6 +391,16 @@ export function GalleryUpload({
   const abortRef = React.useRef<AbortController | null>(null);
 
   const atLimit = images.length >= maxImages;
+
+  // Cleanup on unmount: abort any in-flight upload to prevent memory leaks.
+  React.useEffect(() => {
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+    };
+  }, []);
 
   const handleFiles = async (files: FileList) => {
     if (atLimit) {
