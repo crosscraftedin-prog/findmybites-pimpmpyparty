@@ -1377,6 +1377,7 @@ export function MyListing({ vendor }: MyListingProps) {
                 selectedIds={vendorAttributeIds}
                 onChange={setVendorAttributeIds}
                 ecosystem={fullVendor?.ecosystem}
+                category={fullVendor?.category}
               />
             </div>
           </div>

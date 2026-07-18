@@ -6,35 +6,40 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 /**
- * Reusable attribute selector — a grouped multi-select chip panel.
+ * AttributeSelector — a grouped multi-select chip panel.
+ *
+ * V2 (category-specific):
+ *   When a `category` prop is provided, the selector fetches category-specific
+ *   filter groups from GET /api/filters/category?category=X and displays ONLY
+ *   the attributes relevant to that category. This uses the CategoryFilter
+ *   table (the DB-driven category-to-filter-group mapping).
+ *
+ *   When no `category` is provided, falls back to the global attribute list
+ *   via GET /api/attributes?grouped=true&ecosystem=X (backwards compatible).
  *
  * Used by:
- *   - Vendor dashboard (MyListing) — select vendor specialties
- *   - Product wizard — select product attributes (badges)
- *
- * Fetches attributes from GET /api/attributes?grouped=true&ecosystem=X
- * and displays them grouped by Dietary / Service / Product Features / Business.
+ *   - Vendor dashboard (MyListing) — select vendor specialties (category-specific)
+ *   - Product wizard — select product attributes (global fallback)
  *
  * Props:
- *   - selectedIds: string[] — currently selected attribute IDs
- *   - onChange: React state setter (accepts value OR updater fn).
- *       Because React state setters accept functional updaters, we pass
- *       `(prev) => next` so toggling always operates on the LATEST state —
- *       eliminating stale-closure / stale-ref bugs that caused chips to
- *       behave as single-select under rapid interaction.
+ *   - selectedIds: string[] — currently selected attribute/filter-value IDs
+ *   - onChange: React state setter (accepts value OR updater fn)
  *   - ecosystem: "FINDMYBITES" | "PIMPMYPARTY" — filters which attributes show
- *   - groups?: string[] — restrict to specific groups (e.g. ["dietary","product_feature"])
+ *   - category?: string — when provided, shows ONLY category-specific filters
+ *   - groups?: string[] — restrict to specific groups (global mode only)
  *   - maxSelectable?: number — optional limit
  */
 
+// ── Types ──────────────────────────────────────────────────────────────────
+
 interface AttributeItem {
   id: string;
-  slug: string;
+  slug?: string;
   name: string;
   group: string;
-  icon: string | null;
-  color: string | null;
-  description: string | null;
+  icon?: string | null;
+  color?: string | null;
+  description?: string | null;
 }
 
 interface AttributeGroup {
@@ -42,6 +47,8 @@ interface AttributeGroup {
   groupLabel: string;
   attributes: AttributeItem[];
 }
+
+// ── Constants (used only in global fallback mode) ──────────────────────────
 
 const GROUP_LABELS: Record<string, string> = {
   dietary: "Dietary",
@@ -68,23 +75,21 @@ const COLOR_CLASSES: Record<string, string> = {
   indigo: "bg-indigo-100 text-indigo-700 border-indigo-200",
 };
 
+// ── Component ──────────────────────────────────────────────────────────────
+
 export function AttributeSelector({
   selectedIds,
   onChange,
   ecosystem,
+  category,
   groups,
   maxSelectable,
 }: {
   selectedIds: string[];
-  /**
-   * Accepts a React state setter (Dispatch<SetStateAction<string[]>>).
-   * We call it with a functional updater `(prev) => next` so that toggling
-   * always reads the most recent state — even when multiple toggles fire
-   * before a re-render commits. This is the canonical fix for the
-   * "selecting one chip deselects another" stale-state bug.
-   */
   onChange: React.Dispatch<React.SetStateAction<string[]>>;
   ecosystem?: string;
+  /** When provided, fetches category-specific filters from /api/filters/category */
+  category?: string;
   groups?: string[];
   maxSelectable?: number;
 }) {
@@ -92,32 +97,56 @@ export function AttributeSelector({
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
 
-  // Derive the selected set directly from props on every render — no ref,
-  // no effect, no stale closure. For typical attribute counts (< 100) this
-  // Set allocation is negligible and guarantees the UI never disagrees with
-  // the actual selected array.
   const selectedSet = React.useMemo(() => new Set(selectedIds), [selectedIds]);
 
-  // Fetch attributes
+  // ── Fetch attributes ──
+  // When `category` is provided, fetch category-specific filter groups.
+  // Otherwise, fall back to the global attribute list (backwards compatible).
   React.useEffect(() => {
     let cancelled = false;
-    const params = new URLSearchParams({ grouped: "true" });
-    if (ecosystem) params.set("ecosystem", ecosystem);
 
     (async () => {
       try {
-        const res = await fetch(`/api/attributes?${params.toString()}`);
-        if (!res.ok) throw new Error("Failed to load attributes");
-        const data = await res.json();
-        if (cancelled) return;
+        if (category) {
+          // ── Category-specific mode: fetch from /api/filters/category ──
+          // This uses the CategoryFilter table (DB-driven category-to-group mapping)
+          const res = await fetch(
+            `/api/filters/category?category=${encodeURIComponent(category)}`
+          );
+          if (!res.ok) throw new Error("Failed to load category filters");
+          const data = await res.json();
+          if (cancelled) return;
 
-        let groups_data: AttributeGroup[] = data.groups ?? [];
-        // Filter to specific groups if requested
-        if (groups && groups.length > 0) {
-          groups_data = groups_data.filter((g) => groups.includes(g.group));
+          // Transform the filter-groups response into the AttributeGroup shape
+          const groups: AttributeGroup[] = (Array.isArray(data) ? data : []).map(
+            (g: any) => ({
+              group: g.id,
+              groupLabel: g.name,
+              attributes: (g.values || []).map((v: any) => ({
+                id: v.id,
+                name: v.value,
+                group: g.id,
+              })),
+            })
+          );
+          setGroupedAttrs(groups);
+        } else {
+          // ── Global fallback mode: fetch from /api/attributes ──
+          const params = new URLSearchParams({ grouped: "true" });
+          if (ecosystem) params.set("ecosystem", ecosystem);
+
+          const res = await fetch(`/api/attributes?${params.toString()}`);
+          if (!res.ok) throw new Error("Failed to load attributes");
+          const data = await res.json();
+          if (cancelled) return;
+
+          let groupsData: AttributeGroup[] = data.groups ?? [];
+          if (groups && groups.length > 0) {
+            groupsData = groupsData.filter((g) => groups.includes(g.group));
+          }
+          setGroupedAttrs(groupsData);
         }
-        setGroupedAttrs(groups_data);
-      } catch (e) {
+      } catch {
         if (!cancelled) toast.error("Failed to load attributes");
       } finally {
         if (!cancelled) setLoading(false);
@@ -127,22 +156,18 @@ export function AttributeSelector({
     return () => {
       cancelled = true;
     };
-  }, [ecosystem, groups?.join(",")]);
+  }, [category, ecosystem, groups?.join(",")]);
 
-  // Toggle a single attribute. Uses a functional updater so the parent's
-  // state setter applies the change to the LATEST committed state — not a
-  // potentially stale snapshot captured in this render's closure.
+  // Toggle a single attribute
   const toggle = React.useCallback(
     (id: string) => {
       onChange((prev) => {
         if (prev.includes(id)) {
-          // Already selected → remove it
           return prev.filter((x) => x !== id);
         }
-        // Not yet selected → add it (respecting maxSelectable)
         if (maxSelectable && prev.length >= maxSelectable) {
           toast.error(`Maximum ${maxSelectable} attributes allowed.`);
-          return prev; // no change
+          return prev;
         }
         return [...prev, id];
       });
@@ -166,7 +191,7 @@ export function AttributeSelector({
         (a) =>
           search === "" ||
           a.name.toLowerCase().includes(search.toLowerCase()) ||
-          a.slug.includes(search.toLowerCase())
+          (a.slug || "").includes(search.toLowerCase())
       ),
     }))
     .filter((g) => g.attributes.length > 0);
@@ -195,7 +220,9 @@ export function AttributeSelector({
       <div className="max-h-96 space-y-4 overflow-y-auto pr-1">
         {filteredGroups.length === 0 && (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            No attributes found.
+            {category
+              ? "No attributes configured for this category yet."
+              : "No attributes found."}
           </p>
         )}
         {filteredGroups.map((g) => (
