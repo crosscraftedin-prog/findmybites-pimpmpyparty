@@ -116,6 +116,12 @@ interface Vendor {
   rating: number;
   reviewCount: number;
   completedBookings: number;
+  // V7: Authoritative plan info from VendorSubscription (joined in API response)
+  // Never infer plan from featured/verified — those are marketplace ranking flags.
+  planTier?: "free" | "pro" | "business";
+  planName?: string | null;
+  subscriptionStatus?: string | null;
+  subscriptionPlanExpiresAt?: string | null;
 }
 
 interface ActivityItem {
@@ -228,13 +234,18 @@ function formatINR(n: number): string {
   return `₹${n}`;
 }
 
-/** Derive a subscription plan from vendor flags (no schema change needed). */
-function getVendorPlan(v: Vendor): "free" | "pro" | "business" {
-  if (v.featured) return "business";
-  if (v.verified) return "pro";
-  return "free";
-}
-
+/**
+ * V7: Plan label from VendorSubscription.planTier (authoritative).
+ *
+ * Previously this was inferred from Vendor.featured / Vendor.verified booleans,
+ * which was incorrect because activateSubscription() sets featured=true for
+ * BOTH "vendor-pro" AND "business". Now the plan tier comes from the
+ * VendorSubscription table via the API join.
+ *
+ * `vendor.planTier` is populated by:
+ *   - /api/admin/vendors (batch-joined)
+ *   - /api/vendor/me (per-vendor)
+ */
 function planLabel(plan: "free" | "pro" | "business", ecosystem: string): string {
   if (plan === "business") return "Business";
   if (plan === "pro") return ecosystem === "FINDMYBITES" ? "Baker Pro" : "Party Pro";
@@ -370,7 +381,8 @@ function ReviewPanel({
   const isFood = vendor.ecosystem === "FINDMYBITES";
   const tint = isFood ? CORAL_TINT : PURPLE_TINT;
   const dark = isFood ? CORAL_DARK : PURPLE_DARK;
-  const plan = getVendorPlan(vendor);
+  // V7: Read authoritative plan tier from VendorSubscription (joined in API)
+  const plan = vendor.planTier ?? "free";
 
   return (
     <>
@@ -650,11 +662,12 @@ export function AdminPanelPage({
       }
 
       // Compute KPIs from stats + vendors
+      // V7: Use VendorSubscription.planTier (authoritative) — NOT featured/verified
       const totalVendors = stats.totals?.vendors ?? vendors.length;
       const activeListings = stats.totals?.approved ?? vendors.filter(v => v.approved).length;
-      const paidSubscribers = vendors.filter((v) => v.featured || v.verified).length;
-      const businessCount = vendors.filter((v) => v.featured).length;
-      const proCount = vendors.filter((v) => !v.featured && v.verified).length;
+      const paidSubscribers = vendors.filter((v) => v.planTier === "pro" || v.planTier === "business").length;
+      const businessCount = vendors.filter((v) => v.planTier === "business").length;
+      const proCount = vendors.filter((v) => v.planTier === "pro").length;
       // MRR is fetched from /api/admin/billing/analytics (DB-driven, not hardcoded)
       const mrr = 0; // Placeholder — actual MRR is displayed in the Billing Center tab
 
@@ -1297,7 +1310,8 @@ export function AdminPanelPage({
                   <tbody>
                     {filteredVendors.slice(0, 50).map((v) => {
                       const isFood = v.ecosystem === "FINDMYBITES";
-                      const plan = getVendorPlan(v);
+                      // V7: Read authoritative plan tier from VendorSubscription
+                      const plan = v.planTier ?? "free";
                       return (
                         <tr
                           key={v.id}

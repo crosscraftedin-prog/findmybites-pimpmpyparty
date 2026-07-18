@@ -105,6 +105,11 @@ interface Vendor {
   completedBookings: number;
   ownership_status?: string | null;
   owner_user_id?: string | null;
+  // V7: Authoritative plan info from VendorSubscription (joined in API response)
+  planTier?: "free" | "pro" | "business";
+  planName?: string | null;
+  subscriptionStatus?: string | null;
+  subscriptionPlanExpiresAt?: string | null;
 }
 
 interface ActivityItem {
@@ -209,12 +214,10 @@ function formatINR(n: number): string {
   return `₹${n}`;
 }
 
-function getVendorPlan(v: Vendor): "free" | "pro" | "business" {
-  if (v.featured) return "business";
-  if (v.verified) return "pro";
-  return "free";
-}
-
+/**
+ * V7: DELETED getVendorPlan() — plan is now read from VendorSubscription.planTier
+ * (joined in the API response). Never infer from featured/verified.
+ */
 function planLabel(plan: "free" | "pro" | "business", ecosystem: string): string {
   if (plan === "business") return "Business";
   if (plan === "pro") return ecosystem === "FINDMYBITES" ? "Baker Pro" : "Party Pro";
@@ -347,7 +350,8 @@ function ReviewPanel({
   const isFood = vendor.ecosystem === "FINDMYBITES";
   const tint = isFood ? CORAL_TINT : PURPLE_TINT;
   const dark = isFood ? CORAL_DARK : PURPLE_DARK;
-  const plan = getVendorPlan(vendor);
+  // V7: Read authoritative plan tier from VendorSubscription (joined in API)
+  const plan = vendor.planTier ?? "free";
 
   return (
     <>
@@ -911,10 +915,10 @@ export function AdminPanel() {
 
       // Update KPIs that need vendor data
       const paidSubscribers = vendors.filter(
-        (v) => v.featured || v.verified
+        (v) => v.planTier === "pro" || v.planTier === "business"
       ).length;
-      const businessCount = vendors.filter((v) => v.featured).length;
-      const proCount = vendors.filter((v) => !v.featured && v.verified).length;
+      const businessCount = vendors.filter((v) => v.planTier === "business").length;
+      const proCount = vendors.filter((v) => v.planTier === "pro").length;
       const mrr = businessCount * PLAN_PRICE_BUSINESS + proCount * PLAN_PRICE_PRO;
 
       const now = new Date();
@@ -1535,7 +1539,8 @@ export function AdminPanel() {
                       onClick={() => {
                         const headers = ["Name", "Brand", "Category", "City", "Country", "WhatsApp", "Email", "Plan", "Status", "Rating", "Reviews", "Created"];
                         const rows = filteredVendors.map((v) => {
-                          const p = getVendorPlan(v);
+                          // V7: Read authoritative plan tier from VendorSubscription
+                          const p = v.planTier ?? "free";
                           const s = v.approved ? "Active" : v.status === "flagged" ? "Flagged" : "Pending";
                           return [
                             `"${v.name}"`,
@@ -1618,7 +1623,8 @@ export function AdminPanel() {
                           .slice(vendorPage * VENDORS_PER_PAGE, (vendorPage + 1) * VENDORS_PER_PAGE)
                           .map((v) => {
                           const isFood = v.ecosystem === "FINDMYBITES";
-                          const plan = getVendorPlan(v);
+                          // V7: Read authoritative plan tier from VendorSubscription
+                          const plan = v.planTier ?? "free";
                           return (
                             <tr
                               key={v.id}

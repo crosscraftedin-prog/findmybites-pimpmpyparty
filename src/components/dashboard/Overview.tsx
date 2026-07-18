@@ -88,7 +88,8 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
   // Stats (using real data where available, placeholder for views/searches)
   const enquiryCount = bookings.length;
   const newEnquiries = bookings.filter((b) => b.status === "pending").length;
-  const isFreePlan = !vendor.featured;
+  // V7: Use VendorSubscription.planTier (authoritative) — NOT featured/verified
+  const isFreePlan = (vendor.planTier ?? "free") === "free";
 
   return (
     <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
@@ -325,7 +326,7 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
         onClose={() => setShowUpgrade(false)}
         vendorCountry={vendor.countryCode || "US"}
         vendorBrand={vendor.ecosystem === "FINDMYBITES" ? "food" : "party"}
-        currentPlan={vendor.featured ? "pro" : "free"}
+        currentPlan={vendor.planTier ?? "free"}
         vendorId={vendor.id}
         vendorEmail={vendor.userEmail || undefined}
         vendorName={vendor.name}

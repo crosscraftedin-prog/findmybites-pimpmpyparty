@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveVendorPlansBatch as resolveVendorPlansBatchForVendors } from "@/lib/billing/plan-resolver";
 import type { Vendor, Review, Booking } from "@/lib/types";
 
 /**
@@ -22,7 +23,12 @@ import type { Vendor, Review, Booking } from "@/lib/types";
  *   5. If not authenticated → returns 401 (not 500).
  */
 
-function transformVendor(v: any): Vendor {
+function transformVendor(v: any, planInfo?: {
+  planTier: "free" | "pro" | "business";
+  planName: string | null;
+  subscriptionStatus: string | null;
+  planExpiresAt: Date | null;
+}): Vendor {
   return {
     id: v.id,
     name: v.name,
@@ -98,6 +104,13 @@ function transformVendor(v: any): Vendor {
     linkedin: v.linkedin ?? null,
     telegram: v.telegram ?? null,
     createdAt: v.createdAt instanceof Date ? v.createdAt.toISOString() : String(v.createdAt),
+    // V7: Authoritative plan info from VendorSubscription (NOT inferred from featured/verified)
+    planTier: planInfo?.planTier ?? "free",
+    planName: planInfo?.planName ?? null,
+    subscriptionStatus: planInfo?.subscriptionStatus ?? null,
+    subscriptionPlanExpiresAt: planInfo?.planExpiresAt
+      ? planInfo.planExpiresAt.toISOString()
+      : null,
   };
 }
 
@@ -285,7 +298,9 @@ export async function GET(_req: NextRequest) {
         : 0;
 
     // ── 5. Transform + return ──
-    const transformedVendors = vendors.map(transformVendor);
+    // V7: Resolve plan tiers from VendorSubscription (NOT inferred from featured/verified)
+    const planMap = await resolveVendorPlansBatchForVendors(vendors.map((v: any) => v.id));
+    const transformedVendors = vendors.map((v: any) => transformVendor(v, planMap.get(v.id)));
     const transformedBookings = bookings.map((b: any) => {
       const t = transformBooking(b);
       t.vendorName = vendors.find((v) => v.id === b.vendorId)?.name ?? "—";

@@ -3,9 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma, type Vendor as DbVendor } from "@prisma/client";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
+import { resolveVendorPlansBatch } from "@/lib/billing/plan-resolver";
 import type { Vendor as ApiVendor } from "@/lib/types";
 
-function transformVendor(v: DbVendor): ApiVendor {
+function transformVendor(v: DbVendor, planInfo?: {
+  planTier: "free" | "pro" | "business";
+  planName: string | null;
+  subscriptionStatus: string | null;
+  planExpiresAt: Date | null;
+}): ApiVendor {
   return {
     id: v.id,
     name: v.name,
@@ -52,6 +58,13 @@ function transformVendor(v: DbVendor): ApiVendor {
     userEmail: v.userEmail,
     ownership_status: v.ownership_status,
     createdAt: v.createdAt.toISOString(),
+    // V7: Authoritative plan info from VendorSubscription (NOT inferred from featured/verified)
+    planTier: planInfo?.planTier ?? "free",
+    planName: planInfo?.planName ?? null,
+    subscriptionStatus: planInfo?.subscriptionStatus ?? null,
+    subscriptionPlanExpiresAt: planInfo?.planExpiresAt
+      ? planInfo.planExpiresAt.toISOString()
+      : null,
   };
 }
 
@@ -106,8 +119,11 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    // V7: Batch-resolve plan tiers from VendorSubscription (NOT inferred from featured/verified)
+    const planMap = await resolveVendorPlansBatch(rows.map((r) => r.id));
+
     return NextResponse.json({
-      vendors: rows.map(transformVendor),
+      vendors: rows.map((r) => transformVendor(r, planMap.get(r.id))),
       total,
       page,
       pageSize,

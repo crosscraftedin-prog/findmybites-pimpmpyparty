@@ -86,6 +86,14 @@ export interface Vendor {
   adminCreated?: boolean;
   planExpiresAt?: string | null;
   createdAt: string;
+  // ── V7: Authoritative plan info from VendorSubscription ──
+  // These fields are populated by joining the active VendorSubscription row.
+  // NEVER infer the plan from featured/verified — those are marketplace ranking
+  // flags, not billing state. Use planTier as the single source of truth.
+  planTier?: "free" | "pro" | "business";
+  planName?: string | null;          // "vendor-pro" | "business" | null
+  subscriptionStatus?: string | null; // "active" | "expired" | "cancelled" | "past_due" | "pending" | null
+  subscriptionPlanExpiresAt?: string | null;
 }
 
 /** Vendor with computed distance from the user (Near Me results). */

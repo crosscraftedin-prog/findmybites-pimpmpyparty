@@ -131,13 +131,25 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-function getVendorPlan(v: { featured: boolean; verified: boolean; ecosystem: string }): {
+/**
+ * V7: Resolve plan from VendorSubscription.planTier (authoritative).
+ *
+ * Previously this inferred the plan from Vendor.featured / Vendor.verified
+ * booleans, which was incorrect because featured=true for BOTH vendor-pro
+ * AND business. Now `vendor.planTier` is joined from VendorSubscription
+ * in /api/vendor/me and /api/admin/vendors.
+ */
+function getVendorPlan(v: {
+  planTier?: "free" | "pro" | "business";
+  ecosystem: string;
+}): {
   plan: "free" | "pro" | "business";
   label: string;
 } {
-  if (v.featured)
+  const tier = v.planTier ?? "free";
+  if (tier === "business")
     return { plan: "business", label: "Business" };
-  if (v.verified)
+  if (tier === "pro")
     return {
       plan: "pro",
       label: v.ecosystem === "FINDMYBITES" ? "Baker Pro" : "Party Pro",
