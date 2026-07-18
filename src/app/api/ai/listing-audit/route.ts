@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardAiRoute } from "@/lib/billing/guards";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardAiRoute } from "@/lib/billing/guards";
 import { db } from "@/lib/db";
 import { getZAI } from "@/lib/zai-server";
 import { parseJsonArray } from "@/lib/format";

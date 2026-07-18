@@ -32,6 +32,7 @@ import {
   LifeBuoy,
   Briefcase,
   Store,
+  DollarSign,
 } from "lucide-react";
 import {
   BarChart,
@@ -59,6 +60,7 @@ const AdminLeadCenter = dynamic(() => import("@/components/admin/admin-lead-cent
 const AdminVendorInvitations = dynamic(() => import("@/components/admin/admin-vendor-invitations").then(m => ({ default: m.AdminVendorInvitations })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminVendorOnboarding = dynamic(() => import("@/components/admin/admin-vendor-onboarding").then(m => ({ default: m.AdminVendorOnboarding })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminSubscriptions = dynamic(() => import("@/components/admin/admin-subscriptions").then(m => ({ default: m.AdminSubscriptions })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
+const AdminBillingDashboard = dynamic(() => import("@/components/admin/admin-billing-dashboard").then(m => ({ default: m.AdminBillingDashboard })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminInventory = dynamic(() => import("@/components/admin/admin-inventory").then(m => ({ default: m.AdminInventory })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminMarketing = dynamic(() => import("@/components/admin/admin-marketing").then(m => ({ default: m.AdminMarketing })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
 const AdminBusinessTypes = dynamic(() => import("@/components/admin/admin-business-types").then(m => ({ default: m.AdminBusinessTypes })), { loading: () => <div className="p-8 text-center text-muted-foreground">Loading…</div> });
@@ -87,9 +89,6 @@ const FLAG_TEXT = "#791F1F";
 const RED_DELTA = "#A32D2D";
 const AMBER = "#D97706";
 
-// Plan pricing (used to estimate MRR — display only)
-const PLAN_PRICE_BUSINESS = 499; // ₹/mo
-const PLAN_PRICE_PRO = 299; // ₹/mo
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Vendor {
@@ -196,6 +195,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: "filters", label: "Filters", icon: Filter },
       { id: "templates", label: "Templates", icon: LayoutTemplate },
       { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
+      { id: "billing", label: "Billing Center", icon: DollarSign },
       { id: "messages", label: "Messages", icon: Mail },
       { id: "settings", label: "Settings", icon: Settings },
     ],
@@ -655,7 +655,8 @@ export function AdminPanelPage({
       const paidSubscribers = vendors.filter((v) => v.featured || v.verified).length;
       const businessCount = vendors.filter((v) => v.featured).length;
       const proCount = vendors.filter((v) => !v.featured && v.verified).length;
-      const mrr = businessCount * PLAN_PRICE_BUSINESS + proCount * PLAN_PRICE_PRO;
+      // MRR is fetched from /api/admin/billing/analytics (DB-driven, not hardcoded)
+      const mrr = 0; // Placeholder — actual MRR is displayed in the Billing Center tab
 
       const now = new Date();
       const newThisMonth = vendors.filter((v) => {
@@ -1011,6 +1012,8 @@ export function AdminPanelPage({
             <AdminBusinesses />
           ) : activeNav === "subscriptions" ? (
             <AdminSubscriptions />
+          ) : activeNav === "billing" ? (
+            <AdminBillingDashboard />
           ) : activeNav === "seo-pages" ? (
             <AdminSeoPages />
           ) : activeNav === "pricing" ? (

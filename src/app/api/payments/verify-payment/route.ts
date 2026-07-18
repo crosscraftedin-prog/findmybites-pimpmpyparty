@@ -3,6 +3,8 @@ import crypto from "crypto";
 import { db } from "@/lib/db";
 import { activateSubscription, type PlanName, type BillingCycle } from "@/lib/subscription/subscription-service";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getPricing } from "@/lib/billing";
+import { getRazorpay } from "@/lib/razorpay";
 
 /**
  * POST /api/payments/verify-payment
@@ -10,19 +12,19 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * Verifies the Razorpay payment signature (HMAC-SHA256) and activates the
  * vendor's subscription via the provider-agnostic SubscriptionService.
  *
- * Security:
+ * Security (V7 hardened):
  *   - NEVER trusts frontend vendorId — resolves from Supabase session
- *   - Signature is ALWAYS verified server-side
+ *   - NEVER trusts frontend amount/currency — resolves from PricingPlan DB
+ *   - Signature is ALWAYS verified server-side (timing-safe comparison)
+ *   - V7: Fetches the payment from Razorpay API to confirm status === "captured"
  *   - Idempotent: duplicate paymentId returns the existing subscription
  *   - Plan activation ONLY happens after successful signature verification
- *   - Vendor ownership verified: the authenticated user MUST own the vendor
  *
- * Body: { razorpay_order_id, razorpay_payment_id, razorpay_signature, planName, billingCycle?, amount, currency? }
- * Note: vendorId is NO LONGER accepted from the body — resolved from session.
+ * Body: { razorpay_order_id, razorpay_payment_id, razorpay_signature, planName, billingCycle? }
  */
 export async function POST(req: NextRequest) {
   try {
-    // ── 0. Authenticate the user and resolve vendor ownership ──
+    // ── 0. Authenticate ──
     const supabase = await createSupabaseServerClient();
     let userId: string | null = null;
     try {
@@ -39,16 +41,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    // Resolve vendor from session — NEVER trust frontend vendorId
+    // ── 1. Resolve vendor from session ──
     const vendor = await db.vendor.findFirst({
       where: { owner_user_id: userId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, countryCode: true },
     }).catch(() => null);
     if (!vendor) {
       return NextResponse.json({ error: "No vendor listing found for this account" }, { status: 404 });
     }
     const vendorId = vendor.id;
 
+    // ── 2. Parse body (NO amount/currency accepted) ──
     const body = await req.json();
     const {
       razorpay_order_id,
@@ -56,69 +59,79 @@ export async function POST(req: NextRequest) {
       razorpay_signature,
       planName,
       billingCycle = "monthly",
-      amount,
-      currency = "INR",
     } = body as {
       razorpay_order_id: string;
       razorpay_payment_id: string;
       razorpay_signature: string;
       planName: string;
       billingCycle?: string;
-      amount?: number;
-      currency?: string;
     };
 
-    // ── 1. Validate required fields ──
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return NextResponse.json({ error: "Missing payment fields" }, { status: 400 });
     }
     if (planName !== "vendor-pro" && planName !== "business") {
-      return NextResponse.json({ error: `Invalid plan: '${planName}'. Choose 'vendor-pro' or 'business'.` }, { status: 400 });
+      return NextResponse.json({ error: `Invalid plan: '${planName}'` }, { status: 400 });
     }
 
-    // ── 2. Verify Razorpay is configured ──
+    // ── 3. Verify signature (V7: timing-safe comparison) ──
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!keySecret) {
-      console.error("[verify-payment] RAZORPAY_KEY_SECRET not configured");
       return NextResponse.json({ error: "Razorpay not configured" }, { status: 503 });
     }
-
-    // ── 3. Verify the signature (NEVER trust the frontend) ──
-    // signature = HMAC_SHA256(order_id|payment_id, key_secret)
-    const hmac = crypto
+    const expectedSig = crypto
       .createHmac("sha256", keySecret)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest("hex");
 
-    if (hmac !== razorpay_signature) {
-      console.error("[verify-payment] Signature mismatch for order:", razorpay_order_id);
-      return NextResponse.json(
-        { error: "Payment verification failed — signature mismatch" },
-        { status: 400 }
-      );
+    if (expectedSig.length !== razorpay_signature.length ||
+        !crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(razorpay_signature))) {
+      return NextResponse.json({ error: "Signature mismatch" }, { status: 400 });
     }
 
-    console.log("[verify-payment] Signature valid for vendor:", vendorId, "plan:", planName);
+    // ── 3b. V7: Fetch the payment from Razorpay to confirm it's actually captured ──
+    // The signature only proves the response came from Razorpay — it doesn't
+    // prove the payment succeeded. A "failed" payment still has a valid signature.
+    const rzp = getRazorpay();
+    if (rzp) {
+      try {
+        const payment = await rzp.payments.fetch(razorpay_payment_id);
+        if (payment && payment.status !== "captured") {
+          return NextResponse.json({
+            error: `Payment not captured (status: ${payment.status}). If money was deducted, it will be refunded.`,
+          }, { status: 400 });
+        }
+      } catch (err: any) {
+        // Non-fatal: if the fetch fails (network issue), rely on signature verification
+        console.warn("[verify-payment] Could not fetch payment status from Razorpay:", err.message);
+      }
+    }
 
-    // ── 4. Activate the subscription (idempotent — prevents duplicate processing) ──
+    // ── 4. Resolve pricing from DB (NEVER trust frontend) ──
+    const cycle: BillingCycle = billingCycle === "yearly" ? "yearly" : "monthly";
+    const plan = planName === "business" ? "business" : "pro";
+    const countryCode = vendor.countryCode || "US";
+    const pricing = await getPricing(countryCode, plan, cycle);
+
+    // ── 5. Activate subscription (transaction-safe, idempotent) ──
     const result = await activateSubscription({
       vendorId,
       planName: planName as PlanName,
-      billingCycle: (billingCycle === "yearly" ? "yearly" : "monthly") as BillingCycle,
+      billingCycle: cycle,
       orderId: razorpay_order_id,
       paymentId: razorpay_payment_id,
       signature: razorpay_signature,
-      amount: amount ?? 0,
-      currency,
+      amount: pricing.amountMinor,
+      currency: pricing.currency,
       provider: "razorpay_orders",
     });
 
-    const planLabel = planName === "vendor-pro" ? "Baker Pro" : "Business";
+    const planLabel = planName === "vendor-pro" ? "Pro" : "Business";
     const actionLabel = result.paymentType === "renewal" ? "renewed" : "activated";
 
     return NextResponse.json({
       success: true,
-      message: `✅ Payment successful! Your ${planLabel} plan has been ${actionLabel}.`,
+      message: `Payment successful! Your ${planLabel} plan has been ${actionLabel}.`,
       plan: planName,
       paymentId: razorpay_payment_id,
       orderId: razorpay_order_id,
@@ -129,9 +142,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("[verify-payment] Error:", error.message);
-    return NextResponse.json(
-      { error: `Verification failed: ${error.message}` },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: `Verification failed: ${error.message}` }, { status: 500 });
   }
 }

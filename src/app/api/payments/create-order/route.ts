@@ -2,36 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { getPricing, type BillingCycle } from "@/lib/billing";
 
 /**
  * POST /api/payments/create-order
- * Creates a Razorpay order using plain fetch (no SDK import issues).
+ *
+ * Creates a Razorpay Order (one-time payment, legacy flow).
+ *
+ * This route is used when:
+ *   - Razorpay Plan IDs are NOT configured for the vendor's country, OR
+ *   - The vendor's country doesn't support AutoPay yet
+ *
+ * For auto-renewal subscriptions, use /api/payments/create-subscription instead.
  *
  * Security: vendorId is resolved ONLY from the authenticated Supabase session.
  * The frontend cannot specify vendorId — if no authenticated vendor exists,
  * the route returns 401.
  *
- * Body: { planName: "vendor-pro" | "business", amount?, currency? }
+ * Body: { planName: "vendor-pro" | "business", billingCycle: "monthly" | "yearly" }
  */
-const PLANS: Record<string, { amount: number; name: string }> = {
-  "vendor-pro": { amount: 29900, name: "Vendor Pro" },   // ₹299
-  "business": { amount: 49900, name: "Business" },       // ₹499
-};
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { planName } = body as { planName: string };
+    const { planName, billingCycle = "monthly" } = body as { planName: string; billingCycle?: string };
 
-    if (!planName || !PLANS[planName]) {
+    if (planName !== "vendor-pro" && planName !== "business") {
       return NextResponse.json({ error: `Invalid plan: '${planName}'. Choose 'vendor-pro' or 'business'.` }, { status: 400 });
     }
-
-    // SECURITY: Always use the server-defined plan amount — NEVER trust client-supplied amount.
-    // Previously: const amount = bodyAmount && bodyAmount >= 100 ? bodyAmount : PLANS[planName].amount;
-    // This allowed vendors to pay ₹1 for a ₹499 plan.
-    const amount = PLANS[planName].amount;
-    if (amount < 100) return NextResponse.json({ error: "Amount too small" }, { status: 400 });
 
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -58,11 +56,22 @@ export async function POST(req: NextRequest) {
 
     const vendor = await db.vendor.findFirst({
       where: { OR: [{ owner_user_id: userId }, ...(userEmail ? [{ userEmail }] : [])] },
-      select: { id: true, name: true, slug: true },
+      select: { id: true, name: true, slug: true, countryCode: true },
     }).catch(() => null);
     if (!vendor) {
       return NextResponse.json({ error: "No vendor listing found for this account" }, { status: 404 });
     }
+
+    // ── Determine pricing from DB (billing module) based on vendor's country ──
+    const countryCode = vendor.countryCode || "US";
+    const cycle: BillingCycle = billingCycle === "yearly" ? "yearly" : "monthly";
+    const plan = planName === "business" ? "business" : "pro";
+    const pricing = await getPricing(countryCode, plan, cycle);
+
+    // SECURITY: Always use the server-defined plan amount — NEVER trust client-supplied amount.
+    const amount = pricing.amountMinor;
+    const currency = pricing.currency;
+    if (amount < 100) return NextResponse.json({ error: "Amount too small" }, { status: 400 });
 
     const vendorName = vendor.name;
     const actualVendorId = vendor.id;
@@ -75,9 +84,9 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": authHeader },
       body: JSON.stringify({
-        amount, currency: "INR",
+        amount, currency,
         receipt: `V${Date.now().toString().slice(-8)}`,
-        notes: { vendorId: actualVendorId, planName, userEmail: actualEmail, platform: "FindMyBites" },
+        notes: { vendorId: actualVendorId, planName, billingCycle: cycle, countryCode, userEmail: actualEmail, platform: "FindMyBites" },
       }),
     });
 

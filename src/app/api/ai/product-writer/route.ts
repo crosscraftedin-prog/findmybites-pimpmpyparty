@@ -1,3 +1,4 @@
+import { guardAiRoute } from "@/lib/billing/guards";
 /**
  * POST /api/ai/product-writer
  *

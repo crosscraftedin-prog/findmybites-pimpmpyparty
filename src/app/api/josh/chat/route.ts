@@ -5,6 +5,7 @@ import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
 import { logger } from "@/lib/logger";
 import { JOSH_SYSTEM_PROMPT_V4 } from "@/lib/josh-system-prompt-v4";
 import { parseJsonArray } from "@/lib/format";
+import { CURRENCY_SYMBOLS } from "@/lib/constants";
 import {
   DEFAULT_STATE,
   extractFromMessage,
@@ -118,7 +119,7 @@ async function buildStorefrontContext(vendorId: string): Promise<string> {
     });
     if (!storeVendor) return "";
 
-    const symbol = storeVendor.currency === "INR" ? "₹" : storeVendor.currency === "USD" ? "$" : storeVendor.currency === "GBP" ? "£" : storeVendor.currency === "AED" ? "AED" : storeVendor.currency + " ";
+    const symbol = CURRENCY_SYMBOLS[storeVendor.currency] || storeVendor.currency + " ";
     const CURRENCY_SYMBOL = symbol;
 
     // ── Build comprehensive vendor context ──

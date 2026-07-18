@@ -31,6 +31,16 @@ interface SubscriptionModalProps {
     plan: "free" | "pro" | "business",
     billing: "monthly" | "yearly"
   ) => void;
+  /**
+   * V7: Called after a successful payment (Orders flow) or when the subscription
+   * is confirmed active (AutoPay flow). The parent should invalidate all
+   * React Query caches (vendor data, subscription, billing history, analytics)
+   * so the dashboard updates immediately without a manual browser refresh.
+   */
+  onPaymentSuccess?: (
+    plan: "free" | "pro" | "business",
+    billing: "monthly" | "yearly"
+  ) => void;
 }
 
 // ─── Pricing Config (hardcoded fallback — DB overrides via /api/pricing) ──
@@ -45,13 +55,13 @@ export const PRICING_BY_COUNTRY: Record<
     note?: string;
   }
 > = {
-  IN: { symbol: "₹", pro: { monthly: 299, yearly: 2871 }, business: { monthly: 499, yearly: 4790 }, label: "India — prices in ₹", note: "Prices in Indian Rupees. No transaction fees. Cancel anytime." },
+  IN: { symbol: "₹", pro: { monthly: 299, yearly: 2870 }, business: { monthly: 499, yearly: 4790 }, label: "India — prices in ₹", note: "Prices in Indian Rupees. No transaction fees. Cancel anytime." },
   US: { symbol: "$", pro: { monthly: 5, yearly: 48 }, business: { monthly: 9, yearly: 86 }, label: "United States — prices in $", note: "Prices in USD. No transaction fees. Cancel anytime." },
   GB: { symbol: "£", pro: { monthly: 4, yearly: 38 }, business: { monthly: 7, yearly: 67 }, label: "United Kingdom — prices in £", note: "Prices in GBP. No transaction fees. Cancel anytime." },
-  AU: { symbol: "A$", pro: { monthly: 8, yearly: 76 }, business: { monthly: 13, yearly: 124 }, label: "Australia — prices in A$", note: "Prices in AUD. No transaction fees. Cancel anytime." },
-  AE: { symbol: "AED", pro: { monthly: 18, yearly: 172 }, business: { monthly: 33, yearly: 316 }, label: "UAE — prices in AED", note: "Prices in AED. No transaction fees. Cancel anytime." },
+  AU: { symbol: "A$", pro: { monthly: 8, yearly: 77 }, business: { monthly: 13, yearly: 125 }, label: "Australia — prices in A$", note: "Prices in AUD. No transaction fees. Cancel anytime." },
+  AE: { symbol: "AED", pro: { monthly: 18, yearly: 173 }, business: { monthly: 33, yearly: 317 }, label: "UAE — prices in AED", note: "Prices in AED. No transaction fees. Cancel anytime." },
   SG: { symbol: "S$", pro: { monthly: 7, yearly: 67 }, business: { monthly: 12, yearly: 115 }, label: "Singapore — prices in S$", note: "Prices in SGD. No transaction fees. Cancel anytime." },
-  NG: { symbol: "₦", pro: { monthly: 2000, yearly: 19152 }, business: { monthly: 3500, yearly: 33516 }, label: "Nigeria — prices in ₦", note: "Prices in NGN. No transaction fees. Cancel anytime." },
+  NG: { symbol: "₦", pro: { monthly: 2000, yearly: 19200 }, business: { monthly: 3500, yearly: 33600 }, label: "Nigeria — prices in ₦", note: "Prices in NGN. No transaction fees. Cancel anytime." },
   CA: { symbol: "CA$", pro: { monthly: 7, yearly: 67 }, business: { monthly: 12, yearly: 115 }, label: "Canada" },
   ZA: { symbol: "R", pro: { monthly: 90, yearly: 864 }, business: { monthly: 160, yearly: 1536 }, label: "South Africa" },
 };
@@ -353,9 +363,11 @@ export function SubscriptionModal({
   vendorEmail,
   vendorName,
   onSelectPlan,
+  onPaymentSuccess,
 }: SubscriptionModalProps) {
   const [billing, setBilling] = React.useState<BillingCycle>("monthly");
   const [paying, setPaying] = React.useState(false);
+  const [polling, setPolling] = React.useState(false);
   const [paymentSuccess, setPaymentSuccess] = React.useState<string | null>(null);
   const [paymentError, setPaymentError] = React.useState<string | null>(null);
   const [dynamicPricing, setDynamicPricing] = React.useState<typeof PRICING_BY_COUNTRY | null>(null);
@@ -409,6 +421,65 @@ export function SubscriptionModal({
     };
   }, [isOpen]);
 
+  // ── V7: Poll subscription status until activated (or timeout) ──
+  // After the Razorpay Checkout handler fires, the webhook may take 1-10
+  // seconds to arrive. We poll /api/payments/subscription-status until the
+  // subscription is "active", then refresh the dashboard.
+  // NOTE: This useCallback MUST be before the `if (!isOpen) return null` early
+  // return to satisfy the React Hooks rules-of-hooks (no conditional hooks).
+  const pollSubscriptionStatus = React.useCallback(async (
+    providerSubscriptionId: string | null,
+    paymentId: string | null,
+    planKey: PlanKey,
+    billingCycle: BillingCycle,
+  ): Promise<boolean> => {
+    setPolling(true);
+    const maxAttempts = 30;     // 30 attempts × 2s = 60s timeout
+    const intervalMs = 2000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const params = new URLSearchParams();
+        if (providerSubscriptionId) params.set("providerSubscriptionId", providerSubscriptionId);
+        if (paymentId) params.set("paymentId", paymentId);
+
+        const res = await fetch(`/api/payments/subscription-status?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.isActivated) {
+            setPolling(false);
+            setPaymentSuccess(
+              `✅ ${planKey === "business" ? "Business" : "Pro"} plan activated! ` +
+              `Your dashboard is updating…`
+            );
+            // Trigger the parent's refresh callback
+            onPaymentSuccess?.(planKey, billingCycle);
+            // Close modal after a short delay
+            setTimeout(() => {
+              onSelectPlan(planKey, billingCycle);
+            }, 1800);
+            return true;
+          }
+        }
+      } catch {
+        // Network error — keep polling
+      }
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+
+    // Timeout — the webhook may still be processing. Show a helpful message.
+    setPolling(false);
+    setPaymentSuccess(
+      `✅ Payment received! Your subscription is being activated. ` +
+      `If your dashboard doesn't update within a minute, please refresh the page.`
+    );
+    onPaymentSuccess?.(planKey, billingCycle);
+    setTimeout(() => {
+      onSelectPlan(planKey, billingCycle);
+    }, 3000);
+    return false;
+  }, [onPaymentSuccess, onSelectPlan]);
+
   if (!isOpen) return null;
 
   const isFood = vendorBrand === "food";
@@ -429,10 +500,11 @@ export function SubscriptionModal({
     });
   };
 
-  // ── India-only payment check ──────────────────────────────────────────
-  // Razorpay is currently only available in India. International expansion
-  // pending approval. Non-India vendors see "Coming soon" on upgrade buttons.
-  const isPaymentAvailable = vendorCountry === "IN";
+  // ── Payment is available globally ──────────────────────────────────────
+  // Razorpay Subscriptions (auto-renewal) and Orders (one-time) are both supported.
+  // The backend automatically determines the correct flow based on the vendor's country
+  // and whether Razorpay Plan IDs are configured.
+  const isPaymentAvailable = true;
   const paymentDisabledLabel = "Coming soon in your country";
 
   // ── Handle plan selection with Razorpay payment ─────────────────────────
@@ -442,24 +514,11 @@ export function SubscriptionModal({
       return;
     }
 
-    // Block payment for non-India countries
-    if (!isPaymentAvailable) {
-      setPaymentError(
-        "💳 Payments are currently available in India only.\n\nWe're applying for international expansion with Razorpay. Check back soon!\n\nFor now, contact hello@findmybites.party to upgrade manually."
-      );
-      return;
-    }
-
     // Map planKey to Razorpay planName
     const planName = planKey === "pro" ? "vendor-pro" : "business";
 
-    // Calculate amount in paise from the pricing config (dynamic per country + billing cycle)
-    const displayPrice = planKey === "pro"
-      ? pricing.pro[billing]
-      : pricing.business[billing];
-    const amountInPaise = Math.round(displayPrice * 100);
-
     setPaying(true);
+    setPolling(false);
     setPaymentError(null);
     setPaymentSuccess(null);
 
@@ -471,15 +530,65 @@ export function SubscriptionModal({
         return;
       }
 
-      // Create order — pass vendorId + userEmail + dynamic amount from props
+      // ── Try Razorpay Subscriptions (auto-renewal) first ──
+      // If the vendor's country has Razorpay Plan IDs configured, create a
+      // Subscription. Otherwise, fall back to the Orders flow (one-time payment).
+      const subRes = await fetch("/api/payments/create-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planName,
+          billingCycle,
+        }),
+      });
+      const subData = await subRes.json();
+
+      if (subRes.ok && subData.subscriptionId && !subData.fallbackToOrders) {
+        // ── V7 AutoPay flow: open Razorpay Checkout with subscription_id ──
+        // We DO NOT redirect to shortUrl (that breaks the modal UX and leaves
+        // the vendor stranded on Razorpay's hosted page). Instead, we open
+        // the Razorpay Checkout modal which handles UPI AutoPay, card
+        // mandates, and international payment methods inline.
+        const redirectUrl = `${window.location.origin}/dashboard?payment=success&plan=${planKey}`;
+        const rzp = new (window as any).Razorpay({
+          key: subData.keyId,
+          subscription_id: subData.subscriptionId,
+          name: "FindMyBites × PimpMyParty",
+          description: `Subscribe to ${planName === "vendor-pro" ? "Pro" : "Business"} (${billingCycle === "yearly" ? "Yearly" : "Monthly"})`,
+          prefill: { name: vendorName || "", email: vendorEmail || "" },
+          theme: { color: brand.color },
+          // V7: redirect_url ensures the vendor returns to the dashboard
+          // if Razorpay needs a full-page redirect for 3DS / bank auth.
+          redirect: true,
+          ...(redirectUrl ? { redirect_url: redirectUrl } : {}),
+          handler: async (_response: any) => {
+            // V7: The checkout handler fires when the customer authenticates.
+            // The actual subscription activation happens via webhook
+            // (subscription.charged). Poll the backend until the subscription
+            // is active, then refresh the dashboard.
+            setPaying(false);
+            setPaymentSuccess("✅ Authentication complete! Activating your subscription…");
+            pollSubscriptionStatus(subData.subscriptionId, null, planKey, billingCycle);
+          },
+          modal: { ondismiss: () => { setPaying(false); } },
+        });
+
+        rzp.on("payment.failed", (response: any) => {
+          setPaymentError("❌ Payment failed: " + (response.error?.description || "Unknown error"));
+          setPaying(false);
+        });
+
+        rzp.open();
+        return;
+      }
+
+      // ── Fallback: Orders flow (one-time payment) ──
       const orderRes = await fetch("/api/payments/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           planName,
-          vendorId: vendorId || undefined,
-          userEmail: vendorEmail || undefined,
-          amount: amountInPaise,
+          billingCycle,
         }),
       });
       const orderData = await orderRes.json();
@@ -508,7 +617,6 @@ export function SubscriptionModal({
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                vendorId: vendorId || orderData.vendorId,
                 planName,
                 billingCycle,
                 amount: orderData.amount,
@@ -517,9 +625,10 @@ export function SubscriptionModal({
             });
             const verifyData = await verifyRes.json();
             if (verifyRes.ok && verifyData.success) {
-              setPaymentSuccess(verifyData.message);
               setPaying(false);
-              setTimeout(() => { onSelectPlan(planKey, billingCycle); }, 2000);
+              setPaymentSuccess(verifyData.message);
+              // V7: Poll to confirm the subscription is active, then refresh
+              pollSubscriptionStatus(null, response.razorpay_payment_id, planKey, billingCycle);
             } else {
               setPaymentError(verifyData.error || "Payment verification failed.");
               setPaying(false);
@@ -621,21 +730,13 @@ export function SubscriptionModal({
             </span>
           </div>
 
-          {/* India-only payment notice */}
+          {/* Payment notice — global payments enabled */}
           <div className="mt-3">
-            {isPaymentAvailable ? (
-              <div className="rounded-lg border-l-4 px-3 py-2" style={{ borderColor: "#16a34a", background: "#F0FDF4" }}>
-                <p className="text-[11px] font-medium text-green-800">
-                  ✅ Secure payments via Razorpay (UPI, cards, netbanking)
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-lg border-l-4 px-3 py-2" style={{ borderColor: "#3b82f6", background: "#EFF6FF" }}>
-                <p className="text-[11px] font-medium text-blue-900">
-                  💳 Online payments are currently available in India only. We're expanding soon! Contact hello@findmybites.party for payment options.
-                </p>
-              </div>
-            )}
+            <div className="rounded-lg border-l-4 px-3 py-2" style={{ borderColor: "#16a34a", background: "#F0FDF4" }}>
+              <p className="text-[11px] font-medium text-green-800">
+                ✅ Secure payments via Razorpay (UPI, cards, netbanking) — available globally
+              </p>
+            </div>
           </div>
         </div>
 
@@ -689,6 +790,21 @@ export function SubscriptionModal({
           </div>
         )}
 
+        {/* V7: Polling overlay — shown while waiting for webhook activation */}
+        {polling && !paying && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/90 backdrop-blur-sm">
+            <div className="text-center">
+              <Loader2 className="mx-auto size-8 animate-spin" style={{ color: brand.color }} />
+              <p className="mt-3 text-[13px] font-medium text-black/70">
+                Activating your subscription…
+              </p>
+              <p className="mt-1 text-[11px] text-black/40">
+                This usually takes a few seconds
+              </p>
+            </div>
+          </div>
+        )}
+
         {paymentSuccess && (
           <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/95 backdrop-blur-sm">
             <div className="text-center">
@@ -696,7 +812,9 @@ export function SubscriptionModal({
               <p className="mt-3 px-8 text-[14px] font-medium text-black/80">
                 {paymentSuccess}
               </p>
-              <p className="mt-1 text-[11px] text-black/40">Redirecting…</p>
+              <p className="mt-1 text-[11px] text-black/40">
+                {polling ? "Activating…" : "Updating dashboard…"}
+              </p>
             </div>
           </div>
         )}

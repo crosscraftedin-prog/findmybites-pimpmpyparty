@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
 import type { Vendor, Booking } from "@/lib/types";
 import type { DashboardTab } from "./Sidebar";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface OverviewProps {
   vendor: Vendor;
@@ -30,7 +31,18 @@ interface OverviewProps {
 
 export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [showUpgrade, setShowUpgrade] = React.useState(false);
+
+  // V7: Refresh all dashboard data after a successful payment
+  const handlePaymentSuccess = React.useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["vendor"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    queryClient.invalidateQueries({ queryKey: ["subscription"] });
+    queryClient.invalidateQueries({ queryKey: ["billing"] });
+    queryClient.invalidateQueries({ queryKey: ["payments"] });
+    queryClient.invalidateQueries({ queryKey: ["analytics"] });
+  }, [queryClient]);
 
   // ── Dismissible profile card with 7-day reappear logic ──
   const DISMISS_KEY = `profile-card-dismissed-${vendor.id}`;
@@ -318,6 +330,7 @@ export function Overview({ vendor, bookings, onNavigate }: OverviewProps) {
         vendorEmail={vendor.userEmail || undefined}
         vendorName={vendor.name}
         onSelectPlan={() => setShowUpgrade(false)}
+        onPaymentSuccess={handlePaymentSuccess}
       />
 
       {/* Support widget */}

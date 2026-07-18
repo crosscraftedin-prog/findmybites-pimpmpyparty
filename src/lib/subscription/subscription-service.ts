@@ -95,9 +95,13 @@ export function generateInvoiceNumber(): string {
  *   - Idempotent: if paymentId already processed, returns the existing subscription
  *   - Does NOT create duplicate vendor records
  *
- * For renewals (vendor already has an active/expired subscription):
- *   - Extends the existing subscription's expiry by one billing cycle
- *   - Does NOT create a new subscription row
+ * V7: For Razorpay Subscriptions (provider="razorpay_subscriptions"), finds the
+ * existing "pending" row by providerSubscriptionId and upgrades it to "active".
+ * This row was created in createSubscription() and contains the Razorpay
+ * subscription ID needed for lifecycle webhook matching.
+ *
+ * For Razorpay Orders (provider="razorpay_orders", one-time payment), creates
+ * a new row or renews the latest existing subscription for the vendor.
  */
 export async function activateSubscription(params: {
   vendorId: string;
@@ -110,6 +114,8 @@ export async function activateSubscription(params: {
   currency: string;
   provider?: PaymentProvider;
   paymentMethod?: string;
+  providerSubscriptionId?: string;
+  razorpayCustomerId?: string;
 }): Promise<{ subscription: ActiveSubscriptionInfo; paymentType: PaymentType; created: boolean }> {
   const {
     vendorId,
@@ -122,6 +128,8 @@ export async function activateSubscription(params: {
     currency,
     provider = "razorpay_orders",
     paymentMethod,
+    providerSubscriptionId,
+    razorpayCustomerId,
   } = params;
 
   // ── Idempotency: check if this paymentId was already processed ──
@@ -143,111 +151,157 @@ export async function activateSubscription(params: {
   const config = getPlanConfig(planName, billingCycle);
   const now = new Date();
 
-  // ── Check for an existing subscription (renewal vs new) ──
-  const existingSub = await db.vendorSubscription.findFirst({
-    where: { vendorId },
-    orderBy: { planExpiresAt: "desc" },
-  });
+  // ── Transaction: subscription + payment history + vendor update must be atomic ──
+  // If any operation fails, the entire transaction rolls back.
+  const result = await db.$transaction(async (tx) => {
+    // ── V7: For subscriptions, find the pending row by providerSubscriptionId ──
+    let pendingRow: any = null;
+    if (providerSubscriptionId) {
+      pendingRow = await tx.vendorSubscription.findFirst({
+        where: { providerSubscriptionId },
+      });
+    }
 
-  let paymentType: PaymentType = "new";
-  let subscriptionRow;
+    let paymentType: PaymentType = "new";
+    let subscriptionRow;
 
-  if (existingSub && existingSub.status !== "cancelled") {
-    // ── RENEWAL: extend the existing subscription ──
-    paymentType = "renewal";
+    if (pendingRow) {
+      // ── V7: Activate the existing pending subscription row ──
+      // This row was created in createSubscription() with status="pending".
+      // Now that subscription.charged arrived, upgrade it to "active".
+      const expiry = computeExpiry(now, billingCycle);
 
-    // If still active, extend from the current expiry. If expired, extend from now.
-    const baseDate = existingSub.status === "active" && existingSub.planExpiresAt > now
-      ? existingSub.planExpiresAt
-      : now;
-    const newExpiry = computeExpiry(baseDate, billingCycle);
+      subscriptionRow = await tx.vendorSubscription.update({
+        where: { id: pendingRow.id },
+        data: {
+          planName,
+          planTier: config.planTier,
+          billingCycle,
+          status: "active",
+          planStartedAt: now,
+          planExpiresAt: expiry,
+          nextRenewalDate: provider === "razorpay_subscriptions" ? expiry : null,
+          cancelledAt: null,
+          amountPaid: amount,
+          currency,
+          provider,
+          ...(razorpayCustomerId ? { razorpayCustomerId } : {}),
+        },
+      });
+      paymentType = pendingRow.status === "pending" ? "new" : "renewal";
+      console.log(`[subscription] Activated pending subscription ${subscriptionRow.id} for vendor ${vendorId}, expires: ${expiry.toISOString()}`);
+    } else {
+      // ── Orders flow: check for an existing subscription (renewal vs new) ──
+      const existingSub = await tx.vendorSubscription.findFirst({
+        where: { vendorId },
+        orderBy: { planExpiresAt: "desc" },
+      });
 
-    subscriptionRow = await db.vendorSubscription.update({
-      where: { id: existingSub.id },
-      data: {
-        planName,
-        planTier: config.planTier,
-        billingCycle,
-        status: "active",
-        planExpiresAt: newExpiry,
-        nextRenewalDate: provider === "razorpay_subscriptions" ? newExpiry : null,
-        cancelledAt: null,
-        amountPaid: amount,
-        currency,
-        provider,
-      },
-    });
-    console.log(`[subscription] Renewed subscription ${subscriptionRow.id} for vendor ${vendorId}, new expiry: ${newExpiry.toISOString()}`);
-  } else {
-    // ── NEW subscription ──
-    const expiry = computeExpiry(now, billingCycle);
-    subscriptionRow = await db.vendorSubscription.create({
+      if (existingSub && existingSub.status !== "cancelled" && existingSub.status !== "pending") {
+        // ── RENEWAL: extend the existing subscription ──
+        paymentType = "renewal";
+
+        const baseDate = existingSub.status === "active" && existingSub.planExpiresAt > now
+          ? existingSub.planExpiresAt
+          : now;
+        const newExpiry = computeExpiry(baseDate, billingCycle);
+
+        subscriptionRow = await tx.vendorSubscription.update({
+          where: { id: existingSub.id },
+          data: {
+            planName,
+            planTier: config.planTier,
+            billingCycle,
+            status: "active",
+            planExpiresAt: newExpiry,
+            nextRenewalDate: provider === "razorpay_subscriptions" ? newExpiry : null,
+            cancelledAt: null,
+            amountPaid: amount,
+            currency,
+            provider,
+            ...(providerSubscriptionId ? { providerSubscriptionId } : {}),
+            ...(razorpayCustomerId ? { razorpayCustomerId } : {}),
+          },
+        });
+        console.log(`[subscription] Renewed subscription ${subscriptionRow.id} for vendor ${vendorId}, new expiry: ${newExpiry.toISOString()}`);
+      } else {
+        // ── NEW subscription ──
+        const expiry = computeExpiry(now, billingCycle);
+        subscriptionRow = await tx.vendorSubscription.create({
+          data: {
+            vendorId,
+            planName,
+            planTier: config.planTier,
+            billingCycle,
+            status: "active",
+            planStartedAt: now,
+            planExpiresAt: expiry,
+            nextRenewalDate: provider === "razorpay_subscriptions" ? expiry : null,
+            amountPaid: amount,
+            currency,
+            provider,
+            ...(providerSubscriptionId ? { providerSubscriptionId } : {}),
+            ...(razorpayCustomerId ? { razorpayCustomerId } : {}),
+          },
+        });
+        console.log(`[subscription] Created new subscription ${subscriptionRow.id} for vendor ${vendorId}, expires: ${expiry.toISOString()}`);
+      }
+    }
+
+    // ── Record the payment in history (immutable, append-only) ──
+    const invoiceNumber = generateInvoiceNumber();
+    await tx.paymentHistory.create({
       data: {
         vendorId,
+        subscriptionId: subscriptionRow.id,
+        orderId,
+        paymentId,
+        invoiceNumber,
+        signature,
         planName,
-        planTier: config.planTier,
         billingCycle,
-        status: "active",
-        planStartedAt: now,
-        planExpiresAt: expiry,
-        nextRenewalDate: provider === "razorpay_subscriptions" ? expiry : null,
-        amountPaid: amount,
+        amount,
         currency,
+        paymentStatus: "captured",
         provider,
+        paymentMethod: paymentMethod ?? null,
+        paymentType,
       },
     });
-    console.log(`[subscription] Created new subscription ${subscriptionRow.id} for vendor ${vendorId}, expires: ${expiry.toISOString()}`);
-  }
 
-  // ── Record the payment in history (immutable, append-only) ──
-  const invoiceNumber = generateInvoiceNumber();
-  await db.paymentHistory.create({
-    data: {
-      vendorId,
-      subscriptionId: subscriptionRow.id,
-      orderId,
-      paymentId,
-      invoiceNumber,
-      signature,
-      planName,
-      billingCycle,
-      amount,
-      currency,
-      paymentStatus: "captured",
-      provider,
-      paymentMethod: paymentMethod ?? null,
-      paymentType,
-    },
+    // ── Sync the legacy Vendor.planExpiresAt field (backward compat) ──
+    const vendorUpdate: Record<string, unknown> = {
+      planExpiresAt: subscriptionRow.planExpiresAt,
+    };
+    if (planName === "business" || planName === "vendor-pro") {
+      vendorUpdate.featured = true;
+    }
+    if (planName === "business") {
+      vendorUpdate.verified = true;
+    }
+    await tx.vendor.update({ where: { id: vendorId }, data: vendorUpdate }).catch(() => {});
+
+    return { subscriptionRow, paymentType };
+  }).catch(err => {
+    // Transaction failed — check if it's a duplicate payment (idempotency)
+    throw err;
   });
 
-  // ── Sync the legacy Vendor.planExpiresAt field (backward compat) ──
-  // Keep the existing field in sync so legacy code continues to work.
-  // Also set featured/verified for premium gating.
-  const vendorUpdate: Record<string, unknown> = {
-    planExpiresAt: subscriptionRow.planExpiresAt,
-  };
-  if (planName === "business" || planName === "vendor-pro") {
-    vendorUpdate.featured = true; // premium: priority search + homepage promotion
-  }
-  if (planName === "business") {
-    vendorUpdate.verified = true; // business plan includes verified badge
-  }
-  await db.vendor.update({ where: { id: vendorId }, data: vendorUpdate }).catch(() => {});
-
   return {
-    subscription: toActiveInfo(subscriptionRow),
-    paymentType,
-    created: paymentType === "new",
+    subscription: toActiveInfo(result.subscriptionRow),
+    paymentType: result.paymentType,
+    created: result.paymentType === "new",
   };
 }
 
 /**
  * Get the active subscription for a vendor (or null if none).
  * Auto-expires subscriptions past their expiry date.
+ * V7: Skips "pending" rows (created but not yet charged).
  */
 export async function getActiveSubscription(vendorId: string): Promise<ActiveSubscriptionInfo | null> {
   const sub = await db.vendorSubscription.findFirst({
-    where: { vendorId },
+    where: { vendorId, status: { not: "pending" } },
     orderBy: { planExpiresAt: "desc" },
   });
 

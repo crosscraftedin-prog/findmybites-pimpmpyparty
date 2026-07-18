@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardAiRoute } from "@/lib/billing/guards";
 import { db } from "@/lib/db";
 import { getZAI } from "@/lib/zai-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { sanitizePrompt, callWithTimeout } from "@/lib/ai/security";
 import { logger } from "@/lib/logger";
+import { CURRENCY_SYMBOLS } from "@/lib/constants";
 
 /**
  * POST /api/ai/quote-builder
@@ -71,7 +73,7 @@ export async function POST(req: NextRequest) {
     });
 
     const currency = booking.vendor?.currency || "USD";
-    const symbol = currency === "INR" ? "₹" : currency === "USD" ? "$" : currency === "GBP" ? "£" : currency === "AED" ? "AED" : "";
+    const symbol = CURRENCY_SYMBOLS[currency] || currency + " ";
 
     // Build quote using template logic (AI enhances if available)
     const lineItems: { label: string; qty: number; price: number }[] = [];

@@ -91,8 +91,17 @@ export async function GET() {
       ? Math.round((cancelledBookings / totalBookings) * 100)
       : 0;
 
-    // MRR: Pro = ₹299/mo, Business = ₹499/mo
-    const MRR = proSubscriptions * 299 + businessSubscriptions * 499;
+    // MRR: Calculate from actual subscription amounts (not hardcoded prices)
+    // Uses the sum of active subscription amountsPaid divided by billing cycle
+    const subscriptionData = await db.vendorSubscription.findMany({
+      where: { status: "active" },
+      select: { amountPaid: true, billingCycle: true, currency: true },
+    }).catch(() => []);
+    const MRR = subscriptionData.reduce((sum, sub) => {
+      // Convert yearly to monthly equivalent
+      const monthly = sub.billingCycle === "yearly" ? sub.amountPaid / 12 : sub.amountPaid;
+      return sum + monthly;
+    }, 0);
     const ARR = MRR * 12;
 
     return NextResponse.json({

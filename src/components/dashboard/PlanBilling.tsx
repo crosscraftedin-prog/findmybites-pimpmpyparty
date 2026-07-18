@@ -15,10 +15,22 @@ import {
   type BillingCycle,
 } from "@/components/SubscriptionModal";
 import type { Vendor } from "@/lib/types";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function PlanBilling({ vendor }: { vendor: Vendor }) {
   const [showUpgrade, setShowUpgrade] = React.useState(false);
   const [billing, setBilling] = React.useState<BillingCycle>("monthly");
+  const queryClient = useQueryClient();
+
+  // V7: Refresh all dashboard data after a successful payment
+  const handlePaymentSuccess = React.useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["vendor"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    queryClient.invalidateQueries({ queryKey: ["subscription"] });
+    queryClient.invalidateQueries({ queryKey: ["billing"] });
+    queryClient.invalidateQueries({ queryKey: ["payments"] });
+    queryClient.invalidateQueries({ queryKey: ["analytics"] });
+  }, [queryClient]);
 
   // New plan model: free | pro (Vendor Pro / Baker Pro) | business.
   // The DB currently only tracks a `featured` boolean — treat featured as the
@@ -255,6 +267,7 @@ export function PlanBilling({ vendor }: { vendor: Vendor }) {
         vendorEmail={vendor.userEmail || undefined}
         vendorName={vendor.name}
         onSelectPlan={() => setShowUpgrade(false)}
+        onPaymentSuccess={handlePaymentSuccess}
       />
     </div>
   );

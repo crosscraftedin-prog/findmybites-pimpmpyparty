@@ -197,6 +197,7 @@ model Vendor {
   availability       VendorAvailability[]
   subscriptions      VendorSubscription[]
   payments           PaymentHistory[]
+  invoices           Invoice[]
   bookingsV2         BookingV2[]
 
   // ── Marketing & Growth Center relations ──
@@ -1319,6 +1320,7 @@ model VendorSubscription {
   // ── Provider (modular — swap without touching expiry/gating logic) ──
   provider               String  @default("razorpay_orders") // "razorpay_orders" | "razorpay_subscriptions" | "stripe"
   providerSubscriptionId String? // Razorpay subscription_id (future AutoPay) or stripe sub id
+  razorpayCustomerId     String? // Razorpay customer_id (reused for renewals + Dashboard)
 
   // ── Pricing snapshot at activation (immutable record of what was paid) ──
   amountPaid Int // in smallest currency unit (paise/cents/fils)
@@ -1329,11 +1331,14 @@ model VendorSubscription {
 
   // ── Relations ──
   payments PaymentHistory[]
+  invoices Invoice[]
 
   @@index([vendorId])
   @@index([status])
   @@index([planExpiresAt])
   @@index([provider])
+  @@index([providerSubscriptionId])
+  @@index([razorpayCustomerId])
   @@map("vendor_subscriptions")
 }
 
@@ -1368,6 +1373,9 @@ model PaymentHistory {
   // ── Type ──
   paymentType String @default("new") // "new" | "renewal"
 
+  // ── Relations ──
+  invoices Invoice[]
+
   createdAt DateTime @default(now())
 
   @@index([vendorId])
@@ -1378,7 +1386,149 @@ model PaymentHistory {
   @@map("payment_history")
 }
 
-// ── Bookings Management System (V2) ───────────────────────────────────────
+// ── Subscription System V3 — Database-Driven Billing ──────────────────────
+//
+// PricingPlan: One record per country + plan + billing cycle.
+// Replaces the V2 hardcoded PRICING_BY_COUNTRY config and env-var Plan IDs.
+// Admin can edit pricing and Razorpay Plan IDs without code deployment.
+
+model PricingPlan {
+  id             String   @id @default(cuid())
+  countryCode    String   // ISO 3166-1 alpha-2 (IN, US, GB, etc.)
+  countryName    String   // "India", "United States", etc.
+  currency       String   // ISO 4217 (INR, USD, GBP, etc.)
+  currencySymbol String   // ₹, $, £, etc.
+  plan           String   // "pro" | "business"
+  billingCycle   String   // "monthly" | "yearly"
+  displayPrice   Float    // Price in main unit (e.g. 299 for ₹299)
+  amountMinor    Int      // Smallest currency unit (e.g. 29900 paise)
+  razorpayPlanId String?  // Razorpay Plan object ID (null = use Orders fallback)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([countryCode, plan, billingCycle])
+  @@index([countryCode])
+  @@index([plan])
+  @@index([active])
+  @@map("pricing_plans")
+}
+
+// PromoCode: Discount codes for subscription campaigns.
+// Supports percentage and fixed-amount discounts, country/plan-specific offers.
+
+model PromoCode {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  description   String    @default("")
+  countryCode   String?   // null = all countries
+  plan          String?   // null = all plans ("pro" | "business")
+  billingCycle  String?   // null = all cycles ("monthly" | "yearly")
+  discountType  String    @default("percentage") // "percentage" | "fixed"
+  discountValue Float     // e.g. 20 for 20% off, or 100 for ₹100 off
+  maxUses       Int       @default(0) // 0 = unlimited
+  usedCount     Int       @default(0)
+  expiresAt     DateTime?
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([code])
+  @@index([countryCode])
+  @@index([active])
+  @@map("promo_codes")
+}
+
+// Invoice: Professional invoices generated for each payment.
+// Stored in the database with a file path to the generated PDF.
+
+model Invoice {
+  id             String   @id @default(cuid())
+  vendorId       String
+  vendor         Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  paymentHistoryId String?  // FK to PaymentHistory
+  paymentHistory   PaymentHistory? @relation(fields: [paymentHistoryId], references: [id], onDelete: SetNull)
+  subscriptionId String?
+  subscription   VendorSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  invoiceNumber  String   @unique // e.g. FMB-INV-2026-00001
+  invoiceDate    DateTime @default(now())
+
+  // ── Billing details ──
+  planName       String
+  billingCycle   String
+  countryCode    String
+  currency       String
+  currencySymbol String
+
+  // ── Amounts (all in minor units) ──
+  subtotal       Int      @default(0)
+  discount       Int      @default(0)
+  tax            Int      @default(0)
+  total          Int
+
+  // ── Promo code (if applied) ──
+  promoCode      String?
+
+  // ── Razorpay references ──
+  razorpayPaymentId  String?
+  razorpayOrderId    String?
+
+  // ─── Status ──
+  status         String   @default("paid") // "paid" | "pending" | "failed" | "refunded"
+
+  // ── File path (generated PDF) ──
+  filePath       String?
+
+  createdAt      DateTime @default(now())
+
+  @@index([vendorId])
+  @@index([paymentHistoryId])
+  @@index([invoiceNumber])
+  @@map("invoices")
+}
+
+// WebhookLog: Immutable audit log of every Razorpay webhook received.
+// Used for debugging, retry, and idempotency verification.
+
+model WebhookLog {
+  id             String   @id @default(cuid())
+  eventId        String   @unique // Razorpay event ID (prevents duplicate processing)
+  eventType      String   // e.g. "subscription.charged"
+  entity         String   // "subscription" | "payment"
+  entityId       String?  // Razorpay subscription/payment ID
+  payload        Json     // Full webhook payload (for audit/debugging)
+  signature      String?  // X-Razorpay-Signature header
+  processed      Boolean  @default(false)
+  processedAt    DateTime?
+  error          String?  // Error message if processing failed
+  createdAt      DateTime @default(now())
+
+  @@index([eventId])
+  @@index([eventType])
+  @@index([processed])
+  @@map("webhook_logs")
+}
+
+// BillingSettings: Admin-configurable billing settings (single row).
+model BillingSettings {
+  id              String   @id @default("default")
+  invoicePrefix   String   @default("FMB-INV")
+  gracePeriodDays Int      @default(3)
+  retryCount      Int      @default(3)
+  retryIntervalHr Int      @default(48)
+  reminderDays    String   @default("7,3,1,0")
+  defaultCurrency String   @default("USD")
+  fallbackCountry String   @default("US")
+  supportEmail    String   @default("hello@findmybites.party")
+  taxPercentage   Float    @default(0)
+  invoiceFooter   String   @default("Thank you for your business!")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("billing_settings")
+}
+
 // Production-ready booking system designed for millions of rows.
 // This is a NEW model alongside the existing `Booking` (enquiry) model —
 // the existing model is NOT modified.
