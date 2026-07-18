@@ -14,6 +14,7 @@ import {
   type InfoSection,
   type InfoField,
 } from "@/lib/products/product-info";
+import { uploadToApi, validateImageFile } from "@/lib/uploads/upload-to-api";
 
 /**
  * ProductInfoForm V3 — Admin-Driven Template Engine.
@@ -563,22 +564,22 @@ function FieldInput({
             onClick={async () => {
               const input = document.createElement("input");
               input.type = "file";
-              input.accept = "image/*";
+              input.accept = "image/jpeg,image/png,image/webp,image/gif";
               input.onchange = async (e) => {
                 const file = (e.target as HTMLInputElement).files?.[0];
                 if (!file) return;
-                const fd = new FormData();
-                fd.append("file", file);
-                fd.append("folder", "package");
+                // Client-side validation (fast feedback)
+                const validationError = validateImageFile(file);
+                if (validationError) {
+                  toast.error(validationError);
+                  return;
+                }
                 try {
-                  const res = await fetch("/api/upload", { method: "POST", body: fd });
-                  const data = await res.json();
-                  if (data.url) {
-                    setField(field.key, [...images, data.url]);
-                    toast.success("Image uploaded!");
-                  }
-                } catch {
-                  toast.error("Upload failed");
+                  const result = await uploadToApi(file, "package");
+                  setField(field.key, [...images, result.url]);
+                  toast.success("Image uploaded!");
+                } catch (err: any) {
+                  toast.error(err?.message || "Upload failed");
                 }
               };
               input.click();

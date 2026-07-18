@@ -4,6 +4,7 @@ import * as React from "react";
 import { UploadCloud, Loader2, X, ImageIcon, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { uploadToApi, validateImageFile } from "@/lib/uploads/upload-to-api";
 
 interface ImageUploadProps {
   /** Current image URL (empty string = no image). */
@@ -71,42 +72,13 @@ export function ImageUpload({
     setUploading(true);
     setProgress(0);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-
-      // Use XHR for real upload progress; fetch() can't report progress on
-      // request bodies without streams.
-      const url = await new Promise<string>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/upload");
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            setProgress(Math.round((e.loaded / e.total) * 100));
-          }
-        };
-        xhr.onload = () => {
-          try {
-            const body = JSON.parse(xhr.responseText) as {
-              success?: boolean;
-              url?: string;
-              error?: string;
-            };
-            if (xhr.status >= 200 && xhr.status < 300 && body.url) {
-              resolve(body.url);
-            } else {
-              reject(new Error(body.error ?? `Upload failed (${xhr.status})`));
-            }
-          } catch {
-            // Response was not JSON — log the raw response for debugging
-            console.error("[ImageUpload] Non-JSON response:", xhr.status, xhr.responseText?.slice(0, 200));
-            reject(new Error("Upload failed: invalid response."));
-          }
-        };
-        xhr.onerror = () => reject(new Error("Network error during upload."));
-        xhr.send(fd);
+      // Single production pipeline: uploadToApi() → POST /api/upload.
+      // Server handles auth, validation, storage path, and URL generation.
+      const result = await uploadToApi(file, "free", {
+        onProgress: setProgress,
       });
 
-      onChange(url);
+      onChange(result.url);
       toast.success("Image uploaded.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed.");
