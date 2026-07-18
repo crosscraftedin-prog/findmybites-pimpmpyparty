@@ -6,8 +6,24 @@ import { logger } from "@/lib/logger";
 
 /**
  * POST /api/ai/generate-description
- * Generates a professional description + tagline using ZAI (GLM).
+ *
+ * Generates a professional vendor profile using ZAI (GLM):
+ *   - SEO-friendly business description
+ *   - Catchy tagline
+ *   - SEO keywords (for search ranking)
+ *   - Meta description (for search engine results)
+ *   - Suggested tags (for marketplace filtering)
+ *
  * Body: { vendorName, category, subcategory, city }
+ *
+ * Response:
+ *   {
+ *     tagline: string,
+ *     description: string,       // 80-120 words, SEO-friendly
+ *     keywords: string[],        // 5-8 SEO keywords
+ *     metaDescription: string,   // max 160 chars
+ *     tags: string[],            // 5-8 marketplace tags
+ *   }
  */
 export async function POST(req: NextRequest) {
   try {
@@ -31,20 +47,32 @@ export async function POST(req: NextRequest) {
 
     const zai = await getZAI();
     if (!zai) {
+      // ── Fallback when AI is not configured ──
+      const fallbackDesc = `${safeVendorName} is a professional ${safeCategory.toLowerCase()}${safeSubcategory ? ` specializing in ${safeSubcategory.toLowerCase()}` : ""}${safeCity ? ` based in ${safeCity}` : ""}. We deliver quality service with attention to detail and customer satisfaction. Book directly — no commission, direct contact.`;
       return NextResponse.json({
         tagline: `${safeCategory} in ${safeCity || "your city"}`,
-        description: `${safeVendorName} is a professional ${safeCategory.toLowerCase()}${safeSubcategory ? ` specializing in ${safeSubcategory.toLowerCase()}` : ""}${safeCity ? ` based in ${safeCity}` : ""}. We deliver quality service with attention to detail and customer satisfaction. Book directly — no commission, direct contact.`,
+        description: fallbackDesc,
+        keywords: [safeCategory, safeSubcategory, safeCity, safeVendorName].filter(Boolean),
+        metaDescription: fallbackDesc.slice(0, 160),
+        tags: [safeCategory, safeSubcategory, safeCity].filter(Boolean),
         fallback: true,
       });
     }
 
-    const prompt = `Generate a professional vendor profile. Return ONLY valid JSON (no markdown).
+    const prompt = `Generate a professional vendor profile for SEO. Return ONLY valid JSON (no markdown, no code fences).
 Business: ${safeVendorName}
 Category: ${safeCategory}
 Subcategory: ${safeSubcategory || "N/A"}
 City: ${safeCity || "N/A"}
 
-Return: {"tagline":"One catchy line (max 60 chars)","description":"Professional description (80-120 words)"}`;
+Return JSON with exactly these fields:
+{
+  "tagline": "One catchy line (max 60 chars)",
+  "description": "Professional SEO-friendly description (80-120 words, include the business name, category, and city naturally)",
+  "keywords": ["5-8 SEO keywords for search ranking"],
+  "metaDescription": "Meta description for search engines (max 160 chars)",
+  "tags": ["5-8 marketplace tags for filtering"]
+}`;
 
     // ── 30-second timeout ──
     const { result: text, timedOut } = await callWithTimeout(async (_signal) => {
@@ -64,15 +92,26 @@ Return: {"tagline":"One catchy line (max 60 chars)","description":"Professional 
       const jsonMatch = (text || "").match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        return NextResponse.json({ tagline: parsed.tagline || "", description: parsed.description || "" });
+        return NextResponse.json({
+          tagline: String(parsed.tagline || ""),
+          description: String(parsed.description || ""),
+          keywords: Array.isArray(parsed.keywords) ? parsed.keywords.map(String) : [],
+          metaDescription: String(parsed.metaDescription || ""),
+          tags: Array.isArray(parsed.tags) ? parsed.tags.map(String) : [],
+        });
       }
     } catch {
-      // fall through
+      // fall through to fallback
     }
 
+    // ── Fallback: use raw text as description ──
+    const fallbackDesc = (text || "").slice(0, 500);
     return NextResponse.json({
       tagline: `${safeCategory} in ${safeCity || "your city"}`,
-      description: (text || "").slice(0, 500),
+      description: fallbackDesc,
+      keywords: [safeCategory, safeSubcategory, safeCity, safeVendorName].filter(Boolean),
+      metaDescription: fallbackDesc.slice(0, 160),
+      tags: [safeCategory, safeSubcategory, safeCity].filter(Boolean),
     });
   } catch (error: any) {
     logger.error("ai-generate-description", "POST failed", { message: error?.message ?? String(error) });

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Loader2, Sparkles, Check, ChevronRight, ChevronLeft, Camera, Store,
   MapPin, Phone, Tag, DollarSign, FileText, Eye, Share2, LayoutDashboard,
-  TrendingUp, Plus, ArrowRight, CheckCircle2, MessageCircle, Star,
+  TrendingUp, Plus, ArrowRight, CheckCircle2, MessageCircle, Star, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,6 +95,10 @@ export function QuickOnboardingForm({
   const [createdVendor, setCreatedVendor] = React.useState<Vendor | null>(null);
   const [pendingPublish, setPendingPublish] = React.useState(false);
 
+  // ── AI description generation ──
+  const [aiGenerating, setAiGenerating] = React.useState(false);
+  const [aiError, setAiError] = React.useState<string | null>(null);
+
   // ── Onboarding metrics ──
   const onboardingStartTime = React.useRef<number>(Date.now());
   const publishStartTime = React.useRef<number>(0);
@@ -141,6 +145,55 @@ export function QuickOnboardingForm({
     form.businessType &&
     form.city.trim().length >= 2 &&
     form.whatsapp.trim().length >= 5;
+
+  // ── AI generation can only run after the Step 1 fields are filled ──
+  const canGenerateAi =
+    form.name.trim().length >= 2 &&
+    !!form.category &&
+    form.city.trim().length >= 2 &&
+    !!form.businessType;
+
+  // ── Generate a professional description + tagline using AI ──
+  // Calls the existing /api/ai/generate-description endpoint (no new AI service).
+  // Fills the description field so the user can edit before publishing.
+  const handleGenerateAi = async () => {
+    if (!canGenerateAi || aiGenerating) return;
+
+    setAiGenerating(true);
+    setAiError(null);
+
+    try {
+      const res = await fetch("/api/ai/generate-description", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendorName: form.name,
+          category: form.category,
+          subcategory: form.businessType,
+          city: form.city,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || `AI request failed (${res.status})`);
+      }
+
+      if (data.description) {
+        set("businessDescription", data.description);
+        toast.success("AI generated a description — edit it if needed.");
+      } else {
+        throw new Error("AI returned an empty description.");
+      }
+    } catch (err: any) {
+      const msg = err?.message || "Failed to generate description.";
+      setAiError(msg);
+      toast.error(msg);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
 
   // ── Publish (does NOT wait for AI — AI runs in background after publish) ──
   const handlePublish = async () => {
@@ -370,20 +423,61 @@ export function QuickOnboardingForm({
         <div className="space-y-3">
           <div>
             <h3 className="text-base font-bold">Describe your business</h3>
-            <p className="text-xs text-muted-foreground">Write a sentence or two — AI generates SEO, tags, and more after publishing.</p>
+            <p className="text-xs text-muted-foreground">
+              Use AI to generate a professional description, SEO keywords, and tags before publishing.
+            </p>
           </div>
 
           <div>
-            <Label htmlFor="qo-desc" className="text-sm font-semibold">Your Description *</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="qo-desc" className="text-sm font-semibold">Your Description *</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleGenerateAi}
+                disabled={!canGenerateAi || aiGenerating}
+                className="gap-1.5 text-xs"
+                title={
+                  canGenerateAi
+                    ? "Generate a professional description with AI"
+                    : "Fill in Business Name, Category, City, and Business Type first"
+                }
+              >
+                {aiGenerating ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3.5" />
+                )}
+                {aiGenerating ? "Generating..." : "Generate with AI"}
+              </Button>
+            </div>
             <Textarea
               id="qo-desc"
               value={form.businessDescription}
-              onChange={(e) => set("businessDescription", e.target.value)}
+              onChange={(e) => { set("businessDescription", e.target.value); setAiError(null); }}
               placeholder="e.g. I make eggless birthday cakes in Hyderabad. Specializing in fondant cakes, custom designs, and sugar-free options."
               className="mt-1 min-h-[100px]"
               autoFocus
             />
-            <p className="mt-1 text-xs text-muted-foreground">Just write naturally — AI handles the rest after you publish.</p>
+            {aiError && (
+              <div className="mt-2 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-1.5">
+                <p className="flex-1 text-xs text-red-700">{aiError}</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleGenerateAi}
+                  disabled={!canGenerateAi || aiGenerating}
+                  className="h-6 gap-1 px-2 text-xs text-red-700 hover:bg-red-100"
+                >
+                  <RefreshCw className="size-3" /> Retry
+                </Button>
+              </div>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">
+              Write your own, or click <span className="font-medium">Generate with AI</span> to draft one. You can edit before publishing.
+            </p>
           </div>
         </div>
       )}
