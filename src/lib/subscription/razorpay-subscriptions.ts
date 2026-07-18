@@ -238,8 +238,13 @@ export async function cancelSubscription(
 }
 
 /**
- * Pause a Razorpay Subscription.
- * The subscription is paused indefinitely until resumed.
+ * Pause a Razorpay Subscription using the real Razorpay pause API.
+ *
+ * Calls rzp.subscriptions.pause(id) which hits POST /subscriptions/{id}/pause.
+ * This suspends billing in Razorpay and triggers the subscription.paused webhook.
+ *
+ * Previously this used subscriptions.update({ notes }) which only updated notes
+ * and did NOT actually pause the subscription — billing continued normally.
  */
 export async function pauseSubscription(
   subscriptionId: string,
@@ -249,16 +254,7 @@ export async function pauseSubscription(
   if (!rzp) return { success: false, error: "Razorpay not configured" };
 
   try {
-    // Razorpay doesn't have a native "pause" — we use update + notes
-    // For actual pause, the subscription must be cancelled and recreated.
-    // However, we can set a flag in our DB and treat it as paused.
-    // For now, we cancel at cycle end (which effectively pauses until re-subscription).
-    await rzp.subscriptions.update(subscriptionId, {
-      notes: {
-        paused: "true",
-        pausedAt: new Date().toISOString(),
-      },
-    });
+    await (rzp.subscriptions as any).pause(subscriptionId);
     return { success: true };
   } catch (err: any) {
     const errMsg = err?.error?.description || err?.message || "Unknown error";
@@ -268,7 +264,10 @@ export async function pauseSubscription(
 }
 
 /**
- * Resume a paused Razorpay Subscription.
+ * Resume a paused Razorpay Subscription using the real Razorpay resume API.
+ *
+ * Calls rzp.subscriptions.resume(id) which hits POST /subscriptions/{id}/resume.
+ * This restores billing in Razorpay and triggers the subscription.resumed webhook.
  */
 export async function resumeSubscription(
   subscriptionId: string
@@ -277,12 +276,7 @@ export async function resumeSubscription(
   if (!rzp) return { success: false, error: "Razorpay not configured" };
 
   try {
-    await rzp.subscriptions.update(subscriptionId, {
-      notes: {
-        paused: "false",
-        resumedAt: new Date().toISOString(),
-      },
-    });
+    await (rzp.subscriptions as any).resume(subscriptionId);
     return { success: true };
   } catch (err: any) {
     const errMsg = err?.error?.description || err?.message || "Unknown error";

@@ -351,28 +351,59 @@ async function handleSubscriptionResumed(payload: WebhookPayload, eventId: strin
 
   const dbSub = await db.vendorSubscription.findFirst({
     where: { providerSubscriptionId: sub.id },
-    select: { id: true, vendorId: true },
+    select: { id: true, vendorId: true, planName: true, planTier: true },
   }).catch(() => null);
 
-  if (dbSub) {
-    await db.vendorSubscription.update({
-      where: { id: dbSub.id },
-      data: { status: "active", cancelledAt: null },
-    }).catch(() => {});
-
-    // V7.1 INTEGRITY: Expire any OTHER active subscriptions for this vendor.
-    // subscription.resumed sets this row to "active" — ensure no other row
-    // is also active. The partial unique index enforces this at the DB level,
-    // but we expire previous active rows first to avoid a constraint violation.
-    await db.vendorSubscription.updateMany({
-      where: {
-        vendorId: dbSub.vendorId,
-        status: "active",
-        id: { not: dbSub.id },
-      },
-      data: { status: "expired" },
-    }).catch(() => {});
+  if (!dbSub) {
+    logger.warn("webhook", "subscription.resumed — no DB row found", { subId: sub.id });
+    return;
   }
+
+  // ── Check if another ACTIVE subscription already exists for this vendor ──
+  const otherActiveSub = await db.vendorSubscription.findFirst({
+    where: {
+      vendorId: dbSub.vendorId,
+      status: "active",
+      id: { not: dbSub.id },
+    },
+    select: { id: true, planName: true, planTier: true, providerSubscriptionId: true },
+  }).catch(() => null);
+
+  if (otherActiveSub) {
+    // ── BILLING_CONFLICT: Another active subscription exists ──
+    // Do NOT activate the resumed subscription.
+    // Do NOT cancel anything automatically.
+    // Leave the existing ACTIVE subscription unchanged.
+    // Log the conflict for manual review.
+    logger.warn("webhook", "BILLING_CONFLICT: subscription.resumed received but another active subscription exists", {
+      vendorId: dbSub.vendorId,
+      resumedSubscriptionId: dbSub.id,
+      resumedProviderSubscriptionId: sub.id,
+      resumedPlanName: dbSub.planName,
+      resumedPlanTier: dbSub.planTier,
+      activeSubscriptionId: otherActiveSub.id,
+      activeProviderSubscriptionId: otherActiveSub.providerSubscriptionId,
+      activePlanName: otherActiveSub.planName,
+      activePlanTier: otherActiveSub.planTier,
+      eventId,
+    });
+
+    // Record the conflict in the WebhookLog for audit trail
+    // (the webhook is still marked as processed — Razorpay gets HTTP 200)
+    return;
+  }
+
+  // ── No conflict: activate the resumed subscription normally ──
+  await db.vendorSubscription.update({
+    where: { id: dbSub.id },
+    data: { status: "active", cancelledAt: null },
+  }).catch(() => {});
+
+  logger.info("webhook", "subscription.resumed — activated", {
+    vendorId: dbSub.vendorId,
+    subscriptionId: dbSub.id,
+    planTier: dbSub.planTier,
+  });
 }
 
 async function handlePaymentFailed(payload: WebhookPayload, eventId: string): Promise<void> {

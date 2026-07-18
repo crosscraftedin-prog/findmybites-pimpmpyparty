@@ -287,7 +287,13 @@ export async function cancelSubscription(
 }
 
 /**
- * Pause a Razorpay Subscription (via notes update).
+ * Pause a Razorpay Subscription using the real Razorpay pause API.
+ *
+ * Calls rzp.subscriptions.pause(id) which hits POST /subscriptions/{id}/pause.
+ * This suspends billing in Razorpay and triggers the subscription.paused webhook.
+ *
+ * Previously this used subscriptions.update({ notes }) which only updated notes
+ * and did NOT actually pause the subscription — billing continued normally.
  */
 export async function pauseSubscription(
   razorpaySubscriptionId: string
@@ -296,9 +302,7 @@ export async function pauseSubscription(
   if (!rzp) return { success: false, error: "Razorpay not configured" };
 
   try {
-    await rzp.subscriptions.update(razorpaySubscriptionId, {
-      notes: { paused: "true", pausedAt: new Date().toISOString() },
-    });
+    await (rzp.subscriptions as any).pause(razorpaySubscriptionId);
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err?.error?.description || err?.message || "Unknown error" };
@@ -306,7 +310,13 @@ export async function pauseSubscription(
 }
 
 /**
- * Resume a paused Razorpay Subscription.
+ * Resume a paused Razorpay Subscription using the real Razorpay resume API.
+ *
+ * Calls rzp.subscriptions.resume(id) which hits POST /subscriptions/{id}/resume.
+ * This restores billing in Razorpay and triggers the subscription.resumed webhook.
+ *
+ * Previously this used subscriptions.update({ notes }) which only updated notes
+ * and did NOT actually resume the subscription.
  */
 export async function resumeSubscription(
   razorpaySubscriptionId: string
@@ -315,9 +325,7 @@ export async function resumeSubscription(
   if (!rzp) return { success: false, error: "Razorpay not configured" };
 
   try {
-    await rzp.subscriptions.update(razorpaySubscriptionId, {
-      notes: { paused: "false", resumedAt: new Date().toISOString() },
-    });
+    await (rzp.subscriptions as any).resume(razorpaySubscriptionId);
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err?.error?.description || err?.message || "Unknown error" };
