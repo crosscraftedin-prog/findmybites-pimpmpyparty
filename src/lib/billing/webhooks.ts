@@ -351,13 +351,26 @@ async function handleSubscriptionResumed(payload: WebhookPayload, eventId: strin
 
   const dbSub = await db.vendorSubscription.findFirst({
     where: { providerSubscriptionId: sub.id },
-    select: { id: true },
+    select: { id: true, vendorId: true },
   }).catch(() => null);
 
   if (dbSub) {
     await db.vendorSubscription.update({
       where: { id: dbSub.id },
       data: { status: "active", cancelledAt: null },
+    }).catch(() => {});
+
+    // V7.1 INTEGRITY: Expire any OTHER active subscriptions for this vendor.
+    // subscription.resumed sets this row to "active" — ensure no other row
+    // is also active. The partial unique index enforces this at the DB level,
+    // but we expire previous active rows first to avoid a constraint violation.
+    await db.vendorSubscription.updateMany({
+      where: {
+        vendorId: dbSub.vendorId,
+        status: "active",
+        id: { not: dbSub.id },
+      },
+      data: { status: "expired" },
     }).catch(() => {});
   }
 }

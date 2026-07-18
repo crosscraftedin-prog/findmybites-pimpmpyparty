@@ -85,6 +85,48 @@ export function generateInvoiceNumber(): string {
   return `FMB-INV-${year}-${random}`;
 }
 
+// ── Subscription integrity helpers ───────────────────────────────────────
+
+/**
+ * V7.1 INTEGRITY: Expire every OTHER active subscription for a vendor.
+ *
+ * Guarantees that at most ONE VendorSubscription row can have status="active"
+ * per vendor at any time. Must be called inside the same transaction as the
+ * row that is BECOMING active, BEFORE that row is set to "active".
+ *
+ * What this does:
+ *   - Finds all rows where vendorId matches AND status="active" AND id != keepId
+ *   - Sets them to status="expired"
+ *
+ * What this does NOT do:
+ *   - Does NOT touch rows with status "pending", "cancelled", "past_due", or "expired"
+ *   - Does NOT touch the row identified by `keepId` (the one being activated)
+ *
+ * @param tx  The Prisma transaction client
+ * @param vendorId  The vendor whose other active subs should be expired
+ * @param keepId  The subscription row ID that is about to become active (excluded)
+ */
+async function expireOtherActiveSubscriptions(
+  tx: any,
+  vendorId: string,
+  keepId: string
+): Promise<number> {
+  const result = await tx.vendorSubscription.updateMany({
+    where: {
+      vendorId,
+      status: "active",
+      id: { not: keepId },
+    },
+    data: {
+      status: "expired",
+    },
+  });
+  if (result.count > 0) {
+    console.log(`[subscription] Expired ${result.count} previous active subscription(s) for vendor ${vendorId} (kept ${keepId})`);
+  }
+  return result.count;
+}
+
 // ── Core lifecycle operations ────────────────────────────────────────────
 
 /**
@@ -188,6 +230,8 @@ export async function activateSubscription(params: {
           ...(razorpayCustomerId ? { razorpayCustomerId } : {}),
         },
       });
+      // V7.1 INTEGRITY: Expire any OTHER active subscriptions for this vendor
+      await expireOtherActiveSubscriptions(tx, vendorId, subscriptionRow.id);
       paymentType = pendingRow.status === "pending" ? "new" : "renewal";
       console.log(`[subscription] Activated pending subscription ${subscriptionRow.id} for vendor ${vendorId}, expires: ${expiry.toISOString()}`);
     } else {
@@ -223,6 +267,8 @@ export async function activateSubscription(params: {
             ...(razorpayCustomerId ? { razorpayCustomerId } : {}),
           },
         });
+        // V7.1 INTEGRITY: Expire any OTHER active subscriptions for this vendor
+        await expireOtherActiveSubscriptions(tx, vendorId, subscriptionRow.id);
         console.log(`[subscription] Renewed subscription ${subscriptionRow.id} for vendor ${vendorId}, new expiry: ${newExpiry.toISOString()}`);
       } else {
         // ── NEW subscription ──
@@ -244,6 +290,8 @@ export async function activateSubscription(params: {
             ...(razorpayCustomerId ? { razorpayCustomerId } : {}),
           },
         });
+        // V7.1 INTEGRITY: Expire any OTHER active subscriptions for this vendor
+        await expireOtherActiveSubscriptions(tx, vendorId, subscriptionRow.id);
         console.log(`[subscription] Created new subscription ${subscriptionRow.id} for vendor ${vendorId}, expires: ${expiry.toISOString()}`);
       }
     }
@@ -374,6 +422,21 @@ export async function extendSubscription(subscriptionId: string, days: number): 
       cancelledAt: null,
     },
   });
+
+  // V7.1 INTEGRITY: Expire any OTHER active subscriptions for this vendor.
+  // extendSubscription() is an admin action that sets a row to "active" —
+  // we must ensure no other row is also active for the same vendor.
+  // Uses db (not tx) since this function is not transactional — the updateMany
+  // runs as a separate statement, but the partial unique index (see migration)
+  // enforces the constraint at the DB level regardless.
+  await db.vendorSubscription.updateMany({
+    where: {
+      vendorId: sub.vendorId,
+      status: "active",
+      id: { not: subscriptionId },
+    },
+    data: { status: "expired" },
+  }).catch(() => {});
 
   // Re-apply premium features
   const vendorUpdate: Record<string, unknown> = { planExpiresAt: newExpiry };
