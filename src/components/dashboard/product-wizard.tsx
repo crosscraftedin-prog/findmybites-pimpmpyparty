@@ -22,8 +22,41 @@ import { GalleryUpload } from "./image-upload";
 import { AttributeSelector } from "./attribute-selector";
 import { ProductInfoForm } from "./product-info-form";
 import type { ProductInfo } from "@/lib/products/product-info";
-import { type StepType, type StepRenderer, type WizardRenderProps } from "./dynamic-wizard-renderer";
 import { ProductDetailView, type ProductViewData } from "@/components/product/ProductDetailView";
+
+// ── Wizard step types (inlined from deleted dynamic-wizard-renderer.tsx) ──
+type StepType =
+  | "basic" | "photos" | "pricing" | "fields" | "seo" | "inventory"
+  | "details" | "options" | "delivery" | "marketing" | "success" | "recipeCost";
+
+interface WizardRenderProps {
+  form: Record<string, unknown>;
+  set: (key: string, value: unknown) => void;
+  vendor: any;
+  isFood: boolean;
+  symbol: string;
+  productInfo: any;
+  setProductInfo: (info: any) => void;
+  productAttributeIds: string[];
+  setProductAttributeIds: (ids: string[]) => void;
+  productSubcategories: { id: string; name: string }[];
+  autoSave: () => void;
+  generateWithAI: () => void;
+  generateSEO: () => void;
+  aiGenerating: boolean;
+  saving: boolean;
+  published: boolean;
+  publishError: string | null;
+  savedProductSlug: string | null;
+  onClose: () => void;
+  onContinueEditing?: () => void;
+  completenessPercent?: number;
+  showPreview?: boolean;
+  setShowPreview?: (v: boolean) => void;
+  [key: string]: unknown;
+}
+
+type StepRenderer = (props: WizardRenderProps) => React.ReactNode;
 
 interface ProductWizardProps {
   vendor: Vendor;
@@ -640,73 +673,18 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                       </Select>
                     </div>
                   </div>
-                  {/* Quick Tags — clickable chips */}
-                  <div>
-                    <Label>Quick Tags</Label>
-                    <p className="mb-2 text-xs text-muted-foreground">Click all that apply</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {["Birthday", "Wedding", "Anniversary", "Baby Shower", "Corporate", "Festival", "Christmas", "Diwali", "Eid"].map(tag => {
-                        const current = typeof form.tags === "string" ? form.tags : "";
-                        const active = current.split(",").map(s => s.trim().toLowerCase()).includes(tag.toLowerCase());
-                        return (
-                          <button key={tag} type="button" onClick={() => {
-                            hasEditedTags.current = true;
-                            const tags = current ? current.split(",").map(s => s.trim()).filter(Boolean) : [];
-                            const next = active ? tags.filter(t => t.toLowerCase() !== tag.toLowerCase()) : [...tags, tag];
-                            set("tags", next.join(", "));
-                          }}
-                          className={cn("rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                            active ? "border-brand bg-brand/10 text-brand" : "border-border text-muted-foreground hover:border-brand/50")}>
-                            {tag}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  {/* Dietary chips */}
-                  {isFood && (
-                    <div>
-                      <Label>Dietary</Label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { key: "eggless", label: "Eggless" },
-                          { key: "vegetarian", label: "Vegetarian" },
-                          { key: "vegan", label: "Vegan" },
-                          { key: "halal", label: "Halal" },
-                          { key: "glutenFree", label: "Gluten Free" },
-                        ].map(d => (
-                          <button key={d.key} type="button" onClick={() => set(d.key as string, !form[d.key as string])}
-                            className={cn("rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                              form[d.key as string] ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30" : "border-border text-muted-foreground hover:border-emerald-400")}>
-                            {d.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {/* Allergens chips */}
-                  {isFood && (
-                    <div>
-                      <Label>Allergens</Label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {["Milk", "Egg", "Nuts", "Soy", "Gluten"].map(a => {
-                          const current = typeof form.allergenInfo === "string" ? form.allergenInfo : "";
-                          const active = current.toLowerCase().includes(a.toLowerCase());
-                          return (
-                            <button key={a} type="button" onClick={() => {
-                              const items = current ? current.split(",").map(s => s.trim()).filter(Boolean) : [];
-                              const next = active ? items.filter(t => t.toLowerCase() !== a.toLowerCase()) : [...items, a];
-                              set("allergenInfo", next.join(", "));
-                            }}
-                            className={cn("rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                              active ? "border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950/30" : "border-border text-muted-foreground hover:border-amber-400")}>
-                              {a}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  {/* V3 ARCHITECTURE: Quick Tags, Dietary chips, and Allergen chips
+                      have been REMOVED from Card 1.
+
+                      - Quick Tags → replaced by "Suitable For" FilterGroup (DB-driven,
+                        shown in Step 4: Search Filters)
+                      - Dietary chips → replaced by Template Fields (Eggless, Vegan, etc.
+                        are TemplateField values in the product's template)
+                      - Allergen chips → replaced by ALLERGENS_SECTION in the Template Engine
+                        (already exists as a template section, shown in Step 3: Product Details)
+
+                      These were duplicates of data already collected via the Template Engine
+                      and the FilterGroup system. Removing them eliminates 3 parallel systems. */}
                 </div>
   );
 
@@ -1020,7 +998,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                   <ProductInfoForm
                     productInfo={productInfo}
                     onChange={setProductInfo}
-                    category={vendor.category}
+                    category={form.category || vendor.category}
                     sectionFilter={stepSections}
                   />
                 </div>
@@ -1042,7 +1020,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
                   <ProductInfoForm
                     productInfo={productInfo}
                     onChange={setProductInfo}
-                    category={vendor.category}
+                    category={form.category || vendor.category}
                     productName={form.name}
                     productDescription={form.description}
                     // Exclude sections that duplicate other cards:
@@ -1295,7 +1273,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
             selectedIds={productAttributeIds}
             onChange={setProductAttributeIds}
             ecosystem={vendor.ecosystem}
-            groups={isFood ? ["product_feature", "service"] : ["product_feature", "service"]}
+            groups={["product_feature"]}
           />
         </div>
       </>
@@ -1316,7 +1294,7 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
         <ProductInfoForm
           productInfo={productInfo}
           onChange={setProductInfo}
-          category={vendor.category}
+          category={form.category || vendor.category}
           showVendorOnly
           sectionFilter={["recipeCost"]}
         />
@@ -1332,17 +1310,14 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     // notice + availability. Inventory (stock, max orders) is now a separate card.
     delivery: (props) => (
       <>
-        {/* Delivery/Pickup checkboxes */}
-        <div className="grid grid-cols-2 gap-2">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={form.deliveryAvailable} onChange={e => set("deliveryAvailable", e.target.checked)} className="size-4 rounded border-border" />
-            Delivery Available
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={form.pickupAvailable} onChange={e => set("pickupAvailable", e.target.checked)} className="size-4 rounded border-border" />
-            Pickup Available
-          </label>
-        </div>
+        {/* V3 ARCHITECTURE: Delivery/Pickup checkboxes REMOVED from product wizard.
+            These are vendor-level Business Features (inherited by all products).
+            The vendor sets them once in MyListing (Vendor Profile) via the
+            "Business Features" FilterGroup. They are no longer asked per-product.
+
+            The legacy form.deliveryAvailable / form.pickupAvailable fields are
+            still sent to the API for backward compatibility (default: false),
+            but the vendor no longer sees checkboxes for them here. */}
         {/* Preparation time + booking notice + service area (from inventory renderer, minus stock) */}
         {STEP_RENDERERS.inventory(props)}
       </>

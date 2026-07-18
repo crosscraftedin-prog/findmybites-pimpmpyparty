@@ -196,6 +196,70 @@ async function main() {
   await createFilter("Emergency Booking", "single", null, ["Yes","No"], ALL);
   await createFilter("Booking Type", "multi", null, ["Instant Booking","Request Quote","Call to Book"], ALL);
 
+  // ═══ V3 ARCHITECTURE: Business Features, Suitable For, Product Features ═══
+  // These three FilterGroups separate vendor-level capabilities from
+  // product-level discovery filters. See the Product Creation Architecture
+  // Redesign document for the full rationale.
+  console.log("\n🏗️ V3 ARCHITECTURE FILTERS:");
+
+  // Business Features — VENDOR LEVEL ONLY (inherited by all products)
+  // Displayed in MyListing (vendor profile). Never asked in Product Wizard.
+  await createFilter("Business Features", "multi", null, [
+    "Same Day Delivery",
+    "Midnight Delivery",
+    "Home Delivery",
+    "Pickup Available",
+    "Corporate Orders",
+    "Bulk Orders",
+    "Custom Orders",
+    "Travel Available",
+    "Setup Team",
+    "Cleanup Team",
+    "GST Registered",
+    "FSSAI Certified",
+  ], ALL);
+
+  // Suitable For — PRODUCT LEVEL (replaces Quick Tags + Occasion Tags)
+  // Displayed in Product Wizard Step 4. Powers "Suitable For" search facet.
+  await createFilter("Suitable For", "multi", null, [
+    "Wedding",
+    "Reception",
+    "Birthday",
+    "Baby Shower",
+    "Festival",
+    "Corporate",
+    "Anniversary",
+    "Engagement",
+    "Christmas",
+    "Diwali",
+    "Eid",
+    "New Year",
+    "Valentine's Day",
+    "Mother's Day",
+    "Father's Day",
+    "Housewarming",
+    "Naming Ceremony",
+  ], ALL);
+
+  // Product Features — PRODUCT LEVEL (stays product-specific)
+  // Displayed in Product Wizard Step 4. Powers "Product Features" search facet.
+  await createFilter("Product Features", "multi", null, [
+    "Indoor",
+    "Outdoor",
+    "Eco Friendly",
+    "Handmade",
+    "Premium",
+    "Kids Friendly",
+    "Waterproof",
+    "Customisable",
+    "Luxury",
+    "Organic",
+    "Bestseller",
+    "Limited Edition",
+    "Seasonal",
+    "Fresh Daily",
+  ], ALL);
+
   console.log("\n✅ Done!");
 }
 

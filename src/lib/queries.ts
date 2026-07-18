@@ -677,49 +677,7 @@ export function useProducts(vendorId: string | null) {
   });
 }
 
-export function useCreateProduct() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: {
-      vendorId: string;
-      name: string;
-      description?: string;
-      price: number;
-      image?: string;
-      productType?: string;
-      sizes?: string;
-      flavours?: string;
-      weight?: string;
-      prepTime?: string;
-      deliveryAvailable?: boolean;
-      minGuests?: number;
-      pricePerHead?: number;
-      images?: string[];
-    }) => {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      if (!res.ok) throw new Error("Failed to create product");
-      return res.json();
-    },
-    onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ["products", variables.vendorId] });
-    },
-  });
-}
-
-export function useDeleteProduct() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, vendorId }: { id: string; vendorId: string }) => {
-      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete product");
-      return { vendorId };
-    },
-    onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ["products", variables.vendorId] });
-    },
-  });
-}
+// NOTE: useCreateProduct and useDeleteProduct were removed (dead code).
+// The active product creation flow uses POST /api/vendor/products via
+// Products.tsx → ProductWizard → onSave(). The legacy /api/products POST
+// route and its consumer (vendor-dashboard.tsx) have been deleted.
