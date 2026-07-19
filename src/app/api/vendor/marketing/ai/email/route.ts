@@ -1,3 +1,4 @@
+import { sanitizePrompt } from "@/lib/ai/security";
 /** POST /api/vendor/marketing/ai/email — Generate email campaign content */
 import { NextRequest, NextResponse } from "next/server";
 import { resolveVendorFromSession } from "@/lib/vendor-session";
@@ -7,6 +8,9 @@ import { db } from "@/lib/db";
 export async function POST(req: NextRequest) {
   const vendor = await resolveVendorFromSession();
   if (!vendor) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    // V12: Prompt injection protection
+    const sanitizeResult = sanitizePrompt(JSON.stringify(await req.json().catch(() => ({}))));
+    if (sanitizeResult.blocked) return NextResponse.json({ error: 'Input rejected by security filter' }, { status: 400 });
   try {
     const { template, productName, festival, offer, save } = await req.json();
     if (!template) return NextResponse.json({ error: "template required" }, { status: 400 });

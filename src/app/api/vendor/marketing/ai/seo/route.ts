@@ -1,3 +1,4 @@
+import { sanitizePrompt } from "@/lib/ai/security";
 /** POST /api/vendor/marketing/ai/seo — Generate SEO meta + keywords, optionally save */
 import { NextRequest, NextResponse } from "next/server";
 import { resolveVendorFromSession } from "@/lib/vendor-session";
@@ -16,6 +17,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const { save } = await req.json().catch(() => ({ save: false }));
+    // V12: Prompt injection protection
+    const sanitizeResult = sanitizePrompt(JSON.stringify({ save }));
+    if (sanitizeResult.blocked) return NextResponse.json({ error: "Input rejected by security filter" }, { status: 400 });
     const seo = await generateSeoCopy(vendor.id);
 
     logger.info("ai-seo", "SEO generated successfully", {
