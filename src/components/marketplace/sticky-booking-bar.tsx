@@ -26,7 +26,8 @@ export interface StickyBookingBarProps {
   /** Optional rating to show trust without scrolling. */
   rating?: number;
   reviewCount?: number;
-  /** WhatsApp link (full https://wa.me/... URL). If omitted, the button is hidden. */
+  /** WhatsApp link (DEPRECATED — V4 Lead-First: all enquiries go through onBook).
+   *  Kept for backward compatibility but no longer rendered. */
   whatsappLink?: string;
   /** Called when the primary Book Now button is clicked. */
   onBook?: () => void;
@@ -78,13 +79,8 @@ export function StickyBookingBar({
             )}
           </div>
           <div className="flex items-center gap-2">
-            {whatsappLink && (
-              <Button variant="outline" size="sm" asChild className="gap-1.5">
-                <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle className="size-4 text-emerald-600" aria-hidden /> WhatsApp
-                </a>
-              </Button>
-            )}
+            {/* V4 LEAD-FIRST: WhatsApp button removed — all enquiries go through onBook
+                which opens the Smart Enquiry Form and creates a CRM lead first. */}
             <Button
               size="sm"
               onClick={onBook}
@@ -111,19 +107,7 @@ export function StickyBookingBar({
             <div className="text-base font-extrabold">{priceLabel}</div>
             {subLabel && <div className="text-[11px] text-muted-foreground">{subLabel}</div>}
           </div>
-          {whatsappLink && (
-            <Button
-              variant="outline"
-              size="icon"
-              asChild
-              aria-label="Chat on WhatsApp"
-              className="size-12 shrink-0"
-            >
-              <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="size-5 text-emerald-600" aria-hidden />
-              </a>
-            </Button>
-          )}
+          {/* V4 LEAD-FIRST: WhatsApp button removed on mobile too */}
           <Button
             size="default"
             onClick={onBook}

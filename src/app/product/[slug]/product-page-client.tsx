@@ -374,18 +374,11 @@ export function ProductPageClient({ slug }: Props) {
                 selectedVariant={selectedVariant}
                 onVariantSelect={setSelectedVariant}
                 onWhatsApp={() => {
-                  const variants = (() => {
-                    const v = (product as any).variants;
-                    if (Array.isArray(v)) return v;
-                    if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
-                    return [];
-                  })();
-                  const selVar = variants[selectedVariant];
-                  if (vendor?.whatsapp) {
-                    const msg = selVar
-                      ? `Hi, I'm interested in ${product.name} — ${selVar.name} (${symbol}${selVar.offerPrice || selVar.price})`
-                      : `Hi, I'm interested in ${product.name}`;
-                    window.open(`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
+                  // V4 LEAD-FIRST: Don't open WhatsApp directly — scroll to the
+                  // Smart Enquiry Form which creates a CRM lead first.
+                  const form = document.querySelector("[data-enquiry-form]");
+                  if (form) {
+                    form.scrollIntoView({ behavior: "smooth", block: "center" });
                   }
                 }}
                 onWishlist={toggleWishlist}
@@ -634,6 +627,7 @@ export function ProductPageClient({ slug }: Props) {
                 })();
                 const selVar = variants[selectedVariant];
                 return (
+                <div data-enquiry-form>
                 <SmartEnquiryForm
                   vendorId={vendor.id}
                   vendorName={vendor.name}
@@ -644,6 +638,7 @@ export function ProductPageClient({ slug }: Props) {
                   currencySymbol={symbol}
                   eventType={product.productType || product.packageType || undefined}
                 />
+                </div>
                 );
               })()}
             </aside>
@@ -663,11 +658,7 @@ export function ProductPageClient({ slug }: Props) {
         }
         rating={vendor?.rating}
         reviewCount={vendor?.reviewCount}
-        whatsappLink={
-          vendor?.whatsapp
-            ? `https://wa.me/${vendor.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi, I'm interested in ${product.name}`)}`
-            : undefined
-        }
+        whatsappLink={undefined /* V4 LEAD-FIRST: no direct WhatsApp link */}
         onBook={() => {
           document.getElementById("booking-sidebar")?.scrollIntoView({ behavior: "smooth", block: "center" });
         }}
@@ -886,19 +877,16 @@ function ProductEnquiryForm({
             if (typeof v === "string" && v.trim()) { try { return JSON.parse(v); } catch { return []; } }
             return [];
           })();
-          const selectedVar = variants[selectedVariant || 0];
-          const msg = selectedVar
-            ? `Hi, I'm interested in ${product.name} — ${selectedVar.name} (${symbol}${selectedVar.price || selectedVar.offerPrice})`
-            : `Hi, I'm interested in ${product.name}`;
+          // V4 LEAD-FIRST: WhatsApp button replaced with "Continue" button
+          // that closes the success dialog. The lead is already captured at
+          // this point (the Smart Enquiry Form created it).
           return (
-          <a
-            href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(msg)}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Button
+            onClick={() => setDone(false)}
             className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1da851]"
           >
-            <MessageCircle className="size-4" /> WhatsApp
-          </a>
+            <MessageCircle className="size-4" /> Done
+          </Button>
           );
         })()}
         <Button variant="outline" className="mt-2 w-full" onClick={() => setDone(false)}>
@@ -938,17 +926,18 @@ function ProductEnquiryForm({
         {createBooking.isPending ? (<><Loader2 className="size-4 animate-spin" /> Sending…</>) : (<><Send className="size-4" /> Send Enquiry</>)}
       </Button>
 
-      {/* Quick contact options */}
+      {/* Quick contact options — V4 LEAD-FIRST: WhatsApp removed, enquiries go through Smart Enquiry Form */}
       <div className="flex flex-wrap gap-2 pt-1">
         {vendor?.whatsapp && (
-          <a
-            href={`https://wa.me/${vendor.whatsapp}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => {
+              const form = document.querySelector("[data-enquiry-form]");
+              if (form) form.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
             className="inline-flex items-center gap-1 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1da851]"
           >
-            <MessageCircle className="size-3.5" /> WhatsApp
-          </a>
+            <MessageCircle className="size-3.5" /> Enquire
+          </button>
         )}
         {vendor?.website && (
           <a

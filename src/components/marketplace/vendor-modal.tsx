@@ -418,17 +418,21 @@ export function VendorModal() {
                       vendor.whatsapp) && (
                       <div className="flex flex-wrap gap-2">
                         {vendor.whatsapp && (
-                          <a
-                            href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(
-                              `Hi ${vendor.name}, I found you on FindMyBites × PimpMyParty and I'd like to enquire about your services.`
-                            )}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Scroll to the booking/enquiry form instead of opening WhatsApp directly.
+                              // This ensures every enquiry is captured as a CRM lead first.
+                              const form = document.querySelector("[data-enquiry-form]");
+                              if (form) {
+                                form.scrollIntoView({ behavior: "smooth", block: "center" });
+                              }
+                            }}
                             className="inline-flex items-center gap-1.5 rounded-full bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-transform hover:scale-105"
                           >
                             <MessageCircle className="size-3.5" />
-                            WhatsApp
-                          </a>
+                            Enquire
+                          </button>
                         )}
                         {vendor.instagram && (
                           <a
@@ -550,7 +554,7 @@ export function VendorModal() {
                     </TabsContent>
                   )}
 
-                  <TabsContent value="book" className="mt-4">
+                  <TabsContent value="book" className="mt-4" data-enquiry-form>
                     <BookingForm vendorId={vendor.id} />
                   </TabsContent>
 

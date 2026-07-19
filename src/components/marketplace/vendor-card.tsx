@@ -162,21 +162,19 @@ export function VendorCard({ vendor, index = 0 }: { vendor: Vendor; index?: numb
           <Heart className={cn("size-4", liked && "fill-rose-500")} />
         </span>
         {vendor.whatsapp && (
-          <a
-            href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(
-              `Hi ${vendor.name}, I found you on FindMyBites × PimpMyParty and I'd like to enquire about your services.`
-            )}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href={href}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              window.location.href = href;
             }}
             className="pointer-events-auto grid size-8 place-items-center rounded-full bg-[#25D366] text-white shadow-sm transition-transform hover:scale-110"
-            aria-label="Contact on WhatsApp"
+            aria-label="Enquire — opens vendor profile with enquiry form"
+            title="Enquire"
           >
             <MessageCircle className="size-4" />
-          </a>
+          </Link>
         )}
       </div>
     </div>

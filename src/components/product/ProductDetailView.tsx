@@ -259,12 +259,13 @@ export function ProductDetailView({
       {mode === "live" && (
         <div className="flex gap-2">
           {onEnquiry && <Button onClick={onEnquiry} className="flex-1 bg-brand text-brand-foreground hover:bg-brand/90">Send Enquiry</Button>}
-          {vendor?.whatsapp && onWhatsApp && (
-            <a href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(`Hi, I'm interested in ${product.name}${selVar ? ` — ${selVar.name}` : ""}`)}`}
-              target="_blank" rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 rounded-full bg-[#25D366] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#1da851]">
-              <MessageCircle className="size-4" /> WhatsApp
-            </a>
+          {/* V4 LEAD-FIRST: WhatsApp button removed — all enquiries must go through
+              the Smart Enquiry Form (onEnquiry) which creates a CRM lead first.
+              WhatsApp happens AFTER lead capture, not before. */}
+          {!onEnquiry && vendor?.whatsapp && onWhatsApp && (
+            <Button onClick={onWhatsApp} className="flex items-center justify-center gap-1.5 rounded-full bg-[#25D366] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#1da851]">
+              <MessageCircle className="size-4" /> Enquire
+            </Button>
           )}
           {onWishlist && (
             <button onClick={onWishlist}

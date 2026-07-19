@@ -1131,10 +1131,10 @@ export function VendorCardPremium({ vendor, bannerImage }: VendorCardPremiumProp
             </Link>
           </Button>
           {vendor.whatsapp && (
-            <Button variant="outline" size="icon" asChild aria-label="WhatsApp vendor" className="size-11">
-              <a href={`https://wa.me/${vendor.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" size="icon" asChild aria-label="Enquire — view vendor profile" className="size-11">
+              <Link href={`/vendor/${vendor.slug}`}>
                 <MessageCircle className="size-5 text-emerald-600" aria-hidden />
-              </a>
+              </Link>
             </Button>
           )}
         </div>
@@ -1529,9 +1529,9 @@ export function StickyBookingBar({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const waLink = vendorWhatsapp
-    ? `https://wa.me/${vendorWhatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi ${vendorName || ""}, I'm interested in your catering package (${symbol}${pricePerGuest}/guest). Please share details.`)}`
-    : "#";
+  // V4 LEAD-FIRST: No direct WhatsApp link — all enquiries go through the
+  // booking form (onBook) which creates a CRM lead first.
+  const waLink = "#";
 
   return (
     <>
@@ -1552,13 +1552,6 @@ export function StickyBookingBar({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {vendorWhatsapp && (
-              <Button variant="outline" size="sm" asChild className="gap-1.5">
-                <a href={waLink} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle className="size-4 text-emerald-600" aria-hidden /> WhatsApp
-                </a>
-              </Button>
-            )}
             <Button size="sm" onClick={onBook} className="gap-1.5 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700">
               <Calendar className="size-4" aria-hidden /> Book Now
             </Button>
@@ -1580,13 +1573,6 @@ export function StickyBookingBar({
             </div>
             <div className="text-[11px] text-muted-foreground">{guests} guests</div>
           </div>
-          {vendorWhatsapp && (
-            <Button variant="outline" size="icon" asChild aria-label="WhatsApp vendor" className="size-12 shrink-0">
-              <a href={waLink} target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="size-5 text-emerald-600" aria-hidden />
-              </a>
-            </Button>
-          )}
           <Button size="default" onClick={onBook} className="shrink-0 gap-2 bg-emerald-600 px-6 text-white shadow-sm hover:bg-emerald-700">
             <Calendar className="size-4" aria-hidden /> Book
           </Button>
