@@ -23,65 +23,38 @@ export interface ResolvedVendor {
  * Use this at the top of every vendor-scoped API route.
  */
 export async function resolveVendorFromSession(): Promise<ResolvedVendor | null> {
-  const ts = () => new Date().toISOString();
-  console.log(`[TRACE] ${ts()} resolveVendorFromSession() — ENTER`);
   try {
-    console.log(`[TRACE] ${ts()} resolveVendorFromSession() — creating Supabase server client`);
     const supabase = await createSupabaseServerClient();
 
-    // Step 1: Try getUser()
+    // Step 1: Try getUser() (verifies JWT server-side)
     let userId: string | null = null;
-    console.log(`[TRACE] ${ts()} resolveVendorFromSession() — calling getUser()`);
     try {
       const { data: { user }, error: userErr } = await supabase.auth.getUser();
-      if (userErr) {
-        console.log(`[TRACE] ${ts()} resolveVendorFromSession() — getUser() ERROR: ${userErr.message}`);
-      }
       if (!userErr && user?.id) {
         userId = user.id;
-        console.log(`[TRACE] ${ts()} resolveVendorFromSession() — getUser() SUCCESS: userId=${userId}`);
-      } else {
-        console.log(`[TRACE] ${ts()} resolveVendorFromSession() — getUser() returned no user`);
       }
-    } catch (e: any) {
-      console.log(`[TRACE] ${ts()} resolveVendorFromSession() — getUser() THREW: ${e?.message}`);
-    }
+    } catch {}
 
-    // Step 2: Fallback to getSession()
+    // Step 2: Fallback to getSession() (reads from cookies)
     if (!userId) {
-      console.log(`[TRACE] ${ts()} resolveVendorFromSession() — falling back to getSession()`);
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user?.id) {
           userId = session.user.id;
-          console.log(`[TRACE] ${ts()} resolveVendorFromSession() — getSession() SUCCESS: userId=${userId}`);
-        } else {
-          console.log(`[TRACE] ${ts()} resolveVendorFromSession() — getSession() returned no session`);
         }
-      } catch (e: any) {
-        console.log(`[TRACE] ${ts()} resolveVendorFromSession() — getSession() THREW: ${e?.message}`);
-      }
+      } catch {}
     }
 
-    if (!userId) {
-      console.log(`[TRACE] ${ts()} resolveVendorFromSession() — ❌ No userId resolved — returning null`);
-      return null;
-    }
+    if (!userId) return null;
 
-    // Step 3: Look up vendor
-    console.log(`[TRACE] ${ts()} resolveVendorFromSession() — looking up vendor by owner_user_id=${userId}`);
+    // Step 3: Look up vendor by owner_user_id (never trusts frontend vendorId)
     const vendor = await db.vendor.findFirst({
       where: { owner_user_id: userId },
       select: { id: true, ecosystem: true, category: true, currency: true, name: true },
     });
-    if (vendor) {
-      console.log(`[TRACE] ${ts()} resolveVendorFromSession() — ✅ Vendor found: id=${vendor.id}, name="${vendor.name}"`);
-    } else {
-      console.log(`[TRACE] ${ts()} resolveVendorFromSession() — ❌ No vendor found for owner_user_id=${userId}`);
-    }
+
     return vendor ?? null;
   } catch (err) {
-    console.log(`[TRACE] ${ts()} resolveVendorFromSession() — ❌ THREW: ${err instanceof Error ? err.message : String(err)}`);
     logger.warn("vendor-session", "Failed to resolve vendor from session", {
       error: err instanceof Error ? err.message : String(err),
     });

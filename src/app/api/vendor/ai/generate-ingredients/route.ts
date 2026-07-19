@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callZAIChat } from "@/lib/zai-server";
+import { sanitizePrompt } from "@/lib/ai/security";
 
 /**
  * POST /api/vendor/ai/generate-ingredients
@@ -30,6 +31,13 @@ export async function POST(req: NextRequest) {
 
     if (!productName?.trim()) {
       return NextResponse.json({ error: "Product name is required" }, { status: 400 });
+    }
+
+    // ── Prompt injection protection ──
+    const userInput = [productName, productDescription || "", field || "", category || "", template || "", productType || ""].join("\n");
+    const sanitizeResult = sanitizePrompt(userInput);
+    if (sanitizeResult.blocked) {
+      return NextResponse.json({ error: "Input rejected by security filter" }, { status: 400 });
     }
 
     const targetField = field || "ingredients";

@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveVendorFromSession } from "@/lib/vendor-session";
 import { generateBusinessProfile, getVendorContext, type WritingStyle, type VendorSetupInput } from "@/lib/ai/listing-generator";
+import { sanitizePrompt } from "@/lib/ai/security";
 
 export async function POST(req: NextRequest) {
   const vendor = await resolveVendorFromSession();
@@ -27,6 +28,15 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const style = (body.style as WritingStyle) || "professional";
+
+    // ── Prompt injection protection ──
+    if (body.businessName) {
+      const userInput = [body.businessName, body.category || "", body.subcategory || "", body.city || "", body.specialities || "", body.tags || ""].join("\n");
+      const sanitizeResult = sanitizePrompt(userInput);
+      if (sanitizeResult.blocked) {
+        return NextResponse.json({ error: "Input rejected by security filter" }, { status: 400 });
+      }
+    }
 
     let input: VendorSetupInput;
 

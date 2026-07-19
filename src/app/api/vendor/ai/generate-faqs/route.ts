@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callZAIChat } from "@/lib/zai-server";
+import { sanitizePrompt } from "@/lib/ai/security";
 
 /**
  * POST /api/vendor/ai/generate-faqs
@@ -28,6 +29,13 @@ export async function POST(req: NextRequest) {
     if (!productInfo || Object.keys(productInfo).length === 0) {
       return NextResponse.json({ error: "Product information is required" }, { status: 400 });
     }
+
+    // ── Prompt injection protection ──
+    const sanitizeResult = sanitizePrompt(productName);
+    if (sanitizeResult.blocked) {
+      return NextResponse.json({ error: "Input rejected by security filter" }, { status: 400 });
+    }
+    const safeProductName = sanitizeResult.sanitized;
 
     // Build a compact summary of the product info for the prompt
     const infoParts: string[] = [];
