@@ -321,17 +321,16 @@ export function VendorProfileClient({ vendor }: Props) {
                 </span>
               )}
               {vendor.whatsapp && (
-                <a
-                  href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(
-                    `Hi ${vendor.name}, I found you on FindMyBites × PimpMyParty and I'd like to enquire about your services.`
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => {
+                    const form = document.querySelector("[data-enquiry-form]");
+                    if (form) form.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#1da851]"
                 >
                   <MessageCircle className="size-4" />
-                  Chat on WhatsApp
-                </a>
+                  Enquire
+                </button>
               )}
             </div>
           </div>
@@ -691,15 +690,16 @@ export function VendorProfileClient({ vendor }: Props) {
                     {/* Contact actions */}
                     <div className="mt-4 flex flex-wrap gap-2">
                       {vendor.whatsapp && (
-                        <a
-                          href={`https://wa.me/${vendor.whatsapp}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => trackClick("whatsapp_click")}
+                        <button
+                          onClick={() => {
+                            trackClick("enquiry_click");
+                            const form = document.querySelector("[data-enquiry-form]");
+                            if (form) form.scrollIntoView({ behavior: "smooth", block: "center" });
+                          }}
                           className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#1da851]"
                         >
-                          <MessageCircle className="size-3.5" /> WhatsApp
-                        </a>
+                          <MessageCircle className="size-3.5" /> Enquire
+                        </button>
                       )}
                       {vendor.website && (
                         <a
@@ -742,12 +742,14 @@ export function VendorProfileClient({ vendor }: Props) {
                 currency={vendor.currency}
                 basePrice={vendor.basePrice}
               />
+              <div data-enquiry-form>
               <SmartEnquiryForm
                 vendorId={vendor.id}
                 vendorName={vendor.name}
                 vendorCity={vendor.city}
                 currencySymbol={CURRENCY_SYMBOLS[vendor.currency] ?? vendor.currency}
               />
+              </div>
             </aside>
           </div>
         </div>
@@ -1067,19 +1069,8 @@ function QuoteForm({ vendor }: { vendor: VendorWithRelations }) {
           They typically reply within {vendor.responseTime}. We&apos;ll notify you by
           email when they respond.
         </p>
-        {vendor.whatsapp && (
-          <a
-            href={`https://wa.me/${vendor.whatsapp}?text=${encodeURIComponent(
-              `Hi ${vendor.name}, I just sent you a quote request on FindMyBites × PimpMyParty...`
-            )}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1da851]"
-          >
-            <MessageCircle className="size-4" />
-            Contact on WhatsApp
-          </a>
-        )}
+        {/* V4 LEAD-FIRST: WhatsApp link removed — lead is already captured at this point.
+            The vendor will receive the enquiry in their dashboard and can respond. */}
         <Button
           variant="outline"
           className="mt-2 w-full"
