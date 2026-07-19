@@ -96,7 +96,7 @@ function transformVendor(v: DbVendorWithReviews): VendorWithRelations {
     maxOrder: v.maxOrder,
     prepTime: v.prepTime,
     bookingNotice: v.bookingNotice,
-    responseRate: v.responseRate,
+    responseRate: v.responseRate ?? undefined,
     profileViews: v.profileViews,
     productViews: v.productViews,
     galleryViews: (v as any).galleryViews ?? 0,

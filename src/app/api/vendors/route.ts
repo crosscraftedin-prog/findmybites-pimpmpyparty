@@ -751,9 +751,9 @@ export async function POST(req: NextRequest) {
                 await db.vendor.update({
                   where: { id: created.id },
                   data: {
-                    heroImage: newHero,
-                    avatarImage: newAvatar,
-                    gallery: newGallery,
+                    heroImage: newHero ?? undefined,
+                    avatarImage: newAvatar ?? undefined,
+                    gallery: newGallery ?? undefined,
                   },
                 });
                 logger.info("api/vendors", "Rewrote image URLs from pending/ to vendor namespace", {
