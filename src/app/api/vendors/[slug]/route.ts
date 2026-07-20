@@ -617,8 +617,6 @@ export async function PUT(
     if (typeof body.approved === "boolean") {
       const newStatus = body.approved ? "approved" : "rejected";
 
-      console.log("[api/vendors/[slug]] SUPABASE_SERVICE_ROLE_KEY exists:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-      console.log("[api/vendors/[slug]] NEXT_PUBLIC_SUPABASE_URL exists:", !!process.env.NEXT_PUBLIC_SUPABASE_URL);
 
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -626,9 +624,6 @@ export async function PUT(
         { auth: { persistSession: false } }
       );
 
-      console.log("[api/vendors/[slug]] About to update ownership_status via Supabase");
-      console.log("[api/vendors/[slug]] vendor.id:", existing.id);
-      console.log("[api/vendors/[slug]] newStatus:", newStatus);
 
       const { data: updateData, error: updateError } = await supabaseAdmin
         .from("vendor_listings")
@@ -644,7 +639,6 @@ export async function PUT(
           hint: updateError.hint,
         });
       } else {
-        console.log("[api/vendors/[slug]] Supabase ownership_status update SUCCESS:", JSON.stringify(updateData));
       }
 
       // Insert notification (also via Supabase admin)
@@ -670,7 +664,6 @@ export async function PUT(
             code: notifError.code,
           });
         } else {
-          console.log("[api/vendors/[slug]] Notification inserted for user:", existing.owner_user_id);
         }
       }
     }
@@ -694,7 +687,6 @@ export async function PUT(
       // Sitemap + homepage (so new links appear)
       revalidatePath("/sitemap.xml");
       revalidatePath("/");
-      console.log(`[api/vendors/[slug]] Revalidated SEO pages for ${migratedCat}-${citySlug}`);
     } catch (e) {
       console.error("[api/vendors/[slug]] revalidatePath failed:", e);
     }

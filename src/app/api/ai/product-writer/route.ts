@@ -183,7 +183,6 @@ Return ONLY valid JSON, no markdown.`;
 
         const content = completion.choices[0]?.message?.content || "";
         const llmElapsed = Date.now() - llmStart;
-        console.log(`[PRODUCT-WRITER] ${ts()} LLM response in ${llmElapsed}ms, content: ${content.length} chars`);
 
         if (content) {
           // Parse JSON
@@ -198,7 +197,6 @@ Return ONLY valid JSON, no markdown.`;
               tags: String(parsed.tags || ""),
               ai_source: "LLM",
             };
-            console.log(`[PRODUCT-WRITER] ${ts()} ✅ LLM content parsed in ${Date.now() - startTime}ms total`);
             return NextResponse.json(result);
           } catch {
             // JSON parse failed — use raw content as description, switch to fallback
@@ -238,9 +236,7 @@ Return ONLY valid JSON, no markdown.`;
         });
 
         if (isTimeout) {
-          console.log(`[PRODUCT-WRITER] ${ts()} ⚠️ LLM timed out after ${LLM_TIMEOUT_MS}ms — switching to template`);
         } else {
-          console.log(`[PRODUCT-WRITER] ${ts()} ⚠️ LLM failed: ${llmErr?.message} — switching to template`);
         }
       }
     } else {
@@ -258,7 +254,6 @@ Return ONLY valid JSON, no markdown.`;
 
     // ── Template fallback (always succeeds, <50ms) ──
     const result = generateTemplateContent(productName, category, (body as any).city || "", ecosystem);
-    console.log(`[PRODUCT-WRITER] ${ts()} ✅ Template generated in ${Date.now() - startTime}ms total`);
     return NextResponse.json(result);
 
   } catch (error: any) {

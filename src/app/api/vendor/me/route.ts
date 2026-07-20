@@ -186,11 +186,9 @@ export async function GET(_req: NextRequest) {
     }
 
     if (!userId) {
-      console.log("[api/vendor/me] No session — returning 401");
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    console.log(`[api/vendor/me] User: ${userId} (${userEmail || "no email"})`);
 
     // ── 2. Vendor lookup ──
     let vendors: any[] = [];
@@ -241,7 +239,6 @@ export async function GET(_req: NextRequest) {
     }
 
     if (vendors.length === 0) {
-      console.log(`[api/vendor/me] No vendors found for user ${userId} — returning empty`);
       return NextResponse.json({
         vendors: [],
         bookings: [],
@@ -250,7 +247,6 @@ export async function GET(_req: NextRequest) {
       });
     }
 
-    console.log(`[api/vendor/me] Found ${vendors.length} vendor(s): ${vendors.map(v => v.id).join(", ")}`);
 
     const vendorIds = vendors.map((v) => v.id);
 
@@ -313,7 +309,6 @@ export async function GET(_req: NextRequest) {
     });
 
     const elapsed = Date.now() - startTime;
-    console.log(`[api/vendor/me] Success in ${elapsed}ms — ${vendors.length} vendors, ${bookings.length} bookings, ${reviews.length} reviews`);
 
     return NextResponse.json({
       vendors: transformedVendors,

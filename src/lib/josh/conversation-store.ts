@@ -60,13 +60,11 @@ export async function getOrCreateConversation(params: {
         where: { id: conversationId },
       });
       if (row) {
-        console.log(`[josh/store] Loaded conversation ${row.id} by ID (messages: ${Array.isArray(row.messages) ? row.messages.length : 0})`);
         return {
           conversation: rowToStored(row),
           created: false,
         };
       }
-      console.log(`[josh/store] Conversation ${conversationId} not found by ID — will search by userId`);
     } catch (err) {
       logPrismaError(`findUnique(id=${conversationId})`, err);
       throw err;
@@ -81,7 +79,6 @@ export async function getOrCreateConversation(params: {
         orderBy: { lastMessageAt: "desc" },
       });
       if (row) {
-        console.log(`[josh/store] Loaded conversation ${row.id} by userId=${userId} (messages: ${Array.isArray(row.messages) ? row.messages.length : 0})`);
         return {
           conversation: rowToStored(row),
           created: false,
@@ -105,7 +102,6 @@ export async function getOrCreateConversation(params: {
         state: {},
       },
     });
-    console.log(`[josh/store] Created new conversation ${created.id} for userId=${userId}`);
     return {
       conversation: rowToStored(created),
       created: true,
@@ -139,7 +135,6 @@ export async function saveConversation(
         lastMessageAt: new Date(),
       },
     });
-    console.log(`[josh/store] Saved conversation ${conversation.id} (messages: ${messages.length}, state keys: ${Object.keys(state).filter(k => (state as any)[k] != null && (state as any)[k] !== "").join(",")})`);
     return { saved: true };
   } catch (err) {
     logPrismaError(`update(id=${conversation.id})`, err);
@@ -173,7 +168,6 @@ export async function verifySavedState(
     } catch { reloadedState = null; }
     const verified = stateMatches(reloadedState, expectedState);
     if (verified) {
-      console.log(`[josh/store] VERIFY PASSED: conversation ${conversationId} state matches`);
     } else {
       console.error(`[josh/store] VERIFY FAILED: conversation ${conversationId} state mismatch`);
       console.error(`[josh/store]   expected: ${JSON.stringify({ category: expectedState.category, city: expectedState.city, eventType: expectedState.eventType, budget: expectedState.budget, dietaryRequirements: expectedState.dietaryRequirements })}`);
@@ -217,7 +211,6 @@ export async function updateConversationSummary(
       where: { id: conversation.id },
       data: { conversationSummary: summary },
     });
-    console.log(`[josh/store] Updated summary for conversation ${conversation.id}`);
   } catch (err) {
     logPrismaError(`updateConversationSummary(id=${conversation.id})`, err);
     // summary is non-critical — log but don't throw

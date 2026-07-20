@@ -376,8 +376,6 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
     }
     setAiGenerating(true);
     const ts = () => new Date().toISOString();
-    console.log(`[AI-WRITER] ${ts()} ═══════════════════════════════════════`);
-    console.log(`[AI-WRITER] ${ts()} Button clicked — name="${form.name}"`);
 
     const requestBody = {
       name: form.name,
@@ -385,10 +383,8 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
       ecosystem: vendor.ecosystem,
       city: vendor.city,
     };
-    console.log(`[AI-WRITER] ${ts()} Request body:`, JSON.stringify(requestBody));
 
     // ── FETCH START ──
-    console.log(`[AI-WRITER] ${ts()} fetch() STARTING — POST /api/ai/product-writer`);
     const fetchStart = Date.now();
 
     let res: Response;
@@ -414,18 +410,14 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
 
     // ── FETCH COMPLETED — browser received a response ──
     const fetchEnd = Date.now();
-    console.log(`[AI-WRITER] ${ts()} fetch() COMPLETED — status: ${res.status} ${res.statusText} (${fetchEnd - fetchStart}ms)`);
-    console.log(`[AI-WRITER] ${ts()} Response content-type: ${res.headers.get("content-type")}`);
 
     // ── Read raw text BEFORE parsing JSON ──
     const rawText = await res.text();
-    console.log(`[AI-WRITER] ${ts()} Raw response text (${rawText.length} chars): ${rawText.slice(0, 300)}`);
 
     // ── Parse JSON ──
     let data: any;
     try {
       data = JSON.parse(rawText);
-      console.log(`[AI-WRITER] ${ts()} JSON parsed — keys: ${Object.keys(data)}`);
     } catch (parseErr: any) {
       console.error(`[AI-WRITER] ${ts()} ❌ JSON PARSE FAILED: ${parseErr.message}`);
       console.error(`[AI-WRITER] ${ts()} Raw text was: ${rawText.slice(0, 200)}`);
@@ -451,7 +443,6 @@ export function ProductWizard({ vendor, initialData, onSave, onClose, saving }: 
 
     // ── Log ai_source metric ──
     const source = data.ai_source || (data._fallback ? "Fallback" : "LLM");
-    console.log(`[AI-WRITER] ${ts()} ✅ Content applied to form (ai_source: ${source})`);
 
     // ── Dev-only warning when fallback is used (never shown to production users) ──
     if (process.env.NODE_ENV !== "production" && source === "Fallback") {
