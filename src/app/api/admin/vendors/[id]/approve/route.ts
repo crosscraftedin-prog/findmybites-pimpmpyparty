@@ -52,7 +52,6 @@ export async function POST(
           jsonb_build_object('name', ${vendor.name}))
       `;
 
-      console.log(`[admin/vendors/approve] Rejected vendor ${id} (${vendor.name})`);
       return NextResponse.json({ success: true, vendor: { id: vendor.id, name: vendor.name, approved: false } });
     }
 
@@ -105,7 +104,6 @@ export async function POST(
       ? `https://wa.me/${waPhone}?text=${waMessage}`
       : `https://wa.me/?text=${waMessage}`;
 
-    console.log(`[admin/vendors/approve] Approved vendor ${id} (${vendor.name})`);
 
     return NextResponse.json({
       success: true,

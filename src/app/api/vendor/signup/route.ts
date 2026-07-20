@@ -79,7 +79,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    console.log(`[vendor/signup] Organic signup created: ${vendor.id} (${name}) — pending approval`);
 
     return NextResponse.json({
       success: true,

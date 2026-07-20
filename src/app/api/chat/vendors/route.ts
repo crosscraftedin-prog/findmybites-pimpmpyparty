@@ -142,7 +142,6 @@ export async function GET(req: NextRequest) {
     // vendors so the chat widget always shows cards.
     if (picked.length === 0) {
       const samples = getSampleVendors(categories, city, limit);
-      console.log("[api/chat/vendors] DB returned 0 vendors — using", samples.length, "sample vendors");
       return NextResponse.json({ vendors: samples, sample: true });
     }
 

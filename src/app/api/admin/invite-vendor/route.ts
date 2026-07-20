@@ -129,7 +129,6 @@ export async function POST(req: NextRequest) {
       ? `https://wa.me/${waPhone}?text=${waMessage}`
       : `https://wa.me/?text=${waMessage}`;
 
-    console.log(`[invite-vendor] Created vendor ${vendor.id} (${name}) with invite token`);
 
     return NextResponse.json({
       success: true,

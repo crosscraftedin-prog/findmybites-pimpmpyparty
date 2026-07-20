@@ -23,7 +23,6 @@ export async function GET(req: NextRequest) {
       bookings.map(b => generateBookingNotification(b.id, "reminder_24h").catch(() => null))
     );
     const valid = notifications.filter(Boolean);
-    console.log(`[bookings/reminders] Generated ${valid.length} 24h reminder events`);
     return NextResponse.json({
       total: valid.length,
       notifications: valid,

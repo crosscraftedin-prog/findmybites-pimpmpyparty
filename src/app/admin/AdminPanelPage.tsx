@@ -759,7 +759,6 @@ export function AdminPanelPage({
           const data = await resp.json().catch(() => null);
           // Show the activation link to the admin if one was generated
           if (data?.activateUrl || data?.whatsappShareUrl) {
-            console.log("[admin] Vendor approved. Activation URL:", data.activateUrl);
             // Could surface via toast/alert in the future
           }
         }

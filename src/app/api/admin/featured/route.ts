@@ -68,7 +68,6 @@ export async function POST(req: NextRequest) {
       data: { featured: true },
     });
 
-    console.log(`[admin/featured] Added vendor ${vendorId} to featured`);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[admin/featured] POST failed:", error.message);
@@ -91,7 +90,6 @@ export async function DELETE(req: NextRequest) {
       data: { featured: false },
     });
 
-    console.log(`[admin/featured] Removed vendor ${vendorId} from featured`);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[admin/featured] DELETE failed:", error.message);

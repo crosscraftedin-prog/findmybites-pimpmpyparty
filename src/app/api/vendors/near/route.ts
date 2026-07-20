@@ -161,7 +161,6 @@ export async function GET(req: NextRequest) {
       });
 
     // Single summary log line (not per-vendor)
-    console.log(`[near-me] ${withDistance.length}/${rows.length} vendors included for lat=${lat},lng=${lng},r=${radius}`);
 
     // Sort: nearest first (when radius>0), tie-break by rating then reviews
     // for a "popular near you" boost. Global mode is already sorted by rating.
