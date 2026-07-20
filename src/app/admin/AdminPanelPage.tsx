@@ -229,9 +229,11 @@ function getInitials(name: string): string {
     .join("");
 }
 
-function formatINR(n: number): string {
-  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
-  return `₹${n}`;
+function formatCurrency(n: number): string {
+  // Admin dashboard shows revenue in the platform's default currency.
+  // Uses the vendor's currency symbol if available, falls back to "$".
+  if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
+  return `$${n}`;
 }
 
 /**
@@ -1059,8 +1061,8 @@ export function AdminPanelPage({
             />
             <KPICard
               label="MRR"
-              value={kpi ? formatINR(kpi.mrr) : "—"}
-              delta={kpi ? `+${formatINR(kpi.mrrDelta)} vs last month` : undefined}
+              value={kpi ? formatCurrency(kpi.mrr) : "—"}
+              delta={kpi ? `+${formatCurrency(kpi.mrrDelta)} vs last month` : undefined}
               loading={loading}
             />
           </div>

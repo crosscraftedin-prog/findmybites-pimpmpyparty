@@ -8,6 +8,7 @@ import {
   Calendar, Users, BookOpen, Bot, AlertTriangle, CheckCircle2, ArrowRight,
   Zap,
 } from "lucide-react";
+import { CURRENCY_SYMBOLS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -325,8 +326,8 @@ function PriceAdvisorTab() {
       <div className="rounded-xl border bg-card p-5">
         <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">AI Price Advisor</h3><Badge className={sc[data.status as keyof typeof sc]}>{sl[data.status as keyof typeof sl]}</Badge></div>
         <div className="mt-4 grid grid-cols-2 gap-4">
-          <div className="rounded-lg bg-muted/30 p-3 text-center"><p className="text-xs text-muted-foreground">Your Avg Price</p><p className="text-2xl font-bold">₹{(data.yourAveragePrice / 100).toLocaleString()}</p></div>
-          <div className="rounded-lg bg-muted/30 p-3 text-center"><p className="text-xs text-muted-foreground">Peer Average</p><p className="text-2xl font-bold text-muted-foreground">₹{(data.averagePeerPrice / 100).toLocaleString()}</p></div>
+          <div className="rounded-lg bg-muted/30 p-3 text-center"><p className="text-xs text-muted-foreground">Your Avg Price</p><p className="text-2xl font-bold">{CURRENCY_SYMBOLS[data.currency] || data.currency || "$"}{(data.yourAveragePrice / 100).toLocaleString()}</p></div>
+          <div className="rounded-lg bg-muted/30 p-3 text-center"><p className="text-xs text-muted-foreground">Peer Average</p><p className="text-2xl font-bold text-muted-foreground">{CURRENCY_SYMBOLS[data.currency] || data.currency || "$"}{(data.averagePeerPrice / 100).toLocaleString()}</p></div>
         </div>
         <div className="mt-4 rounded-lg border p-3"><p className="text-sm font-medium">{data.recommendation}</p><p className="mt-1 text-xs text-emerald-600">{data.estimatedRevenueChange}</p></div>
       </div>
