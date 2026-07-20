@@ -257,14 +257,6 @@ export function QuickOnboardingForm({
       // ── Onboarding metrics (client-side, logged to console for now) ──
       const totalTime = Date.now() - onboardingStartTime.current;
       const publishTime = Date.now() - publishStartTime.current;
-      console.log(JSON.stringify({
-        type: "onboarding_completed",
-        vendorId: vendor?.id,
-        totalDurationMs: totalTime,
-        publishDurationMs: publishTime,
-        hadPhoto: !!form.photo,
-        ecosystem,
-      }));
 
       // AI enrichment, search indexing, and upload migration are now handled
       // server-side in the POST /api/vendors handler — no client fire-and-forget needed.

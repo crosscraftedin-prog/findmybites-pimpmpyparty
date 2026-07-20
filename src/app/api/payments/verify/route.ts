@@ -101,14 +101,6 @@ export async function POST(req: NextRequest) {
     });
 
     // ── Log payment (optional — could store in a payments table) ────────
-    console.log("[api/payments/verify] Payment verified successfully:", {
-      vendor: vendor.slug,
-      planKey,
-      billingCycle,
-      orderId: razorpay_order_id,
-      paymentId: razorpay_payment_id,
-      amount: "see Razorpay dashboard",
-    });
 
     return NextResponse.json({
       success: true,
