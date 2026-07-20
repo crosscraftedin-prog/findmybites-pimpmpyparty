@@ -1,3 +1,4 @@
+export const maxDuration = 30;
 import { guardAiRoute } from "@/lib/billing/guards";
 /**
  * POST /api/ai/product-writer

@@ -1,3 +1,4 @@
+export const maxDuration = 30;
 import { guardAiRoute } from "@/lib/billing/guards";
 import { NextRequest, NextResponse } from "next/server";
 import { getZAI } from "@/lib/zai-server";

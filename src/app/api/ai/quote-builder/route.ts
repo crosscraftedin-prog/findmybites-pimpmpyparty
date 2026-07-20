@@ -1,3 +1,4 @@
+export const maxDuration = 30;
 import { NextRequest, NextResponse } from "next/server";
 import { guardAiRoute } from "@/lib/billing/guards";
 import { db } from "@/lib/db";

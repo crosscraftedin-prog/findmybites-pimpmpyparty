@@ -1,3 +1,4 @@
+export const maxDuration = 30;
 /**
  * POST /api/vendor/ai/listing
  *
