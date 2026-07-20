@@ -214,8 +214,6 @@ async function buildStorefrontContext(vendorId: string): Promise<string> {
 export async function POST(req: NextRequest) {
   const requestId = `josh-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const startTime = Date.now();
-  console.log(`[josh/v4] ${requestId} ═══════════════════════════════════════════════════`);
-  console.log(`[josh/v4] ${requestId} POST called`);
 
   try {
     const body = (await req.json()) as RequestBody;
@@ -244,12 +242,6 @@ export async function POST(req: NextRequest) {
       vendorId: vendorId ?? null,
     });
 
-    console.log(`[josh/v4] ${requestId} STEP 1 — INCOMING REQUEST`);
-    console.log(`[josh/v4] ${requestId}   message        = ${JSON.stringify(message.slice(0, 80))}`);
-    console.log(`[josh/v4] ${requestId}   conversationId = ${JSON.stringify(conversationId)}`);
-    console.log(`[josh/v4] ${requestId}   userId         = ${JSON.stringify(userId)}`);
-    console.log(`[josh/v4] ${requestId}   userType       = ${JSON.stringify(userType)}`);
-    console.log(`[josh/v4] ${requestId}   conversation   = ${conversation?.id ?? "null"} (created: ${created})`);
 
     // ── STEP 2: Build message history ───────────────────────────────────
     const history: ChatMessage[] = conversation?.messages
@@ -260,7 +252,6 @@ export async function POST(req: NextRequest) {
       ...trimmedHistory,
       { role: "user", content: safeMessage, timestamp: new Date().toISOString() },
     ];
-    console.log(`[josh/v4] ${requestId}   history length = ${trimmedHistory.length} | total = ${newMessages.length}`);
 
     // ── STEP 2: Load ConversationState from the store ───────────────────
     let convState: ConversationState = { ...DEFAULT_STATE };
@@ -285,8 +276,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log(`[josh/v4] ${requestId} STEP 2 — LOADED CONVERSATIONSTATE`);
-    console.log(`[josh/v4] ${requestId}   ${JSON.stringify({ category: convState.category, subcategory: convState.subcategory, city: convState.city, eventType: convState.eventType, budget: convState.budget, guestCount: convState.guestCount, dietaryRequirements: convState.dietaryRequirements, messageCount: convState.messageCount, conversationMode: convState.conversationMode })}`);
 
     // Snapshot state BEFORE merge (for filter-change detection)
     const stateBeforeMerge: ConversationState = { ...convState };
@@ -294,21 +283,14 @@ export async function POST(req: NextRequest) {
     // ── STEP 3: Extract from current message ONLY ───────────────────────
     // Never reparse the entire conversation history — ConversationState is the source of truth.
     const newExtracted = extractFromMessage(message);
-    console.log(`[josh/v4] ${requestId} STEP 3 — EXTRACTED FROM CURRENT MESSAGE`);
-    console.log(`[josh/v4] ${requestId}   extractFromMessage(${JSON.stringify(message.slice(0, 60))}) = ${JSON.stringify(newExtracted)}`);
 
     // ── STEP 4: Merge — only updates fields present in the current message ──
     // Never erases existing values unless the user explicitly changes them.
     convState = mergeState(convState, newExtracted);
 
-    console.log(`[josh/v4] ${requestId} STEP 4 — MERGED CONVERSATIONSTATE`);
-    console.log(`[josh/v4] ${requestId}   ${JSON.stringify({ category: convState.category, subcategory: convState.subcategory, city: convState.city, eventType: convState.eventType, budget: convState.budget, guestCount: convState.guestCount, dietaryRequirements: convState.dietaryRequirements, messageCount: convState.messageCount, conversationMode: convState.conversationMode })}`);
 
     // ── STEP 5: Calculate missing slots ─────────────────────────────────
     const missingSlots = getMissingSlots(convState);
-    console.log(`[josh/v4] ${requestId} STEP 5 — MISSING SLOTS`);
-    console.log(`[josh/v4] ${requestId}   missingSlots = ${JSON.stringify(missingSlots)}`);
-    console.log(`[josh/v4] ${requestId}   category exists = ${convState.category ? "YES" : "NO"} | city exists = ${convState.city ? "YES" : "NO"}`);
 
     // ── STEP 6: Backend performs marketplace search (BEFORE any LLM) ────
     // The LLM never searches. Vendor search never depends on AI output.
@@ -317,8 +299,6 @@ export async function POST(req: NextRequest) {
     const products: JoshProduct[] = searchResult.products;
     const filters: JoshFilterSummary[] = searchResult.filters;
 
-    console.log(`[josh/v4] ${requestId} STEP 6 — VENDOR SEARCH`);
-    console.log(`[josh/v4] ${requestId}   vendorCount = ${vendors.length} | productCount = ${products.length} | filters = ${JSON.stringify(filters)}`);
 
     // ── STEP 7: Compute the Action (deterministic) ──────────────────────
     const filtersJustChanged = didFiltersJustChange(newExtracted, stateBeforeMerge);
@@ -332,8 +312,6 @@ export async function POST(req: NextRequest) {
     const cards = buildVendorCards(vendors, convState);
     const suggestions = buildSuggestions(action, convState);
 
-    console.log(`[josh/v4] ${requestId} STEP 7 — COMPUTED ACTION`);
-    console.log(`[josh/v4] ${requestId}   action = ${action} | requiresLLM = ${actionRequiresLLM(action)} | filtersJustChanged = ${filtersJustChanged} | cardCount = ${cards.length}`);
 
     // ── STEP 8: Generate response ───────────────────────────────────────
     // Deterministic actions NEVER call the LLM. LLM only for VENDOR_MODE / ADMIN_MODE / STOREFRONT_MODE / GENERAL_CHAT.
@@ -347,8 +325,6 @@ export async function POST(req: NextRequest) {
     if (!actionRequiresLLM(action)) {
       // Deterministic path — NO LLM call
       assistantMessage = deterministicResponse(action, convState, vendors, products);
-      console.log(`[josh/v4] ${requestId} STEP 8 — DETERMINISTIC RESPONSE (no LLM)`);
-      console.log(`[josh/v4] ${requestId}   response = ${JSON.stringify(assistantMessage.slice(0, 120))}`);
     } else {
       // LLM path
       didCallLLM = true;
@@ -370,7 +346,6 @@ export async function POST(req: NextRequest) {
 
       const systemPrompt = JOSH_SYSTEM_PROMPT_V4 + extraContext + payloadSection;
       promptSize = systemPrompt.length;
-      console.log(`[josh/v4] ${requestId} STEP 8 — LLM PATH | promptSize=${promptSize}`);
 
       const zai = await getZAI();
       if (!zai) {
@@ -395,7 +370,6 @@ export async function POST(req: NextRequest) {
           } else {
             tokenUsage = completion?.usage;
             assistantMessage = completion?.choices[0]?.message?.content || deterministicResponse(action, convState, vendors, products);
-            console.log(`[josh/v4] ${requestId}   LLM response (${llmLatency}ms, tokens=${tokenUsage?.total_tokens ?? "?"}): ${assistantMessage.slice(0, 120)}`);
           }
         } catch (llmErr) {
           llmLatency = Date.now() - llmStart;
@@ -422,9 +396,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log(`[josh/v4] ${requestId} STEP 9 — SAVED CONVERSATIONSTATE`);
-    console.log(`[josh/v4] ${requestId}   saved = ${saveResult.saved} | conversationId = ${conversation?.id ?? "null"}`);
-    console.log(`[josh/v4] ${requestId}   saved state = ${JSON.stringify({ category: convState.category, city: convState.city, eventType: convState.eventType, budget: convState.budget, dietaryRequirements: convState.dietaryRequirements, messageCount: convState.messageCount })}`);
 
     // ── STEP 9b: READ-BACK VERIFICATION ────────────────────────────────
     // Immediately read the saved state back from PostgreSQL and verify it matches.
@@ -435,9 +406,6 @@ export async function POST(req: NextRequest) {
       const verify = await verifySavedState(conversation.id, convState);
       verificationPassed = verify.verified;
       reloadedState = verify.reloadedState;
-      console.log(`[josh/v4] ${requestId} STEP 9b — READ-BACK VERIFICATION`);
-      console.log(`[josh/v4] ${requestId}   verificationPassed = ${verificationPassed}`);
-      console.log(`[josh/v4] ${requestId}   reloaded state = ${JSON.stringify({ category: reloadedState?.category, city: reloadedState?.city, eventType: reloadedState?.eventType, budget: reloadedState?.budget, dietaryRequirements: reloadedState?.dietaryRequirements, messageCount: reloadedState?.messageCount })}`);
       if (!verificationPassed) {
         console.error(`[josh/v4] ${requestId} VERIFICATION FAILED — saved state does not match expected state`);
         throw new Error(`ConversationState verification failed for conversation ${conversation.id}`);
@@ -487,8 +455,6 @@ export async function POST(req: NextRequest) {
     };
 
     const totalLatency = Date.now() - startTime;
-    console.log(`[josh/v4] ${requestId} DONE | action=${action} requiresLLM=${didCallLLM} vendorCount=${vendors.length} cardCount=${cards.length} missingSlots=${JSON.stringify(missingSlots)} llmLatency=${llmLatency}ms totalLatency=${totalLatency}ms tokens=${tokenUsage?.total_tokens ?? "n/a"} fallback=${usedFallback} saved=${saveResult.saved} verified=${verificationPassed}`);
-    console.log(`[josh/v4] ${requestId} ═══════════════════════════════════════════════════`);
 
     return NextResponse.json(response);
   } catch (err) {

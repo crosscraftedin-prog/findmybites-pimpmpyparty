@@ -283,7 +283,6 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
     },
   }).catch(() => {});
 
-  console.log(`[booking] Created booking ${row.bookingNumber} for vendor ${input.vendorId}`);
   return toBookingDetails(row);
 }
 
@@ -428,7 +427,6 @@ export async function acceptBooking(bookingId: string, vendorId: string): Promis
   });
 
   await recordEvent(bookingId, "accepted", null, "vendor", { oldStatus, newStatus: "accepted" });
-  console.log(`[booking] Accepted ${booking.bookingNumber}`);
   return toBookingDetails(updated);
 }
 
@@ -449,7 +447,6 @@ export async function rejectBooking(bookingId: string, vendorId: string, reason?
   });
 
   await recordEvent(bookingId, "rejected", null, "vendor", { oldStatus, newStatus: "rejected", reason });
-  console.log(`[booking] Rejected ${booking.bookingNumber}`);
   return toBookingDetails(updated);
 }
 
@@ -496,7 +493,6 @@ export async function rescheduleBooking(
     oldTime,
     newTime,
   });
-  console.log(`[booking] Rescheduled ${booking.bookingNumber} to ${newDate}`);
   return toBookingDetails(updated);
 }
 
@@ -516,7 +512,6 @@ export async function completeBooking(bookingId: string, vendorId: string): Prom
   });
 
   await recordEvent(bookingId, "completed", null, "vendor", { oldStatus, newStatus: "completed" });
-  console.log(`[booking] Completed ${booking.bookingNumber}`);
   return toBookingDetails(updated);
 }
 
@@ -545,7 +540,6 @@ export async function cancelBooking(
   });
 
   await recordEvent(bookingId, "cancelled", actorId, actorRole, { oldStatus, newStatus: "cancelled", reason });
-  console.log(`[booking] Cancelled ${booking.bookingNumber} by ${actorRole}`);
   return toBookingDetails(updated);
 }
 
@@ -613,7 +607,6 @@ export async function reassignBooking(
   });
 
   await recordEvent(bookingId, "reassigned", adminId, "admin", { oldVendorId, newVendorId });
-  console.log(`[booking] Reassigned ${booking.bookingNumber} from ${oldVendorId} to ${newVendorId}`);
   return toBookingDetails(updated);
 }
 
@@ -664,7 +657,6 @@ export async function updateBookingStatus(
   });
 
   await recordEvent(bookingId, "status_changed", null, "vendor", { oldStatus, newStatus });
-  console.log(`[booking] Status ${booking.bookingNumber}: ${oldStatus} → ${newStatus}`);
   return toBookingDetails(updated);
 }
 

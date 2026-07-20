@@ -644,19 +644,13 @@ export function MyListing({ vendor }: MyListingProps) {
   // ── Publish handler ──
   const handlePublish = async () => {
     const ts = () => new Date().toISOString();
-    console.log(`[TRACE-FE] ${ts()} ═══════════════════════════════════════════════`);
-    console.log(`[TRACE-FE] ${ts()} Publish button CLICKED`);
 
     setPublishing(true);
-    console.log(`[TRACE-FE] ${ts()} setPublishing(true) — publishing state set`);
 
     try {
       // Step 1: HTTP request starts
-      console.log(`[TRACE-FE] ${ts()} Step 1: Building fetch request to PUT /api/vendor/profile`);
       const requestBody = JSON.stringify({ ...form, gallery });
-      console.log(`[TRACE-FE] ${ts()} Request body size: ${requestBody.length} chars`);
 
-      console.log(`[TRACE-FE] ${ts()} HTTP request STARTING — fetch() called`);
       const fetchStart = Date.now();
       const res = await fetch("/api/vendor/profile", {
         method: "PUT",
@@ -664,77 +658,49 @@ export function MyListing({ vendor }: MyListingProps) {
         body: requestBody,
       });
       const fetchEnd = Date.now();
-      console.log(`[TRACE-FE] ${ts()} HTTP response RECEIVED — status: ${res.status} ${res.statusText} (took ${fetchEnd - fetchStart}ms)`);
-      console.log(`[TRACE-FE] ${ts()} Response content-type: ${res.headers.get("content-type")}`);
 
       // Step 2: Parse response
-      console.log(`[TRACE-FE] ${ts()} Step 2: Parsing JSON response`);
       const data = await res.json().catch((e) => {
-        console.log(`[TRACE-FE] ${ts()} ❌ JSON parse FAILED: ${e.message}`);
         return {};
       });
-      console.log(`[TRACE-FE] ${ts()} JSON parsed: keys=${Object.keys(data)}`);
 
       if (res.ok) {
         // Database commit succeeded
-        console.log(`[TRACE-FE] ${ts()} ✅ DATABASE COMMIT SUCCESS — vendor saved`);
-        console.log(`[TRACE-FE] ${ts()} ✅ PUBLISH SUCCESS — setting published=true`);
         setPublished(true);
-        console.log(`[TRACE-FE] ${ts()} Displaying success toast`);
         toast.success("🎉 Your business profile is now live!");
-        console.log(`[TRACE-FE] ${ts()} Success toast displayed`);
       } else if (res.status === 404 || res.status === 401) {
         // Auth issue — check if vendor already exists
-        console.log(`[TRACE-FE] ${ts()} ⚠️ Auth issue (${res.status}) — checking if vendor already exists via GET /api/vendor/me`);
         const checkRes = await fetch("/api/vendor/me");
-        console.log(`[TRACE-FE] ${ts()} GET /api/vendor/me response: ${checkRes.status}`);
         if (checkRes.ok) {
           const checkData = await checkRes.json().catch(() => ({}));
           if (checkData.vendor) {
-            console.log(`[TRACE-FE] ${ts()} ✅ Vendor already exists in DB — PUBLISH SUCCESS`);
             setPublished(true);
             toast.success("🎉 Your business profile is now live!");
-            console.log(`[TRACE-FE] ${ts()} Success toast displayed (vendor existed)`);
           } else {
-            console.log(`[TRACE-FE] ${ts()} ❌ FIRST EXCEPTION: Vendor not found in DB — auth required`);
             throw new Error(data.error || "Please sign in to publish your listing");
           }
         } else {
-          console.log(`[TRACE-FE] ${ts()} ❌ FIRST EXCEPTION: Cannot verify vendor — GET /api/vendor/me returned ${checkRes.status}`);
           throw new Error(data.error || "Please sign in to publish your listing");
         }
       } else {
-        console.log(`[TRACE-FE] ${ts()} ❌ FIRST EXCEPTION: API returned HTTP ${res.status}: ${data.error}`);
         throw new Error(data.error || `Failed to save vendor profile (HTTP ${res.status})`);
       }
 
       // Step 3: Background jobs (fire-and-forget)
-      console.log(`[TRACE-FE] ${ts()} Step 3: Background jobs starting (fire-and-forget)`);
       (async () => {
-        console.log(`[TRACE-FE] ${ts()} Background: AI SEO generation starting`);
         try {
           const seoRes = await fetch("/api/vendor/marketing/ai/seo", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ save: false }),
           });
-          console.log(`[TRACE-FE] ${ts()} Background: AI SEO response: ${seoRes.status}`);
         } catch (seoErr: any) {
-          console.log(`[TRACE-FE] ${ts()} Background: AI SEO FAILED (non-fatal): ${seoErr?.message}`);
         }
-        console.log(`[TRACE-FE] ${ts()} Background jobs complete`);
       })();
     } catch (err: any) {
-      console.log(`[TRACE-FE] ${ts()} ❌ PUBLISH FAILED — catch block entered`);
-      console.log(`[TRACE-FE] ${ts()} ❌ Error message: ${err.message}`);
-      console.log(`[TRACE-FE] ${ts()} ❌ Stack: ${err.stack?.split('\n').slice(0, 3).join(' | ')}`);
-      console.log(`[TRACE-FE] ${ts()} Displaying error toast`);
       toast.error(err.message || "Publish failed — please try again");
-      console.log(`[TRACE-FE] ${ts()} Error toast displayed`);
     } finally {
-      console.log(`[TRACE-FE] ${ts()} finally block — setPublishing(false)`);
       setPublishing(false);
-      console.log(`[TRACE-FE] ${ts()} ═══════════════════════════════════════════════`);
     }
   };
 

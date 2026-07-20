@@ -122,7 +122,6 @@ async function expireOtherActiveSubscriptions(
     },
   });
   if (result.count > 0) {
-    console.log(`[subscription] Expired ${result.count} previous active subscription(s) for vendor ${vendorId} (kept ${keepId})`);
   }
   return result.count;
 }
@@ -182,7 +181,6 @@ export async function activateSubscription(params: {
   });
 
   if (existingPayment?.subscription) {
-    console.log(`[subscription] Payment ${paymentId} already processed — returning existing subscription ${existingPayment.subscription.id}`);
     return {
       subscription: toActiveInfo(existingPayment.subscription),
       paymentType: existingPayment.paymentType as PaymentType,
@@ -233,7 +231,6 @@ export async function activateSubscription(params: {
       // V7.1 INTEGRITY: Expire any OTHER active subscriptions for this vendor
       await expireOtherActiveSubscriptions(tx, vendorId, subscriptionRow.id);
       paymentType = pendingRow.status === "pending" ? "new" : "renewal";
-      console.log(`[subscription] Activated pending subscription ${subscriptionRow.id} for vendor ${vendorId}, expires: ${expiry.toISOString()}`);
     } else {
       // ── Orders flow: check for an existing subscription (renewal vs new) ──
       const existingSub = await tx.vendorSubscription.findFirst({
@@ -269,7 +266,6 @@ export async function activateSubscription(params: {
         });
         // V7.1 INTEGRITY: Expire any OTHER active subscriptions for this vendor
         await expireOtherActiveSubscriptions(tx, vendorId, subscriptionRow.id);
-        console.log(`[subscription] Renewed subscription ${subscriptionRow.id} for vendor ${vendorId}, new expiry: ${newExpiry.toISOString()}`);
       } else {
         // ── NEW subscription ──
         const expiry = computeExpiry(now, billingCycle);
@@ -292,7 +288,6 @@ export async function activateSubscription(params: {
         });
         // V7.1 INTEGRITY: Expire any OTHER active subscriptions for this vendor
         await expireOtherActiveSubscriptions(tx, vendorId, subscriptionRow.id);
-        console.log(`[subscription] Created new subscription ${subscriptionRow.id} for vendor ${vendorId}, expires: ${expiry.toISOString()}`);
       }
     }
 
@@ -385,7 +380,6 @@ export async function expireSubscription(subscriptionId: string, vendorId: strin
     },
   }).catch(() => {});
 
-  console.log(`[subscription] Expired subscription ${subscriptionId} for vendor ${vendorId} — downgraded to free, listing remains published`);
 }
 
 /**
@@ -400,7 +394,6 @@ export async function cancelSubscription(subscriptionId: string): Promise<void> 
       cancelledAt: new Date(),
     },
   });
-  console.log(`[subscription] Cancelled subscription ${subscriptionId}`);
 }
 
 /**
@@ -444,7 +437,6 @@ export async function extendSubscription(subscriptionId: string, days: number): 
   if (sub.planName === "business") vendorUpdate.verified = true;
   await db.vendor.update({ where: { id: sub.vendorId }, data: vendorUpdate }).catch(() => {});
 
-  console.log(`[subscription] Extended subscription ${subscriptionId} by ${days} days, new expiry: ${newExpiry.toISOString()}`);
   return toActiveInfo(updated);
 }
 
