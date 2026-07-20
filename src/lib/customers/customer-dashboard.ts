@@ -104,7 +104,7 @@ export async function getCustomerDashboard(
     // 1. Enquiries (bookings)
     const bookings = await db.booking.findMany({
       where: { email: userEmail },
-      include: { vendor: { select: { name: true, slug: true } } },
+      include: { vendor: { select: { name: true, slug: true, category: true, city: true } } },
       orderBy: { createdAt: "desc" },
       take: 20,
     }).catch(() => []);
@@ -141,24 +141,35 @@ export async function getCustomerDashboard(
     }).catch(() => []);
 
     const wishlist: CustomerWishlistItem[] = [];
+
+    // Batch-fetch wishlist entities to avoid N+1 queries
+    const vendorIds = wishlistRows.filter(i => i.entityType === "vendor").map(i => i.entityId);
+    const productIds = wishlistRows.filter(i => i.entityType === "product").map(i => i.entityId);
+
+    const [vendors, products] = await Promise.all([
+      vendorIds.length > 0
+        ? db.vendor.findMany({ where: { id: { in: vendorIds } }, select: { id: true, name: true, slug: true, avatarImage: true } }).catch(() => [] as any[])
+        : [] as any[],
+      productIds.length > 0
+        ? db.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, slug: true, image: true, price: true } }).catch(() => [] as any[])
+        : [] as any[],
+    ]);
+
+    const vendorMap = new Map<string, any>();
+    for (const v of vendors) { vendorMap.set((v as any).id, v); }
+    const productMap = new Map<string, any>();
+    for (const p of products) { productMap.set((p as any).id, p); }
+
     for (const item of wishlistRows) {
       let name = "Unknown", image: string | null = null;
       let price: number | null = null, slug: string | null = null;
-      try {
-        if (item.entityType === "vendor") {
-          const v = await db.vendor.findUnique({
-            where: { id: item.entityId },
-            select: { name: true, slug: true, avatarImage: true },
-          });
-          if (v) { name = v.name; slug = v.slug; image = v.avatarImage || null; }
-        } else if (item.entityType === "product") {
-          const p = await db.product.findUnique({
-            where: { id: item.entityId },
-            select: { name: true, slug: true, image: true, price: true },
-          });
-          if (p) { name = p.name; slug = p.slug; image = p.image || null; price = p.price; }
-        }
-      } catch {}
+      if (item.entityType === "vendor") {
+        const v: any = vendorMap.get(item.entityId);
+        if (v) { name = v.name; slug = v.slug; image = v.avatarImage || null; }
+      } else if (item.entityType === "product") {
+        const p: any = productMap.get(item.entityId);
+        if (p) { name = p.name; slug = p.slug; image = p.image || null; price = p.price; }
+      }
       wishlist.push({
         id: item.id, entityType: item.entityType, entityId: item.entityId,
         vendorId: item.vendorId, name, image, price, slug,
@@ -199,14 +210,10 @@ export async function getCustomerDashboard(
     let recommendations: CustomerRecommendation[] = [];
     const lastEnquiry = enquiries[0];
     if (lastEnquiry) {
-      let category: string | undefined, city: string | undefined;
-      try {
-        const v = await db.vendor.findUnique({
-          where: { id: lastEnquiry.vendorId },
-          select: { category: true, city: true },
-        });
-        category = v?.category; city = v?.city;
-      } catch {}
+      // Use vendor data already fetched in step 1 (bookings include vendor)
+      const lastBooking = (bookings as any[]).find((b) => b.id === lastEnquiry.id);
+      const category = (lastBooking as any)?.vendor?.category;
+      const city = (lastBooking as any)?.vendor?.city;
       if (category) {
         const matches = await findBestVendors({ category, city }, 5);
         recommendations = matches.map((m) => ({
