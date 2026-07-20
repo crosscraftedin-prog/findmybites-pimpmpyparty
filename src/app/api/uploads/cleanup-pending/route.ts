@@ -41,11 +41,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await cleanupPendingUploads();
-    console.log(
-      `[uploads/cleanup-pending] scanned=${result.scanned} deleted=${result.deleted} ` +
-        `keptReferenced=${result.keptReferenced} keptRecent=${result.keptRecent} ` +
-        `skipped=${result.skipped} errors=${result.errors.length}`
-    );
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("[uploads/cleanup-pending] fatal:", error);

@@ -40,11 +40,6 @@ export async function GET(req: NextRequest) {
       expiry_day: events.filter(e => e.reminderType === "expiry_day"),
     };
 
-    console.log(
-      `[reminders] Generated ${events.length} reminder events: ` +
-      `${grouped.seven_days.length} (7d), ${grouped.three_days.length} (3d), ` +
-      `${grouped.one_day.length} (1d), ${grouped.expiry_day.length} (expiry day)`
-    );
 
     // TODO (future): send emails via Resend/SendGrid
     // TODO (future): send WhatsApp messages via WhatsApp Business API

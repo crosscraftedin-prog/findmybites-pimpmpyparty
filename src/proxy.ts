@@ -1,15 +1,51 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureCsrfCookie, validateCsrf } from "@/lib/security/csrf";
+import { checkRateLimit, getClientIP, RATE_LIMITS } from "@/lib/security/rate-limiter";
 
 /**
  * Proxy (formerly middleware) that:
- * 1. Refreshes the Supabase auth session on every request.
- * 2. Enforces CSRF protection on mutation requests.
- * 3. Sets CSRF cookie on GET requests if not present.
+ * 1. Enforces API rate limiting on all /api/ routes.
+ * 2. Refreshes the Supabase auth session on every request.
+ * 3. Enforces CSRF protection on mutation requests.
+ * 4. Sets CSRF cookie on GET requests if not present.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // ── Rate limiting for API routes ──
+  if (pathname.startsWith("/api/")) {
+    const ip = getClientIP(request);
+    const method = request.method;
+
+    // Apply different limits based on route type
+    let limit;
+    if (pathname.startsWith("/api/ai/") || pathname.startsWith("/api/vendor/ai/") || pathname.startsWith("/api/vendor/marketing/ai/") || pathname.startsWith("/api/josh/")) {
+      limit = RATE_LIMITS.ai;
+    } else if (pathname.startsWith("/api/upload")) {
+      limit = RATE_LIMITS.upload;
+    } else if (pathname.startsWith("/api/bookings/smart") || pathname.startsWith("/api/leads/")) {
+      limit = RATE_LIMITS.publicWrite;
+    } else if (method === "GET") {
+      limit = RATE_LIMITS.publicRead;
+    } else {
+      limit = RATE_LIMITS.publicWrite;
+    }
+
+    const result = checkRateLimit(`${ip}:${pathname}`, limit.windowMs, limit.max);
+    if (!result.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil(result.retryAfterMs / 1000)),
+            "X-RateLimit-Remaining": "0",
+          },
+        }
+      );
+    }
+  }
 
   // Skip middleware entirely for static assets and public API endpoints
   // that don't need auth/session refresh — this saves ~200-500ms per request
