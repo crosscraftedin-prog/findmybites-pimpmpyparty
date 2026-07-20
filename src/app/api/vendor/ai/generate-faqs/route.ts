@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callZAIChat } from "@/lib/zai-server";
 import { sanitizePrompt } from "@/lib/ai/security";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
  * POST /api/vendor/ai/generate-faqs
@@ -16,6 +17,23 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
+  // V27: Require authentication — this route incurs AI costs
+  const supabase = await createSupabaseServerClient();
+  let userId: string | null = null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) userId = user.id;
+  } catch {}
+  if (!userId) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) userId = session.user.id;
+    } catch {}
+  }
+  if (!userId) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { productName, productInfo } = body as {
