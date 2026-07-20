@@ -14,7 +14,10 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ── Rate limiting for API routes ──
-  if (pathname.startsWith("/api/")) {
+  // Skip rate limiting for webhooks (Razorpay sends bursts) and auth callbacks
+  if (pathname.startsWith("/api/") &&
+      !pathname.startsWith("/api/webhooks/") &&
+      !pathname.startsWith("/api/auth/")) {
     const ip = getClientIP(request);
     const method = request.method;
 
