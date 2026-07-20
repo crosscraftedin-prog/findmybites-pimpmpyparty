@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { useScrollToHash } from "@/hooks/use-scroll-to-hash";
 import { RecentlyViewedSection, CompareBar } from "@/components/marketplace/recently-viewed-compare";
-import { VendorComparison } from "@/components/marketplace/vendor-comparison";
 import { SiteHeader } from "@/components/marketplace/site-header";
 import { SiteFooter } from "@/components/marketplace/site-footer";
 import { LocationBanner } from "@/components/marketplace/location-banner";
@@ -15,7 +15,6 @@ import { FeaturedSection } from "@/components/marketplace/featured-section";
 import { TrendingProductsSection } from "@/components/marketplace/trending-products-section";
 import { PopularCitiesSection } from "@/components/marketplace/popular-cities-section";
 import { RecentVendorsSection } from "@/components/marketplace/recent-vendors-section";
-import { VerifiedVendorsSection } from "@/components/marketplace/verified-vendors-section";
 import { ReviewsCarousel } from "@/components/marketplace/reviews-carousel";
 import { EventTypeSection } from "@/components/marketplace/event-type-section";
 import { InspirationGallery } from "@/components/marketplace/inspiration-gallery";
@@ -23,10 +22,16 @@ import { BrowseSection } from "@/components/marketplace/browse-section";
 import { HowItWorks } from "@/components/marketplace/how-it-works";
 import { AnimatedCounters } from "@/components/marketplace/animated-counters";
 import { VendorCTA } from "@/components/marketplace/vendor-cta";
-import { VendorModal } from "@/components/marketplace/vendor-modal";
-import { ListVendorDialog } from "@/components/marketplace/list-vendor-dialog";
-import { SignInDialog } from "@/components/auth/sign-in-dialog";
 import { PendingVendorBanner } from "@/components/marketplace/pending-vendor-banner";
+
+// Lazy-load heavy modals that are NOT needed on initial page render.
+// These are only opened when the user takes an action (click vendor card,
+// click "List your business", click "Sign In", select 2+ vendors to compare).
+// This reduces the initial JS bundle by ~1,680+ lines of component code.
+const VendorModal = dynamic(() => import("@/components/marketplace/vendor-modal").then(m => ({ default: m.VendorModal })), { ssr: false });
+const ListVendorDialog = dynamic(() => import("@/components/marketplace/list-vendor-dialog").then(m => ({ default: m.ListVendorDialog })), { ssr: false });
+const SignInDialog = dynamic(() => import("@/components/auth/sign-in-dialog").then(m => ({ default: m.SignInDialog })), { ssr: false });
+const VendorComparison = dynamic(() => import("@/components/marketplace/vendor-comparison").then(m => ({ default: m.VendorComparison })), { ssr: false });
 
 /**
  * Homepage — FindMyBites × PimpMyParty
