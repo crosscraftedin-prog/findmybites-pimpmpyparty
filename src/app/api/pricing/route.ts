@@ -13,7 +13,10 @@ export async function GET() {
       where: { active: true },
       orderBy: { countryCode: "asc" },
     });
-    return NextResponse.json(pricing);
+    const res = NextResponse.json(pricing);
+    // Pricing changes rarely — cache for 10 minutes at CDN
+    res.headers.set("Cache-Control", "public, s-maxage=600, stale-while-revalidate=3600");
+    return res;
   } catch {
     // DB unavailable — return empty array (modal falls back to hardcoded)
     return NextResponse.json([]);

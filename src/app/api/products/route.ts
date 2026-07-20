@@ -73,7 +73,10 @@ export async function GET(req: NextRequest) {
       take: limit,
     });
 
-    return NextResponse.json({ products: products.map(transformProduct) });
+    const res = NextResponse.json({ products: products.map(transformProduct) });
+    // CDN cache public product listings for 60s (stale-while-revalidate 300s)
+    res.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+    return res;
   } catch (err) {
     console.error("[api/products] GET failed:", err);
     return NextResponse.json({ products: [] });

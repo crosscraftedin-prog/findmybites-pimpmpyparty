@@ -1,6 +1,3 @@
-"use client";
-
-import * as React from "react";
 import {
   BadgeCheck, MessageSquare, Globe2, ShieldCheck, Star, Users,
 } from "lucide-react";
