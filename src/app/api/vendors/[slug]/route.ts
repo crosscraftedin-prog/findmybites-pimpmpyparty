@@ -137,7 +137,10 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(transformVendor(vendor));
+    const res = NextResponse.json(transformVendor(vendor));
+    // Cache vendor profile for 60s at CDN (vendor data changes rarely)
+    res.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+    return res;
   } catch (err) {
     console.error("[api/vendors/[slug]] GET failed:", err);
     return NextResponse.json(

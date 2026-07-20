@@ -76,7 +76,9 @@ export async function GET(req: NextRequest) {
         };
       });
 
-    return NextResponse.json({ products: trending });
+    const res = NextResponse.json({ products: trending });
+    res.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+    return res;
   } catch (err) {
     console.error("[api/products/trending] GET failed:", err);
     return NextResponse.json({ products: [] });

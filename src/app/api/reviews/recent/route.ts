@@ -59,7 +59,9 @@ export async function GET(req: NextRequest) {
         },
       }));
 
-    return NextResponse.json({ reviews: result });
+    const res = NextResponse.json({ reviews: result });
+    res.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+    return res;
   } catch (err) {
     console.error("[api/reviews/recent] GET failed:", err);
     return NextResponse.json({ reviews: [] });

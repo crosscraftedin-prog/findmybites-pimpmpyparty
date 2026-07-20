@@ -43,7 +43,10 @@ export async function GET(req: NextRequest) {
       })),
     }));
 
-    return NextResponse.json(filters);
+    const res = NextResponse.json(filters);
+    // Filter groups change rarely — cache for 10 minutes at CDN
+    res.headers.set("Cache-Control", "public, s-maxage=600, stale-while-revalidate=3600");
+    return res;
   } catch {
     return NextResponse.json([]);
   }
